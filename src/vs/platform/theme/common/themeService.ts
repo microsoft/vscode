@@ -137,7 +137,7 @@ export interface IThemingParticipant {
 }
 
 export interface IThemeService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getColorTheme(): IColorTheme;
 

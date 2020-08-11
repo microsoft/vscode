@@ -248,15 +248,15 @@ export class BulkFileOperations {
 		for (let file of this.fileOperations) {
 			if (file.type !== BulkFileOperationType.TextEdit) {
 				let checked = true;
-				file.originalEdits.forEach(edit => {
+				for (const edit of file.originalEdits.values()) {
 					if (WorkspaceFileEdit.is(edit)) {
 						checked = checked && this.checked.isChecked(edit);
 					}
-				});
+				}
 				if (!checked) {
-					file.originalEdits.forEach(edit => {
+					for (const edit of file.originalEdits.values()) {
 						this.checked.updateChecked(edit, checked);
-					});
+					}
 				}
 			}
 		}
@@ -305,8 +305,7 @@ export class BulkFileOperations {
 				const result: IIdentifiedSingleEditOperation[] = [];
 				let ignoreAll = false;
 
-				file.originalEdits.forEach(edit => {
-
+				for (const edit of file.originalEdits.values()) {
 					if (WorkspaceTextEdit.is(edit)) {
 						if (this.checked.isChecked(edit)) {
 							result.push(EditOperation.replaceMove(Range.lift(edit.edit.range), edit.edit.text));
@@ -316,7 +315,7 @@ export class BulkFileOperations {
 						// UNCHECKED WorkspaceFileEdit disables all text edits
 						ignoreAll = true;
 					}
-				});
+				}
 
 				if (ignoreAll) {
 					return [];
@@ -332,16 +331,11 @@ export class BulkFileOperations {
 	}
 
 	getUriOfEdit(edit: WorkspaceFileEdit | WorkspaceTextEdit): URI {
-
 		for (let file of this.fileOperations) {
-			let found = false;
-			file.originalEdits.forEach(value => {
-				if (!found && value === edit) {
-					found = true;
+			for (const value of file.originalEdits.values()) {
+				if (value === edit) {
+					return file.uri;
 				}
-			});
-			if (found) {
-				return file.uri;
 			}
 		}
 		throw new Error('invalid edit');

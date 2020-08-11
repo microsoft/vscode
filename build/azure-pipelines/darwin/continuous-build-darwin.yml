@@ -30,10 +30,6 @@ steps:
   displayName: Download Electron
 
 - script: |
-    yarn gulp hygiene
-  displayName: Run Hygiene Checks
-
-- script: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
 
@@ -54,7 +50,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 
 - script: |
-    yarn test-browser --browser chromium --browser webkit --browser firefox
+    yarn test-browser --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
   displayName: Run Unit Tests (Browser)
 
 - script: |

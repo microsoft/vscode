@@ -14,7 +14,7 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -99,11 +99,11 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IMenuService, new TestMenuService());
 
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
-			private _localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', authority: 'vscode-local' };
+			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
 				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IConfigurationService), instantiationService.get(IProductService), instantiationService.get(ILogService), instantiationService.get(ILabelService));
 			}
-			get localExtensionManagementServer(): IExtensionManagementServer { return this._localExtensionManagementServer; }
+			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
 		}());
 
@@ -126,6 +126,9 @@ suite('ExtensionsListView Tests', () => {
 				return Promise.resolve([
 					{ extensionId: configBasedRecommendationA.identifier.id }
 				]);
+			},
+			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+				return Promise.resolve([]);
 			},
 			getFileBasedRecommendations() {
 				return [

@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { InstallWorkspaceRecommendedExtensionsAction, ShowRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
@@ -120,7 +120,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 					label: localize('installAll', "Install All"),
 					run: () => {
 						this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
-						const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"), recommendations.map(({ extensionId }) => extensionId));
+						const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, recommendations.map(({ extensionId }) => extensionId));
 						installAllAction.run();
 						installAllAction.dispose();
 						c(undefined);

@@ -80,17 +80,17 @@ export class CursorMoveCommands {
 		);
 	}
 
-	public static moveToEndOfLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean): PartialCursorState[] {
+	public static moveToEndOfLine(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, sticky: boolean): PartialCursorState[] {
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			result[i] = this._moveToLineEnd(viewModel, cursor, inSelectionMode);
+			result[i] = this._moveToLineEnd(viewModel, cursor, inSelectionMode, sticky);
 		}
 
 		return result;
 	}
 
-	private static _moveToLineEnd(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
+	private static _moveToLineEnd(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
 		const viewStatePosition = cursor.viewState.position;
 		const viewModelMaxColumn = viewModel.getLineMaxColumn(viewStatePosition.lineNumber);
 		const isEndOfViewLine = viewStatePosition.column === viewModelMaxColumn;
@@ -100,21 +100,21 @@ export class CursorMoveCommands {
 		const isEndLineOfWrappedLine = viewModelMaxColumn - viewStatePosition.column === modelMaxColumn - modelStatePosition.column;
 
 		if (isEndOfViewLine || isEndLineOfWrappedLine) {
-			return this._moveToLineEndByModel(viewModel, cursor, inSelectionMode);
+			return this._moveToLineEndByModel(viewModel, cursor, inSelectionMode, sticky);
 		} else {
-			return this._moveToLineEndByView(viewModel, cursor, inSelectionMode);
+			return this._moveToLineEndByView(viewModel, cursor, inSelectionMode, sticky);
 		}
 	}
 
-	private static _moveToLineEndByView(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
+	private static _moveToLineEndByView(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
 		return CursorState.fromViewState(
-			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode)
+			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, sticky)
 		);
 	}
 
-	private static _moveToLineEndByModel(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean): PartialCursorState {
+	private static _moveToLineEndByModel(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, sticky: boolean): PartialCursorState {
 		return CursorState.fromModelState(
-			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode)
+			MoveOperations.moveToEndOfLine(viewModel.cursorConfig, viewModel.model, cursor.modelState, inSelectionMode, sticky)
 		);
 	}
 

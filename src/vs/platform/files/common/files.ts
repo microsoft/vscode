@@ -21,7 +21,7 @@ export const IFileService = createDecorator<IFileService>('fileService');
 
 export interface IFileService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event that is fired when a file system provider is added or removed
@@ -29,7 +29,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes it's capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -139,6 +139,12 @@ export interface IFileService {
 	 * be performed. Returns an Error if the operation cannot be done.
 	 */
 	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
+
+	/**
+	 * Find out if a file create operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canCreateFile(resource: URI, options?: ICreateFileOptions): Promise<Error | true>;
 
 	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
@@ -283,7 +289,7 @@ export interface IFileSystemProvider {
 	readFile?(resource: URI): Promise<Uint8Array>;
 	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void>;
 
-	readFileStream?(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream?(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 
 	open?(resource: URI, opts: FileOpenOptions): Promise<number>;
 	close?(fd: number): Promise<void>;
@@ -320,7 +326,7 @@ export function hasOpenReadWriteCloseCapability(provider: IFileSystemProvider): 
 }
 
 export interface IFileSystemProviderWithFileReadStreamCapability extends IFileSystemProvider {
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array>;
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array>;
 }
 
 export function hasFileReadStreamCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileReadStreamCapability {
@@ -865,3 +871,33 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
  */
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
+
+/**
+ * Helper to format a raw byte size into a human readable label.
+ */
+export class BinarySize {
+	static readonly KB = 1024;
+	static readonly MB = BinarySize.KB * BinarySize.KB;
+	static readonly GB = BinarySize.MB * BinarySize.KB;
+	static readonly TB = BinarySize.GB * BinarySize.KB;
+
+	static formatSize(size: number): string {
+		if (size < BinarySize.KB) {
+			return localize('sizeB', "{0}B", size);
+		}
+
+		if (size < BinarySize.MB) {
+			return localize('sizeKB', "{0}KB", (size / BinarySize.KB).toFixed(2));
+		}
+
+		if (size < BinarySize.GB) {
+			return localize('sizeMB', "{0}MB", (size / BinarySize.MB).toFixed(2));
+		}
+
+		if (size < BinarySize.TB) {
+			return localize('sizeGB', "{0}GB", (size / BinarySize.GB).toFixed(2));
+		}
+
+		return localize('sizeTB', "{0}TB", (size / BinarySize.TB).toFixed(2));
+	}
+}

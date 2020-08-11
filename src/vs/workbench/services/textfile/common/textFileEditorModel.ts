@@ -75,6 +75,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number | undefined;
 	private ignoreDirtyOnModelContentChange = false;
 
+	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
+	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
+
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
@@ -286,6 +289,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromBackup(backup: IResolvedBackup<IBackupMetaData>, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		const preferredEncoding = await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding);
 
 		// Load with backup
 		this.loadFromContent({
@@ -296,7 +300,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding
+			encoding: preferredEncoding.encoding
 		}, options, true /* from backup */);
 
 		// Restore orphaned flag based on state
@@ -449,15 +453,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		this._register(model.onDidChangeContent(() => this.onModelContentChanged(model)));
+		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
 	}
 
-	private onModelContentChanged(model: ITextModel): void {
+	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
 		this.logService.trace(`[text file model] onModelContentChanged() - enter`, this.resource.toString(true));
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
 		this.logService.trace(`[text file model] onModelContentChanged() - new versionId ${this.versionId}`, this.resource.toString(true));
+
+		// Remember when the user changed the model through a undo/redo operation.
+		// We need this information to throttle save participants to fix
+		// https://github.com/microsoft/vscode/issues/102542
+		if (isUndoingOrRedoing) {
+			this.lastModelContentChangeFromUndoRedo = Date.now();
+		}
 
 		// We mark check for a dirty-state change upon model content change, unless:
 		// - explicitly instructed to ignore it (e.g. from model.load())
@@ -638,7 +649,31 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save participants can also be skipped through API.
 			if (this.isResolved() && !options.skipSaveParticipants) {
 				try {
-					await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+
+					// Measure the time it took from the last undo/redo operation to this save. If this
+					// time is below `UNDO_REDO_SAVE_PARTICIPANTS_THROTTLE_THRESHOLD`, we make sure to
+					// delay the save participant for the remaining time if the reason is auto save.
+					//
+					// This fixes the following issue:
+					// - the user has configured auto save with delay of 100ms or shorter
+					// - the user has a save participant enabled that modifies the file on each save
+					// - the user types into the file and the file gets saved
+					// - the user triggers undo operation
+					// - this will undo the save participant change but trigger the save participant right after
+					// - the user has no chance to undo over the save participant
+					//
+					// Reported as: https://github.com/microsoft/vscode/issues/102542
+					if (options.reason === SaveReason.AUTO && typeof this.lastModelContentChangeFromUndoRedo === 'number') {
+						const timeFromUndoRedoToSave = Date.now() - this.lastModelContentChangeFromUndoRedo;
+						if (timeFromUndoRedoToSave < TextFileEditorModel.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
+							await timeout(TextFileEditorModel.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD - timeFromUndoRedoToSave);
+						}
+					}
+
+					// Run save participants unless save was cancelled meanwhile
+					if (!saveCancellation.token.isCancellationRequested) {
+						await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+					}
 				} catch (error) {
 					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true));
 				}
@@ -693,15 +728,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-			const textFileEdiorModel = this;
+			const textFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEdiorModel.createSnapshot(), {
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
 						overwriteEncoding: options.overwriteEncoding,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEdiorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						writeElevated: options.writeElevated
 					});
 

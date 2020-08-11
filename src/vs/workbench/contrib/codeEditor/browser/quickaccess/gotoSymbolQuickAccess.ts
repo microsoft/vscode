@@ -137,7 +137,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 		picker.busy = true;
 
-		provider.provideTableOfContents(pane, cts.token).then(entries => {
+		provider.provideTableOfContents(pane, { disposables }, cts.token).then(entries => {
 
 			picker.busy = false;
 
@@ -190,14 +190,10 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			updatePickerItems();
 			disposables.add(picker.onDidChangeValue(updatePickerItems));
 
-			let ignoreFirstActiveEvent = true;
 			disposables.add(picker.onDidChangeActive(() => {
 				const [entry] = picker.activeItems;
-				if (entry && entries[entry.index]) {
-					if (!ignoreFirstActiveEvent) {
-						entries[entry.index]?.preview();
-					}
-					ignoreFirstActiveEvent = false;
+				if (entry) {
+					entries[entry.index]?.preview();
 				}
 			}));
 
@@ -256,7 +252,8 @@ export interface ITableOfContentsEntry {
 }
 
 export interface ITableOfContentsProvider<T extends IEditorPane = IEditorPane> {
-	provideTableOfContents(editor: T, token: CancellationToken): Promise<ITableOfContentsEntry[] | undefined | null>;
+
+	provideTableOfContents(editor: T, context: { disposables: DisposableStore }, token: CancellationToken): Promise<ITableOfContentsEntry[] | undefined | null>;
 }
 
 class ProviderRegistry {

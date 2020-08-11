@@ -85,10 +85,12 @@ export interface ProcessExplorerStyles extends WindowStyles {
 export interface ProcessExplorerData extends WindowData {
 	pid: number;
 	styles: ProcessExplorerStyles;
+	platform: string;
+	applicationName: string;
 }
 
 export interface ICommonIssueService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	openReporter(data: IssueReporterData): Promise<void>;
 	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
 	getSystemStatus(): Promise<string>;

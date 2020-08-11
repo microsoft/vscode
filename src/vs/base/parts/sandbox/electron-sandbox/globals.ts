@@ -44,16 +44,6 @@ export const ipcRenderer = (window as any).vscode.ipcRenderer as {
 export const webFrame = (window as any).vscode.webFrame as {
 
 	/**
-	 * The current zoom factor.
-	 */
-	getZoomFactor(): number;
-
-	/**
-	 * The current zoom level.
-	 */
-	getZoomLevel(): number;
-
-	/**
 	 * Changes the zoom level to the specified level. The original size is 0 and each
 	 * increment above or below represents zooming 20% larger or smaller to default
 	 * limits of 300% and 50% of original size, respectively.
@@ -90,4 +80,31 @@ export const crashReporter = (window as any).vscode.crashReporter as {
 	 * of the `extra` information.
 	 */
 	start(options: CrashReporterStartOptions): void;
+};
+
+export const process = (window as any).vscode.process as {
+
+	/**
+	 * The process.platform property returns a string identifying the operating system platform
+	 * on which the Node.js process is running.
+	 */
+	platform: 'win32' | 'linux' | 'darwin';
+
+	/**
+	 * The process.env property returns an object containing the user environment. See environ(7).
+	 */
+	env: { [key: string]: string | undefined };
+
+	/**
+	 * A listener on the process. Only a small subset of listener types are allowed.
+	 */
+	on: (type: string, callback: Function) => void;
+};
+
+export const context = (window as any).vscode.context as {
+
+	/**
+	 * Wether the renderer runs with `sandbox` enabled or not.
+	 */
+	sandbox: boolean;
 };

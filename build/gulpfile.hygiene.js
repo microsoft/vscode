@@ -41,8 +41,8 @@ const indentationFilter = [
 	'**',
 
 	// except specific files
-	'!ThirdPartyNotices.txt',
-	'!LICENSE.{txt,rtf}',
+	'!**/ThirdPartyNotices.txt',
+	'!**/LICENSE.{txt,rtf}',
 	'!LICENSES.chromium.html',
 	'!**/LICENSE',
 	'!src/vs/nls.js',
@@ -124,7 +124,7 @@ const copyrightFilter = [
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
-	'!scripts/code-web.js'
+	'!resources/serverless/code-web.js'
 ];
 
 const jsHygieneFilter = [

@@ -28,7 +28,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IHostService protected readonly hostService: IHostService,
@@ -218,27 +218,23 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const simpleFileDialog = this.createSimpleFileDialog();
+		const simpleFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
 
 		return simpleFileDialog.showOpenDialog(options);
 	}
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.createSimpleFileDialog();
+		const remoteFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
 
 		return remoteFileDialog.showSaveDialog(options);
 	}
 
-	protected createSimpleFileDialog(): SimpleFileDialog {
-		return this.instantiationService.createInstance(SimpleFileDialog);
-	}
-
-	protected getSchemeFilterForWindow(): string {
-		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
+	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
+		return !this.environmentService.configuration.remoteAuthority ? (!defaultUriScheme || defaultUriScheme === Schemas.file ? Schemas.file : defaultUriScheme) : REMOTE_HOST_SCHEME;
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
-		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
+		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
 	}
 
 	abstract pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
@@ -254,7 +250,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems,
+			availableFileSystems
 		};
 
 		interface IFilter { name: string; extensions: string[]; }
@@ -262,7 +258,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
-		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+		const registeredLanguageFilters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
@@ -288,14 +284,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		}
 
 		// Order of filters is
-		// - File Extension Match
-		// - All Files
+		// - All Files (we MUST do this to fix macOS issue https://github.com/microsoft/vscode/issues/102713)
+		// - File Extension Match (if any)
 		// - All Languages
 		// - No Extension
 		options.filters = coalesce([
-			matchingFilter,
 			{ name: nls.localize('allFiles', "All Files"), extensions: ['*'] },
-			...filters,
+			matchingFilter,
+			...registeredLanguageFilters,
 			{ name: nls.localize('noExt', "No Extension"), extensions: [''] }
 		]);
 

@@ -173,24 +173,21 @@
 	"Log to the console": {
 		"prefix": "log",
 		"body": [
-			"console.log($1);",
-			"$0"
+			"console.log($1);"
 		],
 		"description": "Log to the console"
 	},
 	"Log warning to console": {
 		"prefix": "warn",
 		"body": [
-			"console.warn($1);",
-			"$0"
+			"console.warn($1);"
 		],
 		"description": "Log warning to the console"
 	},
 	"Log error to console": {
 		"prefix": "error",
 		"body": [
-			"console.error($1);",
-			"$0"
+			"console.error($1);"
 		],
 		"description": "Log error to the console"
 	}

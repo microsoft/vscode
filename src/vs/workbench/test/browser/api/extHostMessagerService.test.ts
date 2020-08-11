@@ -13,7 +13,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 
 const emptyDialogService = new class implements IDialogService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	show(): never {
 		throw new Error('not implemented');
 	}
@@ -37,7 +37,7 @@ const emptyCommandService: ICommandService = {
 };
 
 const emptyNotificationService = new class implements INotificationService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	notify(...args: any[]): never {
 		throw new Error('not implemented');
 	}
@@ -62,7 +62,7 @@ const emptyNotificationService = new class implements INotificationService {
 };
 
 class EmptyNotificationService implements INotificationService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private withNotify: (notification: INotification) => void) {
 	}

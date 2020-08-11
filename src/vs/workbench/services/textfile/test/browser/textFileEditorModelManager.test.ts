@@ -15,6 +15,7 @@ import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRe
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { extUri } from 'vs/base/common/resources';
+import { timeout } from 'vs/base/common/async';
 
 suite('Files - TextFileEditorModelManager', () => {
 
@@ -226,18 +227,32 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.dispose();
 	});
 
-	test('dispose prevents dirty model from getting disposed', async function () {
+	test('canDispose with dirty model', async function () {
 		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
 
 		const resource = toResource.call(this, '/path/index_something.txt');
 
 		const model = await manager.resolve(resource, { encoding: 'utf8' });
 		model.updateTextEditorModel(createTextBufferFactory('make dirty'));
-		manager.disposeModel((model as TextFileEditorModel));
-		assert.ok(!model.isDisposed());
+
+		let canDisposePromise = manager.canDispose(model as TextFileEditorModel);
+		assert.ok(canDisposePromise instanceof Promise);
+
+		let canDispose = false;
+		(async () => {
+			canDispose = await canDisposePromise;
+		})();
+
+		assert.equal(canDispose, false);
 		model.revert({ soft: true });
-		manager.disposeModel((model as TextFileEditorModel));
-		assert.ok(model.isDisposed());
+
+		await timeout(0);
+
+		assert.equal(canDispose, true);
+
+		let canDispose2 = manager.canDispose(model as TextFileEditorModel);
+		assert.equal(canDispose2, true);
+
 		manager.dispose();
 	});
 
@@ -257,7 +272,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		model = await manager.resolve(resource, { mode: 'text' });
 		assert.equal(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
 
-		manager.disposeModel((model as TextFileEditorModel));
+		model.dispose();
 		manager.dispose();
 	});
 });

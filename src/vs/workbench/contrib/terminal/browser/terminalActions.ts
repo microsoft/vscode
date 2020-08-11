@@ -7,7 +7,6 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -37,6 +36,9 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 async function getCwdForSplit(configHelper: ITerminalConfigHelper, instance: ITerminalInstance, folders?: IWorkspaceFolder[], commandService?: ICommandService): Promise<string | URI | undefined> {
 	switch (configHelper.config.splitCwd) {
@@ -303,6 +305,8 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 	}
 }
 
+const terminalIndexRe = /^([0-9]+): /;
+
 export class SwitchTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SWITCH_TERMINAL;
@@ -310,7 +314,9 @@ export class SwitchTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
+		@ICommandService private readonly _commands: ICommandService,
 	) {
 		super(id, label, 'terminal-action switch-terminal');
 	}
@@ -327,9 +333,20 @@ export class SwitchTerminalAction extends Action {
 			this._terminalService.refreshActiveTab();
 			return this._terminalService.selectDefaultShell();
 		}
-		const selectedTabIndex = parseInt(item.split(':')[0], 10) - 1;
-		this._terminalService.setActiveTabByIndex(selectedTabIndex);
-		return this._terminalService.showPanel(true);
+
+		const indexMatches = terminalIndexRe.exec(item);
+		if (indexMatches) {
+			this._terminalService.setActiveTabByIndex(Number(indexMatches[1]) - 1);
+			return this._terminalService.showPanel(true);
+		}
+
+		const customType = this._contributions.terminalTypes.find(t => t.title === item);
+		if (customType) {
+			return this._commands.executeCommand(customType.command);
+		}
+
+		console.warn(`Unmatched terminal item: "${item}"`);
+		return Promise.resolve();
 	}
 }
 
@@ -341,9 +358,10 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IContextViewService contextViewService: IContextViewService
+		@ITerminalContributionService private readonly _contributions: ITerminalContributionService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _contributions), _terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 
 		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
 		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));
@@ -361,13 +379,18 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		this.setOptions(getTerminalSelectOpenItems(this._terminalService), this._terminalService.activeTabIndex);
+		this.setOptions(getTerminalSelectOpenItems(this._terminalService, this._contributions), this._terminalService.activeTabIndex);
 	}
 }
 
-function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectOptionItem[] {
+function getTerminalSelectOpenItems(terminalService: ITerminalService, contributions: ITerminalContributionService): ISelectOptionItem[] {
 	const items = terminalService.getTabLabels().map(label => <ISelectOptionItem>{ text: label });
 	items.push({ text: SwitchTerminalActionViewItem.SEPARATOR, isDisabled: true });
+
+	for (const contributed of contributions.terminalTypes) {
+		items.push({ text: contributed.title });
+	}
+
 	items.push({ text: SelectDefaultShellWindowsTerminalAction.LABEL });
 	return items;
 }
@@ -389,6 +412,19 @@ export class ClearTerminalAction extends Action {
 			t.clear();
 			t.focus();
 		});
+	}
+}
+
+export class TerminalLaunchHelpAction extends Action {
+
+	constructor(
+		@IOpenerService private readonly _openerService: IOpenerService
+	) {
+		super('workbench.action.terminal.launchHelp', localize('terminalLaunchHelp', "Open Help"));
+	}
+
+	async run(): Promise<void> {
+		this._openerService.open('https://aka.ms/vscode-troubleshoot-terminal-launch');
 	}
 }
 

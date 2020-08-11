@@ -51,7 +51,8 @@
 
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after,
-.monaco-workbench .activitybar > .content.dragged-over > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
+.monaco-workbench .activitybar > .content.dragged-over-head > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .activitybar > .content.dragged-over-tail > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
 	background-color: var(--insert-border-color);
 }
 

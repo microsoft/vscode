@@ -117,7 +117,7 @@ export const IWorkingCopyService = createDecorator<IWorkingCopyService>('working
 
 export interface IWorkingCopyService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 
 	//#region Events
@@ -163,7 +163,7 @@ export interface IWorkingCopyService {
 
 export class WorkingCopyService extends Disposable implements IWorkingCopyService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 

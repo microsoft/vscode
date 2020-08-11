@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import * as os from 'os';
+import product from 'vs/platform/product/common/product';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
@@ -20,6 +22,7 @@ import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -28,7 +31,7 @@ export const IIssueMainService = createDecorator<IIssueMainService>('issueMainSe
 export interface IIssueMainService extends ICommonIssueService { }
 
 export class IssueMainService implements ICommonIssueService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	_issueWindow: BrowserWindow | null = null;
 	_issueParentWindow: BrowserWindow | null = null;
 	_processExplorerWindow: BrowserWindow | null = null;
@@ -195,8 +198,22 @@ export class IssueMainService implements ICommonIssueService {
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
-							enableWebSQL: false
+							enableWebSQL: false,
+							enableRemoteModule: false,
+							nativeWindowOpen: true,
+							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+							...this.environmentService.sandbox ?
+
+								// Sandbox
+								{
+									sandbox: true,
+									contextIsolation: true
+								} :
+
+								// No Sandbox
+								{
+									nodeIntegration: true
+								}
 						}
 					});
 
@@ -246,8 +263,22 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
-							enableWebSQL: false
+							enableWebSQL: false,
+							enableRemoteModule: false,
+							nativeWindowOpen: true,
+							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
+							...this.environmentService.sandbox ?
+
+								// Sandbox
+								{
+									sandbox: true,
+									contextIsolation: true
+								} :
+
+								// No Sandbox
+								{
+									nodeIntegration: true
+								}
 						}
 					});
 
@@ -263,7 +294,7 @@ export class IssueMainService implements ICommonIssueService {
 					};
 
 					this._processExplorerWindow.loadURL(
-						toLauchUrl('vs/code/electron-browser/processExplorer/processExplorer.html', windowConfiguration));
+						toLauchUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
@@ -388,10 +419,23 @@ export class IssueMainService implements ICommonIssueService {
 			machineId: this.machineId,
 			userEnv: this.userEnv,
 			data,
-			features
+			features,
+			disableExtensions: this.environmentService.disableExtensions,
+			os: {
+				type: os.type(),
+				arch: os.arch(),
+				release: os.release(),
+			},
+			product: {
+				nameShort: product.nameShort,
+				version: product.version,
+				commit: product.commit,
+				date: product.date,
+				reportIssueUrl: product.reportIssueUrl
+			}
 		};
 
-		return toLauchUrl('vs/code/electron-browser/issue/issueReporter.html', windowConfiguration);
+		return toLauchUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
 	}
 }
 

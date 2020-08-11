@@ -552,7 +552,7 @@ export interface ITextModel {
 	mightContainRTL(): boolean;
 
 	/**
-	 * If true, the text model might contain LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL).
+	 * If true, the text model might contain LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * If false, the text model definitely does not contain these.
 	 * @internal
 	 */

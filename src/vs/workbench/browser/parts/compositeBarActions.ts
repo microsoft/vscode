@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { Action, Separator } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
-import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -18,9 +17,10 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { Codicon } from 'vs/base/common/codicons';
+import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -522,6 +522,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
 			onDragOver: e => {
 				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', isValidMove);
 				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
 

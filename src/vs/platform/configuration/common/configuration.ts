@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -88,7 +88,7 @@ export interface IConfigurationValue<T> {
 }
 
 export interface IConfigurationService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
@@ -323,14 +323,16 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 
 export function merge(base: any, add: any, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
-		if (key in base) {
-			if (types.isObject(base[key]) && types.isObject(add[key])) {
-				merge(base[key], add[key], overwrite);
-			} else if (overwrite) {
+		if (key !== '__proto__') {
+			if (key in base) {
+				if (types.isObject(base[key]) && types.isObject(add[key])) {
+					merge(base[key], add[key], overwrite);
+				} else if (overwrite) {
+					base[key] = add[key];
+				}
+			} else {
 				base[key] = add[key];
 			}
-		} else {
-			base[key] = add[key];
 		}
 	});
 }
@@ -350,10 +352,6 @@ export function getDefaultValues(): any {
 	}
 
 	return valueTreeRoot;
-}
-
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
 }
 
 export function keyFromOverrideIdentifier(overrideIdentifier: string): string {

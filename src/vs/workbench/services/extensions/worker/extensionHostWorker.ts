@@ -10,7 +10,10 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import 'vs/workbench/services/extensions/worker/extHost.services';
+import * as path from 'vs/base/common/path';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/worker/extHost.worker.services';
 
 //#region --- Define, capture, and override some globals
 
@@ -33,10 +36,21 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
+if (location.protocol === 'data:') {
+	// make sure new Worker(...) always uses data:
+	const _Worker = Worker;
+	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
+		const js = `importScripts('${stringUrl}');`;
+		options = options || {};
+		options.name = options.name || path.basename(stringUrl.toString());
+		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
+	};
+}
+
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}

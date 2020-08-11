@@ -60,7 +60,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -271,7 +271,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			folder = workspace.folders[0];
 		} else {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			if (resource) {
 				folder = this.contextService.getWorkspaceFolder(resource);
 			}

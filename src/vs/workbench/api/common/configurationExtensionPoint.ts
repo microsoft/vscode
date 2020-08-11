@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, resourceLanguageSettingsSchemaId, validateProperty, ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { isObject } from 'vs/base/common/types';
@@ -93,30 +93,23 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 		description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
 		type: 'object',
 		patternProperties: {
-			'\\[.*\\]$': {
+			'^\\[.*\\]$': {
 				type: 'object',
 				default: {},
 				$ref: resourceLanguageSettingsSchemaId,
 			}
-		}
+		},
+		errorMessage: nls.localize('config.property.defaultConfiguration.languageExpected', "Language selector expected (e.g. [\"java\"])"),
+		additionalProperties: false
 	}
 });
 defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 	if (removed.length) {
-		const removedDefaultConfigurations: IDefaultConfigurationExtension[] = removed.map(extension => {
-			const id = extension.description.identifier;
-			const name = extension.description.name;
-			const defaults = objects.deepClone(extension.value);
-			return <IDefaultConfigurationExtension>{
-				id, name, defaults
-			};
-		});
+		const removedDefaultConfigurations = removed.map<IStringDictionary<any>>(extension => objects.deepClone(extension.value));
 		configurationRegistry.deregisterDefaultConfigurations(removedDefaultConfigurations);
 	}
 	if (added.length) {
-		const addedDefaultConfigurations = added.map(extension => {
-			const id = extension.description.identifier;
-			const name = extension.description.name;
+		const addedDefaultConfigurations = added.map<IStringDictionary<any>>(extension => {
 			const defaults: IStringDictionary<any> = objects.deepClone(extension.value);
 			for (const key of Object.keys(defaults)) {
 				if (!OVERRIDE_PROPERTY_PATTERN.test(key) || typeof defaults[key] !== 'object') {
@@ -124,9 +117,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 					delete defaults[key];
 				}
 			}
-			return <IDefaultConfigurationExtension>{
-				id, name, defaults
-			};
+			return defaults;
 		});
 		configurationRegistry.registerDefaultConfigurations(addedDefaultConfigurations);
 	}

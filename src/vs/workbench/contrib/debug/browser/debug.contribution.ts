@@ -169,7 +169,8 @@ registerDebugCommandPaletteItem(DISCONNECT_ID, DISCONNECT_LABEL, CONTEXT_IN_DEBU
 registerDebugCommandPaletteItem(STOP_ID, STOP_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_FOCUSED_SESSION_IS_ATTACH.toNegated());
 registerDebugCommandPaletteItem(CONTINUE_ID, CONTINUE_LABEL, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'));
 registerDebugCommandPaletteItem(FOCUS_REPL_ID, nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusConsole' }, 'Focus on Debug Console View'));
-registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('jumpToCursor', "Jump to Cursor"), ContextKeyExpr.and(CONTEXT_JUMP_TO_CURSOR_SUPPORTED));
+registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('jumpToCursor', "Jump to Cursor"), CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
+registerDebugCommandPaletteItem(JUMP_TO_CURSOR_ID, nls.localize('SetNextStatement', "Set Next Statement"), CONTEXT_JUMP_TO_CURSOR_SUPPORTED);
 registerDebugCommandPaletteItem(RunToCursorAction.ID, RunToCursorAction.LABEL, ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped')));
 registerDebugCommandPaletteItem(TOGGLE_INLINE_BREAKPOINT_ID, nls.localize('inlineBreakpoint', "Inline Breakpoint"));
 
@@ -184,7 +185,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 });
 
 // register service
-registerSingleton(IDebugService, service.DebugService);
+registerSingleton(IDebugService, service.DebugService, true);
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -228,7 +229,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.openDebug': {
 			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
-			default: 'openOnSessionStart',
+			default: 'openOnFirstSessionStart',
 			description: nls.localize('openDebug', "Controls when the debug view should open.")
 		},
 		'debug.showSubSessionsInToolBar': {
@@ -645,10 +646,10 @@ registerThemingParticipant((theme, collector) => {
 		/* State "badge" displaying the active session's current state.
 		 * Only visible when there are more active debug sessions/threads running.
 		 */
-		.debug-pane .debug-call-stack .thread > .state > .label,
-		.debug-pane .debug-call-stack .session > .state > .label,
-		.debug-pane .monaco-list-row.selected .thread > .state > .label,
-		.debug-pane .monaco-list-row.selected .session > .state > .label {
+		.debug-pane .debug-call-stack .thread > .state.label,
+		.debug-pane .debug-call-stack .session > .state.label,
+		.debug-pane .monaco-list-row.selected .thread > .state.label,
+		.debug-pane .monaco-list-row.selected .session > .state.label {
 			background-color: ${debugViewStateLabelBackgroundColor};
 			color: ${debugViewStateLabelForegroundColor};
 		}
