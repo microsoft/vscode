@@ -34,14 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-
-export interface Ctor<T> {
-	new(): T;
-}
-
-export function mock<T>(): Ctor<T> {
-	return function () { } as any;
-}
+import { mock } from 'vs/base/test/common/mock';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {

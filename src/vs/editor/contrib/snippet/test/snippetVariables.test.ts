@@ -11,7 +11,7 @@ import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/sni
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
+import { mock } from 'vs/base/test/common/mock';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Snippet Variables Resolver', function () {
