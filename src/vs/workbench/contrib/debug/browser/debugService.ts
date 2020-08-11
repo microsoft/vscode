@@ -121,6 +121,7 @@ export class DebugService implements IDebugService {
 
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
+		this.commandService = this.instantiationService.createInstance(CommandService);
 
 		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 		this.toDispose.push(this.lifecycleService.onShutdown(this.dispose, this));
@@ -442,11 +443,11 @@ export class DebugService implements IDebugService {
 						nls.localize('installAdditionalDebuggers', "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
-						async () => {
+						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers') /*{
 							const viewlet = (await this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
 							viewlet.search('tag:debuggers @sort:installs');
 							return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true);
-						}
+						}*/
 						//() => this.commandService.executeCommand('debug.installAdditionalDebuggers')
 					));
 
