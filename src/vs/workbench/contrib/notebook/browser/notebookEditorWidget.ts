@@ -1263,7 +1263,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const newIdx = index + 2; // This is the adjustment for the index before the cell has been "removed" from its original index
-		return this._moveCellToIndex(index, newIdx);
+		return this._moveCellToIndex(index, 1, newIdx);
 	}
 
 	async moveCellUp(cell: ICellViewModel): Promise<ICellViewModel | null> {
@@ -1277,7 +1277,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const newIdx = index - 1;
-		return this._moveCellToIndex(index, newIdx);
+		return this._moveCellToIndex(index, 1, newIdx);
 	}
 
 	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<ICellViewModel | null> {
@@ -1293,34 +1293,33 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const relativeToIndex = this._notebookViewModel!.getCellIndex(relativeToCell);
 
 		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
-		return this._moveCellToIndex(originalIdx, newIdx);
+		return this._moveCellToIndex(originalIdx, 1, newIdx);
 	}
 
-	async moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null> {
+	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
 		if (!this._notebookViewModel!.metadata.editable) {
 			return null;
 		}
 
-		const originalIdx = this._notebookViewModel!.getCellIndex(cell);
-		return this._moveCellToIndex(originalIdx, index);
+		return this._moveCellToIndex(index, length, toIdx);
 	}
 
 	/**
 	 * @param index The current index of the cell
-	 * @param newIdx The desired index, in an index scheme for the state of the tree before the current cell has been "removed".
+	 * @param desiredIndex The desired index, in an index scheme for the state of the tree before the current cell has been "removed".
 	 * @example to move the cell from index 0 down one spot, call with (0, 2)
 	 */
-	private async _moveCellToIndex(index: number, newIdx: number): Promise<ICellViewModel | null> {
-		if (index < newIdx) {
+	private async _moveCellToIndex(index: number, length: number, desiredIndex: number): Promise<ICellViewModel | null> {
+		if (index < desiredIndex) {
 			// The cell is moving "down", it will free up one index spot and consume a new one
-			newIdx--;
+			desiredIndex -= length;
 		}
 
-		if (index === newIdx) {
+		if (index === desiredIndex) {
 			return null;
 		}
 
-		if (!this._notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
+		if (!this._notebookViewModel!.moveCellToIdx(index, length, desiredIndex, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
@@ -1330,7 +1329,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				r(null);
 			}
 
-			const viewCell = this._notebookViewModel!.viewCells[newIdx];
+			const viewCell = this._notebookViewModel!.viewCells[desiredIndex];
 			this._list?.revealElementInView(viewCell);
 			r(viewCell);
 		});

@@ -1527,7 +1527,16 @@ registerAction2(class extends Action2 {
 		const activeEditorContext = this.getActiveEditorContext(accessor);
 
 		if (activeEditorContext) {
-			activeEditorContext.notebookEditor.viewModel!.inspectLayout();
+			const viewModel = activeEditorContext.notebookEditor.viewModel!;
+			console.log('--- notebook ---');
+			console.log(viewModel.layoutInfo);
+			console.log('--- cells ---');
+			for (let i = 0; i < viewModel.length; i++) {
+				const cell = viewModel.viewCells[i] as CellViewModel;
+				console.log(`--- cell: ${cell.handle} ---`);
+				console.log(cell.layoutInfo);
+			}
+
 		}
 	}
 });
