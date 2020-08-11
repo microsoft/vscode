@@ -762,15 +762,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export namespace debug {
-
-		/**
-		 * Stop the given debug session or stop all debug sessions if session is omitted.
-		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
-		 */
-		export function stopDebugging(session?: DebugSession): Thenable<void>;
-	}
-
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
