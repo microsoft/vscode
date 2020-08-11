@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ISCMViewService, ISCMRepository, ISCMService, ISCMViewVisibleRepositoryChangeEvent, ISCMMenus } from 'vs/workbench/contrib/scm/common/scm';
 import { Iterable } from 'vs/base/common/iterator';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,19 +48,26 @@ export class SCMViewService implements ISCMViewService {
 
 		this._visibleRepositories = visibleRepositories;
 		this._visibleRepositoriesSet = set;
-		this._onDidChangeVisibleRepositories.fire({ added, removed });
+		this._onDidSetVisibleRepositories.fire({ added, removed });
 	}
 
-	get repositories(): ISCMRepository[] { return this.scmService.repositories; }
+	private _onDidChangeRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
+	private _onDidSetVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
+	readonly onDidChangeVisibleRepositories = Event.any(
+		this._onDidSetVisibleRepositories.event,
+		Event.debounce(
+			this._onDidChangeRepositories.event,
+			(last, e) => {
+				if (!last) {
+					return e;
+				}
 
-	private _onDidAddRepository = new Emitter<ISCMRepository>();
-	readonly onDidAddRepository = this._onDidAddRepository.event;
-
-	private _onDidRemoveRepository = new Emitter<ISCMRepository>();
-	readonly onDidRemoveRepository = this._onDidRemoveRepository.event;
-
-	private _onDidChangeVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
-	readonly onDidChangeVisibleRepositories = this._onDidChangeVisibleRepositories.event;
+				return {
+					added: Iterable.concat(last.added, e.added),
+					removed: Iterable.concat(last.removed, e.removed),
+				};
+			}, 0)
+	);
 
 	constructor(
 		@ISCMService private readonly scmService: ISCMService,
@@ -68,35 +75,45 @@ export class SCMViewService implements ISCMViewService {
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
-		scmService.onDidAddRepository(this.onDidAddServiceRepository, this, this.disposables);
-		scmService.onDidRemoveRepository(this.onDidRemoveServiceRepository, this, this.disposables);
+		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
 		for (const repository of scmService.repositories) {
-			this.onDidAddServiceRepository(repository);
+			this.onDidAddRepository(repository);
 		}
 	}
 
-	private onDidAddServiceRepository(repository: ISCMRepository): void {
+	private onDidAddRepository(repository: ISCMRepository): void {
 		this._visibleRepositories.push(repository);
 		this._visibleRepositoriesSet.add(repository);
 
-		this._onDidAddRepository.fire(repository);
-		this._onDidChangeVisibleRepositories.fire({ added: [repository], removed: Iterable.empty() });
+		this._onDidChangeRepositories.fire({ added: [repository], removed: Iterable.empty() });
 	}
 
-	private onDidRemoveServiceRepository(repository: ISCMRepository): void {
+	private onDidRemoveRepository(repository: ISCMRepository): void {
 		const index = this._visibleRepositories.indexOf(repository);
 
 		if (index > -1) {
+			let added: Iterable<ISCMRepository> = Iterable.empty();
+
 			this._visibleRepositories.splice(index, 1);
 			this._visibleRepositoriesSet.delete(repository);
-			this._onDidRemoveRepository.fire(repository);
-			this._onDidChangeVisibleRepositories.fire({ added: Iterable.empty(), removed: [repository] });
+
+			if (this._visibleRepositories.length === 0 && this.scmService.repositories.length > 0) {
+				const first = this.scmService.repositories[0];
+
+				this._visibleRepositories.push(first);
+				this._visibleRepositoriesSet.add(first);
+				added = [first];
+			}
+
+			this._onDidChangeRepositories.fire({ added, removed: [repository] });
 		}
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
-		this._onDidChangeVisibleRepositories.dispose();
+		this._onDidChangeRepositories.dispose();
+		this._onDidSetVisibleRepositories.dispose();
 	}
 }

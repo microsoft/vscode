@@ -147,10 +147,6 @@ export interface ISCMViewVisibleRepositoryChangeEvent {
 export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
-	readonly onDidAddRepository: Event<ISCMRepository>;
-	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly repositories: ISCMRepository[];
-
 	readonly menus: ISCMMenus;
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;

@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMRepository, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -41,6 +41,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		@ISCMService protected scmService: ISCMService,
 		@ISCMViewService protected scmViewService: ISCMViewService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -86,10 +87,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(this.updateListSelection, this));
 
-		this._register(this.scmViewService.onDidAddRepository(this.onDidAddRepository, this));
-		this._register(this.scmViewService.onDidRemoveRepository(this.onDidRemoveRepository, this));
+		this._register(this.scmService.onDidAddRepository(this.onDidAddRepository, this));
+		this._register(this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this));
 
-		for (const repository of this.scmViewService.repositories) {
+		for (const repository of this.scmService.repositories) {
 			this.onDidAddRepository(repository);
 		}
 

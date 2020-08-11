@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose }
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1516,6 +1516,7 @@ export class SCMViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		@ISCMService private scmService: ISCMService,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IThemeService protected themeService: IThemeService,
@@ -1533,7 +1534,7 @@ export class SCMViewPane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this._register(Event.any(this.scmViewService.onDidAddRepository, this.scmViewService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
+		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
 
 		this._register(this.scmViewService.menus.titleMenu.onDidChangeTitle(this.updateActions, this));
 	}
@@ -1725,12 +1726,12 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMResourceGroup(e.element)) { // TODO@joao: remove
 			const provider = e.element.provider;
-			const repository = this.scmViewService.repositories.find(r => r.provider === provider);
+			const repository = this.scmService.repositories.find(r => r.provider === provider);
 			repository?.setSelected(true);
 			return;
 		} else if (ResourceTree.isResourceNode(e.element)) { // TODO@joao: remove
 			const provider = e.element.context.provider;
-			const repository = this.scmViewService.repositories.find(r => r.provider === provider);
+			const repository = this.scmService.repositories.find(r => r.provider === provider);
 			repository?.setSelected(true);
 			return;
 		} else if (isSCMInput(e.element)) {
@@ -1764,7 +1765,7 @@ export class SCMViewPane extends ViewPane {
 
 		// TODO@joao: remove
 		const provider = e.element.resourceGroup.provider;
-		const repository = this.scmViewService.repositories.find(r => r.provider === provider);
+		const repository = this.scmService.repositories.find(r => r.provider === provider);
 		repository?.setSelected(true);
 	}
 
@@ -1825,7 +1826,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	shouldShowWelcome(): boolean {
-		return this.scmViewService.repositories.length === 0;
+		return this.scmService.repositories.length === 0;
 	}
 }
 
