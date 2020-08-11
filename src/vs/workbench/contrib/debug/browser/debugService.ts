@@ -412,6 +412,12 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
+				const workspace = launch?.workspace || this.contextService.getWorkspace();
+				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
+				if (taskResult === TaskRunResult.Failure) {
+					return false;
+				}
+
 				const cfg = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, type, resolvedConfig, initCancellationToken.token);
 				if (!cfg) {
 					if (launch && type && cfg === null && !initCancellationToken.token.isCancellationRequested) {	// show launch.json only for "config" being "null".
@@ -436,12 +442,7 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const workspace = launch?.workspace || this.contextService.getWorkspace();
-				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
-				if (taskResult === TaskRunResult.Success) {
-					return this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
-				}
-				return false;
+				return this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
 			} catch (err) {
 				if (err && err.message) {
 					await this.showError(err.message);

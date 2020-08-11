@@ -23,6 +23,7 @@ export class TerminalWidgetManager implements IDisposable {
 	}
 
 	dispose(): void {
+		this.hideHovers();
 		if (this._container && this._container.parentElement) {
 			this._container.parentElement.removeChild(this._container);
 			this._container = undefined;

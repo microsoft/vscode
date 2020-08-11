@@ -21,10 +21,16 @@ export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: numb
 	// Shift start range right for each wide character before the link
 	let startOffset = 0;
 	const startWrappedLineCount = Math.ceil(range.startColumn / bufferWidth);
-	for (let y = 0; y < startWrappedLineCount; y++) {
+	for (let y = 0; y < Math.min(startWrappedLineCount); y++) {
 		const lineLength = Math.min(bufferWidth, range.startColumn - y * bufferWidth);
 		let lineOffset = 0;
 		const line = lines[y];
+		// Sanity check for line, apparently this can happen but it's not clear under what
+		// circumstances this happens. Continue on, skipping the remainder of start offset if this
+		// happens to minimize impact.
+		if (!line) {
+			break;
+		}
 		for (let x = 0; x < Math.min(bufferWidth, lineLength + lineOffset); x++) {
 			const cell = line.getCell(x)!;
 			const width = cell.getWidth();
