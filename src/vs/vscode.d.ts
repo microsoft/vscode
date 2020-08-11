@@ -5421,6 +5421,66 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Provides information on a line in a terminal in order to provide links for it.
+	 */
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	/**
+	 * A provider that enables detection and handling of links within terminals.
+	 */
+	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
+		/**
+		 * Provide terminal links for the given context. Note that this can be called multiple times
+		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
+		 * that could have problems when asynchronous usage may overlap.
+		 * @param context Information about what links are being provided for.
+		 * @param token A cancellation token.
+		 * @return A list of terminal links for the given line.
+		 */
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 * @param link The link to handle.
+		 */
+		handleTerminalLink(link: T): ProviderResult<void>;
+	}
+
+	/**
+	 * A link on a terminal line.
+	 */
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	/**
 	 * In a remote window the extension kind describes if an extension
 	 * runs where the UI (window) runs or if an extension runs remotely.
 	 */
@@ -8183,6 +8243,13 @@ declare module 'vscode' {
 			 */
 			readonly supportsMultipleEditorsPerDocument?: boolean;
 		}): Disposable;
+
+		/**
+		 * Register provider that enables the detection and handling of links within the terminal.
+		 * @param provider The provider that provides the terminal links.
+		 * @return Disposable that unregisters the provider.
+		 */
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
 		 * The currently active color theme as configured in the settings. The active
@@ -11569,19 +11636,30 @@ declare module 'vscode' {
 	 */
 	export interface AuthenticationGetSessionOptions {
 		/**
-		 *  Whether login should be performed if there is no matching session. Defaults to false.
+		 * Whether login should be performed if there is no matching session.
+		 *
+		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
+		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
+		 * allows quietly prompting the user to sign in.
+		 *
+		 * Defaults to false.
 		 */
 		createIfNone?: boolean;
 
 		/**
-		 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
+		 * Whether the existing user session preference should be cleared.
+		 *
+		 * For authentication providers that support being signed into multiple accounts at once, the user will be
+		 * prompted to select an account to use when [getSession](#authentication.getSession) is called. This preference
+		 * is remembered until [getSession](#authentication.getSession) is called with this flag.
+		 *
 		 * Defaults to false.
 		 */
 		clearSessionPreference?: boolean;
 	}
 
 	/**
-	 * Basic information about an[authenticationProvider](#AuthenticationProvider)
+	 * Basic information about an [authenticationProvider](#AuthenticationProvider)
 	 */
 	export interface AuthenticationProviderInformation {
 		/**
@@ -11637,12 +11715,11 @@ declare module 'vscode' {
 		 * @param options The [getSessionOptions](#GetSessionOptions) to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
-		 * An [event](#Event) which fires when the array of sessions has changed, or data
-		 * within a session has changed for a provider. Fires with the ids of the providers
-		 * that have had session data change.
+		 * An [event](#Event) which fires when the authentication sessions of an authentication provider have
+		 * been added, removed, or changed.
 		 */
 		export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
 	}

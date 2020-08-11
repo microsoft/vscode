@@ -167,13 +167,8 @@
           "group": "inline"
         },
         {
-          "command": "npm.runScript",
-          "when": "view == npm && viewItem == debugScript",
-          "group": "inline"
-        },
-        {
           "command": "npm.debugScript",
-          "when": "view == npm && viewItem == debugScript",
+          "when": "view == npm && viewItem == script",
           "group": "inline"
         },
         {

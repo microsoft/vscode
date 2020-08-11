@@ -8,7 +8,7 @@ declare namespace NodeJS {
 	export interface Process {
 
 		/**
-		 * The lazy enviroment is a promise that resolves to `process.env`
+		 * The lazy environment is a promise that resolves to `process.env`
 		 * once the process is resolved. The use-case is VS Code running
 		 * on Linux/macOS when being launched via a launcher. Then the env
 		 * (as defined in .bashrc etc) isn't properly set and needs to be

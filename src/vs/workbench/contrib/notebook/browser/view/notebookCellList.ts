@@ -145,7 +145,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
 			const focus = this.getFocusedElements()[0];
-			if (focus && focus.cellKind === CellKind.Markdown) {
+
+			if (focus && focus.cellKind === CellKind.Markdown && !focus.metadata?.inputCollapsed) {
 				focus.editState = CellEditState.Editing;
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -397,6 +398,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+				// it's already after the last hidden range
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			}
 			return undefined;
 		} else {
 			return viewIndexInfo.index;
@@ -411,6 +416,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+
+		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			}
+		}
 
 		return viewIndexInfo.index;
 	}

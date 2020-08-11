@@ -23,12 +23,9 @@ export interface IMergeResult {
 export function getIgnoredSettings(defaultIgnoredSettings: string[], configurationService: IConfigurationService, settingsContent?: string): string[] {
 	let value: string[] = [];
 	if (settingsContent) {
-		const setting = parse(settingsContent);
-		if (setting) {
-			value = setting['sync.ignoredSettings'];
-		}
+		value = getIgnoredSettingsFromContent(settingsContent);
 	} else {
-		value = configurationService.getValue<string[]>('sync.ignoredSettings');
+		value = getIgnoredSettingsFromConfig(configurationService);
 	}
 	const added: string[] = [], removed: string[] = [...getDisallowedIgnoredSettings()];
 	if (Array.isArray(value)) {
@@ -43,6 +40,22 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
 }
 
+function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): string[] {
+	let userValue = configurationService.inspect<string[]>('settingsSync.ignoredSettings').userValue;
+	if (userValue !== undefined) {
+		return userValue;
+	}
+	userValue = configurationService.inspect<string[]>('sync.ignoredSettings').userValue;
+	if (userValue !== undefined) {
+		return userValue;
+	}
+	return configurationService.getValue<string[]>('settingsSync.ignoredSettings') || [];
+}
+
+function getIgnoredSettingsFromContent(settingsContent: string): string[] {
+	const parsed = parse(settingsContent);
+	return parsed ? parsed['settingsSync.ignoredSettings'] || parsed['sync.ignoredSettings'] || [] : [];
+}
 
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {

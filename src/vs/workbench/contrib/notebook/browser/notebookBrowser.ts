@@ -52,6 +52,9 @@ export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCel
 export const NOTEBOOK_CELL_INPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellInputIsCollapsed', false); // bool
 export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebookCellOutputIsCollapsed', false); // bool
 
+// Shared commands
+export const EXPAND_CELL_CONTENT_COMMAND_ID = 'notebook.cell.expandCellContent';
+
 // Kernels
 
 export const NOTEBOOK_HAS_MULTIPLE_KERNELS = new RawContextKey<boolean>('notebookHasMultipleKernels', false);
@@ -190,6 +193,7 @@ export interface INotebookEditor extends IEditor {
 
 	getId(): string;
 	getDomNode(): HTMLElement;
+	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**
@@ -198,6 +202,7 @@ export interface INotebookEditor extends IEditor {
 	focus(): void;
 
 	hasFocus(): boolean;
+	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
 
@@ -254,7 +259,7 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Move a cell to a specific position
 	 */
-	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null>;
+	moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null>;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
@@ -502,6 +507,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	timer: TimerRenderer;
 	focusIndicatorRight: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
+	dragHandle: HTMLElement;
 }
 
 export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {

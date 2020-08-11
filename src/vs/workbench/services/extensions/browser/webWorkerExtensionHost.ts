@@ -29,8 +29,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
 
-const WRAP_IN_IFRAME = true;
-
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
 	readonly extensions: IExtensionDescription[];
@@ -74,7 +72,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	public async start(): Promise<IMessagePassingProtocol> {
 		if (!this._protocolPromise) {
-			if (WRAP_IN_IFRAME && platform.isWeb) {
+			if (platform.isWeb && this._environmentService.options && this._environmentService.options._wrapWebWorkerExtHostInIframe) {
 				this._protocolPromise = this._startInsideIframe();
 			} else {
 				this._protocolPromise = this._startOutsideIframe();
@@ -94,15 +92,15 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 		const vscodeWebWorkerExtHostId = generateUuid();
 		const workerUrl = require.toUrl('../worker/extensionHostWorkerMain.js');
-		const sourcesOrigin = /^((http:)|(https:)|(file:))/.test(workerUrl) ? new URL(workerUrl).origin : location.origin;
 		const workerSrc = getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true);
 		const escapeAttribute = (value: string): string => {
 			return value.replace(/"/g, '&quot;');
 		};
+		const isBuilt = this._environmentService.isBuilt;
 		const html = `<!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' ${sourcesOrigin} https://*.gallerycdn.vsassets.io '${WEB_WORKER_IFRAME.sha}'; worker-src data:; connect-src ${sourcesOrigin} https://*.gallerycdn.vsassets.io" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-eval' '${WEB_WORKER_IFRAME.sha}' ${isBuilt ? 'https:' : 'http: https:'}; worker-src data:; connect-src ${isBuilt ? 'https:' : 'http: https:'}" />
 		<meta id="vscode-worker-src" data-value="${escapeAttribute(workerSrc)}" />
 		<meta id="vscode-web-worker-ext-host-id" data-value="${escapeAttribute(vscodeWebWorkerExtHostId)}" />
 	</head>

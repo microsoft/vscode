@@ -12,9 +12,10 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITelemetryData } from 'vs/base/common/actions';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const storageKey = 'VSCode.ABExp.FeatureData';
-const refetchInterval = 1000 * 60 * 30; // By default it's set up to 30 minutes.
+const refetchInterval = 0; // no polling
 
 class MementoKeyValueStorage implements IKeyValueStorage {
 	constructor(private mementoObj: MementoObject) { }
@@ -160,19 +161,28 @@ export class ExperimentService implements ITASExperimentService {
 	private tasClient: Promise<TASClient> | undefined;
 	private static MEMENTO_ID = 'experiment.service.memento';
 
+	private get experimentsEnabled(): boolean {
+		return this.configurationService.getValue('workbench.enableExperiments') === true;
+	}
+
 	constructor(
 		@IProductService private productService: IProductService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 
-		if (this.productService.tasConfig) {
+		if (this.productService.tasConfig && this.experimentsEnabled) {
 			this.tasClient = this.setupTASClient();
 		}
 	}
 
 	async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
 		if (!this.tasClient) {
+			return undefined;
+		}
+
+		if (!this.experimentsEnabled) {
 			return undefined;
 		}
 

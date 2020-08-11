@@ -14,7 +14,7 @@ import { TerminalTab } from 'vs/workbench/contrib/terminal/browser/terminalTab';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, TerminalLinkHandlerCallback, LINK_INTERCEPT_THRESHOLD, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalService, ITerminalInstance, ITerminalTab, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { IQuickInputService, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
@@ -50,7 +50,6 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _extHostsReady: { [authority: string]: IExtHostReadyEntry | undefined } = {};
 	private _activeTabIndex: number;
-	private _linkHandlers: { [key: string]: TerminalLinkHandlerCallback } = {};
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 
@@ -428,50 +427,6 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onDimensionsChanged(() => this._onInstanceDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
-		instance.addDisposable(instance.onBeforeHandleLink(async e => {
-			// No link handlers have been registered
-			const keys = Object.keys(this._linkHandlers);
-			if (keys.length === 0) {
-				e.resolve(false);
-				return;
-			}
-
-			// Fire each link interceptor and wait for either a true, all false or the cancel time
-			let resolved = false;
-			const promises: Promise<boolean>[] = [];
-			const timeout = setTimeout(() => {
-				resolved = true;
-				e.resolve(false);
-			}, LINK_INTERCEPT_THRESHOLD);
-			for (let i = 0; i < keys.length; i++) {
-				const p = this._linkHandlers[keys[i]](e);
-				p.then(handled => {
-					if (!resolved && handled) {
-						resolved = true;
-						clearTimeout(timeout);
-						e.resolve(true);
-					}
-				});
-				promises.push(p);
-			}
-			await Promise.all(promises);
-			if (!resolved) {
-				resolved = true;
-				clearTimeout(timeout);
-				e.resolve(false);
-			}
-		}));
-	}
-
-	public addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable {
-		this._linkHandlers[key] = callback;
-		return {
-			dispose: () => {
-				if (this._linkHandlers[key] === callback) {
-					delete this._linkHandlers[key];
-				}
-			}
-		};
 	}
 
 	public registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
