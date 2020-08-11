@@ -1571,7 +1571,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(actionRunner);
 		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
-		const renderers = [
+		const renderers: ICompressibleTreeRenderer<any, FuzzyScore, any>[] = [
 			this.instantiationService.createInstance(RepositoryRenderer, actionViewItemProvider),
 			this.inputRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, actionViewItemProvider),
