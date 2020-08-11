@@ -46,7 +46,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 
 export class DebugService implements IDebugService {
@@ -443,12 +442,7 @@ export class DebugService implements IDebugService {
 						nls.localize('installAdditionalDebuggers', "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers') /*{
-							const viewlet = (await this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
-							viewlet.search('tag:debuggers @sort:installs');
-							return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true);
-						}*/
-						//() => this.commandService.executeCommand('debug.installAdditionalDebuggers')
+						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
 					));
 
 					await this.showError(message, actionList);
