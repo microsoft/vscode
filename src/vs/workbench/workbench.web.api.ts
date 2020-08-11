@@ -17,6 +17,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { mark } from 'vs/base/common/performance';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -25,9 +27,10 @@ interface IResourceUriProvider {
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
 	extensionLocation: URI;
+	isBuiltin?: boolean;
 }
 
-interface ICommontTelemetryPropertiesResolver {
+interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
 
@@ -35,33 +38,50 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
-interface TunnelOptions {
+interface ITunnelProvider {
+
+	/**
+	 * Support for creating tunnels.
+	 */
+	tunnelFactory?: ITunnelFactory;
+
+	/**
+	 * Support for filtering candidate ports
+	 */
+	showPortCandidate?: IShowPortCandidate;
+}
+
+interface ITunnelFactory {
+	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+}
+
+interface ITunnelOptions {
 	remoteAddress: { port: number, host: string };
+
 	/**
 	 * The desired local port. If this port can't be used, then another will be chosen.
 	 */
 	localAddressPort?: number;
+
 	label?: string;
 }
 
-interface Tunnel extends IDisposable {
+interface ITunnel extends IDisposable {
 	remoteAddress: { port: number, host: string };
+
 	/**
 	 * The complete local address(ex. localhost:1234)
 	 */
 	localAddress: string;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
 }
 
-interface ITunnelFactory {
-	(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
-}
-
-interface IShowCandidate {
-	(host: string, port: number, detail: string): Thenable<boolean>;
+interface IShowPortCandidate {
+	(host: string, port: number, detail: string): Promise<boolean>;
 }
 
 interface ICommand {
@@ -80,6 +100,93 @@ interface ICommand {
 	 * be exchanged across processes boundaries.
 	 */
 	handler: (...args: any[]) => unknown;
+}
+
+interface IHomeIndicator {
+
+	/**
+	 * The link to open when clicking the home indicator.
+	 */
+	href: string;
+
+	/**
+	 * The icon name for the home indicator. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `sync`.
+	 */
+	icon: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the home indicator.
+	 */
+	title: string;
+}
+
+interface IDefaultSideBarLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active: true;
+		order?: number;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	} | {
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active?: false;
+		order?: number;
+		visible?: boolean;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	})[];
+}
+
+interface IDefaultPanelLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active: true;
+	} | {
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active?: false;
+		visible?: boolean;
+	})[];
+}
+
+interface IDefaultView {
+	readonly id: string;
+}
+
+interface IDefaultEditor {
+	readonly uri: UriComponents;
+	readonly openOnlyIfExists?: boolean;
+	readonly openWith?: string;
+}
+
+interface IDefaultLayout {
+	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
+	readonly sidebar?: IDefaultSideBarLayout;
+	/** @deprecated Use views instead (TODO@eamodio remove eventually) */
+	readonly panel?: IDefaultPanelLayout;
+	readonly views?: IDefaultView[];
+	readonly editors?: IDefaultEditor[];
+}
+
+interface IProductQualityChangeHandler {
+
+	/**
+	 * Handler is being called when the user wants to switch between
+	 * `insider` or `stable` product qualities.
+	 */
+	(newQuality: 'insider' | 'stable'): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -119,14 +226,10 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveExternalUri?: IExternalUriResolver;
 
 	/**
-	 * Support for creating tunnels.
+	 * A provider for supplying tunneling functionality,
+	 * such as creating tunnels and showing candidate ports to forward.
 	 */
-	readonly tunnelFactory?: ITunnelFactory;
-
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowCandidate;
+	readonly tunnelProvider?: ITunnelProvider;
 
 	//#endregion
 
@@ -145,6 +248,16 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 */
+	readonly enableSyncByDefault?: boolean;
+
+	/**
 	 * The credentials provider to store and retrieve secrets.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
@@ -155,19 +268,34 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
 
 	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Service end-point hosting builtin extensions
+	 */
+	readonly builtinExtensionsServiceUrl?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Enable inlined extensions.
+	 * Defaults to false on serverful and true on serverless.
+	 */
+	readonly _enableBuiltinExtensions?: boolean;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Enable `<iframe>` wrapping.
+	 * Defaults to false.
+	 */
+	readonly _wrapWebWorkerExtHostInIframe?: boolean;
+
+	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;
 
 	/**
-	 * Support for update reporting.
-	 */
-	readonly updateProvider?: IUpdateProvider;
-
-	/**
 	 * Support adding additional properties to telemetry.
 	 */
-	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
+	readonly resolveCommonTelemetryProperties?: ICommonTelemetryPropertiesResolver;
 
 	/**
 	 * A set of optional commands that should be registered with the commands
@@ -176,6 +304,46 @@ interface IWorkbenchConstructionOptions {
 	 * Note: commands can be called from extensions if the identifier is known!
 	 */
 	readonly commands?: readonly ICommand[];
+
+	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
+	/**
+	 * Optional configuration default overrides contributed to the workbench.
+	 */
+	readonly configurationDefaults?: Record<string, any>;
+
+	//#endregion
+
+
+	//#region Update/Quality related
+
+	/**
+	 * Support for update reporting
+	 */
+	readonly updateProvider?: IUpdateProvider;
+
+	/**
+	 * Support for product quality switching
+	 */
+	readonly productQualityChangeHandler?: IProductQualityChangeHandler;
+
+	//#endregion
+
+
+	//#region Branding
+
+	/**
+	 * Optional home indicator to appear above the hamburger menu in the activity bar.
+	 */
+	readonly homeIndicator?: IHomeIndicator;
+
+	/**
+	 * Optional override for the product configuration properties.
+	 */
+	readonly productConfiguration?: Partial<IProductConfiguration>;
 
 	//#endregion
 
@@ -192,7 +360,18 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly driver?: boolean;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
+}
+
+interface IWorkbench {
+	commands: {
+		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+	}
 }
 
 /**
@@ -202,7 +381,13 @@ interface IWorkbenchConstructionOptions {
  * @param options for setting up the workbench
  */
 let created = false;
+let workbenchPromiseResolve: Function;
+const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
 async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Mark start of workbench
+	mark('didLoadWorkbenchMain');
+	performance.mark('workbench-start');
 
 	// Assert that the workbench is not created more than once. We currently
 	// do not support this and require a full context switch to clean-up.
@@ -212,8 +397,9 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 		created = true;
 	}
 
-	// Startup workbench
-	await main(domElement, options);
+	// Startup workbench and resolve waiters
+	const workbench = await main(domElement, options);
+	workbenchPromiseResolve(workbench);
 
 	// Register commands if any
 	if (Array.isArray(options.commands)) {
@@ -227,12 +413,31 @@ async function create(domElement: HTMLElement, options: IWorkbenchConstructionOp
 	}
 }
 
+
+//#region API Facade
+
+namespace commands {
+
+	/**
+	* Allows to execute any command if known with the provided arguments.
+	*
+	* @param command Identifier of the command to execute.
+	* @param rest Parameters passed to the command function.
+	* @return A promise that resolves to the returned value of the given command.
+	*/
+	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+		const workbench = await workbenchPromise;
+
+		return workbench.commands.executeCommand(command, ...args);
+	}
+}
+
 export {
 
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
-
+	IWorkbench,
 
 	// Basic Types
 	URI,
@@ -272,16 +477,40 @@ export {
 	// LogLevel
 	LogLevel,
 
-	// Updates
+	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,
+	IProductQualityChangeHandler,
 
 	// Telemetry
-	ICommontTelemetryPropertiesResolver,
+	ICommonTelemetryPropertiesResolver,
 
 	// External Uris
 	IExternalUriResolver,
 
+	// Tunnel
+	ITunnelProvider,
+	ITunnelFactory,
+	ITunnel,
+	ITunnelOptions,
+
+	// Ports
+	IShowPortCandidate,
+
 	// Commands
-	ICommand
+	ICommand,
+	commands,
+
+	// Branding
+	IHomeIndicator,
+	IProductConfiguration,
+
+	// Default layout
+	IDefaultView,
+	IDefaultEditor,
+	IDefaultLayout,
+	IDefaultPanelLayout,
+	IDefaultSideBarLayout
 };
+
+//#endregion

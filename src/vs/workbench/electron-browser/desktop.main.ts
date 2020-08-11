@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { webFrame } from 'electron';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-browser/window';
@@ -20,9 +20,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -31,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -41,7 +40,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
 import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
@@ -50,6 +48,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { DesktopLogService } from 'vs/workbench/services/log/electron-browser/logService';
+import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class DesktopMain extends Disposable {
 
@@ -73,8 +73,9 @@ class DesktopMain extends Disposable {
 		importEntries(this.environmentService.configuration.perfEntries);
 
 		// Browser config
-		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
-		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
+		const zoomLevel = this.configuration.zoomLevel || 0;
+		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
+		setZoomLevel(zoomLevel, true /* isTrusted */);
 		setFullscreen(!!this.environmentService.configuration.fullscreen);
 
 		// Keyboard support
@@ -178,10 +179,11 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
-		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		serviceCollection.set(IProductService, productService);
 
 		// Log
-		const logService = this._register(this.createLogService(mainProcessService, this.environmentService));
+		const logService = this._register(new DesktopLogService(this.configuration.windowId, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
@@ -192,18 +194,23 @@ class DesktopMain extends Disposable {
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService));
+		// Remote Agent
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		// Electron
+		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
+		serviceCollection.set(IElectronService, electronService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, electronService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.backupHome, diskFileSystemProvider, this.environmentService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.backupHome, diskFileSystemProvider, this.environmentService, logService));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -314,31 +321,10 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
-		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
-
-		// Extension development test CLI: forward everything to main side
-		const loggers: ILogService[] = [];
-		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-			loggers.push(
-				new ConsoleLogInMainService(loggerClient, this.environmentService.configuration.logLevel)
-			);
-		}
-
-		// Normal logger: spdylog and console
-		else {
-			loggers.push(
-				new ConsoleLogService(this.environmentService.configuration.logLevel),
-				new SpdLogService(`renderer${this.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
-			);
-		}
-
-		return new FollowerLogService(loggerClient, new MultiplexLogService(loggers));
-	}
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {
-	const renderer = new DesktopMain(configuration);
+	const workbench = new DesktopMain(configuration);
 
-	return renderer.open();
+	return workbench.open();
 }

@@ -7,7 +7,8 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	ROOT=$(dirname "$(dirname "$(realpath "$0")")")
 else
 	ROOT=$(dirname "$(dirname "$(readlink -f $0)")")
-	if grep -qi Microsoft /proc/version; then
+	# If the script is running in Docker using the WSL2 engine, powershell.exe won't exist
+	if grep -qi Microsoft /proc/version && type powershell.exe > /dev/null 2>&1; then
 		IN_WSL=true
 	fi
 fi
@@ -23,23 +24,16 @@ function code() {
 		CODE=".build/electron/$NAME"
 	fi
 
-	# Node modules
-	test -d node_modules || yarn
-
-	# Get electron
-	yarn electron
+	# Get electron, compile, built-in extensions
+	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+		node build/lib/preLaunch.js
+	fi
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
 		exec "$CODE" build/builtin
 		return
 	fi
-
-	# Sync built-in extensions
-	node build/lib/builtInExtensions.js
-
-	# Build
-	test -d out || yarn compile
 
 	# Configuration
 	export NODE_ENV=development
@@ -55,7 +49,7 @@ function code() {
 
 function code-wsl()
 {
-	HOST_IP=$(powershell.exe -Command "& {(Get-NetIPAddress | Where-Object {\$_.InterfaceAlias -like '*WSL*' -and \$_.AddressFamily -eq 'IPv4'}).IPAddress | Write-Host -NoNewline}")
+	HOST_IP=$(powershell.exe –noprofile -Command "& {(Get-NetIPAddress | Where-Object {\$_.InterfaceAlias -like '*WSL*' -and \$_.AddressFamily -eq 'IPv4'}).IPAddress | Write-Host -NoNewline}")
 	export DISPLAY="$HOST_IP:0"
 
 	# in a wsl shell

@@ -22,7 +22,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -184,7 +184,7 @@ export class OpenEditorsView extends ViewPane {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
-		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge'));
+		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
@@ -269,29 +269,21 @@ export class OpenEditorsView extends ViewPane {
 				e.element.group.closeEditor(e.element.editor, { preserveFocus: true });
 			}
 		}));
-		this._register(this.list.onDidOpen(e => {
-			const browserEvent = e.browserEvent;
-
-			let openToSide = false;
-			let isSingleClick = false;
-			let isDoubleClick = false;
-			let isMiddleClick = false;
-			if (browserEvent instanceof MouseEvent) {
-				isSingleClick = browserEvent.detail === 1;
-				isDoubleClick = browserEvent.detail === 2;
-				isMiddleClick = browserEvent.button === 1;
-				openToSide = this.list.useAltAsMultipleSelectionModifier ? (browserEvent.ctrlKey || browserEvent.metaKey) : browserEvent.altKey;
+		const resourceNavigator = this._register(new ListResourceNavigator(this.list, { configurationService: this.configurationService }));
+		this._register(resourceNavigator.onDidOpen(e => {
+			if (typeof e.element !== 'number') {
+				return;
 			}
 
-			const focused = this.list.getFocusedElements();
-			const element = focused.length ? focused[0] : undefined;
+			const element = this.list.element(e.element);
+
 			if (element instanceof OpenEditor) {
-				if (isMiddleClick) {
-					return; // already handled above: closes the editor
+				if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) {
+					return; // middle click already handled above: closes the editor
 				}
 
-				this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
-			} else if (element) {
+				this.openEditor(element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
+			} else {
 				this.editorGroupService.activateGroup(element);
 			}
 		}));
@@ -302,6 +294,11 @@ export class OpenEditorsView extends ViewPane {
 			if (visible && this.needsRefresh) {
 				this.listRefreshScheduler.schedule(0);
 			}
+		}));
+
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
+			this.updateSize();
 		}));
 	}
 
@@ -323,6 +320,7 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
 		}
@@ -361,7 +359,7 @@ export class OpenEditorsView extends ViewPane {
 		return -1;
 	}
 
-	private openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
+	private openEditor(element: OpenEditor, options: { preserveFocus?: boolean; pinned?: boolean; sideBySide?: boolean; }): void {
 		if (element) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 
@@ -445,6 +443,11 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	private getMaxExpandedBodySize(): number {
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		if (containerModel.visibleViewDescriptors.length <= 1) {
+			return Number.POSITIVE_INFINITY;
+		}
+
 		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
@@ -659,7 +662,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
 		}
 	}
 
@@ -675,13 +678,13 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		return true;
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): void {
-		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, originalEvent: DragEvent): void {
+		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
 		const index = targetElement instanceof OpenEditor ? targetElement.editorIndex : 0;
 
 		if (data instanceof ElementsDragAndDropData) {
 			const elementsData = data.elements;
-			elementsData.forEach((oe, offset) => {
+			elementsData.forEach((oe: OpenEditor, offset) => {
 				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
 			});
 			this.editorGroupService.activateGroup(group);
@@ -692,9 +695,14 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 }
 
 class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('openEditors', "Open Editors");
+	}
+
 	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
 		if (element instanceof OpenEditor) {
-			return `${element.editor.getName()} ${element.editor.getDescription()}`;
+			return `${element.editor.getName()}, ${element.editor.getDescription()}`;
 		}
 
 		return element.ariaLabel;

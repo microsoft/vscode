@@ -66,12 +66,6 @@
 		"comment": "The described behavior is how it is expected to work. If you disagree, please explain what is expected and what is not in more detail. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
 	},
 	{
-		"type": "label",
-		"name": "*english-please",
-		"action": "close",
-		"comment": "This issue is being closed because its description is not in English, that makes it hard for us to work on it. Please open a new issue with an English description. You might find [Bing Translator](https://www.bing.com/translator) useful."
-	},
-	{
 		"type": "comment",
 		"name": "duplicate",
 		"allowUsers": [
@@ -96,7 +90,7 @@
 			"@author"
 		],
 		"action": "updateLabels",
-		"addLabel": "author-verified",
+		"addLabel": "z-author-verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
 		"disallowLabel": "awaiting-insiders-release"
@@ -138,6 +132,18 @@
 		],
 		"action": "updateLabels",
 		"addLabel": "~needs more info"
+	},
+	{
+		"type": "comment",
+		"name": "closedWith",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "unreleased"
 	},
 	{
 		"type": "label",
@@ -217,6 +223,19 @@
 	},
 	{
 		"type": "comment",
+		"name": "extCpp",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "close",
+		"addLabel": "*caused-by-extension",
+		"comment": "It looks like this is caused by the C++ extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-cpptools). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
 		"name": "extTS",
 		"allowUsers": [
 			"cleidigh",
@@ -265,7 +284,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Go extension. Please file it with the repository [here](https://github.com/microsoft/vscode-go). Make sure to check their [contributing guidelines](https://github.com/microsoft/vscode-go/blob/master/CONTRIBUTING.md) and provide relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the Go extension. Please file it with the repository [here](https://github.com/golang/vscode-go). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -278,7 +297,7 @@
 		],
 		"action": "close",
 		"addLabel": "*caused-by-extension",
-		"comment": "It looks like this is caused by the Powershell extension. Please file it with the repository [here](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+		"comment": "It looks like this is caused by the PowerShell extension. Please file it with the repository [here](https://github.com/PowerShell/vscode-powershell). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
 	},
 	{
 		"type": "comment",
@@ -331,5 +350,32 @@
 		"action": "close",
 		"addLabel": "*caused-by-extension",
 		"comment": "It looks like this is caused by the Java Debugger extension. Please file it with the repository [here](https://github.com/Microsoft/vscode-java-debug). Make sure to check their issue reporting template and provide them relevant information such as the extension version you're using. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines for more information.\n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
+		"name": "gifPlease",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"action": "comment",
+		"comment": "Thanks for reporting this issue! Unfortunately, it's hard for us to understand what issue you're seeing. Please help us out by providing a screen recording showing exactly what isn't working as expected. While we can work with most standard formats, `.gif` files are preferred as they are displayed inline on GitHub. You may find https://gifcap.dev helpful as a browser-based gif recording tool.\n\nIf the issue depends on keyboard input, you can help us by enabling screencast mode for the recording (`Developer: Toggle Screencast Mode` in the command palette).\n\nHappy coding!"
+	},
+	{
+		"type": "comment",
+		"name": "label",
+		"allowUsers": []
+	},
+	{
+		"type": "comment",
+		"name": "assign",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		]
 	}
 ]

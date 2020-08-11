@@ -2,13 +2,14 @@
 	"name": "vscode-web",
 	"version": "0.0.0",
 	"dependencies": {
-		"onigasm-umd": "2.2.5",
-		"semver-umd": "^5.5.5",
-		"vscode-textmate": "4.4.0",
-		"xterm": "4.5.0-beta.21",
-		"xterm-addon-search": "0.6.0-beta.2",
-		"xterm-addon-unicode11": "0.2.0-beta.2",
-		"xterm-addon-web-links": "0.3.0-beta.5",
-		"xterm-addon-webgl": "0.6.0-beta.3"
+		"iconv-lite-umd": "0.6.8",
+		"jschardet": "2.2.1",
+		"semver-umd": "^5.5.7",
+		"vscode-oniguruma": "1.3.1",
+		"vscode-textmate": "5.2.0",
+		"xterm": "4.9.0-beta.8",
+		"xterm-addon-search": "0.7.0",
+		"xterm-addon-unicode11": "0.2.0",
+		"xterm-addon-webgl": "0.8.0"
 	}
 }

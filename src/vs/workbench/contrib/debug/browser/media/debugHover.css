@@ -12,6 +12,7 @@
 	user-select: text;
 	-webkit-user-select: text;
 	word-break: break-all;
+	white-space: pre;
 }
 
 .monaco-editor .debug-hover-widget .complex-value {
@@ -39,6 +40,7 @@
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-row .monaco-tl-contents {
 	user-select: text;
 	-webkit-user-select: text;
+	white-space: pre;
 }
 
 /* Disable tree highlight in debug hover tree. */
@@ -56,55 +58,11 @@
 }
 
 .monaco-editor .debug-hover-widget .value {
-	white-space: pre-wrap;
 	color: rgba(108, 108, 108, 0.8);
 	overflow: auto;
 	font-family: var(--monaco-monospace-font);
 	max-height: 500px;
 	padding: 4px 5px;
-}
-
-.monaco-editor .debug-hover-widget .error {
-	color: #E51400;
-}
-
-.monaco-editor .debug-hover-widget .value.number {
-	color: #098658;
-}
-
-.monaco-editor .debug-hover-widget .value.boolean {
-	color: #0000FF;
-}
-
-.monaco-editor .debug-hover-widget .value.string {
-	color: #A31515;
-}
-
-/* Dark theme */
-
-.monaco-editor.vs-dark .debug-hover-widget .value,
-.monaco-editor.hc-black .debug-hover-widget .value {
-	color: rgba(204, 204, 204, 0.6);
-}
-
-.monaco-editor.vs-dark .debug-hover-widget .error,
-.monaco-editor.hc-black .debug-hover-widget .error {
-	color: #F48771;
-}
-
-.monaco-editor.vs-dark .debug-hover-widget .value.number,
-.monaco-editor.hc-black .debug-hover-widget .value.number {
-	color: #B5CEA8;
-}
-
-.monaco-editor.vs-dark .debug-hover-widget .value.boolean,
-.monaco-editor.hc-black .debug-hover-widget .value.boolean {
-	color: #4E94CE;
-}
-
-.monaco-editor.vs-dark .debug-hover-widget .value.string,
-.monaco-editor.hc-black .debug-hover-widget .value.string {
-	color: #CE9178;
 }
 
 .monaco-editor.vs-dark .debugHoverHighlight,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { dirname, isEqual, basenameOrAuthority } from 'vs/base/common/resources';
+import { dirname, isEqual, basenameOrAuthority, extUri } from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IResourceLabelProps {
-	resource?: URI | { master?: URI, detail?: URI };
+	resource?: URI | { primary?: URI, secondary?: URI };
 	name?: string | string[];
 	description?: string;
 }
@@ -38,12 +38,25 @@ function toResource(props: IResourceLabelProps | undefined): URI | undefined {
 		return props.resource;
 	}
 
-	return props.resource.master;
+	return props.resource.primary;
 }
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
+
+	/**
+	 * A hint to the file kind of the resource.
+	 */
 	fileKind?: FileKind;
+
+	/**
+	 * File decorations to use for the label.
+	 */
 	fileDecorations?: { colors: boolean, badges: boolean };
+
+	/**
+	 * Will take the provided label as is and e.g. not override it for untitled files.
+	 */
+	forceLabel?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -289,11 +302,12 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private handleModelEvent(model: ITextModel): void {
-		if (!this.label || !this.label.resource) {
-			return; // only update if label exists
+		const resource = toResource(this.label);
+		if (!resource) {
+			return; // only update if resource exists
 		}
 
-		if (model.uri.toString() === this.label.resource.toString()) {
+		if (extUri.isEqual(model.uri, resource)) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
@@ -365,9 +379,9 @@ class ResourceLabelWidget extends IconLabel {
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
 		const resource = toResource(label);
-		const isMasterDetail = label?.resource && !URI.isUri(label.resource);
+		const isSideBySideEditor = label?.resource && !URI.isUri(label.resource);
 
-		if (!isMasterDetail && resource?.scheme === Schemas.untitled) {
+		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
 			// As such we always ask the actual editor for it's name and
@@ -376,7 +390,7 @@ class ResourceLabelWidget extends IconLabel {
 			// we assume that the client does not want to display them
 			// and as such do not override.
 			//
-			// We do not touch the label if it represents a master-detail
+			// We do not touch the label if it represents a primary-secondary
 			// because in that case we expect it to carry a proper label
 			// and description.
 			const untitledModel = this.textFileService.untitled.get(resource);
@@ -417,8 +431,8 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private clearIconCache(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
-		const newResource = newLabel ? newLabel.resource : undefined;
-		const oldResource = this.label ? this.label.resource : undefined;
+		const newResource = toResource(newLabel);
+		const oldResource = toResource(this.label);
 
 		const newFileKind = newOptions ? newOptions.fileKind : undefined;
 		const oldFileKind = this.options ? this.options.fileKind : undefined;
@@ -491,6 +505,7 @@ class ResourceLabelWidget extends IconLabel {
 			italic: this.options?.italic,
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
+			descriptionMatches: this.options?.descriptionMatches,
 			extraClasses: [],
 			separator: this.options?.separator,
 			domId: this.options?.domId
@@ -527,7 +542,6 @@ class ResourceLabelWidget extends IconLabel {
 			);
 
 			if (deco) {
-
 				this.renderDisposables.add(deco);
 
 				if (deco.tooltip) {

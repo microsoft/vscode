@@ -11,6 +11,7 @@ import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
 
 export const VIEWLET_ID = 'workbench.view.scm';
+export const VIEW_PANE_ID = 'workbench.scm';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -30,6 +31,7 @@ export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
 	readonly decorations: ISCMResourceDecorations;
+	readonly contextValue?: string;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -79,6 +81,8 @@ export interface IInputValidator {
 }
 
 export interface ISCMInput {
+	readonly repository: ISCMRepository;
+
 	value: string;
 	readonly onDidChange: Event<string>;
 
@@ -93,12 +97,10 @@ export interface ISCMInput {
 }
 
 export interface ISCMRepository extends IDisposable {
-	readonly onDidFocus: Event<void>;
 	readonly selected: boolean;
 	readonly onDidChangeSelection: Event<boolean>;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
-	focus(): void;
 	setSelected(selected: boolean): void;
 }
 
@@ -107,10 +109,7 @@ export interface ISCMService {
 	readonly _serviceBrand: undefined;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-
 	readonly repositories: ISCMRepository[];
-	readonly selectedRepositories: ISCMRepository[];
-	readonly onDidChangeSelectedRepositories: Event<ISCMRepository[]>;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 }

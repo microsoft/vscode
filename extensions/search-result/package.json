@@ -12,6 +12,7 @@
     "Programming Languages"
   ],
   "main": "./out/extension.js",
+  "browser": "./dist/extension.js",
   "activationEvents": [
     "*"
   ],
@@ -43,8 +44,5 @@
         "path": "./syntaxes/searchResult.tmLanguage.json"
       }
     ]
-  },
-  "devDependencies": {
-    "vscode": "^1.1.36"
   }
 }

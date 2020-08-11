@@ -28,13 +28,13 @@ const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
-function loaderConfig(emptyPaths) {
+function loaderConfig() {
     const result = {
         paths: {
             'vs': 'out-build/vs',
             'vscode': 'empty:'
         },
-        nodeModules: emptyPaths || []
+        amdModulesPattern: /^vs\//
     };
     result['vs/css'] = { inlineResources: true };
     return result;
@@ -68,14 +68,9 @@ function loader(src, bundledFileHeader, bundleLoader) {
             this.emit('data', data);
         }
     }))
-        .pipe(util.loadSourcemaps())
-        .pipe(concat('vs/loader.js'))
-        .pipe(es.mapSync(function (f) {
-        f.sourceMap.sourceRoot = util.toFileUri(path.join(REPO_ROOT_PATH, 'src'));
-        return f;
-    })));
+        .pipe(concat('vs/loader.js')));
 }
-function toConcatStream(src, bundledFileHeader, sources, dest) {
+function toConcatStream(src, bundledFileHeader, sources, dest, fileContentMapper) {
     const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
     // If a bundle ends up including in any of the sources our copyright, then
     // insert a fake source at the beginning of each bundle with our copyright
@@ -96,10 +91,12 @@ function toConcatStream(src, bundledFileHeader, sources, dest) {
     const treatedSources = sources.map(function (source) {
         const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
         const base = source.path ? root + `/${src}` : '';
+        const path = source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake';
+        const contents = source.path ? fileContentMapper(source.contents, path) : source.contents;
         return new VinylFile({
-            path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
+            path: path,
             base: base,
-            contents: Buffer.from(source.contents)
+            contents: Buffer.from(contents)
         });
     });
     return es.readArray(treatedSources)
@@ -107,9 +104,9 @@ function toConcatStream(src, bundledFileHeader, sources, dest) {
         .pipe(concat(dest))
         .pipe(stats_1.createStatsStream(dest));
 }
-function toBundleStream(src, bundledFileHeader, bundles) {
+function toBundleStream(src, bundledFileHeader, bundles, fileContentMapper) {
     return es.merge(bundles.map(function (bundle) {
-        return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
+        return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest, fileContentMapper);
     }));
 }
 const DEFAULT_FILE_HEADER = [
@@ -125,6 +122,7 @@ function optimizeTask(opts) {
     const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
     const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
     const out = opts.out;
+    const fileContentMapper = opts.fileContentMapper || ((contents, _path) => contents);
     return function () {
         const bundlesStream = es.through(); // this stream will contain the bundled files
         const resourcesStream = es.through(); // this stream will contain the resources
@@ -133,7 +131,7 @@ function optimizeTask(opts) {
             if (err || !result) {
                 return bundlesStream.emit('error', JSON.stringify(err));
             }
-            toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
+            toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
             // Remove css inlined resources
             const filteredResources = resources.slice();
             result.cssInlinedResources.forEach(function (resource) {

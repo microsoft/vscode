@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
+import { Action, IAction, RadioGroup, Separator } from 'vs/base/common/actions';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
@@ -42,7 +41,6 @@ import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/e
 import { FuzzyScore } from 'vs/base/common/filters';
 import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
 import { IDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markersDecorationService';
@@ -238,7 +236,7 @@ class OutlineViewState {
 
 export class OutlinePane extends ViewPane {
 
-	private _disposables = new Array<IDisposable>();
+	private _disposables = new DisposableStore();
 
 	private _editorDisposables = new DisposableStore();
 	private _outlineViewState = new OutlineViewState();
@@ -277,8 +275,8 @@ export class OutlinePane extends ViewPane {
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
-		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
-		this._disposables.push(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
+		this._disposables.add(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
+		this._disposables.add(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
 	}
 
 	dispose(): void {
@@ -305,7 +303,7 @@ export class OutlinePane extends ViewPane {
 
 		this._domNode = container;
 		this._domNode.tabIndex = 0;
-		dom.addClass(container, 'outline-pane');
+		container.classList.add('outline-pane');
 
 		let progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
@@ -340,18 +338,19 @@ export class OutlinePane extends ViewPane {
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				accessibilityProvider: new OutlineAccessibilityProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(localize('outline', "Outline")),
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				}
+				},
+				openOnSingleClick: true
 			}
 		);
 
 
-		this._disposables.push(this._tree);
-		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
-		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
+		this._disposables.add(this._tree);
+		this._disposables.add(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+		this._disposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
 				this._tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
@@ -404,14 +403,13 @@ export class OutlinePane extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}
 
 	getActions(): IAction[] {
 		return [
-			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
-				return new CollapseAction(this._tree, true, undefined).run();
-			})
+			new CollapseAction(() => this._tree, true, 'explorer-action codicon-collapse-all')
 		];
 	}
 
@@ -451,7 +449,7 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private _showMessage(message: string) {
-		dom.addClass(this._domNode, 'message');
+		this._domNode.classList.add('message');
 		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
@@ -476,7 +474,7 @@ export class OutlinePane extends ViewPane {
 
 		// persist state
 		if (oldModel) {
-			this._treeStates.set(oldModel.textModel.uri.toString(), this._tree.getViewState());
+			this._treeStates.set(oldModel.uri.toString(), this._tree.getViewState());
 		}
 
 		if (!editor || !editor.hasModel() || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
@@ -507,7 +505,7 @@ export class OutlinePane extends ViewPane {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
 
-		dom.removeClass(this._domNode, 'message');
+		this._domNode.classList.remove('message');
 
 		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
@@ -525,7 +523,7 @@ export class OutlinePane extends ViewPane {
 						handle = undefined;
 						resolve(true);
 					}, 2000);
-					this._disposables.push({
+					this._disposables.add({
 						dispose() {
 							clearTimeout(handle);
 							resolve(false);
@@ -545,7 +543,7 @@ export class OutlinePane extends ViewPane {
 			this._tree.updateChildren();
 			newModel = oldModel;
 		} else {
-			let state = this._treeStates.get(newModel.textModel.uri.toString());
+			let state = this._treeStates.get(newModel.uri.toString());
 			this._tree.setInput(newModel, state);
 		}
 
@@ -559,36 +557,21 @@ export class OutlinePane extends ViewPane {
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.add(this._tree.onDidOpen(e => {
-
-			let [first] = e.elements;
-			if (!(first instanceof OutlineElement)) {
+			if (!(e.element instanceof OutlineElement)) {
 				return;
 			}
 
-			let focus = false;
-			let aside = false;
-			// todo@Joh
-			if (e.browserEvent) {
-				if (e.browserEvent.type === 'keydown') {
-					focus = true;
-				} else if (e.browserEvent.type === 'click') {
-					const event = new StandardMouseEvent(e.browserEvent as MouseEvent);
-					focus = e.browserEvent.detail === 2;
-					aside = (!this._tree.useAltAsMultipleSelectionModifier && event.altKey)
-						|| (this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey));
-				}
-			}
-			this._revealTreeSelection(newModel, first, focus, aside);
+			this._revealTreeSelection(newModel, e.element, !!e.editorOptions.preserveFocus || !e.editorOptions.pinned, e.sideBySide);
 		}));
 
 		// feature: reveal editor selection in outline
 		this._revealEditorSelection(newModel, editor.getSelection());
-		const versionIdThen = newModel.textModel.getVersionId();
+		const versionIdThen = textModel.getVersionId();
 		this._editorDisposables.add(editor.onDidChangeCursorSelection(e => {
 			// first check if the document has changed and stop revealing the
 			// cursor position iff it has -> we will update/recompute the
 			// outline view then anyways
-			if (!newModel.textModel.isDisposed() && newModel.textModel.getVersionId() === versionIdThen) {
+			if (!textModel.isDisposed() && textModel.getVersionId() === versionIdThen) {
 				this._revealEditorSelection(newModel, e.selection);
 			}
 		}));
@@ -613,7 +596,7 @@ export class OutlinePane extends ViewPane {
 			}
 		};
 		updateMarker(textModel, true);
-		this._editorDisposables.add(this._markerDecorationService.onDidChangeMarker(updateMarker));
+		this._editorDisposables.add(Event.debounce(this._markerDecorationService.onDidChangeMarker, (_, e) => e, 64)(updateMarker));
 
 		this._editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
@@ -632,12 +615,12 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, preserveFocus: boolean, aside: boolean): Promise<void> {
 		await this._editorService.openCodeEditor(
 			{
-				resource: model.textModel.uri,
+				resource: model.uri,
 				options: {
-					preserveFocus: !focus,
+					preserveFocus,
 					selection: Range.collapseToStart(element.symbol.selectionRange),
 					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 				}

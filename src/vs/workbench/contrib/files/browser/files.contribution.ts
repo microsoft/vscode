@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import * as nls from 'vs/nls';
 import { sep } from 'vs/base/common/path';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -34,11 +34,12 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService } from 'vs/workbench/contrib/files/common/explorerService';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/textfiles';
+import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/common/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/commonEditorConfig';
 import { DirtyFilesIndicator } from 'vs/workbench/contrib/files/common/dirtyFilesIndicator';
+import { extUri } from 'vs/base/common/resources';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ShowViewletAction {
@@ -75,8 +76,6 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 
 registerSingleton(IExplorerService, ExplorerService, true);
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).setDefaultViewletId(VIEWLET_ID);
-
 const openViewletKb: IKeybindings = {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_E
 };
@@ -84,7 +83,7 @@ const openViewletKb: IKeybindings = {
 // Register Action to Open Viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
+	SyncActionDescriptor.from(OpenExplorerViewletAction, openViewletKb),
 	'View: Show Explorer',
 	nls.localize('view', "View")
 );
@@ -103,8 +102,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 // Register default file input factory
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
-	createFileEditorInput: (resource, encoding, mode, instantiationService): IFileEditorInput => {
-		return instantiationService.createInstance(FileEditorInput, resource, encoding, mode);
+	createFileEditorInput: (resource, preferredResource, encoding, mode, instantiationService): IFileEditorInput => {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, encoding, mode);
 	},
 
 	isFileEditorInput: (obj): obj is IFileEditorInput => {
@@ -114,6 +113,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 interface ISerializedFileEditorInput {
 	resourceJSON: UriComponents;
+	preferredResourceJSON?: UriComponents;
 	encoding?: string;
 	modeId?: string;
 }
@@ -128,8 +128,10 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
 		const resource = fileEditorInput.resource;
+		const preferredResource = fileEditorInput.preferredResource;
 		const serializedFileEditorInput: ISerializedFileEditorInput = {
 			resourceJSON: resource.toJSON(),
+			preferredResourceJSON: extUri.isEqual(resource, preferredResource) ? undefined : preferredResource, // only storing preferredResource if it differs from the resource
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
@@ -141,10 +143,16 @@ class FileEditorInputFactory implements IEditorInputFactory {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
 			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
 			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
+			const preferredResource = URI.revive(serializedFileEditorInput.preferredResourceJSON);
 			const encoding = serializedFileEditorInput.encoding;
 			const mode = serializedFileEditorInput.modeId;
 
-			return accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
+			const fileEditorInput = accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
+			if (preferredResource) {
+				fileEditorInput.setPreferredResource(preferredResource);
+			}
+
+			return fileEditorInput;
 		});
 	}
 }
@@ -204,7 +212,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the file Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
@@ -230,6 +238,9 @@ configurationRegistry.registerConfiguration({
 		[FILES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
 			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
+			'additionalProperties': {
+				'type': 'string'
+			}
 		},
 		'files.encoding': {
 			'type': 'string',
@@ -237,15 +248,13 @@ configurationRegistry.registerConfiguration({
 			'default': 'utf8',
 			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can also be configured per language."),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong),
-			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language."),
-			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
-			'included': Object.keys(SUPPORTED_ENCODINGS).length > 1
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
 			'type': 'string',
@@ -320,6 +329,11 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: platform.isNative
 		},
+		'files.restoreUndoStack': {
+			'type': 'boolean',
+			'description': nls.localize('files.restoreUndoStack', "Restore the undo stack when a file is reopened."),
+			'default': true
+		},
 		'files.saveConflictResolution': {
 			'type': 'string',
 			'enum': [
@@ -366,9 +380,15 @@ configurationRegistry.registerConfiguration({
 			'default': 9
 		},
 		'explorer.autoReveal': {
-			'type': 'boolean',
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
-			'default': true
+			'type': ['boolean', 'string'],
+			'enum': [true, false, 'focusNoScroll'],
+			'default': true,
+			'enumDescriptions': [
+				nls.localize('autoReveal.on', 'Files will be revealed and selected.'),
+				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
+				nls.localize('autoReveal.focusNoScroll', 'Files will not be scrolled into view, but will still be focused.'),
+			],
+			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',

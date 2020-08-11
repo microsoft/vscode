@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IMessagePassingProtocol, IPCClient } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol, IPCClient, IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
@@ -16,6 +16,7 @@ export interface ISocket extends IDisposable {
 	onEnd(listener: () => void): IDisposable;
 	write(buffer: VSBuffer): void;
 	end(): void;
+	drain(): Promise<void>;
 }
 
 let emptyBuffer: VSBuffer | null = null;
@@ -277,6 +278,11 @@ class ProtocolWriter {
 		this._isDisposed = true;
 	}
 
+	public drain(): Promise<void> {
+		this.flush();
+		return this._socket.drain();
+	}
+
 	public flush(): void {
 		// flush
 		this._writeNow();
@@ -372,6 +378,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 		this._register(this._socket.onClose(() => this._onClose.fire()));
 	}
 
+	drain(): Promise<void> {
+		return this._socketWriter.drain();
+	}
+
 	getSocket(): ISocket {
 		return this._socket;
 	}
@@ -393,8 +403,8 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 
 	get onClose(): Event<void> { return this.protocol.onClose; }
 
-	constructor(private protocol: Protocol | PersistentProtocol, id: TContext) {
-		super(protocol, id);
+	constructor(private protocol: Protocol | PersistentProtocol, id: TContext, ipcLogger: IIPCLogger | null = null) {
+		super(protocol, id, ipcLogger);
 	}
 
 	dispose(): void {
@@ -617,6 +627,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 			this._incomingKeepAliveTimeout = null;
 		}
 		this._socketDisposables = dispose(this._socketDisposables);
+	}
+
+	drain(): Promise<void> {
+		return this._socketWriter.drain();
 	}
 
 	sendDisconnect(): void {

@@ -6,8 +6,8 @@
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
 import * as os from 'os';
-import product from 'vs/platform/product/common/product';
-import { Action, IAction } from 'vs/base/common/actions';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -18,13 +18,13 @@ import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
-import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { clipboard } from 'electron';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
@@ -62,7 +62,7 @@ export enum ProfileSessionState {
 }
 
 export interface IExtensionHostProfileService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeLastProfile: Event<void>;
@@ -126,7 +126,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IStorageService storageService: IStorageService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -155,23 +157,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._extensionService.getExtensions().then((extensions) => {
 			// We only deal with extensions with source code!
 			this._extensionsDescriptions = extensions.filter((extension) => {
-				return !!extension.main;
+				return Boolean(extension.main) || Boolean(extension.browser);
 			});
 			this._updateExtensions();
 		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
 	}
 
-	private _updateExtensions(): void {
-		this._elements = this._resolveExtensions();
+	private async _updateExtensions(): Promise<void> {
+		this._elements = await this._resolveExtensions();
 		if (this._list) {
 			this._list.splice(0, this._list.length, this._elements);
 		}
 	}
 
-	private _resolveExtensions(): IRuntimeExtension[] {
+	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
-		for (let extension of this._extensionsWorkbenchService.local) {
+		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
+		for (let extension of marketPlaceExtensions) {
 			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
@@ -326,7 +329,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
+				data.name.textContent = element.marketplaceInfo.displayName;
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
@@ -338,7 +341,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService), { icon: true, label: true });
+					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService), { icon: true, label: true });
 				}
 
 				let title: string;
@@ -371,6 +374,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							'{0} will be a glob pattern'
 						]
 					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+				} else if (activationEvent === 'onStartupFinished') {
+					title = nls.localize({
+						key: 'startupFinishedActivation',
+						comment: [
+							'This refers to an extension. {0} will be an activation event.'
+						]
+					}, "Activated by {0} after start-up finished", activationId);
 				} else if (/^onLanguage:/.test(activationEvent)) {
 					let language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
@@ -450,14 +460,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			const actions: IAction[] = [];
 
-			actions.push(new ReportExtensionIssueAction(e.element, this._openerService));
+			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService));
 			actions.push(new Separator());
 
-			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
-				actions.push(new Separator());
-			}
+			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
+			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
+			actions.push(new Separator());
+
 			const state = this._extensionHostProfileService.state;
 			if (state === ProfileSessionState.Running) {
 				actions.push(this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL));
@@ -491,14 +500,13 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
 	public async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
 	}
 }
 
@@ -509,25 +517,30 @@ export class ReportExtensionIssueAction extends Action {
 
 	private readonly _url: string;
 
-	constructor(extension: {
-		description: IExtensionDescription;
-		marketplaceInfo: IExtension;
-		status?: IExtensionsStatus;
-		unresponsiveProfile?: IExtensionHostProfile
-	}, @IOpenerService private readonly openerService: IOpenerService) {
+	constructor(
+		extension: {
+			description: IExtensionDescription;
+			marketplaceInfo: IExtension;
+			status?: IExtensionsStatus;
+			unresponsiveProfile?: IExtensionHostProfile
+		},
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IProductService private readonly productService: IProductService
+	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === ExtensionType.User
 			&& !!extension.description.repository && !!extension.description.repository.url;
 
-		this._url = ReportExtensionIssueAction._generateNewIssueUrl(extension);
+		this._url = this._generateNewIssueUrl(extension);
 	}
 
 	async run(): Promise<void> {
 		this.openerService.open(URI.parse(this._url));
 	}
 
-	private static _generateNewIssueUrl(extension: {
+	private _generateNewIssueUrl(extension: {
 		description: IExtensionDescription;
 		marketplaceInfo: IExtension;
 		status?: IExtensionsStatus;
@@ -537,13 +550,13 @@ export class ReportExtensionIssueAction extends Action {
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {
-			baseUrl = product.reportIssueUrl!;
+			baseUrl = this.productService.reportIssueUrl!;
 		}
 
 		let reason = 'Bug';
 		let title = 'Extension issue';
 		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
-		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
+		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
@@ -552,7 +565,7 @@ export class ReportExtensionIssueAction extends Action {
 - Extension Name: \`${extension.description.name}\`
 - Extension Version: \`${extension.description.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${product.version}\`\n\n${message}`
+- VSCode version: \`${this.productService.version}\`\n\n${message}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`;
@@ -569,6 +582,7 @@ export class DebugExtensionHostAction extends Action {
 		@IElectronService private readonly _electronService: IElectronService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
@@ -580,7 +594,7 @@ export class DebugExtensionHostAction extends Action {
 			const res = await this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
-				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
+				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this.productService.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
 			});
@@ -693,6 +707,10 @@ export class SaveExtensionHostProfileAction extends Action {
 }
 
 class RuntimeExtensionsEditorAccessibilityProvider implements IListAccessibilityProvider<IRuntimeExtension> {
+	getWidgetAriaLabel(): string {
+		return nls.localize('runtimeExtensions', "Runtime Extensions");
+	}
+
 	getAriaLabel(element: IRuntimeExtension): string | null {
 		return element.description.name;
 	}

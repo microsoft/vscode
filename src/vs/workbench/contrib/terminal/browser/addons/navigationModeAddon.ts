@@ -55,7 +55,7 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 
 		// Target is row before the cursor
-		const targetRow = Math.max(this._terminal.buffer.cursorY - 1, 0);
+		const targetRow = Math.max(this._terminal.buffer.active.cursorY - 1, 0);
 
 		// Check bounds
 		if (treeContainer.childElementCount < targetRow) {
@@ -98,7 +98,7 @@ export class NavigationModeAddon implements INavigationMode, ITerminalAddon {
 		}
 
 		// Target is cursor row
-		const targetRow = this._terminal.buffer.cursorY;
+		const targetRow = this._terminal.buffer.active.cursorY;
 
 		// Check bounds
 		if (treeContainer.childElementCount < targetRow) {

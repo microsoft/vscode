@@ -271,7 +271,11 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				overrideStyles,
 				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
 					getAriaLabel(extensionData: IExtensionData): string {
-						return localize('extension-arialabel', "{0}. Press enter for extension details.", extensionData.extension.displayName);
+						const extension = extensionData.extension;
+						return localize('extension-arialabel', "{0}, {1}, {2}, press enter for extension details.", extension.displayName, extension.version, extension.publisherDisplayName);
+					},
+					getWidgetAriaLabel(): string {
+						return localize('extensions', "Extensions");
 					}
 				}
 			},

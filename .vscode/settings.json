@@ -7,7 +7,8 @@
 		"**/.DS_Store": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		}
+		},
+		"src/vs/server": false
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc"
@@ -24,7 +25,9 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
-		"src/vs/base/test/node/uri.test.data.txt": true
+		"src/vs/base/test/node/uri.test.data.txt": true,
+		"src/vs/workbench/test/browser/api/extHostDocumentData.test.perf-data.ts": true,
+		"src/vs/server": false
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -70,7 +73,8 @@
 	},
 	"gulp.autoDetect": "off",
 	"files.insertFinalNewline": true,
-  "[typescript]": {
+	"[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
-	}
+	},
+	"typescript.tsc.autoDetect": "off"
 }

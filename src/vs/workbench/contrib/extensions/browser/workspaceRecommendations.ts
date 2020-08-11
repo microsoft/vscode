@@ -17,9 +17,8 @@ import { EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extens
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { InstallWorkspaceRecommendedExtensionsAction, ShowRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
@@ -105,7 +104,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		let installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		let installed = await this.extensionManagementService.getInstalled();
 		installed = installed.filter(l => this.extensionEnablementService.getEnablementState(l) !== EnablementState.DisabledByExtensionKind); // Filter extensions disabled by kind
 		const recommendations = allowedRecommendations.filter(({ extensionId }) => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
 
@@ -121,7 +120,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 					label: localize('installAll', "Install All"),
 					run: () => {
 						this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
-						const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"), recommendations.map(({ extensionId }) => extensionId));
+						const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, recommendations.map(({ extensionId }) => extensionId));
 						installAllAction.run();
 						installAllAction.dispose();
 						c(undefined);
@@ -233,7 +232,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	private async onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): Promise<void> {
 		if (event.added.length) {
 			const oldWorkspaceRecommended = this._recommendations;
-			await this.activate();
+			await this.fetch();
 			// Suggest only if at least one of the newly added recommendations was not suggested before
 			if (this._recommendations.some(current => oldWorkspaceRecommended.every(old => current.extensionId !== old.extensionId))) {
 				this.promptWorkspaceRecommendations();

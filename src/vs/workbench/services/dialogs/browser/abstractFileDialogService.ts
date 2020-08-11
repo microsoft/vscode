@@ -28,7 +28,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IHostService protected readonly hostService: IHostService,
@@ -229,12 +229,12 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return remoteFileDialog.showSaveDialog(options);
 	}
 
-	protected getSchemeFilterForWindow(): string {
-		return !this.environmentService.configuration.remoteAuthority ? Schemas.file : REMOTE_HOST_SCHEME;
+	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
+		return !this.environmentService.configuration.remoteAuthority ? (!defaultUriScheme || defaultUriScheme === Schemas.file ? Schemas.file : defaultUriScheme) : REMOTE_HOST_SCHEME;
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
-		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow();
+		return options.availableFileSystems && options.availableFileSystems[0] || this.getSchemeFilterForWindow(options.defaultUri?.scheme);
 	}
 
 	abstract pickFileFolderAndOpen(options: IPickAndOpenOptions): Promise<void>;
@@ -250,7 +250,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const options: ISaveDialogOptions = {
 			defaultUri,
 			title: nls.localize('saveAsTitle', "Save As"),
-			availableFileSystems,
+			availableFileSystems
 		};
 
 		interface IFilter { name: string; extensions: string[]; }
@@ -258,7 +258,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
-		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+		const registeredLanguageFilters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
@@ -275,21 +275,25 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return filter;
 		}));
 
-		// Filters are a bit weird on Windows, based on having a match or not:
-		// Match: we put the matching filter first so that it shows up selected and the all files last
-		// No match: we put the all files filter first
-		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
-		if (matchingFilter) {
-			filters.unshift(matchingFilter);
-			filters.unshift(allFilesFilter);
-		} else {
-			filters.unshift(allFilesFilter);
+		// We have no matching filter, e.g. because the language
+		// is unknown. We still add the extension to the list of
+		// filters though so that it can be picked
+		// (https://github.com/microsoft/vscode/issues/96283)
+		if (!matchingFilter && ext) {
+			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
 		}
 
-		// Allow to save file without extension
-		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
-
-		options.filters = filters;
+		// Order of filters is
+		// - All Files (we MUST do this to fix macOS issue https://github.com/microsoft/vscode/issues/102713)
+		// - File Extension Match (if any)
+		// - All Languages
+		// - No Extension
+		options.filters = coalesce([
+			{ name: nls.localize('allFiles', "All Files"), extensions: ['*'] },
+			matchingFilter,
+			...registeredLanguageFilters,
+			{ name: nls.localize('noExt', "No Extension"), extensions: [''] }
+		]);
 
 		return options;
 	}

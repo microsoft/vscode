@@ -15,6 +15,7 @@ import severity from 'vs/base/common/severity';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape, IDebugAdapterFactory {
@@ -154,10 +155,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve();
 	}
 
-	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
+	public $registerDebugConfigurationProvider(debugType: string, providerTriggerKind: DebugConfigurationProviderTriggerKind, hasProvide: boolean, hasResolve: boolean, hasResolve2: boolean, hasProvideDebugAdapter: boolean, handle: number): Promise<void> {
 
 		const provider = <IDebugConfigurationProvider>{
-			type: debugType
+			type: debugType,
+			triggerKind: providerTriggerKind
 		};
 		if (hasProvide) {
 			provider.provideDebugConfigurations = (folder, token) => {
@@ -226,10 +228,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
+		const parentSession = this.getSession(options.parentSessionID);
 		const debugOptions: IDebugSessionOptions = {
-			noDebug: false,
-			parentSession: this.getSession(options.parentSessionID),
-			repl: options.repl
+			noDebug: options.noDebug,
+			parentSession,
+			repl: options.repl,
+			compact: options.compact,
+			compoundRoot: parentSession?.compoundRoot
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;
@@ -259,6 +264,18 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.reject(new Error('debug session not found'));
 	}
 
+	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
+		if (sessionId) {
+			const session = this.debugService.getModel().getSession(sessionId, true);
+			if (session) {
+				return this.debugService.stopSession(session);
+			}
+		} else {	// stop all
+			return this.debugService.stopSession(undefined);
+		}
+		return Promise.reject(new Error('debug session not found'));
+	}
+
 	public $appendDebugConsole(value: string): void {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		const session = this.debugService.getViewModel().focusedSession;
@@ -270,7 +287,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $acceptDAMessage(handle: number, message: DebugProtocol.ProtocolMessage) {
 		this.getDebugAdapter(handle).acceptMessage(convertToVSCPaths(message, false));
 	}
-
 
 	public $acceptDAError(handle: number, name: string, message: string, stack: string) {
 		this.getDebugAdapter(handle).fireError(handle, new Error(`${name}: ${message}\n${stack}`));

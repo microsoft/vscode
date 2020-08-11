@@ -11,7 +11,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,6 +20,9 @@ import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/di
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { Codicon } from 'vs/base/common/codicons';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/services/editor/common/editorOpenWith';
 
 export class ExecuteCommandAction extends Action {
 
@@ -395,7 +398,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, Codicon.close.classNames);
 	}
 
 	run(context?: IEditorCommandsContext): Promise<void> {
@@ -413,7 +416,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, Codicon.close.classNames);
 	}
 
 	async run(context?: IEditorCommandsContext): Promise<void> {
@@ -489,30 +492,29 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	async run(context?: IEditorIdentifier): Promise<void> {
-		const { group, editor } = getTarget(this.editorService, this.editorGroupService, context);
+		const { group, editor } = this.getTarget(context);
 		if (group && editor) {
-			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor });
+			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
-}
 
-function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
-	if (context) {
-		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
+	private getTarget(context?: IEditorIdentifier): { editor: IEditorInput | null, group: IEditorGroup | undefined } {
+		if (context) {
+			return { editor: context.editor, group: this.editorGroupService.getGroup(context.groupId) };
+		}
+
+		// Fallback to active group
+		return { group: this.editorGroupService.activeGroup, editor: this.editorGroupService.activeGroup.activeEditor };
 	}
-
-	// Fallback to active group
-	return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 }
 
-export abstract class BaseCloseAllAction extends Action {
+abstract class BaseCloseAllAction extends Action {
 
 	constructor(
 		id: string,
@@ -521,7 +523,8 @@ export abstract class BaseCloseAllAction extends Action {
 		private workingCopyService: IWorkingCopyService,
 		private fileDialogService: IFileDialogService,
 		protected editorGroupService: IEditorGroupsService,
-		private editorService: IEditorService
+		private editorService: IEditorService,
+		private filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, label, clazz);
 	}
@@ -551,7 +554,7 @@ export abstract class BaseCloseAllAction extends Action {
 		// to bring each dirty editor to the front so that the user
 		// can review if the files should be changed or not.
 		await Promise.all(this.groupsToClose.map(async groupToClose => {
-			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: this.excludeSticky })) {
 				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
 					return groupToClose.openEditor(editor);
 				}
@@ -561,37 +564,65 @@ export abstract class BaseCloseAllAction extends Action {
 		}));
 
 		const dirtyEditorsToConfirm = new Set<string>();
+		const dirtyEditorsToAutoSave = new Set<IEditorInput>();
 
-		for (const editor of this.editorService.editors) {
+		for (const editor of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky }).map(({ editor }) => editor)) {
 			if (!editor.isDirty() || editor.isSaving()) {
 				continue; // only interested in dirty editors (unless in the process of saving)
 			}
 
-			let name: string;
-			if (editor instanceof SideBySideEditorInput) {
-				name = editor.master.getName(); // prefer shorter names by using master's name in this case
-			} else {
-				name = editor.getName();
+			// Auto-save on focus change: assume to Save unless the editor is untitled
+			// because bringing up a dialog would save in this case anyway.
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+				dirtyEditorsToAutoSave.add(editor);
 			}
 
-			dirtyEditorsToConfirm.add(name);
+			// No auto-save on focus change: ask user
+			else {
+				let name: string;
+				if (editor instanceof SideBySideEditorInput) {
+					name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
+				} else {
+					name = editor.getName();
+				}
+
+				dirtyEditorsToConfirm.add(name);
+			}
 		}
 
-		const confirm = await this.fileDialogService.showSaveConfirm(Array.from(dirtyEditorsToConfirm.values()));
-		if (confirm === ConfirmResult.CANCEL) {
-			return;
-		}
-
-		if (confirm === ConfirmResult.DONT_SAVE) {
-			await this.editorService.revertAll({ soft: true, includeUntitled: true });
+		let confirmation: ConfirmResult;
+		let saveReason = SaveReason.EXPLICIT;
+		if (dirtyEditorsToConfirm.size > 0) {
+			confirmation = await this.fileDialogService.showSaveConfirm(Array.from(dirtyEditorsToConfirm.values()));
+		} else if (dirtyEditorsToAutoSave.size > 0) {
+			confirmation = ConfirmResult.SAVE;
+			saveReason = SaveReason.FOCUS_CHANGE;
 		} else {
-			await this.editorService.saveAll({ reason: SaveReason.EXPLICIT, includeUntitled: true });
+			confirmation = ConfirmResult.DONT_SAVE;
 		}
 
-		if (!this.workingCopyService.hasDirty) {
+		// Handle result from asking user
+		let result: boolean | undefined = undefined;
+		switch (confirmation) {
+			case ConfirmResult.CANCEL:
+				return;
+			case ConfirmResult.DONT_SAVE:
+				result = await this.editorService.revertAll({ soft: true, includeUntitled: true, excludeSticky: this.excludeSticky });
+				break;
+			case ConfirmResult.SAVE:
+				result = await this.editorService.saveAll({ reason: saveReason, includeUntitled: true, excludeSticky: this.excludeSticky });
+				break;
+		}
+
+
+		// Only continue to close editors if we either have no more dirty
+		// editors or the result from the save/revert was successful
+		if (!this.workingCopyService.hasDirty || result) {
 			return this.doCloseAll();
 		}
 	}
+
+	protected abstract get excludeSticky(): boolean;
 
 	protected abstract doCloseAll(): Promise<void>;
 }
@@ -607,13 +638,18 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, 'codicon-close-all', workingCopyService, fileDialogService, editorGroupService, editorService);
+		super(id, label, Codicon.closeAll.classNames, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+	}
+
+	protected get excludeSticky(): boolean {
+		return true;
 	}
 
 	protected async doCloseAll(): Promise<void> {
-		await Promise.all(this.groupsToClose.map(g => g.closeAllEditors()));
+		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors({ excludeSticky: true })));
 	}
 }
 
@@ -628,9 +664,14 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService);
+		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+	}
+
+	protected get excludeSticky(): boolean {
+		return false;
 	}
 
 	protected async doCloseAll(): Promise<void> {
@@ -655,12 +696,12 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 
 	async run(context?: IEditorIdentifier): Promise<void> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async g => {
-			if (groupToSkip && g.id === groupToSkip.id) {
+		await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async group => {
+			if (groupToSkip && group.id === groupToSkip.id) {
 				return;
 			}
 
-			return g.closeAllEditors();
+			return group.closeAllEditors({ excludeSticky: true });
 		}));
 	}
 }
@@ -682,7 +723,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 	async run(): Promise<void> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor) {
-			await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
+			await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.closeEditor(activeEditor)));
 		}
 	}
 }
@@ -1298,7 +1339,8 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 		id: string,
 		label: string,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -1306,7 +1348,14 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action {
 	async run(): Promise<void> {
 		const keybindings = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings } });
+		// Enforce to activate the first item in quick access if
+		// the currently active editor group has n editor opened
+		let itemActivation: ItemActivation | undefined = undefined;
+		if (this.editorGroupService.activeGroup.count === 0) {
+			itemActivation = ItemActivation.FIRST;
+		}
+
+		this.quickInputService.quickAccess.show('', { quickNavigateConfiguration: { keybindings }, itemActivation });
 	}
 }
 
@@ -1725,5 +1774,74 @@ export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, GroupDirection.DOWN, editorGroupService);
+	}
+}
+
+export class ReopenResourcesAction extends Action {
+
+	static readonly ID = 'workbench.action.reopenWithEditor';
+	static readonly LABEL = nls.localize('workbench.action.reopenWithEditor', "Reopen Editor With...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeInput = this.editorService.activeEditor;
+		if (!activeInput) {
+			return;
+		}
+
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+	}
+}
+
+export class ToggleEditorTypeAction extends Action {
+
+	static readonly ID = 'workbench.action.toggleEditorType';
+	static readonly LABEL = nls.localize('workbench.action.toggleEditorType', "Toggle Editor Type");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const input = activeEditorPane.input;
+		if (!input.resource) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+
+		const overrides = getAllAvailableEditors(input.resource, undefined, options, group, this.editorService);
+		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
+		if (!firstNonActiveOverride) {
+			return;
+		}
+
+		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 }

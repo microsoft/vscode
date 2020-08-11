@@ -5,9 +5,17 @@
 
 export namespace Iterable {
 
+	export function is<T = any>(thing: any): thing is IterableIterator<T> {
+		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
+	}
+
 	const _empty: Iterable<any> = Object.freeze([]);
-	export function empty<T>(): Iterable<T> {
+	export function empty<T = any>(): Iterable<T> {
 		return _empty;
+	}
+
+	export function* single<T>(element: T): Iterable<T> {
+		yield element;
 	}
 
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {

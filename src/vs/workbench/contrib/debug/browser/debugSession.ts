@@ -35,6 +35,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
+import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export class DebugSession implements IDebugSession {
 
@@ -51,7 +53,7 @@ export class DebugSession implements IDebugSession {
 	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
-	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
+	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
 
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
@@ -97,6 +99,11 @@ export class DebugSession implements IDebugSession {
 				dispose(toDispose);
 			}));
 		}
+
+		const compoundRoot = this._options.compoundRoot;
+		if (compoundRoot) {
+			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
+		}
 	}
 
 	getId(): string {
@@ -121,6 +128,14 @@ export class DebugSession implements IDebugSession {
 
 	get parentSession(): IDebugSession | undefined {
 		return this._options.parentSession;
+	}
+
+	get compact(): boolean {
+		return !!this._options.compact;
+	}
+
+	get compoundRoot(): DebugCompoundRoot | undefined {
+		return this._options.compoundRoot;
 	}
 
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
@@ -166,7 +181,7 @@ export class DebugSession implements IDebugSession {
 		return this._onDidChangeState.event;
 	}
 
-	get onDidEndAdapter(): Event<AdapterEndEvent> {
+	get onDidEndAdapter(): Event<AdapterEndEvent | undefined> {
 		return this._onDidEndAdapter.event;
 	}
 
@@ -270,14 +285,21 @@ export class DebugSession implements IDebugSession {
 	 */
 	async terminate(restart = false): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'terminate'));
+			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
+			this.onDidExitAdapter();
 		}
 
 		this.cancelAllRequests();
-		if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
-			await this.raw.terminate(restart);
-		} else {
-			await this.raw.disconnect(restart);
+		if (this.raw) {
+			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
+				await this.raw.terminate(restart);
+			} else {
+				await this.raw.disconnect(restart);
+			}
+		}
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
 		}
 	}
 
@@ -286,11 +308,18 @@ export class DebugSession implements IDebugSession {
 	 */
 	async disconnect(restart = false): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'disconnect'));
+			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
+			this.onDidExitAdapter();
 		}
 
 		this.cancelAllRequests();
-		await this.raw.disconnect(restart);
+		if (this.raw) {
+			await this.raw.disconnect(restart);
+		}
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
@@ -366,7 +395,7 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean }> {
+	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -488,12 +517,12 @@ export class DebugSession implements IDebugSession {
 		await this.raw.next({ threadId });
 	}
 
-	async stepIn(threadId: number): Promise<void> {
+	async stepIn(threadId: number, targetId?: number): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepIn'));
 		}
 
-		await this.raw.stepIn({ threadId });
+		await this.raw.stepIn({ threadId, targetId });
 	}
 
 	async stepOut(threadId: number): Promise<void> {
@@ -592,7 +621,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		const response = await this.raw.loadedSources({});
-		if (response.body && response.body.sources) {
+		if (response && response.body && response.body.sources) {
 			return response.body.sources.map(src => this.getSource(src));
 		} else {
 			return [];
@@ -610,6 +639,15 @@ export class DebugSession implements IDebugSession {
 			column: position.column,
 			line: position.lineNumber,
 		}, token);
+	}
+
+	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[]> {
+		if (!this.raw) {
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepInTargets')));
+		}
+
+		const response = await this.raw.stepInTargets({ frameId });
+		return response.body.targets;
 	}
 
 	async cancel(progressId: string): Promise<DebugProtocol.CancelResponse> {
@@ -735,6 +773,7 @@ export class DebugSession implements IDebugSession {
 						await this.raw.configurationDone();
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
+						this.notificationService.error(e);
 						if (this.raw) {
 							this.raw.disconnect();
 						}
@@ -847,7 +886,12 @@ export class DebugSession implements IDebugSession {
 					// and the user opted in telemetry
 					if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
-						this.raw.customTelemetryService.publicLog(event.body.output, event.body.data);
+						let data = event.body.data;
+						if (!this.raw.customTelemetryService.sendErrorTelemetry && event.body.data) {
+							data = filterExceptionsFromTelemetry(event.body.data);
+						}
+
+						this.raw.customTelemetryService.publicLog(event.body.output, data);
 					}
 
 					return;
@@ -890,8 +934,8 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
-			const breakpoint = this.model.getBreakpoints().filter(bp => bp.getIdFromAdapter(this.getId()) === id).pop();
-			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.getIdFromAdapter(this.getId()) === id).pop();
+			const breakpoint = this.model.getBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
+			const functionBreakpoint = this.model.getFunctionBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source && event.body.breakpoint.line) {
 				const source = this.getSource(event.body.breakpoint.source);
@@ -951,12 +995,14 @@ export class DebugSession implements IDebugSession {
 			this._onDidProgressEnd.fire(event);
 		}));
 
-		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
-			this.initialized = true;
-			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
-			this.shutdown();
-			this._onDidEndAdapter.fire(event);
-		}));
+		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+	}
+
+	private onDidExitAdapter(event?: AdapterEndEvent): void {
+		this.initialized = true;
+		this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
+		this.shutdown();
+		this._onDidEndAdapter.fire(event);
 	}
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.

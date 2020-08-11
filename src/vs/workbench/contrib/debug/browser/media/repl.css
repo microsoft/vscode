@@ -5,19 +5,19 @@
 
 /* Debug repl */
 
-.repl {
+.monaco-workbench .repl {
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
 }
 
-.repl .repl-tree .monaco-tl-contents {
+.monaco-workbench .repl .repl-tree .monaco-tl-contents {
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: pre;
 }
 
-.repl .repl-tree.word-wrap .monaco-tl-contents {
+.monaco-workbench .repl .repl-tree.word-wrap .monaco-tl-contents {
 	/* Wrap words but also do not trim whitespace #6275 */
 	word-wrap: break-word;
 	white-space: pre-wrap;
@@ -30,70 +30,45 @@
 	cursor: pointer;
 }
 
-.repl .repl-tree .output.expression.value-and-source {
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source {
 	display: flex;
 }
 
-.repl .repl-tree .output.expression.value-and-source .value {
-	flex: 1;
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
+	margin-right: 4px;
 }
 
-.repl .repl-tree .monaco-tl-contents .arrow {
+.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
 	position:absolute;
 	left: 2px;
-	opacity: 0.25;
 }
 
-.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
-	opacity: 0.4;
-}
-
-.repl .repl-tree .output.expression.value-and-source .source {
-	margin-left: 4px;
+.monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
+	margin-left: auto;
 	margin-right: 8px;
 	cursor: pointer;
 	text-decoration: underline;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	max-width: 150px;
+	text-align: right;
 }
 
-.repl .repl-tree .monaco-list-row {
-	cursor: text;
-}
-
-.repl .repl-tree .output.expression > .value,
-.repl .repl-tree .evaluation-result.expression > .value {
+.monaco-workbench .repl .repl-tree .output.expression > .value,
+.monaco-workbench .repl .repl-tree .evaluation-result.expression > .value {
 	margin-left: 0px;
 }
 
-.repl .repl-tree .output.expression > .annotation,
-.repl .repl-tree .evaluation-result.expression > .annotation {
-	font-size: inherit;
-	padding-left: 6px;
-}
-
-.repl .repl-tree .output.expression .name:not(:empty) {
+.monaco-workbench .repl .repl-tree .output.expression .name:not(:empty) {
 	margin-right: 6px;
 }
 
-.repl .repl-input-wrapper {
+.monaco-workbench .repl .repl-input-wrapper {
 	display: flex;
 	align-items: center;
-	border-top: 1px solid rgba(128, 128, 128, 0.35);
 }
 
-/* Only show 'stale expansion' info when the element gets expanded. */
-.repl .repl-tree .evaluation-result > .annotation::before  {
-	content: '';
-}
-
-.hc-black .repl .repl-input-wrapper {
-	border-top-color: #6FC3DF;
-}
-
-.repl .repl-input-wrapper .repl-input-chevron {
+.monaco-workbench .repl .repl-input-wrapper .repl-input-chevron {
 	padding: 0 6px 0 8px;
 	width: 16px;
 	height: 100%;
@@ -104,32 +79,8 @@
 }
 
 /* Output coloring  and styling */
-.repl .repl-tree .output.expression > .ignore {
+.monaco-workbench .repl .repl-tree .output.expression > .ignore {
 	font-style: italic;
-}
-
-.vs .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.vs-dark .repl .repl-tree .output.expression > .warn {
-	color: #cd9731;
-}
-
-.hc-black .repl .repl-tree .output.expression > .warn {
-	color: #008000;
-}
-
-.vs .repl .repl-tree .output.expression > .annotation {
-	color: #007ACC;
-}
-
-.vs-dark .repl .repl-tree .output.expression > .annotation {
-	color: #1B80B2;
-}
-
-.hc-black .repl .repl-tree .output.expression > .annotation {
-	color: #0000FF;
 }
 
 /* ANSI Codes */

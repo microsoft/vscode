@@ -6,9 +6,9 @@
 import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -41,6 +41,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		await this._fakeModules.install();
 	}
 
+	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {
+		return extensionDescription.browser;
+	}
+
 	protected async _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
 
 		module = module.with({ path: ensureSuffix(module.path, '.js') });
@@ -51,7 +55,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 
 		// fetch JS sources as text and create a new function around it
-		const initFn = new Function('module', 'exports', 'require', 'window', await response.text());
+		const source = await response.text();
+		// Here we append #vscode-extension to serve as a marker, such that source maps
+		// can be adjusted for the extra wrapping function.
+		const sourceURL = `${module.toString(true)}#vscode-extension`;
+		const initFn = new Function('module', 'exports', 'require', `${source}\n//# sourceURL=${sourceURL}`);
 
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
@@ -66,7 +74,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 		try {
 			activationTimesBuilder.codeLoadingStart();
-			initFn(_module, _exports, _require, self);
+			initFn(_module, _exports, _require);
 			return <T>(_module.exports !== _exports ? _module.exports : _exports);
 		} finally {
 			activationTimesBuilder.codeLoadingStop();
@@ -79,5 +87,5 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 }
 
 function ensureSuffix(path: string, suffix: string): string {
-	return endsWith(path, suffix) ? path : path + suffix;
+	return path.endsWith(suffix) ? path : path + suffix;
 }

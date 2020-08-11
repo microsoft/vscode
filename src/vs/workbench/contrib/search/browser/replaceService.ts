@@ -71,7 +71,7 @@ class ReplacePreviewModel extends Disposable {
 		const sourceModel = ref.object.textEditorModel;
 		const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
 		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
-		this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
+		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
 		this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
@@ -88,7 +88,7 @@ class ReplacePreviewModel extends Disposable {
 
 export class ReplaceService implements IReplaceService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -142,16 +142,19 @@ export class ReplaceService implements IReplaceService {
 		const sourceModel = sourceModelRef.object.textEditorModel;
 		const replaceModel = replaceModelRef.object.textEditorModel;
 		// If model is disposed do not update
-		if (sourceModel && replaceModel) {
-			if (override) {
-				replaceModel.setValue(sourceModel.getValue());
-			} else {
-				replaceModel.undo();
+		try {
+			if (sourceModel && replaceModel) {
+				if (override) {
+					replaceModel.setValue(sourceModel.getValue());
+				} else {
+					replaceModel.undo();
+				}
+				this.applyEditsToPreview(fileMatch, replaceModel);
 			}
-			this.applyEditsToPreview(fileMatch, replaceModel);
+		} finally {
+			sourceModelRef.dispose();
+			replaceModelRef.dispose();
 		}
-		sourceModelRef.dispose();
-		replaceModelRef.dispose();
 	}
 
 	private applyEditsToPreview(fileMatch: FileMatch, replaceModel: ITextModel): void {

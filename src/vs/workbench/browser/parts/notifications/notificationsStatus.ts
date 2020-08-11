@@ -72,6 +72,7 @@ export class NotificationsStatus extends Disposable {
 		// Show the bell with a dot if there are unread or in-progress notifications
 		const statusProperties: IStatusbarEntry = {
 			text: `${notificationsInProgress > 0 || this.newNotificationsCount > 0 ? '$(bell-dot)' : '$(bell)'}`,
+			ariaLabel: localize('status.notifications', "Notifications"),
 			command: this.isNotificationsCenterVisible ? HIDE_NOTIFICATIONS_CENTER : SHOW_NOTIFICATIONS_CENTER,
 			tooltip: this.getTooltip(notificationsInProgress),
 			showBeak: this.isNotificationsCenterVisible
@@ -108,18 +109,18 @@ export class NotificationsStatus extends Disposable {
 				return localize('oneNotification', "1 New Notification");
 			}
 
-			return localize('notifications', "{0} New Notifications", this.newNotificationsCount);
+			return localize({ key: 'notifications', comment: ['{0} will be replaced by a number'] }, "{0} New Notifications", this.newNotificationsCount);
 		}
 
 		if (this.newNotificationsCount === 0) {
-			return localize('noNotificationsWithProgress', "No New Notifications ({0} in progress)", notificationsInProgress);
+			return localize({ key: 'noNotificationsWithProgress', comment: ['{0} will be replaced by a number'] }, "No New Notifications ({0} in progress)", notificationsInProgress);
 		}
 
 		if (this.newNotificationsCount === 1) {
-			return localize('oneNotificationWithProgress', "1 New Notification ({0} in progress)", notificationsInProgress);
+			return localize({ key: 'oneNotificationWithProgress', comment: ['{0} will be replaced by a number'] }, "1 New Notification ({0} in progress)", notificationsInProgress);
 		}
 
-		return localize('notificationsWithProgress', "{0} New Notifications ({0} in progress)", this.newNotificationsCount, notificationsInProgress);
+		return localize({ key: 'notificationsWithProgress', comment: ['{0} and {1} will be replaced by a number'] }, "{0} New Notifications ({1} in progress)", this.newNotificationsCount, notificationsInProgress);
 	}
 
 	update(isCenterVisible: boolean, isToastsVisible: boolean): void {
@@ -179,7 +180,7 @@ export class NotificationsStatus extends Disposable {
 		let statusMessageEntry: IStatusbarEntryAccessor;
 		let showHandle: any = setTimeout(() => {
 			statusMessageEntry = this.statusbarService.addEntry(
-				{ text: message },
+				{ text: message, ariaLabel: message },
 				'status.message',
 				localize('status.message', "Status Message"),
 				StatusbarAlignment.LEFT,

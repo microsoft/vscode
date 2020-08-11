@@ -63,7 +63,7 @@ steps:
 
     MESSAGE="DefinitelyTyped/DefinitelyTyped#vscode-types-$TAG_VERSION created. Endgame master, please open this link, examine changes and create a PR:"
     LINK="https://github.com/DefinitelyTyped/DefinitelyTyped/compare/vscode-types-$TAG_VERSION?quick_pull=1&body=Updating%20VS%20Code%20Extension%20API.%20See%20https%3A%2F%2Fgithub.com%2Fmicrosoft%2Fvscode%2Fissues%2F70175%20for%20details."
-    MESSAGE2="[@octref, @jrieken, @kmaetzel, @egamma]. Please review and merge PR to publish @types/vscode."
+    MESSAGE2="[@eamodio, @jrieken, @kmaetzel, @egamma]. Please review and merge PR to publish @types/vscode."
 
     curl -X POST -H "Authorization: Bearer $(SLACK_TOKEN)" \
     -H 'Content-type: application/json; charset=utf-8' \

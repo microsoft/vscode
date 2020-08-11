@@ -27,6 +27,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -263,6 +264,8 @@ export class QuickInputList {
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;
+	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
+	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -280,12 +283,10 @@ export class QuickInputList {
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: { getId: element => element.saneLabel },
-			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
-			accessibilityProvider,
-			ariaRole: 'listbox'
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -313,6 +314,8 @@ export class QuickInputList {
 					}
 					break;
 			}
+
+			this._onKeyDown.fire(event);
 		}));
 		this.disposables.push(this.list.onMouseDown(e => {
 			if (e.browserEvent.button !== 2) {
@@ -347,6 +350,7 @@ export class QuickInputList {
 			this._onChangedCheckedElements,
 			this._onButtonTriggered,
 			this._onLeave,
+			this._onKeyDown
 		);
 	}
 
@@ -709,8 +713,16 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
 
+	getWidgetAriaLabel(): string {
+		return localize('quickInput', "Quick Input");
+	}
+
 	getAriaLabel(element: ListElement): string | null {
 		return element.saneAriaLabel;
+	}
+
+	getWidgetRole() {
+		return 'listbox';
 	}
 
 	getRole() {

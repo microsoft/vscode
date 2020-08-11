@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -27,6 +26,10 @@ import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/action
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class MessageWidget {
 
@@ -224,6 +227,8 @@ class MessageWidget {
 
 export class MarkerNavigationWidget extends PeekViewWidget {
 
+	static readonly TitleMenu = new MenuId('gotoErrorTitleMenu');
+
 	private _parentContainer!: HTMLElement;
 	private _container!: HTMLElement;
 	private _icon!: HTMLElement;
@@ -238,11 +243,13 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly actions: ReadonlyArray<IAction>,
-		private readonly _themeService: IThemeService,
-		private readonly _openerService: IOpenerService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
-		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
+		super(editor, { showArrow: true, showFrame: true, isAccessible: true }, instantiationService);
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
@@ -288,7 +295,14 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget!.push(this.actions, { label: false, icon: true, index: 0 });
+
+		this._disposables.add(this._actionbarWidget!.actionRunner.onDidBeforeRun(e => this.editor.focus()));
+
+		const actions: IAction[] = [];
+		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
+		createAndFillInActionBarActions(menu, undefined, actions);
+		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
+		menu.dispose();
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {
@@ -297,6 +311,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
+			...super._getActionBarOptions(),
 			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
@@ -314,7 +329,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._disposables.add(this._message);
 	}
 
-	show(where: Position, heightInLines: number): void {
+	show(): void {
 		throw new Error('call showAtMarker');
 	}
 

@@ -27,9 +27,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private readonly _startsDirty: boolean | undefined;
+	private _defaultDirtyState: boolean | undefined;
 
-	public readonly backupId: string | undefined;
+	private readonly _backupId: string | undefined;
 
 	get resource() { return this._editorResource; }
 
@@ -53,8 +53,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
-		this._startsDirty = options.startsDirty;
-		this.backupId = options.backupId;
+		this._defaultDirtyState = options.startsDirty;
+		this._backupId = options.backupId;
 	}
 
 	public getTypeId(): string {
@@ -113,12 +113,16 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public isDirty(): boolean {
 		if (!this._modelRef) {
-			return !!this._startsDirty;
+			return !!this._defaultDirtyState;
 		}
 		return this._modelRef.object.isDirty();
 	}
 
 	public isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
 		if (!this.isDirty()) {
 			return false; // the editor needs to be dirty for being saved
 		}
@@ -131,8 +135,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		const modelRef = assertIsDefined(this._modelRef);
-		const target = await modelRef.object.saveCustomEditor(options);
+		if (!this._modelRef) {
+			return undefined;
+		}
+
+		const target = await this._modelRef.object.saveCustomEditor(options);
 		if (!target) {
 			return undefined; // save cancelled
 		}
@@ -145,7 +152,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		const modelRef = assertIsDefined(this._modelRef);
+		if (!this._modelRef) {
+			return undefined;
+		}
 
 		const dialogPath = this._editorResource;
 		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
@@ -153,15 +162,19 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined; // save cancelled
 		}
 
-		if (!await modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
+		if (!await this._modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
 			return undefined;
 		}
 
-		return this.move(groupId, target)?.editor;
+		return this.rename(groupId, target)?.editor;
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		return assertIsDefined(this._modelRef).object.revert(options);
+		if (this._modelRef) {
+			return this._modelRef.object.revert(options);
+		}
+		this._defaultDirtyState = false;
+		this._onDidChangeDirty.fire();
 	}
 
 	public async resolve(): Promise<null> {
@@ -183,7 +196,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+	rename(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
 		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
@@ -204,7 +217,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this.viewType,
 			this.id,
 			new Lazy(() => undefined!),
-			{ startsDirty: this._startsDirty, backupId: this.backupId }); // this webview is replaced in the transfer call
+			{ startsDirty: this._defaultDirtyState, backupId: this._backupId }); // this webview is replaced in the transfer call
 		this.transfer(newEditor);
 		newEditor.updateGroup(group);
 		return newEditor;
@@ -235,5 +248,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		other._moveHandler = this._moveHandler;
 		this._moveHandler = undefined;
 		return other;
+	}
+
+	get backupId(): string | undefined {
+		if (this._modelRef) {
+			return this._modelRef.object.backupId;
+		}
+		return this._backupId;
 	}
 }

@@ -15,6 +15,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isString } from 'vs/base/common/types';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -26,7 +27,8 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@IExtensionService extensionService: IExtensionService,
 		@ITaskService private taskService: ITaskService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(TasksQuickAccessProvider.PREFIX, {
 			noResultsPick: {
@@ -45,12 +47,12 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService);
+		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		for (const entry of topLevelPicks.entries) {
-			const highlights = matchesFuzzy(filter, entry.label!, true);
+			const highlights = matchesFuzzy(filter, entry.label!);
 			if (!highlights) {
 				continue;
 			}
@@ -73,7 +75,10 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			quickAccessEntry.accept = async () => {
 				if (isString(task)) {
 					// switch to quick pick and show second level
-					taskQuickPick.show(localize('TaskService.pickRunTask', 'Select the task to run'), undefined, task);
+					const showResult = await taskQuickPick.show(localize('TaskService.pickRunTask', 'Select the task to run'), undefined, task);
+					if (showResult) {
+						this.taskService.run(showResult, { attachProblemMatcher: true });
+					}
 				} else {
 					this.taskService.run(await this.toTask(task), { attachProblemMatcher: true });
 				}

@@ -22,7 +22,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				enum: ['default', 'large'],
 				enumDescriptions: [
 					nls.localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
-					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabed more easily with the mouse")
+					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse")
 				],
 				description: nls.localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
@@ -31,6 +31,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'boolean',
 				'description': nls.localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
 				'default': true
+			},
+			'workbench.editor.scrollToSwitchTabs': {
+				'type': 'boolean',
+				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration."),
+				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
@@ -98,17 +103,17 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.showIcons': {
 				'type': 'boolean',
-				'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires an file icon theme to be enabled as well."),
+				'description': nls.localize('showIcons', "Controls whether opened editors should show with an icon or not. This requires a file icon theme to be enabled as well."),
 				'default': true
 			},
 			'workbench.editor.enablePreview': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing) and show up with an italic font style."),
+				'description': nls.localize('enablePreview', "Controls whether opened editors show as preview. Preview editors are reused until they are explicitly set to be kept open (e.g. via double click or editing) and show up with an italic font style."),
 				'default': true
 			},
 			'workbench.editor.enablePreviewFromQuickOpen': {
 				'type': 'boolean',
-				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors are reused until they are pinned (e.g. via double click or editing)."),
+				'description': nls.localize('enablePreviewFromQuickOpen', "Controls whether editors opened from Quick Open show as preview. Preview editors are reused until they are explicitly set to be kept open (e.g. via double click or editing)."),
 				'default': true
 			},
 			'workbench.editor.closeOnFileDelete': {
@@ -225,6 +230,16 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'boolean',
 				'default': true,
 				'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+			},
+			'workbench.activityBar.iconClickBehavior': {
+				'type': 'string',
+				'enum': ['toggle', 'focus'],
+				'default': 'toggle',
+				'description': nls.localize('activityBarIconClickBehavior', "Controls the behavior of clicking an activity bar icon in the workbench."),
+				'enumDescriptions': [
+					nls.localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the side bar if the clicked item is already visible."),
+					nls.localize('workbench.activityBar.iconClickBehavior.focus', "Focus side bar if the clicked item is already visible.")
+				]
 			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',

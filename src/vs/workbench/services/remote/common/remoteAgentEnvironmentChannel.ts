@@ -6,60 +6,72 @@
 import * as platform from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
-import { RemoteAuthorities } from 'vs/base/common/network';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IGetEnvironmentDataArguments {
+	remoteAuthority: string;
+}
+
+export interface IScanExtensionsArguments {
 	language: string;
 	remoteAuthority: string;
 	extensionDevelopmentPath: UriComponents[] | undefined;
+	skipExtensions: ExtensionIdentifier[];
 }
 
 export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
 	connectionToken: string;
 	appRoot: UriComponents;
-	appSettingsHome: UriComponents;
 	settingsPath: UriComponents;
 	logsPath: UriComponents;
 	extensionsPath: UriComponents;
 	extensionHostLogsPath: UriComponents;
 	globalStorageHome: UriComponents;
+	workspaceStorageHome: UriComponents;
 	userHome: UriComponents;
-	extensions: IExtensionDescription[];
 	os: platform.OperatingSystem;
 }
 
 export class RemoteExtensionEnvironmentChannelClient {
 
-	static async getEnvironmentData(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
+	static async getEnvironmentData(channel: IChannel, remoteAuthority: string): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
-			language: platform.language,
-			remoteAuthority,
-			extensionDevelopmentPath
+			remoteAuthority
 		};
 
 		const data = await channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
-
-		RemoteAuthorities.setConnectionToken(remoteAuthority, data.connectionToken);
 
 		return {
 			pid: data.pid,
 			connectionToken: data.connectionToken,
 			appRoot: URI.revive(data.appRoot),
-			appSettingsHome: URI.revive(data.appSettingsHome),
 			settingsPath: URI.revive(data.settingsPath),
 			logsPath: URI.revive(data.logsPath),
 			extensionsPath: URI.revive(data.extensionsPath),
 			extensionHostLogsPath: URI.revive(data.extensionHostLogsPath),
 			globalStorageHome: URI.revive(data.globalStorageHome),
+			workspaceStorageHome: URI.revive(data.workspaceStorageHome),
 			userHome: URI.revive(data.userHome),
-			extensions: data.extensions.map(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); return ext; }),
 			os: data.os
 		};
+	}
+
+	static async scanExtensions(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath: URI[] | undefined, skipExtensions: ExtensionIdentifier[]): Promise<IExtensionDescription[]> {
+		const args: IScanExtensionsArguments = {
+			language: platform.language,
+			remoteAuthority,
+			extensionDevelopmentPath,
+			skipExtensions
+		};
+
+		const extensions = await channel.call<IExtensionDescription[]>('scanExtensions', args);
+		extensions.forEach(ext => { (<any>ext).extensionLocation = URI.revive(ext.extensionLocation); });
+
+		return extensions;
 	}
 
 	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {

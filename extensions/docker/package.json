@@ -12,15 +12,23 @@
 	"contributes": {
 		"languages": [{
 			"id": "dockerfile",
-			"extensions": [ ".dockerfile" ],
-			"filenames": [ "Dockerfile" ],
-			"aliases": [ "Dockerfile" ],
+			"extensions": [ ".dockerfile", ".containerfile" ],
+			"filenames": [ "Dockerfile", "Containerfile" ],
+			"filenamePatterns": [ "Dockerfile.*", "Containerfile.*" ],
+			"aliases": [ "Dockerfile", "Containerfile" ],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "dockerfile",
 			"scopeName": "source.dockerfile",
 			"path": "./syntaxes/docker.tmLanguage.json"
-		}]
+		}],
+		"configurationDefaults": {
+			"[dockerfile]": {
+				"editor.quickSuggestions": {
+					"strings": true
+				}
+			}
+		}
 	}
 }

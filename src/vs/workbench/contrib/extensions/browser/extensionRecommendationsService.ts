@@ -24,6 +24,7 @@ import { FileBasedRecommendations } from 'vs/workbench/contrib/extensions/browse
 import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/keymapRecommendations';
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -34,12 +35,13 @@ const ignoredRecommendationsStorageKey = 'extensionsAssistant/ignored_recommenda
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	// Recommendations
 	private readonly fileBasedRecommendations: FileBasedRecommendations;
 	private readonly workspaceRecommendations: WorkspaceRecommendations;
 	private readonly experimentalRecommendations: ExperimentalRecommendations;
+	private readonly configBasedRecommendations: ConfigBasedRecommendations;
 	private readonly exeBasedRecommendations: ExeBasedRecommendations;
 	private readonly dynamicWorkspaceRecommendations: DynamicWorkspaceRecommendations;
 	private readonly keymapRecommendations: KeymapRecommendations;
@@ -72,6 +74,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations, isExtensionAllowedToBeRecommended);
 		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations, isExtensionAllowedToBeRecommended);
 		this.experimentalRecommendations = instantiationService.createInstance(ExperimentalRecommendations, isExtensionAllowedToBeRecommended);
+		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations, isExtensionAllowedToBeRecommended);
 		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations, isExtensionAllowedToBeRecommended);
 		this.dynamicWorkspaceRecommendations = instantiationService.createInstance(DynamicWorkspaceRecommendations, isExtensionAllowedToBeRecommended);
 		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations, isExtensionAllowedToBeRecommended);
@@ -102,7 +105,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private async activateProactiveRecommendations(): Promise<void> {
-		await Promise.all([this.dynamicWorkspaceRecommendations.activate(), this.exeBasedRecommendations.activate()]);
+		await Promise.all([this.dynamicWorkspaceRecommendations.activate(), this.exeBasedRecommendations.activate(), this.configBasedRecommendations.activate()]);
 	}
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
@@ -113,6 +116,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 		const allRecommendations = [
 			...this.dynamicWorkspaceRecommendations.recommendations,
+			...this.configBasedRecommendations.recommendations,
 			...this.exeBasedRecommendations.recommendations,
 			...this.experimentalRecommendations.recommendations,
 			...this.fileBasedRecommendations.recommendations,
@@ -129,13 +133,39 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return output;
 	}
 
+	async getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]> {
+		await this.configBasedRecommendations.activate();
+		return this.toExtensionRecommendations(this.configBasedRecommendations.recommendations);
+	}
+
 	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
 		await this.activateProactiveRecommendations();
 
 		const recommendations = [
-			...this.exeBasedRecommendations.recommendations,
+			...this.configBasedRecommendations.otherRecommendations,
+			...this.exeBasedRecommendations.otherRecommendations,
 			...this.dynamicWorkspaceRecommendations.recommendations,
 			...this.experimentalRecommendations.recommendations
+		];
+
+		const extensionIds = distinct(recommendations.map(e => e.extensionId))
+			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+
+		shuffle(extensionIds, this.sessionSeed);
+
+		return extensionIds.map(extensionId => {
+			const sources: ExtensionRecommendationSource[] = distinct(recommendations.filter(r => r.extensionId === extensionId).map(r => r.source));
+			return (<IExtensionRecommendation>{ extensionId, sources });
+		});
+	}
+
+	async getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+		await this.activateProactiveRecommendations();
+
+		const recommendations = [
+			...this.fileBasedRecommendations.importantRecommendations,
+			...this.configBasedRecommendations.importantRecommendations,
+			...this.exeBasedRecommendations.importantRecommendations,
 		];
 
 		const extensionIds = distinct(recommendations.map(e => e.extensionId))

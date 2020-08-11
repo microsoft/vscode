@@ -28,7 +28,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TreeResourceNavigator, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
@@ -39,7 +39,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -56,6 +56,10 @@ class BaseTreeItem {
 
 	constructor(private _parent: BaseTreeItem | undefined, private _label: string, public readonly isIncompressible = false) {
 		this._showedMoreThanOne = false;
+	}
+
+	updateLabel(label: string) {
+		this._label = label;
 	}
 
 	isLeaf(): boolean {
@@ -241,12 +245,12 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _remotePathService: IRemotePathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
+	constructor(private _pathService: IPathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._remotePathService, this._contextService));
+		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._pathService, this._contextService));
 	}
 
 	find(session: IDebugSession): SessionTreeItem {
@@ -262,7 +266,7 @@ class SessionTreeItem extends BaseTreeItem {
 	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
-	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _remotePathService: IRemotePathService, private rootProvider: IWorkspaceContextService) {
+	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _pathService: IPathService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel(), true);
 		this._labelService = labelService;
 		this._session = session;
@@ -310,7 +314,7 @@ class SessionTreeItem extends BaseTreeItem {
 		return 999;
 	}
 
-	addPath(source: Source): void {
+	async addPath(source: Source): Promise<void> {
 
 		let folder: IWorkspaceFolder | null;
 		let url: string;
@@ -347,9 +351,8 @@ class SessionTreeItem extends BaseTreeItem {
 				} else {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
-					const userHome = this._remotePathService.userHomeSync;
-					if (userHome && !isWindows) {
-						path = tildify(path, userHome.fsPath);
+					if (!isWindows) {
+						path = tildify(path, (await this._pathService.userHome()).fsPath);
 					}
 				}
 			}
@@ -426,7 +429,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IDebugService private readonly debugService: IDebugService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -446,7 +449,7 @@ export class LoadedScriptsView extends ViewPane {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.remotePathService, this.contextService, this.labelService);
+		const root = new RootTreeItem(this.pathService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
@@ -473,7 +476,6 @@ export class LoadedScriptsView extends ViewPane {
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
-				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
 				}
@@ -492,9 +494,7 @@ export class LoadedScriptsView extends ViewPane {
 		}, 300);
 		this._register(this.changeScheduler);
 
-		const loadedScriptsNavigator = new TreeResourceNavigator(this.tree);
-		this._register(loadedScriptsNavigator);
-		this._register(loadedScriptsNavigator.onDidOpenResource(e => {
+		this._register(this.tree.onDidOpen(e => {
 			if (e.element instanceof BaseTreeItem) {
 				const source = e.element.getSource();
 				if (source && source.available) {
@@ -521,27 +521,30 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		};
 
-		const addSourcePathsToSession = (session: IDebugSession) => {
+		const addSourcePathsToSession = async (session: IDebugSession) => {
 			const sessionNode = root.add(session);
-			return session.getLoadedSources().then(paths => {
-				paths.forEach(path => sessionNode.addPath(path));
-				scheduleRefreshOnVisible();
-			});
+			const paths = await session.getLoadedSources();
+			for (const path of paths) {
+				await sessionNode.addPath(path);
+			}
+			scheduleRefreshOnVisible();
 		};
 
 		const registerSessionListeners = (session: IDebugSession) => {
-			this._register(session.onDidChangeName(() => {
-				// Re-add session, this will trigger proper sorting and id recalculation.
-				root.remove(session.getId());
-				addSourcePathsToSession(session);
+			this._register(session.onDidChangeName(async () => {
+				const sessionRoot = root.find(session);
+				if (sessionRoot) {
+					sessionRoot.updateLabel(session.getLabel());
+					scheduleRefreshOnVisible();
+				}
 			}));
-			this._register(session.onDidLoadedSource(event => {
+			this._register(session.onDidLoadedSource(async event => {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
 					case 'new':
 					case 'changed':
 						sessionRoot = root.add(session);
-						sessionRoot.addPath(event.source);
+						await sessionRoot.addPath(event.source);
 						scheduleRefreshOnVisible();
 						if (event.reason === 'changed') {
 							DebugContentProvider.refreshDebugContent(event.source.uri);
@@ -611,6 +614,7 @@ export class LoadedScriptsView extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
@@ -709,6 +713,10 @@ class LoadedScriptsRenderer implements ICompressibleTreeRenderer<BaseTreeItem, F
 }
 
 class LoadedSciptsAccessibilityProvider implements IListAccessibilityProvider<LoadedScriptsItem> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts");
+	}
 
 	getAriaLabel(element: LoadedScriptsItem): string {
 

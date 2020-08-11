@@ -61,22 +61,22 @@ export class FileElement implements ICheckable {
 		}
 
 		// multiple file edits -> reflect single state
-		this.edit.originalEdits.forEach(edit => {
+		for (let edit of this.edit.originalEdits.values()) {
 			if (WorkspaceFileEdit.is(edit)) {
 				checked = checked && model.checked.isChecked(edit);
 			}
-		});
+		}
 
 		// multiple categories and text change -> read all elements
 		if (this.parent instanceof CategoryElement && this.edit.type === BulkFileOperationType.TextEdit) {
 			for (let category of model.categories) {
 				for (let file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
-						file.originalEdits.forEach(edit => {
+						for (const edit of file.originalEdits.values()) {
 							if (WorkspaceFileEdit.is(edit)) {
 								checked = checked && model.checked.isChecked(edit);
 							}
-						});
+						}
 					}
 				}
 			}
@@ -87,18 +87,18 @@ export class FileElement implements ICheckable {
 
 	setChecked(value: boolean): void {
 		let model = this.parent instanceof CategoryElement ? this.parent.parent : this.parent;
-		this.edit.originalEdits.forEach(edit => {
+		for (const edit of this.edit.originalEdits.values()) {
 			model.checked.updateChecked(edit, value);
-		});
+		}
 
 		// multiple categories and file change -> update all elements
 		if (this.parent instanceof CategoryElement && this.edit.type !== BulkFileOperationType.TextEdit) {
 			for (let category of model.categories) {
 				for (let file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
-						file.originalEdits.forEach(edit => {
+						for (const edit of file.originalEdits.values()) {
 							model.checked.updateChecked(edit, value);
-						});
+						}
 					}
 				}
 			}
@@ -112,11 +112,11 @@ export class FileElement implements ICheckable {
 			for (let category of model.categories) {
 				for (let file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
-						file.originalEdits.forEach(edit => {
+						for (const edit of file.originalEdits.values()) {
 							if (WorkspaceFileEdit.is(edit)) {
 								checked = checked && model.checked.isChecked(edit);
 							}
-						});
+						}
 					}
 				}
 			}
@@ -154,11 +154,11 @@ export class TextEditElement implements ICheckable {
 
 		// make sure parent is checked when this element is checked...
 		if (value) {
-			this.parent.edit.originalEdits.forEach(edit => {
+			for (const edit of this.parent.edit.originalEdits.values()) {
 				if (WorkspaceFileEdit.is(edit)) {
 					(<BulkFileOperations>model).checked.updateChecked(edit, value);
 				}
-			});
+			}
 		}
 	}
 
@@ -275,6 +275,10 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 export class BulkEditAccessibilityProvider implements IListAccessibilityProvider<BulkEditElement> {
 
 	constructor(@ILabelService private readonly _labelService: ILabelService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('bulkEdit', "Bulk Edit");
+	}
 
 	getRole(_element: BulkEditElement): string {
 		return 'checkbox';
@@ -525,17 +529,22 @@ class TextEditElementTemplate {
 	private readonly _localDisposables = new DisposableStore();
 
 	private readonly _checkbox: HTMLInputElement;
+	private readonly _icon: HTMLDivElement;
 	private readonly _label: HighlightedLabel;
 
 	constructor(container: HTMLElement) {
+		container.classList.add('textedit');
+
 		this._checkbox = document.createElement('input');
 		this._checkbox.className = 'edit-checkbox';
 		this._checkbox.type = 'checkbox';
 		this._checkbox.setAttribute('role', 'checkbox');
 		container.appendChild(this._checkbox);
 
+		this._icon = document.createElement('div');
+		container.appendChild(this._icon);
+
 		this._label = new HighlightedLabel(container, false);
-		dom.addClass(this._label.element, 'textedit');
 	}
 
 	dispose(): void {
@@ -575,7 +584,36 @@ class TextEditElementTemplate {
 			title = metadata.label;
 		}
 
+		const iconPath = metadata?.iconPath;
+		if (!iconPath) {
+			this._icon.style.display = 'none';
+		} else {
+			this._icon.style.display = 'block';
+
+			this._icon.style.setProperty('--background-dark', null);
+			this._icon.style.setProperty('--background-light', null);
+
+			if (ThemeIcon.isThemeIcon(iconPath)) {
+				// css
+				const className = ThemeIcon.asClassName(iconPath);
+				this._icon.className = className ? `theme-icon ${className}` : '';
+
+			} else if (URI.isUri(iconPath)) {
+				// background-image
+				this._icon.className = 'uri-icon';
+				this._icon.style.setProperty('--background-dark', `url("${iconPath.toString(true)}")`);
+				this._icon.style.setProperty('--background-light', `url("${iconPath.toString(true)}")`);
+
+			} else {
+				// background-image
+				this._icon.className = 'uri-icon';
+				this._icon.style.setProperty('--background-dark', `url("${iconPath.dark.toString(true)}")`);
+				this._icon.style.setProperty('--background-light', `url("${iconPath.light.toString(true)}")`);
+			}
+		}
+
 		this._label.set(value, [selectHighlight, insertHighlight], title, true);
+		this._icon.title = title || '';
 	}
 }
 

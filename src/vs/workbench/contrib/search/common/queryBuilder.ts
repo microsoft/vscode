@@ -7,17 +7,16 @@ import * as arrays from 'vs/base/common/arrays';
 import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import { untildify } from 'vs/base/common/labels';
-import { values } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
-import { URI as uri, URI } from 'vs/base/common/uri';
+import { URI as uri } from 'vs/base/common/uri';
 import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
 
 /**
@@ -82,14 +81,9 @@ export class QueryBuilder {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService
+		@IPathService private readonly pathService: IPathService
 	) {
-		this.remotePathService.userHome.then(userHome => {
-			this._userHome = userHome;
-		});
 	}
-
-	private _userHome: URI | undefined;
 
 	text(contentPattern: IPatternInfo, folderResources?: uri[], options: ITextQueryBuilderOptions = {}): ITextQuery {
 		contentPattern = this.getContentPattern(contentPattern, options);
@@ -244,8 +238,9 @@ export class QueryBuilder {
 
 		const segments = splitGlobPattern(pattern)
 			.map(segment => {
-				if (this._userHome) {
-					return untildify(segment, this._userHome.fsPath);
+				const userHome = this.pathService.resolvedUserHome;
+				if (userHome) {
+					return untildify(segment, userHome.scheme === Schemas.file ? userHome.fsPath : userHome.path);
 				}
 
 				return segment;
@@ -328,7 +323,7 @@ export class QueryBuilder {
 			}
 		});
 
-		return values(searchPathPatternMap);
+		return Array.from(searchPathPatternMap.values());
 	}
 
 	/**
@@ -354,7 +349,7 @@ export class QueryBuilder {
 			const workspaceUri = this.workspaceContextService.getWorkspace().folders[0].uri;
 
 			searchPath = normalizeSlashes(searchPath);
-			if (strings.startsWith(searchPath, '../') || searchPath === '..') {
+			if (searchPath.startsWith('../') || searchPath === '..') {
 				const resolvedPath = path.posix.resolve(workspaceUri.path, searchPath);
 				return [{
 					searchPath: workspaceUri.with({ path: resolvedPath })
@@ -405,7 +400,7 @@ export class QueryBuilder {
 				pattern
 			}];
 
-		if (pattern && !strings.endsWith(pattern, '**')) {
+		if (pattern && !pattern.endsWith('**')) {
 			results.push({
 				searchPath: oneExpandedResult.searchPath,
 				pattern: pattern + '/**'

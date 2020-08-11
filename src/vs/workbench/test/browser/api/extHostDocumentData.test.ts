@@ -10,8 +10,8 @@ import { Position } from 'vs/workbench/api/common/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/workbench/test/browser/api/mock';
-
+import { mock } from 'vs/base/test/common/mock';
+import * as perfData from './extHostDocumentData.test.perf-data';
 
 suite('ExtHostDocumentData', () => {
 
@@ -295,6 +295,41 @@ suite('ExtHostDocumentData', () => {
 		assert.equal(range.start.character, 1);
 		assert.equal(range.end.line, 3);
 		assert.equal(range.end.character, 10);
+	});
+
+
+	test('getWordRangeAtPosition can freeze the extension host #95319', function () {
+
+		const regex = /(https?:\/\/github\.com\/(([^\s]+)\/([^\s]+))\/([^\s]+\/)?(issues|pull)\/([0-9]+))|(([^\s]+)\/([^\s]+))?#([1-9][0-9]*)($|[\s\:\;\-\(\=])/;
+
+		data = new ExtHostDocumentData(undefined!, URI.file(''), [
+			perfData._$_$_expensive
+		], '\n', 'text', 1, false);
+
+		let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
+		assert.equal(range, undefined);
+
+		const pos = new Position(0, 1177170);
+		range = data.document.getWordRangeAtPosition(pos)!;
+		assert.ok(range);
+		assert.ok(range.contains(pos));
+		assert.equal(data.document.getText(range), 'TaskDefinition');
+	});
+
+	test('Rename popup sometimes populates with text on the left side omitted #96013', function () {
+
+		const regex = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\$\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
+		const line = 'int abcdefhijklmnopqwvrstxyz;';
+
+		data = new ExtHostDocumentData(undefined!, URI.file(''), [
+			line
+		], '\n', 'text', 1, false);
+
+		let range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
+		assert.equal(range.start.line, 0);
+		assert.equal(range.end.line, 0);
+		assert.equal(range.start.character, 4);
+		assert.equal(range.end.character, 28);
 	});
 });
 

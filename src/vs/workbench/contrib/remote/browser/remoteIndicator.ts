@@ -55,7 +55,7 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 		this.windowCommandMenu = this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService);
 		this._register(this.windowCommandMenu);
 
-		const category = nls.localize('remote.category', "Remote");
+		const category = { value: nls.localize('remote.category', "Remote"), original: 'Remote' };
 		const that = this;
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -169,7 +169,12 @@ export class RemoteWindowActiveIndicator extends Disposable implements IWorkbenc
 
 	private renderWindowIndicator(text: string, tooltip?: string, command?: string): void {
 		const properties: IStatusbarEntry = {
-			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND), color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND), text, tooltip, command
+			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
+			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
+			ariaLabel: nls.localize('remote', "Remote"),
+			text,
+			tooltip,
+			command
 		};
 		if (this.windowIndicatorEntry) {
 			this.windowIndicatorEntry.update(properties);

@@ -11,19 +11,19 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { values } from 'vs/base/common/collections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
+import { Iterable } from 'vs/base/common/iterator';
 
 export async function getDocumentSymbols(document: ITextModel, flat: boolean, token: CancellationToken): Promise<DocumentSymbol[]> {
 
 	const model = await OutlineModel.create(document, token);
 	const roots: DocumentSymbol[] = [];
-	for (const child of values(model.children)) {
+	for (const child of model.children.values()) {
 		if (child instanceof OutlineElement) {
 			roots.push(child.symbol);
 		} else {
-			roots.push(...values(child.children).map(child => child.symbol));
+			roots.push(...Iterable.map(child.children.values(), child => child.symbol));
 		}
 	}
 

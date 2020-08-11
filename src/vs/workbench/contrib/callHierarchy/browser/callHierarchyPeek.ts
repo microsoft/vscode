@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { Dimension, addClass } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -26,38 +26,20 @@ import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
 import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
+import { MenuId, IMenuService } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const enum State {
 	Loading = 'loading',
 	Message = 'message',
 	Data = 'data'
-}
-
-class ChangeHierarchyDirectionAction extends Action {
-
-	constructor(getDirection: () => CallHierarchyDirection, toggleDirection: () => void) {
-		super('', undefined, '', true, () => {
-			toggleDirection();
-			update();
-			return Promise.resolve();
-		});
-		const update = () => {
-			if (getDirection() === CallHierarchyDirection.CallsFrom) {
-				this.label = localize('toggle.from', "Show Incoming Calls");
-				this.class = 'codicon codicon-call-incoming';
-			} else {
-				this.label = localize('toggle.to', "Showing Outgoing Calls");
-				this.class = 'codicon codicon-call-outgoing';
-			}
-		};
-		update();
-	}
 }
 
 class LayoutInfo {
@@ -86,7 +68,8 @@ class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callH
 
 export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
-	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
+	static readonly TitleMenu = new MenuId('callhierarchy/title');
+
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
@@ -107,9 +90,11 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
 		this._applyTheme(themeService.getColorTheme());
@@ -140,9 +125,25 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		});
 	}
 
+	protected _fillHead(container: HTMLElement): void {
+		super._fillHead(container, true);
+
+		const menu = this._menuService.createMenu(CallHierarchyTreePeekWidget.TitleMenu, this._contextKeyService);
+		const updateToolbar = () => {
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(menu, undefined, actions);
+			this._actionbarWidget!.clear();
+			this._actionbarWidget!.push(actions, { label: false, icon: true });
+		};
+		this._disposables.add(menu);
+		this._disposables.add(menu.onDidChange(updateToolbar));
+		updateToolbar();
+	}
+
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			...super._getActionBarOptions(),
+			orientation: ActionsOrientation.HORIZONTAL
 		};
 	}
 
@@ -152,23 +153,23 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._dim = { height: 0, width: 0 };
 
 		this._parent = parent;
-		addClass(parent, 'call-hierarchy');
+		parent.classList.add('call-hierarchy');
 
 		const message = document.createElement('div');
-		addClass(message, 'message');
+		message.classList.add('message');
 		parent.appendChild(message);
 		this._message = message;
 		this._message.tabIndex = 0;
 
 		const container = document.createElement('div');
-		addClass(container, 'results');
+		container.classList.add('results');
 		parent.appendChild(container);
 
 		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
 
 		// editor stuff
 		const editorContainer = document.createElement('div');
-		addClass(editorContainer, 'editor');
+		editorContainer.classList.add('editor');
 		container.appendChild(editorContainer);
 		let editorOptions: IEditorOptions = {
 			scrollBeyondLastLine: false,
@@ -195,13 +196,12 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		// tree stuff
 		const treeContainer = document.createElement('div');
-		addClass(treeContainer, 'tree');
+		treeContainer.classList.add('tree');
 		container.appendChild(treeContainer);
 		const options: IWorkbenchAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
 			sorter: new callHTree.Sorter(),
 			accessibilityProvider: new callHTree.AccessibilityProvider(() => this._direction),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
-			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
@@ -392,12 +392,6 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 			this._tree.domFocus();
 			this._updatePreview();
 		}
-
-		if (!this._changeDirectionAction) {
-			this._changeDirectionAction = new ChangeHierarchyDirectionAction(() => this._direction, () => this.toggleDirection());
-			this._disposables.add(this._changeDirectionAction);
-			this._actionbarWidget!.push(this._changeDirectionAction, { icon: true, label: false });
-		}
 	}
 
 	getModel(): CallHierarchyModel | undefined {
@@ -408,10 +402,9 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		return this._tree.getFocus()[0];
 	}
 
-	async toggleDirection(): Promise<void> {
+	async updateDirection(newDirection: CallHierarchyDirection): Promise<void> {
 		const model = this._tree.getInput();
-		if (model) {
-			const newDirection = this._direction === CallHierarchyDirection.CallsTo ? CallHierarchyDirection.CallsFrom : CallHierarchyDirection.CallsTo;
+		if (model && newDirection !== this._direction) {
 			this._treeViewStates.set(this._direction, this._tree.getViewState());
 			this._direction = newDirection;
 			await this.showModel(model);

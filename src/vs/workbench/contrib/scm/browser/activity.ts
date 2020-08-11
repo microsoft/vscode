@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { basename, relativePath } from 'vs/base/common/resources';
 import { IDisposable, dispose, Disposable, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { VIEWLET_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEW_PANE_ID, ISCMService, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -42,6 +42,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	) {
 		this.focusedProviderContextKey = contextKeyService.createKey<string | undefined>('scmProvider', undefined);
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
+		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 
 		const onDidChangeSCMCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.countBadge'));
 		onDidChangeSCMCountBadge(this.renderActivityCount, this, this.disposables);
@@ -92,7 +93,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const focusDisposable = repository.onDidFocus(() => this.focusRepository(repository));
+		const selectedDisposable = Event.filter(repository.onDidChangeSelection, selected => selected)(() => this.focusRepository(repository));
 
 		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
 		const changeDisposable = onDidChange(() => this.renderActivityCount());
@@ -104,14 +105,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 			if (this.scmService.repositories.length === 0) {
 				this.focusRepository(undefined);
-			} else if (this.focusedRepository === repository) {
-				this.scmService.repositories[0].focus();
 			}
 
 			this.renderActivityCount();
 		});
 
-		const disposable = combinedDisposable(focusDisposable, changeDisposable, removeDisposable);
+		const disposable = combinedDisposable(selectedDisposable, changeDisposable, removeDisposable);
 		this.disposables.push(disposable);
 
 		if (this.focusedRepository) {
@@ -125,14 +124,22 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.focusRepository(repository);
 	}
 
+	private onDidRemoveRepository(repository: ISCMRepository): void {
+		if (this.focusedRepository !== repository) {
+			return;
+		}
+
+		this.focusRepository(this.scmService.repositories[0]);
+	}
+
 	private focusRepository(repository: ISCMRepository | undefined): void {
 		if (this.focusedRepository === repository) {
 			return;
 		}
 
+		this.focusDisposable.dispose();
 		this.focusedRepository = repository;
 		this.focusedProviderContextKey.set(repository && repository.provider.id);
-		this.focusDisposable.dispose();
 
 		if (repository && repository.provider.onDidChangeStatusBarCommands) {
 			this.focusDisposable = repository.provider.onDidChangeStatusBarCommands(() => this.renderStatusBar(repository));
@@ -155,11 +162,14 @@ export class SCMStatusController implements IWorkbenchContribution {
 			: repository.provider.label;
 
 		const disposables = new DisposableStore();
-		for (const c of commands) {
+		for (const command of commands) {
+			const tooltip = `${label} - ${command.tooltip}`;
+
 			disposables.add(this.statusbarService.addEntry({
-				text: c.title,
-				tooltip: `${label} - ${c.tooltip}`,
-				command: c
+				text: command.title,
+				ariaLabel: command.tooltip || label,
+				tooltip,
+				command: command.id ? command : undefined
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
@@ -181,7 +191,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable.value = this.activityService.showViewActivity(VIEW_PANE_ID, { badge, clazz: 'scm-viewlet-label' });
 		} else {
 			this.badgeDisposable.clear();
 		}

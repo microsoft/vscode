@@ -6,7 +6,7 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
-import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageId } from 'vs/editor/common/modes';
@@ -49,7 +49,7 @@ namespace snippetExt {
 			return null;
 		}
 
-		if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
+		if (isFalsyOrWhitespace(snippet.language) && !snippet.path.endsWith('.code-snippets')) {
 			extension.collector.error(localize(
 				'invalid.language.0',
 				"When omitting the language, the value of `contributes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
@@ -174,12 +174,12 @@ class SnippetsService implements ISnippetsService {
 			const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 			if (languageIdentifier) {
 				const langName = languageIdentifier.language;
-				this._files.forEach(file => {
+				for (const file of this._files.values()) {
 					promises.push(file.load()
 						.then(file => file.select(langName, result))
 						.catch(err => this._logService.error(err, file.location.toString()))
 					);
-				});
+				}
 			}
 			return Promise.all(promises).then(() => result);
 		});
@@ -190,12 +190,12 @@ class SnippetsService implements ISnippetsService {
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
 			const langName = languageIdentifier.language;
-			this._files.forEach(file => {
+			for (const file of this._files.values()) {
 				// kick off loading (which is a noop in case it's already loaded)
 				// and optimistically collect snippets
 				file.load().catch(err => { /*ignore*/ });
 				file.select(langName, result);
-			});
+			}
 		}
 		return result;
 	}
@@ -205,11 +205,11 @@ class SnippetsService implements ISnippetsService {
 	private _initExtensionSnippets(): void {
 		snippetExt.point.setHandler(extensions => {
 
-			this._files.forEach((value, key) => {
+			for (let [key, value] of this._files) {
 				if (value.source === SnippetSource.Extension) {
 					this._files.delete(key);
 				}
-			});
+			}
 
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {

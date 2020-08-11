@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
-import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { generateUuid } from 'vs/base/common/uuid';
 import { join, basename, dirname, posix } from 'vs/base/common/path';
@@ -21,14 +21,13 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
-import { find } from 'vs/base/common/arrays';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
 		return undefined;
 	}
 
-	return find(root.children, child => child.name === name);
+	return root.children.find(child => child.name === name);
 }
 
 function toLineByLineReadable(content: string): VSBufferReadable {
@@ -416,11 +415,7 @@ suite('Disk File Service', function () {
 		assert.equal(r2.name, 'deep');
 	});
 
-	test('resolve - folder symbolic link', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
 		await symlink(join(testDir, 'deep'), link.fsPath);
 
@@ -430,11 +425,7 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - file symbolic link', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - file symbolic link', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
@@ -443,18 +434,14 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isSymbolicLink, true);
 	});
 
-	test('resolve - symbolic link pointing to non-existing file does not break', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('resolve - symbolic link pointing to non-existing file does not break', async () => {
 		await symlink(join(testDir, 'foo'), join(testDir, 'bar'));
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.equal(resolved.isDirectory, true);
 		assert.equal(resolved.children!.length, 9);
 
-		const resolvedLink = resolved.children?.filter(child => child.name === 'bar' && child.isSymbolicLink)[0];
+		const resolvedLink = resolved.children?.find(child => child.name === 'bar' && child.isSymbolicLink);
 		assert.ok(resolvedLink);
 
 		assert.ok(!resolvedLink?.isDirectory);
@@ -476,6 +463,7 @@ suite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'deep', 'conway.js'));
 		const source = await service.resolve(resource);
 
+		assert.equal(await service.canDelete(source.resource, { useTrash }), true);
 		await service.del(source.resource, { useTrash });
 
 		assert.equal(existsSync(source.resource.fsPath), false);
@@ -495,11 +483,7 @@ suite('Disk File Service', function () {
 		assert.equal((<FileOperationError>error).fileOperationResult, FileOperationResult.FILE_NOT_FOUND);
 	}
 
-	test('deleteFile - symbolic link (exists)', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (exists)', async () => {
 		const target = URI.file(join(testDir, 'lorem.txt'));
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
 		await symlink(target.fsPath, link.fsPath);
@@ -509,6 +493,7 @@ suite('Disk File Service', function () {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
+		assert.equal(await service.canDelete(source.resource), true);
 		await service.del(source.resource);
 
 		assert.equal(existsSync(source.resource.fsPath), false);
@@ -520,11 +505,7 @@ suite('Disk File Service', function () {
 		assert.equal(existsSync(target.fsPath), true); // target the link pointed to is never deleted
 	});
 
-	test('deleteFile - symbolic link (pointing to non-existing file)', async () => {
-		if (isWindows) {
-			return; // not reliable on windows
-		}
-
+	(isWindows /* not reliable on windows */ ? test.skip : test)('deleteFile - symbolic link (pointing to non-existing file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
 		await symlink(target.fsPath, link.fsPath);
@@ -532,6 +513,7 @@ suite('Disk File Service', function () {
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
 
+		assert.equal(await service.canDelete(link), true);
 		await service.del(link);
 
 		assert.equal(existsSync(link.fsPath), false);
@@ -556,6 +538,7 @@ suite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
 
+		assert.equal(await service.canDelete(source.resource, { recursive: true, useTrash }), true);
 		await service.del(source.resource, { recursive: true, useTrash });
 
 		assert.equal(existsSync(source.resource.fsPath), false);
@@ -567,6 +550,8 @@ suite('Disk File Service', function () {
 	test('deleteFolder (non recursive)', async () => {
 		const resource = URI.file(join(testDir, 'deep'));
 		const source = await service.resolve(resource);
+
+		assert.ok((await service.canDelete(source.resource)) instanceof Error);
 
 		let error;
 		try {
@@ -587,6 +572,7 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.fsPath), 'other.html'));
 
+		assert.equal(await service.canMove(source, target), true);
 		const renamed = await service.move(source, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -667,6 +653,7 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.fsPath), 'other.html')).with({ scheme: testSchema });
 
+		assert.equal(await service.canMove(source, target), true);
 		const renamed = await service.move(source, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -691,6 +678,7 @@ suite('Disk File Service', function () {
 
 		const source = URI.file(join(testDir, 'index.html'));
 
+		assert.equal(await service.canMove(source, URI.file(join(dirname(source.fsPath), renameToPath))), true);
 		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), renameToPath)));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -707,6 +695,7 @@ suite('Disk File Service', function () {
 
 		const source = URI.file(join(testDir, 'deep'));
 
+		assert.equal(await service.canMove(source, URI.file(join(dirname(source.fsPath), 'deeper'))), true);
 		const renamed = await service.move(source, URI.file(join(dirname(source.fsPath), 'deeper')));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -754,6 +743,7 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.fsPath), 'deeper')).with({ scheme: testSchema });
 
+		assert.equal(await service.canMove(source, target), true);
 		const renamed = await service.move(source, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -778,6 +768,7 @@ suite('Disk File Service', function () {
 		assert.ok(source.size > 0);
 
 		const renamedResource = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
+		assert.equal(await service.canMove(source.resource, renamedResource), true);
 		let renamed = await service.move(source.resource, renamedResource);
 
 		assert.equal(existsSync(renamedResource.fsPath), true);
@@ -798,6 +789,7 @@ suite('Disk File Service', function () {
 		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		assert.ok(source.size > 0);
 
+		assert.equal(await service.canMove(source.resource, URI.file(source.resource.fsPath)), true);
 		let renamed = await service.move(source.resource, URI.file(source.resource.fsPath));
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -821,6 +813,7 @@ suite('Disk File Service', function () {
 		const targetParent = URI.file(testDir);
 		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
 
+		assert.equal(await service.canMove(source.resource, target), true);
 		let renamed = await service.move(source.resource, target);
 
 		assert.equal(existsSync(renamed.resource.fsPath), true);
@@ -841,6 +834,8 @@ suite('Disk File Service', function () {
 		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		const originalSize = source.size;
 		assert.ok(originalSize > 0);
+
+		assert.ok((await service.canMove(URI.file(testDir), URI.file(join(testDir, 'binary.txt'))) instanceof Error));
 
 		let error;
 		try {
@@ -863,6 +858,8 @@ suite('Disk File Service', function () {
 		let source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		const originalSize = source.size;
 		assert.ok(originalSize > 0);
+
+		assert.ok((await service.canMove(source.resource, URI.file(join(testDir, 'binary.txt'))) instanceof Error));
 
 		let error;
 		try {
@@ -897,6 +894,7 @@ suite('Disk File Service', function () {
 		const f = await service.createFolder(folderResource);
 		const source = URI.file(join(testDir, 'deep', 'conway.js'));
 
+		assert.equal(await service.canMove(source, f.resource, true), true);
 		const moved = await service.move(source, f.resource, true);
 
 		assert.equal(existsSync(moved.resource.fsPath), true);
@@ -951,6 +949,7 @@ suite('Disk File Service', function () {
 		const source = await service.resolve(URI.file(join(testDir, sourceName)));
 		const target = URI.file(join(testDir, 'other.html'));
 
+		assert.equal(await service.canCopy(source.resource, target), true);
 		const copied = await service.copy(source.resource, target);
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
@@ -986,6 +985,7 @@ suite('Disk File Service', function () {
 		const f = await service.createFolder(folderResource);
 		const source = URI.file(join(testDir, 'deep', 'conway.js'));
 
+		assert.equal(await service.canCopy(source, f.resource, true), true);
 		const copied = await service.copy(source, f.resource, true);
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
@@ -1005,6 +1005,8 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
 
+		const canCopy = await service.canCopy(source.resource, target);
+
 		let error;
 		let copied: IFileStatWithMetadata;
 		try {
@@ -1015,12 +1017,14 @@ suite('Disk File Service', function () {
 
 		if (isLinux) {
 			assert.ok(!error);
+			assert.equal(canCopy, true);
 
 			assert.equal(existsSync(copied!.resource.fsPath), true);
 			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
 			assert.equal(source.size, copied!.size);
 		} else {
 			assert.ok(error);
+			assert.ok(canCopy instanceof Error);
 
 			source = await service.resolve(source.resource, { resolveMetadata: true });
 			assert.equal(originalSize, source.size);
@@ -1034,6 +1038,8 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
 
+		const canCopy = await service.canCopy(source.resource, target, true);
+
 		let error;
 		let copied: IFileStatWithMetadata;
 		try {
@@ -1044,12 +1050,14 @@ suite('Disk File Service', function () {
 
 		if (isLinux) {
 			assert.ok(!error);
+			assert.equal(canCopy, true);
 
 			assert.equal(existsSync(copied!.resource.fsPath), true);
 			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
 			assert.equal(source.size, copied!.size);
 		} else {
 			assert.ok(error);
+			assert.ok(canCopy instanceof Error);
 
 			source = await service.resolve(source.resource, { resolveMetadata: true });
 			assert.equal(originalSize, source.size);
@@ -1057,21 +1065,22 @@ suite('Disk File Service', function () {
 	});
 
 	test('copy - MIX CASE different taget - overwrite', async () => {
-		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
-		assert.ok(source.size > 0);
+		const source1 = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
+		assert.ok(source1.size > 0);
 
-		const renamed = await service.move(source.resource, URI.file(join(dirname(source.resource.fsPath), 'CONWAY.js')));
+		const renamed = await service.move(source1.resource, URI.file(join(dirname(source1.resource.fsPath), 'CONWAY.js')));
 		assert.equal(existsSync(renamed.resource.fsPath), true);
 		assert.ok(readdirSync(testDir).some(f => f === 'CONWAY.js'));
-		assert.equal(source.size, renamed.size);
+		assert.equal(source1.size, renamed.size);
 
-		const source_1 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')), { resolveMetadata: true });
-		const target = URI.file(join(testDir, basename(source_1.resource.path)));
+		const source2 = await service.resolve(URI.file(join(testDir, 'deep', 'conway.js')), { resolveMetadata: true });
+		const target = URI.file(join(testDir, basename(source2.resource.path)));
 
-		const res = await service.copy(source_1.resource, target, true);
+		assert.equal(await service.canCopy(source2.resource, target, true), true);
+		const res = await service.copy(source2.resource, target, true);
 		assert.equal(existsSync(res.resource.fsPath), true);
 		assert.ok(readdirSync(testDir).some(f => f === 'conway.js'));
-		assert.equal(source_1.size, res.size);
+		assert.equal(source2.size, res.size);
 	});
 
 	test('copy - same file', async () => {
@@ -1081,6 +1090,7 @@ suite('Disk File Service', function () {
 		const source = await service.resolve(URI.file(join(testDir, 'index.html')), { resolveMetadata: true });
 		assert.ok(source.size > 0);
 
+		assert.equal(await service.canCopy(source.resource, URI.file(source.resource.fsPath)), true);
 		let copied = await service.copy(source.resource, URI.file(source.resource.fsPath));
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
@@ -1104,6 +1114,7 @@ suite('Disk File Service', function () {
 		const targetParent = URI.file(testDir);
 		const target = targetParent.with({ path: posix.join(targetParent.path, posix.basename(source.resource.path)) });
 
+		assert.equal(await service.canCopy(source.resource, URI.file(target.fsPath)), true);
 		let copied = await service.copy(source.resource, URI.file(target.fsPath));
 
 		assert.equal(existsSync(copied.resource.fsPath), true);
@@ -1409,11 +1420,7 @@ suite('Disk File Service', function () {
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_IS_DIRECTORY);
 	});
 
-	test('readFile - FILE_NOT_DIRECTORY', async () => {
-		if (isWindows) {
-			return; // error code does not seem to be supported on windows
-		}
-
+	(isWindows /* error code does not seem to be supported on windows */ ? test.skip : test)('readFile - FILE_NOT_DIRECTORY', async () => {
 		const resource = URI.file(join(testDir, 'lorem.txt', 'file.txt'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1525,10 +1532,10 @@ suite('Disk File Service', function () {
 
 		// Also test when the stat size is wrong
 		fileProvider.setSmallStatSize(true);
-		return doTestFileExceedsMemoryLimit(false);
+		return doTestFileExceedsMemoryLimit();
 	}
 
-	async function doTestFileExceedsMemoryLimit(testTotalBytesRead = true) {
+	async function doTestFileExceedsMemoryLimit() {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1540,36 +1547,32 @@ suite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
-
-		if (testTotalBytesRead) {
-			assert.equal(fileProvider.totalBytesRead, 0);
-		}
 	}
 
-	test('readFile - FILE_TOO_LARGE - default', async () => {
+	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - default', async () => {
 		return testFileTooLarge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - buffered', async () => {
+	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - buffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileOpenReadWriteClose);
 
 		return testFileTooLarge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - unbuffered', async () => {
+	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - unbuffered', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadWrite);
 
 		return testFileTooLarge();
 	});
 
-	test('readFile - FILE_TOO_LARGE - streamed', async () => {
+	(isWindows ? test.skip /* flaky test */ : test)('readFile - FILE_TOO_LARGE - streamed', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
 
 		return testFileTooLarge();
 	});
 
 	async function testFileTooLarge() {
-		await doTestFileExceedsMemoryLimit();
+		await doTestFileTooLarge();
 
 		// Also test when the stat size is wrong
 		fileProvider.setSmallStatSize(true);
@@ -1608,6 +1611,8 @@ suite('Disk File Service', function () {
 
 		const contents = 'Hello World';
 		const resource = URI.file(join(testDir, 'test.txt'));
+
+		assert.equal(await service.canCreateFile(resource), true);
 		const fileStat = await service.createFile(resource, converter(contents));
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
@@ -1624,6 +1629,8 @@ suite('Disk File Service', function () {
 		const resource = URI.file(join(testDir, 'test.txt'));
 
 		writeFileSync(resource.fsPath, ''); // create file
+
+		assert.ok((await service.canCreateFile(resource)) instanceof Error);
 
 		let error;
 		try {
@@ -1644,6 +1651,7 @@ suite('Disk File Service', function () {
 
 		writeFileSync(resource.fsPath, ''); // create file
 
+		assert.equal(await service.canCreateFile(resource, { overwrite: true }), true);
 		const fileStat = await service.createFile(resource, VSBuffer.fromString(contents), { overwrite: true });
 		assert.equal(fileStat.name, 'test.txt');
 		assert.equal(existsSync(fileStat.resource.fsPath), true);
@@ -1835,7 +1843,8 @@ suite('Disk File Service', function () {
 		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'small-copy.txt');
 
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		const targetContents = readFileSync(target.fsPath).toString();
+		assert.equal(readFileSync(source.fsPath).toString(), targetContents);
 	}
 
 	test('writeFile (large file - stream) - default', async () => {
@@ -1861,7 +1870,8 @@ suite('Disk File Service', function () {
 		const fileStat = await service.writeFile(target, streamToBufferReadableStream(createReadStream(source.fsPath)));
 		assert.equal(fileStat.name, 'lorem-copy.txt');
 
-		assert.equal(readFileSync(source.fsPath).toString(), readFileSync(target.fsPath).toString());
+		const targetContents = readFileSync(target.fsPath).toString();
+		assert.equal(readFileSync(source.fsPath).toString(), targetContents);
 	}
 
 	test('writeFile (file is created including parents)', async () => {

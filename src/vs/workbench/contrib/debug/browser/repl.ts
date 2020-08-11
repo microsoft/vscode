@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
-import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Action, Separator } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -41,7 +41,6 @@ import { first } from 'vs/base/common/arrays';
 import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -59,6 +58,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 const $ = dom.$;
 
@@ -73,7 +73,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 const sessionsToIgnore = new Set<IDebugSession>();
 
 export class Repl extends ViewPane implements IHistoryNavigationWidget {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
@@ -86,7 +86,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private replInputContainer!: HTMLElement;
 	private dimension!: dom.Dimension;
 	private replInputLineCount = 1;
-	private model!: ITextModel;
+	private model: ITextModel | undefined;
 	private historyNavigationEnablement!: IContextKey<boolean>;
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
@@ -270,7 +270,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		if (isCodeEditor(activeEditorControl)) {
 			this.modelChangeListener.dispose();
 			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
-			if (activeEditorControl.hasModel()) {
+			if (this.model && activeEditorControl.hasModel()) {
 				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
 			}
 		}
@@ -396,21 +396,24 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	getVisibleContent(): string {
 		let text = '';
-		const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
-		const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
-			node.children.forEach(child => {
-				text += child.element.toString().trimRight() + lineDelimiter;
-				if (!child.collapsed && child.children.length) {
-					traverseAndAppend(child);
-				}
-			});
-		};
-		traverseAndAppend(this.tree.getNode());
+		if (this.model) {
+			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
+			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
+				node.children.forEach(child => {
+					text += child.element.toString().trimRight() + lineDelimiter;
+					if (!child.collapsed && child.children.length) {
+						traverseAndAppend(child);
+					}
+				});
+			};
+			traverseAndAppend(this.tree.getNode());
+		}
 
 		return removeAnsiEscapeCodes(text);
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
 		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
@@ -436,7 +439,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		}
 
-		return undefined;
+		return super.getActionViewItem(action);
 	}
 
 	getActions(): IAction[] {
@@ -506,7 +509,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super.renderBody(parent);
 
 		this.container = dom.append(parent, $('.repl'));
-		const treeContainer = dom.append(this.container, $('.repl-tree'));
+		const treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
@@ -529,7 +532,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
 			{
-				ariaLabel: localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
@@ -603,6 +605,20 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			await this.clipboardService.writeText(this.getVisibleContent());
 			return Promise.resolve();
 		}));
+		actions.push(new Action('debug.replPaste', localize('paste', "Paste"), undefined, this.debugService.state !== State.Inactive, async () => {
+			const clipboardText = await this.clipboardService.readText();
+			if (clipboardText) {
+				this.replInput.setValue(this.replInput.getValue().concat(clipboardText));
+				this.replInput.focus();
+				const model = this.replInput.getModel();
+				const lineNumber = model ? model.getLineCount() : 0;
+				const column = model?.getLineMaxColumn(lineNumber);
+				if (typeof lineNumber === 'number' && typeof column === 'number') {
+					this.replInput.setPosition({ lineNumber, column });
+				}
+			}
+		}));
+		actions.push(new Separator());
 		actions.push(new Action('debug.collapseRepl', localize('collapse', "Collapse All"), undefined, true, () => {
 			this.tree.collapseAll();
 			this.replInput.focus();

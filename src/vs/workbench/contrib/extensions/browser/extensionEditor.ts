@@ -214,7 +214,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
-		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
+		const name = append(title, $('span.name.clickable', { title: localize('name', "Extension name"), role: 'heading', tabIndex: 0 }));
 		const identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
 
 		const preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
@@ -224,23 +224,23 @@ export class ExtensionEditor extends BaseEditor {
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 
-		const installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
+		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 
-		const rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
+		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 
-		const repository = append(subtitle, $('span.repository.clickable'));
+		const repository = append(append(subtitle, $('.subtitle-entry')), $('span.repository.clickable'));
 		repository.textContent = localize('repository', 'Repository');
 		repository.style.display = 'none';
 		repository.tabIndex = 0;
 
-		const license = append(subtitle, $('span.license.clickable'));
+		const license = append(append(subtitle, $('.subtitle-entry')), $('span.license.clickable'));
 		license.textContent = localize('license', 'License');
 		license.style.display = 'none';
 		license.tabIndex = 0;
 
-		const version = append(subtitle, $('span.version'));
+		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version'));
 		version.textContent = localize('version', 'Version');
 
 		const description = append(details, $('.description'));
@@ -314,10 +314,10 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, token);
 		if (this.template) {
 			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
 		}
-		return super.setInput(input, options, token);
 	}
 
 	private async updateTemplate(input: ExtensionsInput, template: IExtensionEditorTemplate, preserveFocus: boolean): Promise<void> {
@@ -344,7 +344,7 @@ export class ExtensionEditor extends BaseEditor {
 		template.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 		template.publisher.textContent = extension.publisherDisplayName;
-		template.version.textContent = extension.version;
+		template.version.textContent = `v${extension.version}`;
 		template.description.textContent = extension.description;
 
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -412,7 +412,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
-			this.instantiationService.createInstance(RemoteInstallAction),
+			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			combinedInstallAction,
 			systemDisabledWarningAction,
@@ -528,21 +528,22 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	focus(): void {
-		if (this.activeElement) {
-			this.activeElement.focus();
-		}
+		this.activeElement?.focus();
 	}
 
 	showFind(): void {
-		if (this.activeElement && (<Webview>this.activeElement).showFind) {
-			(<Webview>this.activeElement).showFind();
-		}
+		this.activeWebview?.showFind();
 	}
 
 	runFindAction(previous: boolean): void {
-		if (this.activeElement && (<Webview>this.activeElement).runFindAction) {
-			(<Webview>this.activeElement).runFindAction(previous);
+		this.activeWebview?.runFindAction(previous);
+	}
+
+	public get activeWebview(): Webview | undefined {
+		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+			return undefined;
 		}
+		return this.activeElement as Webview;
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {
@@ -588,7 +589,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
 				enableFindWidget: true,
-			}, {}));
+			}, {}, undefined));
 
 			webview.claim(this);
 			webview.layoutWebviewOverElement(template.content);
@@ -617,7 +618,7 @@ export class ExtensionEditor extends BaseEditor {
 				if (!link) {
 					return;
 				}
-				// Whitelist supported schemes for links
+				// Only allow links with specific schemes
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
 					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
 				) {

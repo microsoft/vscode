@@ -50,7 +50,7 @@ class RuntimeExtensionsInputFactory implements IEditorInputFactory {
 		return '';
 	}
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return new RuntimeExtensionsInput();
+		return RuntimeExtensionsInput.instance;
 	}
 }
 
@@ -60,7 +60,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Global actions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ShowRuntimeExtensionsAction, ShowRuntimeExtensionsAction.ID, ShowRuntimeExtensionsAction.LABEL), 'Show Running Extensions', localize('developer', "Developer"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ShowRuntimeExtensionsAction), 'Show Running Extensions', localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"));
 
 class ExtensionsContributions implements IWorkbenchContribution {
 
@@ -68,7 +68,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: INativeWorkbenchEnvironmentService
 	) {
 		if (workbenchEnvironmentService.extensionsPath) {
-			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.create(OpenExtensionsFolderAction, OpenExtensionsFolderAction.ID, OpenExtensionsFolderAction.LABEL);
+			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.from(OpenExtensionsFolderAction);
 			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
 		}
 	}

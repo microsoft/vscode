@@ -29,6 +29,8 @@ type AutoDetect = 'on' | 'off';
 
 let cachedTasks: Task[] | undefined = undefined;
 
+const INSTALL_SCRIPT = 'install';
+
 export class NpmTaskProvider implements TaskProvider {
 
 	constructor() {
@@ -52,7 +54,7 @@ export class NpmTaskProvider implements TaskProvider {
 			} else {
 				packageJsonUri = _task.scope.uri.with({ path: _task.scope.uri.path + '/package.json' });
 			}
-			return createTask(kind, `run ${kind.script}`, _task.scope, packageJsonUri);
+			return createTask(kind, `${kind.script === INSTALL_SCRIPT ? '' : 'run '}${kind.script}`, _task.scope, packageJsonUri);
 		}
 		return undefined;
 	}
@@ -247,13 +249,15 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		if (prePostScripts.has(each)) {
 			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 		}
+
+		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
 		if (isDebugScript(scripts![each])) {
 			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
 		result.push(task);
 	});
 	// always add npm install (without a problem matcher)
-	result.push(createTask('install', 'install', folder, packageJsonUri, 'install dependencies from package', []));
+	result.push(createTask(INSTALL_SCRIPT, INSTALL_SCRIPT, folder, packageJsonUri, 'install dependencies from package', []));
 	return result;
 }
 
@@ -353,44 +357,16 @@ export function runScript(script: string, document: TextDocument) {
 	}
 }
 
-export function extractDebugArgFromScript(scriptValue: string): [string, number] | undefined {
-	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect,
-	// --inspect=1234, --inspect-brk, --inspect-brk=1234,
-	// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
-	let match = scriptValue.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
-
-	if (match) {
-		if (match[6]) {
-			return [match[1], parseInt(match[6])];
-		}
-		if (match[1] === 'inspect') {
-			return [match[1], 9229];
-		}
-		if (match[1] === 'debug') {
-			return [match[1], 5858];
-		}
-	}
-	return undefined;
-}
-
-export function startDebugging(scriptName: string, protocol: string, port: number, folder: WorkspaceFolder) {
-	let p = 'inspector';
-	if (protocol === 'debug') {
-		p = 'legacy';
-	}
-
-	let packageManager = getPackageManager(folder);
+export function startDebugging(scriptName: string, folder: WorkspaceFolder) {
 	const config: DebugConfiguration = {
-		type: 'node',
+		type: 'pwa-node',
 		request: 'launch',
 		name: `Debug ${scriptName}`,
-		runtimeExecutable: packageManager,
+		runtimeExecutable: getPackageManager(folder),
 		runtimeArgs: [
 			'run',
 			scriptName,
 		],
-		port: port,
-		protocol: p
 	};
 
 	if (folder) {

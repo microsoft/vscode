@@ -728,6 +728,14 @@ export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
 }
 
+export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS) or PARAGRAPH SEPARATOR (PS)
+/**
+ * Returns true if `str` contains unusual line terminators, like LS or PS
+ */
+export function containsUnusualLineTerminators(str: string): boolean {
+	return UNUSUAL_LINE_TERMINATORS.test(str);
+}
+
 export function containsFullWidthCharacter(str: string): boolean {
 	for (let i = 0, len = str.length; i < len; i++) {
 		if (isFullWidthCharacter(str.charCodeAt(i))) {
@@ -851,6 +859,9 @@ export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
 }
 
+/**
+ * @deprecated ES6
+ */
 export function repeat(s: string, count: number): string {
 	let result = '';
 	for (let i = 0; i < count; i++) {

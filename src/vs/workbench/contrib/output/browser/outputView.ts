@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
-import { IActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionViewItem } from 'vs/base/common/actions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -37,6 +36,7 @@ import { groupBy } from 'vs/base/common/arrays';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { addClass } from 'vs/base/browser/dom';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class OutputViewPane extends ViewPane {
 
@@ -88,6 +88,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
 		this.editor.create(container);
 		addClass(container, 'output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
@@ -117,6 +118,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.editor.layout({ height, width });
 	}
 
@@ -155,7 +157,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), channel.uri, undefined);
+		return this.instantiationService.createInstance(ResourceEditorInput, channel.uri, nls.localize('output model title', "{0} - Output", channel.label), nls.localize('channel', "Output channel for '{0}'", channel.label), undefined);
 	}
 
 }
@@ -278,7 +280,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.'), optionsAsChildren: true });
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
 		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IKeyMods, IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick } from 'vs/platform/quickinput/common/quickInput';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
@@ -12,16 +12,20 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorPane } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
+import { SymbolKind } from 'vs/editor/common/modes';
+import { fuzzyScore, createMatches } from 'vs/base/common/filters';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -34,6 +38,15 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		super({
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
+	}
+
+	//#region DocumentSymbols (text editor required)
+
+	protected provideWithTextEditor(editor: IEditor, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+		if (this.canPickFromTableOfContents()) {
+			return this.doGetTableOfContentsPicks(picker);
+		}
+		return super.provideWithTextEditor(editor, picker, token);
 	}
 
 	private get configuration() {
@@ -66,6 +79,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		}
 	}
 
+	//#endregion
 
 	//#region public methods to use this picker from other pickers
 
@@ -98,6 +112,98 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	}
 
 	//#endregion
+
+	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+		if (this.canPickFromTableOfContents()) {
+			return this.doGetTableOfContentsPicks(picker);
+		}
+		return super.provideWithoutTextEditor(picker);
+	}
+
+	private canPickFromTableOfContents(): boolean {
+		return this.editorService.activeEditorPane ? TableOfContentsProviderRegistry.has(this.editorService.activeEditorPane.getId()) : false;
+	}
+
+	private doGetTableOfContentsPicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+		const pane = this.editorService.activeEditorPane;
+		if (!pane) {
+			return Disposable.None;
+		}
+		const provider = TableOfContentsProviderRegistry.get(pane.getId())!;
+		const cts = new CancellationTokenSource();
+
+		const disposables = new DisposableStore();
+		disposables.add(toDisposable(() => cts.dispose(true)));
+
+		picker.busy = true;
+
+		provider.provideTableOfContents(pane, { disposables }, cts.token).then(entries => {
+
+			picker.busy = false;
+
+			if (cts.token.isCancellationRequested || !entries || entries.length === 0) {
+				return;
+			}
+
+			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
+				return {
+					kind: SymbolKind.File,
+					index: idx,
+					score: 0,
+					label: entry.icon ? `$(${entry.icon.id}) ${entry.label}` : entry.label,
+					ariaLabel: entry.detail ? `${entry.label}, ${entry.detail}` : entry.label,
+					detail: entry.detail,
+					description: entry.description,
+				};
+			});
+
+			disposables.add(picker.onDidAccept(() => {
+				picker.hide();
+				const [entry] = picker.selectedItems;
+				entries[entry.index]?.pick();
+			}));
+
+			const updatePickerItems = () => {
+				const filteredItems = items.filter(item => {
+					if (picker.value === '@') {
+						// default, no filtering, scoring...
+						item.score = 0;
+						item.highlights = undefined;
+						return true;
+					}
+					const score = fuzzyScore(picker.value, picker.value.toLowerCase(), 1 /*@-character*/, item.label, item.label.toLowerCase(), 0, true);
+					if (!score) {
+						return false;
+					}
+					item.score = score[1];
+					item.highlights = { label: createMatches(score) };
+					return true;
+				});
+				if (filteredItems.length === 0) {
+					const label = localize('empty', 'No matching entries');
+					picker.items = [{ label, index: -1, kind: SymbolKind.String }];
+					picker.ariaLabel = label;
+				} else {
+					picker.items = filteredItems;
+				}
+			};
+			updatePickerItems();
+			disposables.add(picker.onDidChangeValue(updatePickerItems));
+
+			disposables.add(picker.onDidChangeActive(() => {
+				const [entry] = picker.activeItems;
+				if (entry) {
+					entries[entry.index]?.preview();
+				}
+			}));
+
+		}).catch(err => {
+			onUnexpectedError(err);
+			picker.hide();
+		});
+
+		return disposables;
+	}
 }
 
 Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQuickAccessProvider({
@@ -111,24 +217,67 @@ Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQui
 	]
 });
 
-export class GotoSymbolAction extends Action {
+registerAction2(class GotoSymbolAction extends Action2 {
 
-	static readonly ID = 'workbench.action.gotoSymbol';
-	static readonly LABEL = localize('gotoSymbol', "Go to Symbol in Editor...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.gotoSymbol',
+			title: {
+				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				original: 'Go to Symbol in Editor...'
+			},
+			f1: true,
+			keybinding: {
+				when: undefined,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
+	run(accessor: ServicesAccessor) {
+		accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
+	}
+});
+
+//#region toc definition and logic
+
+export interface ITableOfContentsEntry {
+	icon?: ThemeIcon;
+	label: string;
+	detail?: string;
+	description?: string;
+	pick(): any;
+	preview(): any;
+}
+
+export interface ITableOfContentsProvider<T extends IEditorPane = IEditorPane> {
+
+	provideTableOfContents(editor: T, context: { disposables: DisposableStore }, token: CancellationToken): Promise<ITableOfContentsEntry[] | undefined | null>;
+}
+
+class ProviderRegistry {
+
+	private readonly _provider = new Map<string, ITableOfContentsProvider>();
+
+	register(type: string, provider: ITableOfContentsProvider): IDisposable {
+		this._provider.set(type, provider);
+		return toDisposable(() => {
+			if (this._provider.get(type) === provider) {
+				this._provider.delete(type);
+			}
+		});
+	}
+
+	get(type: string): ITableOfContentsProvider | undefined {
+		return this._provider.get(type);
+	}
+
+	has(type: string): boolean {
+		return this._provider.has(type);
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(SyncActionDescriptor.create(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}), 'Go to Symbol in Editor...');
+export const TableOfContentsProviderRegistry = new ProviderRegistry();
+
+//#endregion

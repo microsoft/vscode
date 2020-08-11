@@ -26,7 +26,7 @@ export interface IEnvironmentService {
 	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND DESKTOP!!!!
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// --- user roaming data
 	userRoamingDataHome: URI;
@@ -36,10 +36,18 @@ export interface IEnvironmentService {
 	argvResource: URI;
 	snippetsHome: URI;
 
+	// --- data paths
+	backupHome: URI;
+	untitledWorkspacesHome: URI;
+
+	globalStorageHome: URI;
+	workspaceStorageHome: URI;
+
 	// --- settings sync
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
-	sync: 'on' | 'off';
+	sync: 'on' | 'off' | undefined;
+	enableSyncByDefault: boolean;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -56,19 +64,9 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- data paths
-	backupHome: URI;
-	untitledWorkspacesHome: URI;
-
 	// --- misc
 	disableTelemetry: boolean;
-
 	serviceMachineIdResource: URI;
-
-	/**
-	 * @deprecated use IRemotePathService#userHome instead (https://github.com/microsoft/vscode/issues/94506)
-	 */
-	userHome?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE

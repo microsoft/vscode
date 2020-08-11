@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { Action, Separator } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
-import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -17,9 +16,11 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter } from 'vs/base/common/event';
-import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
+import { Emitter, Event } from 'vs/base/common/event';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
+import { Codicon } from 'vs/base/common/codicons';
+import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -69,6 +70,7 @@ export class ActivityAction extends Action {
 	}
 
 	set activity(activity: IActivity) {
+		this._label = activity.name;
 		this._activity = activity;
 		this._onDidChangeActivity.fire(this);
 	}
@@ -117,7 +119,7 @@ export interface ICompositeBarColors {
 	inactiveForegroundColor?: Color;
 	badgeBackground?: Color;
 	badgeForeground?: Color;
-	dragAndDropBackground?: Color;
+	dragAndDropBorder?: Color;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -161,20 +163,20 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				if (this.activity.iconUrl) {
 					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+					this.label.style.color = '';
 				} else {
 					// Apply foreground color to activity bar items provided with codicons
 					this.label.style.color = foreground ? foreground.toString() : '';
+					this.label.style.backgroundColor = '';
 				}
-
-				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
-				this.container.style.setProperty('--insert-border-color', dragColor ? dragColor.toString() : '');
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
-				this.container.style.setProperty('--insert-border-color', colors.activeForegroundColor ? colors.activeForegroundColor.toString() : '');
 			}
+
+			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
 		}
 
 		// Badge
@@ -199,7 +201,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Make the container tab-able for keyboard navigation
 		this.container.tabIndex = 0;
-		this.container.setAttribute('role', this.options.icon ? 'button' : 'tab');
+		this.container.setAttribute('role', 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
@@ -321,7 +323,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClass(this.label, this.activity.cssClass);
+			dom.addClasses(this.label, this.activity.cssClass);
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {
@@ -362,7 +364,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
-			cssClass: 'codicon-more'
+			cssClass: Codicon.more.classNames
 		});
 	}
 
@@ -473,32 +475,34 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = undefined; this.updateActivity(); }, this));
+		this._register(compositeActivityAction.onDidChangeActivity(() => {
+			this.compositeActivity = undefined;
+			this.updateActivity();
+		}, this));
+		this._register(Event.any(
+			compositeActivityAction.onDidChangeActivity,
+			Event.filter(keybindingService.onDidUpdateKeybindings, () => this.compositeActivity!.name !== this.getActivtyName())
+		)(() => {
+			if (this.compositeActivity && this.compositeActivity.name !== this.getActivtyName()) {
+				this.compositeActivity = undefined;
+				this.updateActivity();
+			}
+		}));
 	}
 
 	protected get activity(): IActivity {
 		if (!this.compositeActivity) {
-			let activityName: string;
-			const keybinding = typeof this.compositeActivityAction.activity.keybindingId === 'string' ? this.getKeybindingLabel(this.compositeActivityAction.activity.keybindingId) : null;
-			if (keybinding) {
-				activityName = nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding);
-			} else {
-				activityName = this.compositeActivityAction.activity.name;
-			}
-
-			this.compositeActivity = { ...this.compositeActivityAction.activity, ... { name: activityName } };
+			this.compositeActivity = {
+				...this.compositeActivityAction.activity,
+				... { name: this.getActivtyName() }
+			};
 		}
-
 		return this.compositeActivity;
 	}
 
-	private getKeybindingLabel(id: string): string | null {
-		const kb = this.keybindingService.lookupKeybinding(id);
-		if (kb) {
-			return kb.getLabel();
-		}
-
-		return null;
+	private getActivtyName(): string {
+		const keybinding = this.compositeActivityAction.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.compositeActivityAction.activity.keybindingId) : null;
+		return keybinding ? nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding.getLabel()) : this.compositeActivityAction.activity.name;
 	}
 
 	render(container: HTMLElement): void {
@@ -518,6 +522,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
 			onDragOver: e => {
 				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', isValidMove);
 				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
 
@@ -542,11 +547,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				if (e.eventData.dataTransfer) {
 					e.eventData.dataTransfer.effectAllowed = 'move';
 				}
-
-				// Trigger the action even on drag start to prevent clicks from failing that started a drag
-				if (!this.getAction().checked) {
-					this.getAction().run();
-				}
+				// Remove focus indicator when dragging
+				this.blur();
 			}
 		}));
 
@@ -646,9 +648,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		if (this.getAction().checked) {
 			dom.addClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
+			this.container.setAttribute('aria-expanded', 'true');
 		} else {
 			dom.removeClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-expanded', 'false');
 		}
 		this.updateStyles();
 	}
