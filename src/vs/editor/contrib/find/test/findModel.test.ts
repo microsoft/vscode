@@ -493,6 +493,58 @@ suite('FindModel', () => {
 		findState.dispose();
 	});
 
+	findTest('multi-selection find model next stays in scope (overlap)', (editor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 2), new Range(8, 1, 9, 1)] }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
 	findTest('multi-selection find model next stays in scope', (editor) => {
 		let findState = new FindReplaceState();
 		findState.change({ searchString: 'hello', matchCase: true, wholeWord: false, searchScope: [new Range(6, 1, 7, 38), new Range(9, 3, 9, 38)] }, false);

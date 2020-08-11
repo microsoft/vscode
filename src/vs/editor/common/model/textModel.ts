@@ -1137,6 +1137,18 @@ export class TextModel extends Disposable implements model.ITextModel {
 			searchRanges = [this.getFullModelRange()];
 		}
 
+		searchRanges = searchRanges.sort((d1, d2) => d1.startLineNumber - d2.startLineNumber || d1.startColumn - d2.startColumn);
+
+		const uniqueSearchRanges: Range[] = [];
+		uniqueSearchRanges.push(searchRanges.reduce((prev, curr) => {
+			if (Range.areIntersecting(prev, curr)) {
+				return prev.plusRange(curr);
+			}
+
+			uniqueSearchRanges.push(prev);
+			return curr;
+		}));
+
 		let matchMapper: (value: Range, index: number, array: Range[]) => model.FindMatch[];
 		if (!isRegex && searchString.indexOf('\n') < 0) {
 			// not regex, not multi line
@@ -1152,7 +1164,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			matchMapper = (searchRange: Range) => TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
 		}
 
-		return searchRanges.map(matchMapper).reduce((arr, matches: model.FindMatch[]) => arr.concat(matches), []);
+		return uniqueSearchRanges.map(matchMapper).reduce((arr, matches: model.FindMatch[]) => arr.concat(matches), []);
 	}
 
 	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch | null {
