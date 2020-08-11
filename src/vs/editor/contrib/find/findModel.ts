@@ -70,9 +70,6 @@ export const FIND_IDS = {
 export const MATCHES_LIMIT = 19999;
 const RESEARCH_DELAY = 240;
 
-let debounceTimer: ReturnType<typeof setTimeout>;
-let DEBOUNCE_DURATION = 240;
-
 export class FindModelBoundToEditorModel {
 
 	private readonly _editor: IActiveCodeEditor;
@@ -172,7 +169,7 @@ export class FindModelBoundToEditorModel {
 		return model.getFullModelRange();
 	}
 
-	private research (moveCursor: boolean, newFindScope?: Range | null): void {
+	private research(moveCursor: boolean, newFindScope?: Range | null): void {
 		let findScope: Range | null = null;
 		if (typeof newFindScope !== 'undefined') {
 			findScope = newFindScope;
@@ -208,11 +205,8 @@ export class FindModelBoundToEditorModel {
 			undefined
 		);
 
-		if (moveCursor && this._editor.getOption(EditorOption.find).moveOnType) {
-			clearTimeout(debounceTimer);
-			debounceTimer = setTimeout(() => {
-				this._moveToNextMatch(this._decorations.getStartPosition());
-			}, DEBOUNCE_DURATION);
+		if (moveCursor && this._editor.getOption(EditorOption.find).cursorMoveOnType) {
+			this._moveToNextMatch(this._decorations.getStartPosition());
 		}
 	}
 

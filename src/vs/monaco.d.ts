@@ -3289,7 +3289,7 @@ declare namespace monaco.editor {
 		/**
 		* Controls whether the cursor should move to find matches while typing.
 		*/
-		moveOnType?: boolean;
+		cursorMoveOnType?: boolean;
 		/**
 		 * Controls if we seed search string in the Find Widget with editor selection.
 		 */

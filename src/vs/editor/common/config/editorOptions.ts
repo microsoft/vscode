@@ -1285,7 +1285,7 @@ export interface IEditorFindOptions {
 	/**
 	* Controls whether the cursor should move to find matches while typing.
 	*/
-	moveOnType?: boolean;
+	cursorMoveOnType?: boolean;
 	/**
 	 * Controls if we seed search string in the Find Widget with editor selection.
 	 */
@@ -1315,7 +1315,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 
 	constructor() {
 		const defaults: EditorFindOptions = {
-			moveOnType: true,
+			cursorMoveOnType: true,
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
@@ -1325,10 +1325,10 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		super(
 			EditorOption.find, 'find', defaults,
 			{
-				'editor.find.moveOnType': {
+				'editor.find.cursorMoveOnType': {
 					type: 'boolean',
-					default: defaults.moveOnType,
-					description: nls.localize('find.moveOnType', "Controls whether the cursor should jump to find matches while typing.")
+					default: defaults.cursorMoveOnType,
+					description: nls.localize('find.cursorMoveOnType', "Controls whether the cursor should jump to find matches while typing.")
 				},
 				'editor.find.seedSearchStringFromSelection': {
 					type: 'boolean',
@@ -1373,7 +1373,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 		}
 		const input = _input as IEditorFindOptions;
 		return {
-			moveOnType: EditorBooleanOption.boolean(input.moveOnType, this.defaultValue.moveOnType),
+			cursorMoveOnType: EditorBooleanOption.boolean(input.cursorMoveOnType, this.defaultValue.cursorMoveOnType),
 			seedSearchStringFromSelection: EditorBooleanOption.boolean(input.seedSearchStringFromSelection, this.defaultValue.seedSearchStringFromSelection),
 			autoFindInSelection: typeof _input.autoFindInSelection === 'boolean'
 				? (_input.autoFindInSelection ? 'always' : 'never')
