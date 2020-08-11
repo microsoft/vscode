@@ -14,6 +14,7 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
+export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -145,6 +146,11 @@ export interface ISCMViewVisibleRepositoryChangeEvent {
 
 export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
+
+	readonly onDidAddRepository: Event<ISCMRepository>;
+	readonly onDidRemoveRepository: Event<ISCMRepository>;
+	readonly repositories: ISCMRepository[];
+
 	readonly menus: ISCMMenus;
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;

@@ -51,35 +51,46 @@ export class SCMViewService implements ISCMViewService {
 		this._onDidChangeVisibleRepositories.fire({ added, removed });
 	}
 
+	get repositories(): ISCMRepository[] { return this.scmService.repositories; }
+
+	private _onDidAddRepository = new Emitter<ISCMRepository>();
+	readonly onDidAddRepository = this._onDidAddRepository.event;
+
+	private _onDidRemoveRepository = new Emitter<ISCMRepository>();
+	readonly onDidRemoveRepository = this._onDidRemoveRepository.event;
+
 	private _onDidChangeVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
 	readonly onDidChangeVisibleRepositories = this._onDidChangeVisibleRepositories.event;
 
 	constructor(
-		@ISCMService scmService: ISCMService,
+		@ISCMService private readonly scmService: ISCMService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
-		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
-		scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
+		scmService.onDidAddRepository(this.onDidAddServiceRepository, this, this.disposables);
+		scmService.onDidRemoveRepository(this.onDidRemoveServiceRepository, this, this.disposables);
 
 		for (const repository of scmService.repositories) {
-			this.onDidAddRepository(repository);
+			this.onDidAddServiceRepository(repository);
 		}
 	}
 
-	private onDidAddRepository(repository: ISCMRepository): void {
+	private onDidAddServiceRepository(repository: ISCMRepository): void {
 		this._visibleRepositories.push(repository);
 		this._visibleRepositoriesSet.add(repository);
+
+		this._onDidAddRepository.fire(repository);
 		this._onDidChangeVisibleRepositories.fire({ added: [repository], removed: Iterable.empty() });
 	}
 
-	private onDidRemoveRepository(repository: ISCMRepository): void {
+	private onDidRemoveServiceRepository(repository: ISCMRepository): void {
 		const index = this._visibleRepositories.indexOf(repository);
 
 		if (index > -1) {
 			this._visibleRepositories.splice(index, 1);
 			this._visibleRepositoriesSet.delete(repository);
+			this._onDidRemoveRepository.fire(repository);
 			this._onDidChangeVisibleRepositories.fire({ added: Iterable.empty(), removed: [repository] });
 		}
 	}

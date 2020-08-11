@@ -13,12 +13,13 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { connectPrimaryMenu, StatusBarAction } from './util';
+import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IListRenderer } from 'vs/base/browser/ui/list/list';
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
@@ -31,7 +32,7 @@ interface RepositoryTemplate {
 	readonly templateDisposable: IDisposable;
 }
 
-export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate> {
+export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMRepository, FuzzyScore, RepositoryTemplate>, IListRenderer<ISCMRepository, RepositoryTemplate> {
 
 	static readonly TEMPLATE_ID = 'repository';
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
@@ -46,7 +47,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
 		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+		if (container.classList.contains('monaco-tl-contents')) {
+			addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+		}
 
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
@@ -65,11 +68,11 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		return { label, name, description, countContainer, count, toolBar, disposable, templateDisposable };
 	}
 
-	renderElement(node: ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
+	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
 		templateData.disposable.dispose();
 
 		const disposables = new DisposableStore();
-		const repository = node.element;
+		const repository = isSCMRepository(arg) ? arg : arg.element;
 
 		if (repository.provider.rootUri) {
 			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
@@ -115,7 +118,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	disposeElement(group: ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
+	disposeElement(group: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, template: RepositoryTemplate): void {
 		template.disposable.dispose();
 	}
 
