@@ -42,6 +42,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -72,7 +74,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@ITerminalService readonly terminalService: ITerminalService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -86,6 +89,11 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: ''
 		};
+
+		const urlFinder = this._register(new UrlFinder(terminalService));
+		this._register(urlFinder.onDidMatchLocalUrl(localUrl => {
+			this.model.forward(localUrl);
+		}));
 	}
 
 	async groups(): Promise<ITunnelGroup[]> {

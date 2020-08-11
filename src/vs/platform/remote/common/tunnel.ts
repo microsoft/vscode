@@ -56,8 +56,6 @@ export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: 
 	};
 }
 
-
-
 export abstract class AbstractTunnelService implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
