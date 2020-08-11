@@ -23,7 +23,7 @@ import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -750,6 +750,7 @@ class ViewModel {
 		private inputRenderer: InputRenderer,
 		private _mode: ViewModelMode,
 		private _sortKey: ViewModelSortKey,
+		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@ISCMViewService private scmViewService: ISCMViewService
@@ -1003,7 +1004,7 @@ class ViewModel {
 		}
 
 		if (!this.viewSubMenuAction) {
-			this.viewSubMenuAction = new SCMViewSubMenuAction(this);
+			this.viewSubMenuAction = this.instantiationService.createInstance(SCMViewSubMenuAction, this);
 			this.disposables.add(this.viewSubMenuAction);
 		}
 
@@ -1073,25 +1074,43 @@ class ViewModel {
 	}
 }
 
+class SCMViewRepositoriesSubMenuAction extends SubmenuAction {
+
+	get actions(): IAction[] {
+		return getRepositoryVisibilityActions(this.scmService, this.scmViewService);
+	}
+
+	constructor(
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
+	) {
+		super('scm.repositories', localize('repositories', "Repositories"), []);
+	}
+}
+
 class SCMViewSubMenuAction extends SubmenuAction {
 
-	readonly actions!: IAction[];
-
-	constructor(viewModel: ViewModel) {
+	constructor(
+		viewModel: ViewModel,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		const listAction = new SCMViewModeListAction(viewModel);
 		const treeAction = new SCMViewModeTreeAction(viewModel);
 		const sortByNameAction = new SCMSortByNameAction(viewModel);
 		const sortByPathAction = new SCMSortByPathAction(viewModel);
 		const sortByStatusAction = new SCMSortByStatusAction(viewModel);
+		const actions = [
+			instantiationService.createInstance(SCMViewRepositoriesSubMenuAction),
+			new Separator(),
+			...new RadioGroup([listAction, treeAction]).actions,
+			new Separator(),
+			...new RadioGroup([sortByNameAction, sortByPathAction, sortByStatusAction]).actions
+		];
 
 		super(
 			'scm.viewsort',
 			localize('sortAction', "View & Sort"),
-			[
-				...new RadioGroup([listAction, treeAction]).actions,
-				new Separator(),
-				...new RadioGroup([sortByNameAction, sortByPathAction, sortByStatusAction]).actions
-			]
+			actions
 		);
 
 		this._register(combinedDisposable(listAction, treeAction, sortByNameAction, sortByPathAction, sortByStatusAction));
@@ -1771,7 +1790,10 @@ export class SCMViewPane extends ViewPane {
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
-			return;
+			return this.contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => getRepositoryVisibilityActions(this.scmService, this.scmViewService)
+			});
 		}
 
 		const element = e.element;

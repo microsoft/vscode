@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMService, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -16,6 +16,8 @@ import { renderCodicons } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
 import { escape } from 'vs/base/common/strings';
+import { basename } from 'vs/base/common/resources';
+import { Iterable } from 'vs/base/common/iterator';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
@@ -106,4 +108,27 @@ export class StatusBarActionViewItem extends ActionViewItem {
 			this.label.innerHTML = renderCodicons(escape(this.getAction().label));
 		}
 	}
+}
+
+export function getRepositoryVisibilityActions(scmService: ISCMService, scmViewService: ISCMViewService): IAction[] {
+	const visible = new Set<IAction>();
+	const actions = scmService.repositories.map(repository => {
+		const label = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
+		const action = new Action('scm.repository.toggleVisibility', label, undefined, true, async () => {
+			scmViewService.toggleVisibility(repository);
+		});
+
+		if (scmViewService.isVisible(repository)) {
+			action.checked = true;
+			visible.add(action);
+		}
+
+		return action;
+	});
+
+	if (visible.size === 1) {
+		Iterable.first(visible.values())!.enabled = false;
+	}
+
+	return actions;
 }

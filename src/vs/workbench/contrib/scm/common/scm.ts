@@ -148,6 +148,10 @@ export interface ISCMViewService {
 	readonly _serviceBrand: undefined;
 
 	readonly menus: ISCMMenus;
+
 	visibleRepositories: ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+
+	isVisible(repository: ISCMRepository): boolean;
+	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
 }

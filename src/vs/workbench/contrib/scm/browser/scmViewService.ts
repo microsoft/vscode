@@ -111,6 +111,31 @@ export class SCMViewService implements ISCMViewService {
 		}
 	}
 
+	isVisible(repository: ISCMRepository): boolean {
+		return this._visibleRepositoriesSet.has(repository);
+	}
+
+	toggleVisibility(repository: ISCMRepository, visible?: boolean): void {
+		if (typeof visible === 'undefined') {
+			visible = !this.isVisible(repository);
+		} else if (this.isVisible(repository) === visible) {
+			return;
+		}
+
+		if (visible) {
+			this.visibleRepositories = [...this.visibleRepositories, repository];
+		} else {
+			const index = this.visibleRepositories.indexOf(repository);
+
+			if (index > -1) {
+				this.visibleRepositories = [
+					...this.visibleRepositories.slice(0, index),
+					...this.visibleRepositories.slice(index + 1)
+				];
+			}
+		}
+	}
+
 	dispose(): void {
 		this.disposables.dispose();
 		this._onDidChangeRepositories.dispose();
