@@ -222,7 +222,7 @@ export class CallStackView extends ViewPane {
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
-			new LoadMoreRenderer(this.themeService),
+			new LoadAllRenderer(this.themeService),
 			new ShowMoreRenderer(this.themeService)
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
@@ -252,7 +252,7 @@ export class CallStackView extends ViewPane {
 						return e;
 					}
 					if (e instanceof ThreadAndSessionIds) {
-						return LoadMoreRenderer.LABEL;
+						return LoadAllRenderer.LABEL;
 					}
 
 					return nls.localize('showMoreStackFrames2', "Show More Stack Frames");
@@ -273,7 +273,7 @@ export class CallStackView extends ViewPane {
 
 		this.tree.setInput(this.debugService.getModel());
 
-		this._register(this.tree.onDidOpen(e => {
+		this._register(this.tree.onDidOpen(async e => {
 			if (this.ignoreSelectionChangedEvent) {
 				return;
 			}
@@ -302,8 +302,11 @@ export class CallStackView extends ViewPane {
 				const session = this.debugService.getModel().getSession(element.sessionId);
 				const thread = session && session.getThread(element.threadId);
 				if (thread) {
-					(<Thread>thread).fetchCallStack()
-						.then(() => this.tree.updateChildren());
+					const totalFrames = thread.stoppedDetails?.totalFrames;
+					const remainingFramesCount = typeof totalFrames === 'number' ? (totalFrames - thread.getCallStack().length) : undefined;
+					// Get all the remaining frames
+					await (<Thread>thread).fetchCallStack(remainingFramesCount);
+					await this.tree.updateChildren();
 				}
 			}
 			if (element instanceof Array) {
@@ -704,18 +707,18 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 	}
 }
 
-class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds, FuzzyScore, ILabelTemplateData> {
-	static readonly ID = 'loadMore';
-	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
+class LoadAllRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds, FuzzyScore, ILabelTemplateData> {
+	static readonly ID = 'loadAll';
+	static readonly LABEL = nls.localize('loadAllStackFrames', "Load All Stack Frames");
 
 	constructor(private readonly themeService: IThemeService) { }
 
 	get templateId(): string {
-		return LoadMoreRenderer.ID;
+		return LoadAllRenderer.ID;
 	}
 
 	renderTemplate(container: HTMLElement): ILabelTemplateData {
-		const label = dom.append(container, $('.load-more'));
+		const label = dom.append(container, $('.load-all'));
 		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
 			if (colors.textLinkForeground) {
 				label.style.color = colors.textLinkForeground.toString();
@@ -726,7 +729,7 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
-		data.label.textContent = LoadMoreRenderer.LABEL;
+		data.label.textContent = LoadAllRenderer.LABEL;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ThreadAndSessionIds>, FuzzyScore>, index: number, templateData: ILabelTemplateData, height: number | undefined): void {
@@ -804,7 +807,7 @@ class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 			return ErrorsRenderer.ID;
 		}
 		if (element instanceof ThreadAndSessionIds) {
-			return LoadMoreRenderer.ID;
+			return LoadAllRenderer.ID;
 		}
 
 		// element instanceof Array
@@ -899,29 +902,27 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 		});
 	}
 
-	private getThreadCallstack(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
+	private async getThreadCallstack(thread: Thread): Promise<Array<IStackFrame | string | ThreadAndSessionIds>> {
 		let callStack: any[] = thread.getCallStack();
-		let callStackPromise: Promise<any> = Promise.resolve(null);
 		if (!callStack || !callStack.length) {
-			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
+			await thread.fetchCallStack();
+			callStack = thread.getCallStack();
 		}
 
-		return callStackPromise.then(() => {
-			if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading && thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > 1) {
-				// To reduce flashing of the call stack view simply append the stale call stack
-				// once we have the correct data the tree will refresh and we will no longer display it.
-				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
-			}
+		if (callStack.length === 1 && thread.session.capabilities.supportsDelayedStackTraceLoading && thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > 1) {
+			// To reduce flashing of the call stack view simply append the stale call stack
+			// once we have the correct data the tree will refresh and we will no longer display it.
+			callStack = callStack.concat(thread.getStaleCallStack().slice(1));
+		}
 
-			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-				callStack = callStack.concat([thread.stoppedDetails.framesErrorMessage]);
-			}
-			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
-				callStack = callStack.concat([new ThreadAndSessionIds(thread.session.getId(), thread.threadId)]);
-			}
+		if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
+			callStack = callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+		}
+		if (thread.stoppedDetails && thread.stoppedDetails.totalFrames && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
+			callStack = callStack.concat([new ThreadAndSessionIds(thread.session.getId(), thread.threadId)]);
+		}
 
-			return callStack;
-		});
+		return callStack;
 	}
 }
 
@@ -949,7 +950,7 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 		}
 
 		// element instanceof ThreadAndSessionIds
-		return nls.localize('loadMoreStackFrames', "Load More Stack Frames");
+		return LoadAllRenderer.LABEL;
 	}
 }
 
