@@ -345,7 +345,6 @@ class CompletionAcceptedCommand implements Command {
 				}
 			*/
 			this.telemetryReporter.logTelemetry('completions.accept', {
-				// @ts-expect-error - remove after TS 4.0 protocol update
 				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
 			});
 		}
@@ -540,7 +539,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		for (let entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
-				// @ts-expect-error - remove after TS 4.0 protocol update
 				includesPackageJsonImport = !!entry.isPackageJsonImport;
 			}
 		}
@@ -561,6 +559,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				"type" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"count" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"updateGraphDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"includesPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
@@ -572,6 +571,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			type: response?.type ?? 'unknown',
 			count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
 			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
+			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? (response.performanceData as Proto.PerformanceData & { createAutoImportProviderProgramDurationMs?: number })?.createAutoImportProviderProgramDurationMs : undefined,
 			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
 		});
 	}
@@ -641,7 +641,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
 				item.insertText = snippet;
 				if (parameterCount > 0) {
-					commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					//Fix for https://github.com/microsoft/vscode/issues/104059
+					//Don't show parameter hints if "editor.parameterHints.enabled": false
+					if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
+						commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					}
 				}
 			}
 		}

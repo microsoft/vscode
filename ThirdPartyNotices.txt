@@ -61,9 +61,9 @@ This project incorporates components from the projects listed below. The origina
 54.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
 55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
 56.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
-57.	Unicode version 12.0.0 (http://www.unicode.org/)
+57.	Unicode version 12.0.0 (https://home.unicode.org/)
 58.	vscode-codicons version 0.0.1 (https://github.com/microsoft/vscode-codicons)
-59.	vscode-logfile-highlighter version 2.6.0 (https://github.com/emilast/vscode-logfile-highlighter)
+59.	vscode-logfile-highlighter version 2.8.0 (https://github.com/emilast/vscode-logfile-highlighter)
 60.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 61.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 

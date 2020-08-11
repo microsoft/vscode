@@ -42,6 +42,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -72,7 +74,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@ITerminalService readonly terminalService: ITerminalService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -86,6 +89,11 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: ''
 		};
+
+		const urlFinder = this._register(new UrlFinder(terminalService));
+		this._register(urlFinder.onDidMatchLocalUrl(localUrl => {
+			this.model.forward(localUrl);
+		}));
 	}
 
 	async groups(): Promise<ITunnelGroup[]> {
@@ -158,8 +166,18 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
-			const key = MakeAddress(value.host, value.port);
+			let key = MakeAddress(value.host, value.port);
 			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
+				// The host:port hasn't been forwarded or detected. However, if the candidate is 0.0.0.0,
+				// also check that the port hasn't already been forwarded with localhost, and vice versa.
+				// For example: no need to show 0.0.0.0:3000 as a candidate if localhost:3000 is already forwarded.
+				const otherHost = value.host === '0.0.0.0' ? 'localhost' : (value.host === 'localhost' ? '0.0.0.0' : undefined);
+				if (otherHost) {
+					key = MakeAddress(otherHost, value.port);
+					if (this.model.forwarded.has(key) || this.model.detected.has(key)) {
+						return;
+					}
+				}
 				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
 			}
 		});

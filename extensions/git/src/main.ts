@@ -208,14 +208,25 @@ async function checkGitWindows(info: IGit): Promise<void> {
 		return;
 	}
 
+	const config = workspace.getConfiguration('git');
+	const shouldIgnore = config.get<boolean>('ignoreWindowsGit27Warning') === true;
+
+	if (shouldIgnore) {
+		return;
+	}
+
 	const update = localize('updateGit', "Update Git");
+	const neverShowAgain = localize('neverShowAgain', "Don't Show Again");
 	const choice = await window.showWarningMessage(
 		localize('git2526', "There are known issues with the installed Git {0}. Please update to Git >= 2.27 for the git features to work correctly.", info.version),
-		update
+		update,
+		neverShowAgain
 	);
 
 	if (choice === update) {
 		commands.executeCommand('vscode.open', Uri.parse('https://git-scm.com/'));
+	} else if (choice === neverShowAgain) {
+		await config.update('ignoreWindowsGit27Warning', true, true);
 	}
 }
 

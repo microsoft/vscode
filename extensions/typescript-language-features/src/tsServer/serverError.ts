@@ -18,7 +18,7 @@ export class TypeScriptServerError extends Error {
 	}
 
 	private constructor(
-		serverId: string,
+		public readonly serverId: string,
 		public readonly version: TypeScriptVersion,
 		private readonly response: Proto.Response,
 		public readonly serverMessage: string | undefined,
@@ -38,11 +38,13 @@ export class TypeScriptServerError extends Error {
 		/* __GDPR__FRAGMENT__
 			"TypeScriptRequestErrorProperties" : {
 				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				"serverid" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 			}
 		*/
 		return {
 			command: this.serverCommand,
+			serverid: this.serverId,
 			sanitizedstack: this.sanitizedStack || '',
 		} as const;
 	}

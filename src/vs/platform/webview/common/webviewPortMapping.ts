@@ -27,7 +27,7 @@ export class WebviewPortMappingManager implements IDisposable {
 		private readonly tunnelService: ITunnelService
 	) { }
 
-	public async getRedirect(resolveAuthority: IAddress, url: string): Promise<string | undefined> {
+	public async getRedirect(resolveAuthority: IAddress | null | undefined, url: string): Promise<string | undefined> {
 		const uri = URI.parse(url);
 		const requestLocalHostInfo = extractLocalHostUriMetaDataForPortMapping(uri);
 		if (!requestLocalHostInfo) {
@@ -38,7 +38,7 @@ export class WebviewPortMappingManager implements IDisposable {
 			if (mapping.webviewPort === requestLocalHostInfo.port) {
 				const extensionLocation = this._getExtensionLocation();
 				if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-					const tunnel = await this.getOrCreateTunnel(resolveAuthority, mapping.extensionHostPort);
+					const tunnel = resolveAuthority && await this.getOrCreateTunnel(resolveAuthority, mapping.extensionHostPort);
 					if (tunnel) {
 						if (tunnel.tunnelLocalPort === mapping.webviewPort) {
 							return undefined;

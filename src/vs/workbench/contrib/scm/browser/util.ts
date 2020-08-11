@@ -8,8 +8,9 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, Disposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { equals } from 'vs/base/common/arrays';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
@@ -65,4 +66,11 @@ export function connectPrimaryMenuToInlineActionBar(menu: IMenu, actionBar: Acti
 		actionBar.clear();
 		actionBar.push(primary, { icon: true, label: false });
 	}, g => /^inline/.test(g));
+}
+
+export function collectContextMenuActions(menu: IMenu, contextMenuService: IContextMenuService): [IAction[], IDisposable] {
+	const primary: IAction[] = [];
+	const actions: IAction[] = [];
+	const disposable = createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, { primary, secondary: actions }, contextMenuService, g => /^inline/.test(g));
+	return [actions, disposable];
 }

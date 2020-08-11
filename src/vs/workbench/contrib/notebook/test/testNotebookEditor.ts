@@ -81,6 +81,15 @@ export class TestNotebookEditor implements INotebookEditor {
 	hasFocus(): boolean {
 		return true;
 	}
+
+	hasWebviewFocus() {
+		return false;
+	}
+
+	hasOutputTextSelection() {
+		return false;
+	}
+
 	getId(): string {
 		return 'notebook.testEditor';
 	}
@@ -91,6 +100,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
 	activeCodeEditor: IEditor | undefined;
 	getDomNode(): HTMLElement {
+		throw new Error('Method not implemented.');
+	}
+
+	getOverflowContainerDomNode(): HTMLElement {
 		throw new Error('Method not implemented.');
 	}
 
@@ -164,7 +177,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null> {
+	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 

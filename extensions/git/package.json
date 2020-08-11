@@ -754,148 +754,48 @@
           "when": "scmProvider == git"
         },
         {
-          "command": "git.sync",
-          "group": "1_sync",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.syncRebase",
-          "group": "1_sync",
-          "when": "scmProvider == git && gitState == idle"
-        },
-        {
-          "command": "git.pull",
-          "group": "1_sync",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pullRebase",
-          "group": "1_sync",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pullFrom",
-          "group": "1_sync",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.push",
-          "group": "1_sync",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pushForce",
-          "group": "1_sync",
-          "when": "scmProvider == git && config.git.allowForcePush"
-        },
-        {
-          "command": "git.pushTo",
-          "group": "1_sync",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.pushToForce",
-          "group": "1_sync",
-          "when": "scmProvider == git && config.git.allowForcePush"
-        },
-        {
           "command": "git.checkout",
-          "group": "2_branch",
+          "group": "1_header",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.publish",
-          "group": "2_branch",
+          "command": "git.clone",
+          "group": "1_header",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.commitStaged",
-          "group": "4_commit",
+          "submenu": "git.commit",
+          "group": "2_main@1",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.commitStagedSigned",
-          "group": "4_commit",
+          "submenu": "git.changes",
+          "group": "2_main@2",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.commitStagedAmend",
-          "group": "4_commit",
+          "submenu": "git.pullpush",
+          "group": "2_main@3",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.commitAll",
-          "group": "4_commit",
+          "submenu": "git.branch",
+          "group": "2_main@4",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.commitAllSigned",
-          "group": "4_commit",
+          "submenu": "git.remotes",
+          "group": "2_main@5",
           "when": "scmProvider == git"
         },
         {
-          "command": "git.commitAllAmend",
-          "group": "4_commit",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.undoCommit",
-          "group": "4_commit",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stageAll",
-          "group": "5_stage",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.unstageAll",
-          "group": "5_stage",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.cleanAll",
-          "group": "5_stage",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stashIncludeUntracked",
-          "group": "6_stash",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stash",
-          "group": "6_stash",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stashPop",
-          "group": "6_stash",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stashPopLatest",
-          "group": "6_stash",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stashApply",
-          "group": "6_stash",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stashApplyLatest",
-          "group": "6_stash",
-          "when": "scmProvider == git"
-        },
-        {
-          "command": "git.stashDrop",
-          "group": "6_stash",
+          "submenu": "git.stash",
+          "group": "2_main@6",
           "when": "scmProvider == git"
         },
         {
           "command": "git.showOutput",
-          "group": "7_repository",
+          "group": "3_footer",
           "when": "scmProvider == git"
         }
       ],
@@ -1307,8 +1207,184 @@
           "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         }
+      ],
+      "git.commit": [
+        {
+          "command": "git.commit",
+          "group": "1_commit@1"
+        },
+        {
+          "command": "git.commitStaged",
+          "group": "1_commit@2"
+        },
+        {
+          "command": "git.commitAll",
+          "group": "1_commit@3"
+        },
+        {
+          "command": "git.undoCommit",
+          "group": "1_commit@4"
+        },
+        {
+          "command": "git.rebaseAbort",
+          "group": "1_commit@5"
+        },
+        {
+          "command": "git.commitStagedAmend",
+          "group": "2_amend@1"
+        },
+        {
+          "command": "git.commitAllAmend",
+          "group": "2_amend@1"
+        },
+        {
+          "command": "git.commitStagedSigned",
+          "group": "3_signoff@1"
+        },
+        {
+          "command": "git.commitAllSigned",
+          "group": "3_signoff@2"
+        }
+      ],
+      "git.changes": [
+        {
+          "command": "git.stageAll"
+        },
+        {
+          "command": "git.unstageAll"
+        },
+        {
+          "command": "git.cleanAll"
+        }
+      ],
+      "git.pullpush": [
+        {
+          "command": "git.sync",
+          "group": "1_sync"
+        },
+        {
+          "command": "git.syncRebase",
+          "when": "gitState == idle",
+          "group": "1_sync"
+        },
+        {
+          "command": "git.pull",
+          "group": "2_pull"
+        },
+        {
+          "command": "git.pullRebase",
+          "group": "2_pull"
+        },
+        {
+          "command": "git.pullFrom",
+          "group": "2_pull"
+        },
+        {
+          "command": "git.push",
+          "group": "3_push"
+        },
+        {
+          "command": "git.pushForce",
+          "when": "config.git.allowForcePush",
+          "group": "3_push"
+        },
+        {
+          "command": "git.pushTo",
+          "group": "3_push"
+        },
+        {
+          "command": "git.pushToForce",
+          "when": "config.git.allowForcePush",
+          "group": "3_push"
+        },
+        {
+          "command": "git.fetch",
+          "group": "4_fetch"
+        },
+        {
+          "command": "git.fetchPrune",
+          "group": "4_fetch"
+        },
+        {
+          "command": "git.fetchAll",
+          "group": "4_fetch"
+        }
+      ],
+      "git.branch": [
+        {
+          "command": "git.merge"
+        },
+        {
+          "command": "git.branch"
+        },
+        {
+          "command": "git.branchFrom"
+        },
+        {
+          "command": "git.renameBranch"
+        },
+        {
+          "command": "git.publish"
+        }
+      ],
+      "git.remotes": [
+        {
+          "command": "git.addRemote"
+        },
+        {
+          "command": "git.removeRemote"
+        }
+      ],
+      "git.stash": [
+        {
+          "command": "git.stash"
+        },
+        {
+          "command": "git.stashIncludeUntracked"
+        },
+        {
+          "command": "git.stashApplyLatest"
+        },
+        {
+          "command": "git.stashApply"
+        },
+        {
+          "command": "git.stashPopLatest"
+        },
+        {
+          "command": "git.stashPop"
+        },
+        {
+          "command": "git.stashDrop"
+        }
       ]
     },
+    "submenus": [
+      {
+        "id": "git.commit",
+        "label": "%submenu.commit%"
+      },
+      {
+        "id": "git.changes",
+        "label": "%submenu.changes%"
+      },
+      {
+        "id": "git.pullpush",
+        "label": "%submenu.pullpush%"
+      },
+      {
+        "id": "git.branch",
+        "label": "%submenu.branch%"
+      },
+      {
+        "id": "git.remotes",
+        "label": "%submenu.remotes%"
+      },
+      {
+        "id": "git.stash",
+        "label": "%submenu.stash%"
+      }
+    ],
     "configuration": {
       "title": "Git",
       "properties": {
@@ -1423,6 +1499,11 @@
         "git.ignoreMissingGitWarning": {
           "type": "boolean",
           "description": "%config.ignoreMissingGitWarning%",
+          "default": false
+        },
+        "git.ignoreWindowsGit27Warning": {
+          "type": "boolean",
+          "description": "%config.ignoreWindowsGit27Warning%",
           "default": false
         },
         "git.ignoreLimitWarning": {
