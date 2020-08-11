@@ -349,16 +349,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		});
 	}
 
-	inspectLayout() {
-		console.log('--- notebook ---\n');
-		console.log(this.layoutInfo);
-		console.log('--- cells ---');
-		this.viewCells.forEach(cell => {
-			console.log(`--- cell: ${cell.handle} ---\n`);
-			console.log((cell as (CodeCellViewModel | MarkdownCellViewModel)).layoutInfo);
-		});
-	}
-
 	setFocus(focused: boolean) {
 		this._focused = focused;
 	}
@@ -657,13 +647,21 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._notebook.deleteCell2(index, synchronous, pushUndoStop, this.selectionHandles, endSelections);
 	}
 
-	moveCellToIdx(index: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
+	/**
+	 *
+	 * @param index
+	 * @param length
+	 * @param newIdx in an index scheme for the state of the tree after the current cell has been "removed"
+	 * @param synchronous
+	 * @param pushedToUndoStack
+	 */
+	moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
 		const viewCell = this.viewCells[index] as CellViewModel;
 		if (!viewCell) {
 			return false;
 		}
 
-		this._notebook.moveCellToIdx2(index, newIdx, synchronous, pushedToUndoStack, undefined, [viewCell.handle]);
+		this._notebook.moveCellToIdx2(index, length, newIdx, synchronous, pushedToUndoStack, undefined, [viewCell.handle]);
 		return true;
 	}
 

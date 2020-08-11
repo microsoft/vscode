@@ -791,7 +791,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 	private cleanupExistingSubmenu(force: boolean): void {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
-			this.parentData.submenu.dispose();
+
+			// disposal may throw if the submenu has already been removed
+			try {
+				this.parentData.submenu.dispose();
+			} catch { }
+
 			this.parentData.submenu = undefined;
 			this.updateAriaExpanded('false');
 			if (this.submenuContainer) {

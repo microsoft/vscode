@@ -15,6 +15,7 @@ import { NotImplementedProxy } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import { CellKind, ExtHostNotebookShape, IMainContext, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadDocumentsShape, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
@@ -943,6 +944,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		commands: ExtHostCommands,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _webviewInitData: WebviewInitData,
+		private readonly logService: ILogService,
 		private readonly _extensionStoragePaths?: IExtensionStoragePaths,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
@@ -1445,6 +1447,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void {
+
 		const document = this._documents.get(URI.revive(uriComponents).toString());
 
 		if (document) {
@@ -1461,6 +1464,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void {
+		this.logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', uriComponents.path, data);
 		const editor = this._getEditorFromURI(uriComponents);
 
 		if (!editor) {

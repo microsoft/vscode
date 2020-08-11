@@ -259,7 +259,7 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Move a cell to a specific position
 	 */
-	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null>;
+	moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null>;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
