@@ -67,7 +67,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 			modeId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
-			versionId: -1
+			versionId: 1
 		};
 	}
 
@@ -1523,19 +1523,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const document = this._documents.get(revivedUriStr);
 
 				if (document) {
-
-					// remove all documents that have not been opened by the renderer
-					// and have not yet been closed
-					const removedCellDocuments: URI[] = [];
-					for (let cell of document.cells) {
-						if (this._documentsAndEditors.getDocument(cell.uri)?.version === -1) {
-							removedCellDocuments.push(cell.uri);
-						}
-					}
-
 					document.dispose();
 					this._documents.delete(revivedUriStr);
-					this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: removedCellDocuments });
+					this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.cells.map(cell => cell.uri) });
 					this._onDidCloseNotebookDocument.fire(document);
 				}
 

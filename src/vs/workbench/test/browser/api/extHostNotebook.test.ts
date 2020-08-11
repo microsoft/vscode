@@ -96,12 +96,12 @@ suite('NotebookCell#Document', function () {
 
 		assert.ok(d1);
 		assert.equal(d1.languageId, c1.language);
-		assert.equal(d1.version, -1); // we use -1 as signal that the document was created on the ext-host side
+		assert.equal(d1.version, 1);
 
 		const d2 = extHostDocuments.getDocument(c2.uri);
 		assert.ok(d2);
 		assert.equal(d2.languageId, c2.language);
-		assert.equal(d2.version, -1);
+		assert.equal(d2.version, 1);
 	});
 
 	test('cell document goes when notebook closes', async function () {

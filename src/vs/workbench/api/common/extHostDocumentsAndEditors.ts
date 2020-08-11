@@ -16,6 +16,18 @@ import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import { Iterable } from 'vs/base/common/iterator';
+
+class Reference<T> {
+	private _count = 0;
+	constructor(readonly value: T) { }
+	ref() {
+		this._count++;
+	}
+	unref() {
+		return --this._count === 0;
+	}
+}
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -24,7 +36,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	private _activeEditorId: string | null = null;
 
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
-	private readonly _documents = new ResourceMap<ExtHostDocumentData>();
+	private readonly _documents = new ResourceMap<Reference<ExtHostDocumentData>>();
 
 	private readonly _onDidAddDocuments = new Emitter<ExtHostDocumentData[]>();
 	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
@@ -51,9 +63,9 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 			for (const uriComponent of delta.removedDocuments) {
 				const uri = URI.revive(uriComponent);
 				const data = this._documents.get(uri);
-				this._documents.delete(uri);
-				if (data) {
-					removedDocuments.push(data);
+				if (data?.unref()) {
+					this._documents.delete(uri);
+					removedDocuments.push(data.value);
 				}
 			}
 		}
@@ -61,26 +73,31 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		if (delta.addedDocuments) {
 			for (const data of delta.addedDocuments) {
 				const resource = URI.revive(data.uri);
-				const existingDocumentData = this._documents.get(resource);
-				if (existingDocumentData) {
+				let ref = this._documents.get(resource);
+
+				// double check -> only notebook cell documents should be
+				// referenced/opened more than once...
+				if (ref) {
 					if (resource.scheme !== Schemas.vscodeNotebookCell) {
 						throw new Error(`document '${resource} already exists!'`);
 					}
-					existingDocumentData.onEvents({ changes: [], versionId: data.versionId, eol: data.EOL });
-					continue;
+				}
+				if (!ref) {
+					ref = new Reference(new ExtHostDocumentData(
+						this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
+						resource,
+						data.lines,
+						data.EOL,
+						data.modeId,
+						data.versionId,
+						data.isDirty
+					));
 				}
 
-				const documentData = new ExtHostDocumentData(
-					this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
-					resource,
-					data.lines,
-					data.EOL,
-					data.modeId,
-					data.versionId,
-					data.isDirty
-				);
-				this._documents.set(resource, documentData);
-				addedDocuments.push(documentData);
+				ref.ref();
+
+				this._documents.set(resource, ref);
+				addedDocuments.push(ref.value);
 			}
 		}
 
@@ -100,7 +117,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				assert.ok(this._documents.has(resource), `document '${resource}' does not exist`);
 				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
 
-				const documentData = this._documents.get(resource)!;
+				const documentData = this._documents.get(resource)!.value;
 				const editor = new ExtHostTextEditor(
 					data.id,
 					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
@@ -140,11 +157,11 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	}
 
 	getDocument(uri: URI): ExtHostDocumentData | undefined {
-		return this._documents.get(uri);
+		return this._documents.get(uri)?.value;
 	}
 
-	allDocuments(): ExtHostDocumentData[] {
-		return [...this._documents.values()];
+	allDocuments(): Iterable<ExtHostDocumentData> {
+		return Iterable.map(this._documents.values(), ref => ref.value);
 	}
 
 	getEditor(id: string): ExtHostTextEditor | undefined {
