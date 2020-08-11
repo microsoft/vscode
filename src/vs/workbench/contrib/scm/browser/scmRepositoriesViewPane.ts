@@ -23,6 +23,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { collectContextMenuActions, StatusBarAction, StatusBarActionViewItem } from 'vs/workbench/contrib/scm/browser/util';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -94,11 +95,13 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.onDidAddRepository(repository);
 		}
 
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('scm.repositories.visible')) {
-				this.updateBodySize();
-			}
-		}));
+		if (this.orientation === Orientation.VERTICAL) {
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('scm.repositories.visible')) {
+					this.updateBodySize();
+				}
+			}));
+		}
 
 		this.updateListSelection();
 	}
@@ -128,6 +131,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private updateBodySize(): void {
+		if (this.orientation === Orientation.HORIZONTAL) {
+			return;
+		}
+
 		const visibleCount = this.configurationService.getValue<number>('scm.repositories.visible');
 		const empty = this.list.length === 0;
 		const size = Math.min(this.list.length, visibleCount) * 22;
