@@ -243,7 +243,8 @@ abstract class AbstractCellRenderer {
 				}
 
 				return undefined;
-			}
+			},
+			renderDropdownAsChildElement: true
 		});
 
 		if (elementClass) {

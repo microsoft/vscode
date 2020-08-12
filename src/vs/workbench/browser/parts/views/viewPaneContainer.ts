@@ -293,6 +293,7 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			renderDropdownAsChildElement: true
 		});
 
 		this._register(this.toolbar);
