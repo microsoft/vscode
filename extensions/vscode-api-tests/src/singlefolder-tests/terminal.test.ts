@@ -460,10 +460,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					}
 					term.show();
 					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						if (e.dimensions.columns === 0 || e.dimensions.rows === 0) {
-							// HACK: Ignore the event if dimension(s) are zero (#83778)
-							return;
-						}
 						// The default pty dimensions have a chance to appear here since override
 						// dimensions happens after the terminal is created. If so just ignore and
 						// wait for the right dimensions
