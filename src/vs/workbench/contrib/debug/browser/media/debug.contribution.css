@@ -77,15 +77,13 @@
 
 .monaco-workbench .debug-pane .monaco-list-row .expression,
 .monaco-workbench .debug-hover-widget .monaco-list-row .expression {
-	font-size: 13px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	font-family: var(--monaco-monospace-font);
 	white-space: pre;
 }
 
-.monaco-workbench.mac .debug-pane .monaco-list-row .expression,
-.monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
+.monaco-workbench.mac .debug-pane .monaco-list-row .expression {
 	font-size: 11px;
 }
 
