@@ -558,6 +558,65 @@
 			}
 		},
 		{
+			"name": "Markdown Headings",
+			"scope": "markup.heading.markdown",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markdown Quote",
+			"scope": "markup.quote.markdown",
+			"settings": {
+				"fontStyle": "italic",
+				"foreground": ""
+			}
+		},
+		{
+			"name": "Markdown Bold",
+			"scope": "markup.bold.markdown",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markdown Link Title/Description",
+			"scope": "string.other.link.title.markdown,string.other.link.description.markdown",
+			"settings": {
+				"foreground": "#AE81FF"
+			}
+		},
+		{
+			"name": "Markdown Underline Link/Image",
+			"scope": "markup.underline.link.markdown,markup.underline.link.image.markdown",
+			"settings": {
+				"foreground": ""
+			}
+		},
+		{
+			"name": "Markdown Emphasis",
+			"scope": "markup.italic.markdown",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
+			"name": "Markdown Punctuation Definition Link",
+			"scope": "markup.list.unnumbered.markdown, markup.list.numbered.markdown",
+			"settings": {
+				"foreground": ""
+			}
+		},
+		{
+			"name": "Markdown List Punctuation",
+			"scope": [
+				"punctuation.definition.list.begin.markdown"
+			],
+			"settings": {
+				"foreground": ""
+			}
+		},
+		{
 			"scope": "token.info-token",
 			"settings": {
 				"foreground": "#6796e6"
