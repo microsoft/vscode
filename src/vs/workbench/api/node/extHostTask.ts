@@ -32,7 +32,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
-		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
+		@IExtHostWorkspace private readonly workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
@@ -55,7 +55,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 		// We have a preserved ID. So the task didn't change.
 		if (tTask._id !== undefined) {
 			// Always get the task execution first to prevent timing issues when retrieving it later
-			const handleDto = TaskHandleDTO.from(tTask);
+			const handleDto = TaskHandleDTO.from(tTask, this.workspaceService);
 			const executionDTO = await this._proxy.$getTaskExecution(handleDto);
 			if (executionDTO.task === undefined) {
 				throw new Error('Task from execution DTO is undefined');
