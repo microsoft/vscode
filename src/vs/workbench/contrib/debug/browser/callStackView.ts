@@ -161,7 +161,6 @@ export class CallStackView extends ViewPane {
 				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 				this.updateActions();
-
 			} else {
 				this.pauseMessage.hidden = true;
 				this.updateActions();
@@ -550,6 +549,9 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 		if (thread && thread.stoppedDetails) {
 			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+			if (thread.stoppedDetails.text) {
+				data.session.title = thread.stoppedDetails.text;
+			}
 		} else {
 			const hasChildSessions = this.debugService.getModel().getSessions().find(s => s.parentSession === session);
 			if (!hasChildSessions) {
