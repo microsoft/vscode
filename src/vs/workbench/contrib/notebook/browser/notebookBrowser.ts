@@ -190,6 +190,7 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	isDisposed: boolean;
 
@@ -424,6 +425,7 @@ export interface INotebookCellList {
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
+	onDidScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
 	onDidChangeContentHeight: Event<number>;
 	scrollTop: number;

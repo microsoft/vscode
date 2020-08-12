@@ -1291,3 +1291,54 @@ export class RunStateRenderer {
 		}
 	}
 }
+
+export class ListTopCellToolbar extends Disposable {
+	private topCellToolbar: HTMLElement;
+	constructor(
+		protected readonly notebookEditor: INotebookEditor,
+
+		insertionIndicatorContainer: HTMLElement,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		this.topCellToolbar = DOM.append(insertionIndicatorContainer, $('.cell-list-top-cell-toolbar-container'));
+
+		const toolbar = new ToolBar(this.topCellToolbar, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+
+		const cellMenu = this.instantiationService.createInstance(CellMenus);
+		const menu = this._register(cellMenu.getCellTopInsertionMenu(contextKeyService));
+
+		const actions = this.getCellToolbarActions(menu, false);
+		toolbar.setActions(actions.primary, actions.secondary);
+
+		this._register(toolbar);
+
+		this._register(this.notebookEditor.onDidScroll((e) => {
+			this.topCellToolbar.style.top = `-${e.scrollTop}px`;
+		}));
+	}
+
+	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
+
+		return result;
+	}
+}
