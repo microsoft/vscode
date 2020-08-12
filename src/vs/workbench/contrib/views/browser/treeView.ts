@@ -900,6 +900,9 @@ class Aligner extends Disposable {
 
 		if (this._tree) {
 			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
+			if (this.hasIcon(parent)) {
+				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIcon(c));
+			}
 			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 		} else {
 			return false;
