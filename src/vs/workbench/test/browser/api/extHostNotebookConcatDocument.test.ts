@@ -48,7 +48,7 @@ suite('NotebookConcatDocument', function () {
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
 				handle: 0,
 				uri: notebookUri,
@@ -72,7 +72,7 @@ suite('NotebookConcatDocument', function () {
 				}
 			]
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
@@ -291,17 +291,6 @@ suite('NotebookConcatDocument', function () {
 		// offset math
 		let cell1End = doc.offsetAt(new Position(2, 12));
 		assert.equal(doc.positionAt(cell1End).isEqual(new Position(2, 12)), true);
-
-		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
-			addedDocuments: [{
-				uri: notebook.cells[0].uri,
-				versionId: 1,
-				lines: ['Hello', 'World', 'Hello World!'],
-				EOL: '\n',
-				modeId: '',
-				isDirty: false
-			}]
-		});
 
 		extHostDocuments.$acceptModelChanged(notebook.cells[0].uri, {
 			versionId: 0,

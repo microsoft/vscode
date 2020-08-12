@@ -203,7 +203,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	async removeNotebookTextModel(uri: URI): Promise<void> {
 		// TODO@rebornix, remove cell should use emitDelta as well to ensure document/editor events are sent together
-		await this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
+		this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
 		let textModelDisposableStore = this._editorEventListenersMapping.get(uri.toString());
 		textModelDisposableStore?.dispose();
 		this._editorEventListenersMapping.delete(URI.from(uri).toString());
