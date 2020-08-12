@@ -74,15 +74,16 @@
 		},
 
 		/**
-		 *  Support for subset of methods of Electron's `crashReporter` type.
+		 * Support for subset of methods of Electron's `crashReporter` type.
 		 */
 		crashReporter: {
 
 			/**
-			 * @param {Electron.CrashReporterStartOptions} options
+			 * @param {string} key
+			 * @param {string} value
 			 */
-			start(options) {
-				crashReporter.start(options);
+			addExtraParameter(key, value) {
+				crashReporter.addExtraParameter(key, value);
 			}
 		},
 

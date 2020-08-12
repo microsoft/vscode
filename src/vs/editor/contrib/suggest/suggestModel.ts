@@ -556,6 +556,12 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
+		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
+			// started a new word while IntelliSense shows -> retrigger
+			this.trigger({ auto: this._context.auto, shy: false }, true);
+			return;
+		}
+
 		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
 			const { incomplete } = this._completionModel;

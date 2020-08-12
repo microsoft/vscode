@@ -794,12 +794,15 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 
 	test('Trigger (full) completions when (incomplete) completions are already active #99504', function () {
-		this.skip();
+
+		let countA = 0;
+		let countB = 0;
 
 		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
 			provideCompletionItems(doc, pos) {
+				countA += 1;
 				return {
-					incomplete: true,
+					incomplete: false, // doesn't matter if incomplete or not
 					suggestions: [{
 						kind: CompletionItemKind.Class,
 						label: 'Z aaa',
@@ -811,6 +814,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		}));
 		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
 			provideCompletionItems(doc, pos) {
+				countB += 1;
 				return {
 					incomplete: false,
 					suggestions: [{
@@ -845,6 +849,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items.length, 2);
 				assert.equal(event.completionModel.items[0].textLabel, 'Z aaa');
 				assert.equal(event.completionModel.items[1].textLabel, 'aaa');
+
+				assert.equal(countA, 2); // should we keep the suggestions from the "active" provider?
+				assert.equal(countB, 2);
 			});
 		});
 	});

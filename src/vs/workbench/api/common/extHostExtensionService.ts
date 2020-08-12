@@ -25,7 +25,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError, ExtensionMode } from 'vs/workbench/api/common/extHostTypes';
+import { RemoteAuthorityResolverError, ExtensionMode, ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode, IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -71,6 +71,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	readonly _serviceBrand: undefined;
 
+	abstract readonly extensionRuntime: ExtensionRuntime;
 
 	private readonly _onDidChangeRemoteConnectionData = this._register(new Emitter<void>());
 	public readonly onDidChangeRemoteConnectionData = this._onDidChangeRemoteConnectionData.event;
@@ -408,6 +409,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 					return that._storagePath.globalValue(extensionDescription);
 				},
 				get extensionMode() { return extensionMode; },
+				get extensionRuntime() {
+					checkProposedApiEnabled(extensionDescription);
+					return that.extensionRuntime;
+				},
 				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
 			});
 		});
