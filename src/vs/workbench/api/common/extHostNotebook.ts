@@ -341,23 +341,23 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	acceptModelChanged(event: NotebookCellsChangedEvent): void {
 		this._versionId = event.versionId;
 		if (event.kind === NotebookCellsChangeType.Initialize) {
-			this.$spliceNotebookCells(event.changes, true);
+			this._spliceNotebookCells(event.changes, true);
 		} if (event.kind === NotebookCellsChangeType.ModelChange) {
-			this.$spliceNotebookCells(event.changes, false);
+			this._spliceNotebookCells(event.changes, false);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
-			this.$moveCell(event.index, event.newIdx);
+			this._moveCell(event.index, event.newIdx);
 		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
-			this.$clearCellOutputs(event.index);
+			this._clearCellOutputs(event.index);
 		} else if (event.kind === NotebookCellsChangeType.CellsClearOutput) {
-			this.$clearAllCellOutputs();
+			this._clearAllCellOutputs();
 		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
-			this.$changeCellLanguage(event.index, event.language);
+			this._changeCellLanguage(event.index, event.language);
 		} else if (event.kind === NotebookCellsChangeType.ChangeMetadata) {
-			this.$changeCellMetadata(event.index, event.metadata);
+			this._changeCellMetadata(event.index, event.metadata);
 		}
 	}
 
-	private $spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
+	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
 		if (this._disposed) {
 			return;
 		}
@@ -415,7 +415,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		}
 	}
 
-	private $moveCell(index: number, newIdx: number): void {
+	private _moveCell(index: number, newIdx: number): void {
 		const cells = this.cells.splice(index, 1);
 		this.cells.splice(newIdx, 0, ...cells);
 		const changes: vscode.NotebookCellsChangeData[] = [{
@@ -435,14 +435,14 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		});
 	}
 
-	private $clearCellOutputs(index: number): void {
+	private _clearCellOutputs(index: number): void {
 		const cell = this.cells[index];
 		cell.outputs = [];
 		const event: vscode.NotebookCellOutputsChangeEvent = { document: this, cells: [cell] };
 		this._emitter.emitCellOutputsChange(event);
 	}
 
-	private $clearAllCellOutputs(): void {
+	private _clearAllCellOutputs(): void {
 		const modifedCells: vscode.NotebookCell[] = [];
 		this.cells.forEach(cell => {
 			if (cell.outputs.length !== 0) {
@@ -454,13 +454,13 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		this._emitter.emitCellOutputsChange(event);
 	}
 
-	private $changeCellLanguage(index: number, language: string): void {
+	private _changeCellLanguage(index: number, language: string): void {
 		const cell = this.cells[index];
 		const event: vscode.NotebookCellLanguageChangeEvent = { document: this, cell, language };
 		this._emitter.emitCellLanguageChange(event);
 	}
 
-	private $changeCellMetadata(index: number, newMetadata: NotebookCellMetadata): void {
+	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata): void {
 		const cell = this.cells[index];
 		cell.setMetadata(newMetadata);
 		const event: vscode.NotebookCellMetadataChangeEvent = { document: this, cell };
