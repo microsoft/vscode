@@ -53,7 +53,8 @@ export class TextSearchManager {
 					}
 
 					const newResultSize = this.resultSize(result);
-					this.resultCount += newResultSize; if (newResultSize > 0 || !extensionResultIsMatch(result)) {
+					this.resultCount += newResultSize;
+					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
 						this.collector!.add(result, folderIdx);
 					}
 				}
