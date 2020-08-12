@@ -356,13 +356,15 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 	}
 }
 
-registerEditorAction(ToggleBreakpointAction);
-registerEditorAction(ConditionalBreakpointAction);
-registerEditorAction(LogPointAction);
-registerEditorAction(RunToCursorAction);
-registerEditorAction(StepIntoTargetsAction);
-registerEditorAction(SelectionToReplAction);
-registerEditorAction(SelectionToWatchExpressionsAction);
-registerEditorAction(ShowDebugHoverAction);
-registerEditorAction(GoToNextBreakpointAction);
-registerEditorAction(GoToPreviousBreakpointAction);
+export function registerEditorActions(): void {
+	registerEditorAction(ToggleBreakpointAction);
+	registerEditorAction(ConditionalBreakpointAction);
+	registerEditorAction(LogPointAction);
+	registerEditorAction(RunToCursorAction);
+	registerEditorAction(StepIntoTargetsAction);
+	registerEditorAction(SelectionToReplAction);
+	registerEditorAction(SelectionToWatchExpressionsAction);
+	registerEditorAction(ShowDebugHoverAction);
+	registerEditorAction(GoToNextBreakpointAction);
+	registerEditorAction(GoToPreviousBreakpointAction);
+}
