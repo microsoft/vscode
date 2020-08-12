@@ -312,8 +312,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	};
 
 	constructor() {
-		this.tokenTypeById = {};
-		this.tokenModifierById = {};
+		this.tokenTypeById = Object.create(null);
+		this.tokenModifierById = Object.create(null);
 		this.typeHierarchy = Object.create(null);
 	}
 

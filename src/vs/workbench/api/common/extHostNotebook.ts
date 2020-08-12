@@ -7,18 +7,16 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { ISplice } from 'vs/base/common/sequence';
-import { NotImplementedProxy } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { CellKind, ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
-import { CellKind, ExtHostNotebookShape, IMainContext, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadDocumentsShape, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
@@ -27,6 +25,7 @@ import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/we
 import { CellEditType, CellOutputKind, diff, ICellDeleteEdit, ICellEditOperation, ICellInsertEdit, IMainCellDto, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseCellInfo, IOutputRenderResponseOutputInfo, IProcessedOutput, IRawOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { Cache } from './cache';
+
 
 interface IObservable<T> {
 	proxy: T;
@@ -59,27 +58,18 @@ interface INotebookEventEmitter {
 const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
 	? ({ ...output, outputId: id }) : output;
 
-class DettachedCellDocumentData extends ExtHostDocumentData {
-
-	private static readonly _fakeProxy = new class extends NotImplementedProxy<MainThreadDocumentsShape>('document') {
-		$trySaveDocument() {
-			return Promise.reject('Cell-document cannot be saved');
-		}
-	};
-
-	constructor(cell: IMainCellDto) {
-		super(DettachedCellDocumentData._fakeProxy,
-			URI.revive(cell.uri),
-			cell.source,
-			cell.eol,
-			cell.language,
-			0,
-			false
-		);
-	}
-}
-
 export class ExtHostCell extends Disposable implements vscode.NotebookCell {
+
+	public static asModelAddData(cell: IMainCellDto): IModelAddedData {
+		return {
+			EOL: cell.eol,
+			lines: cell.source,
+			modeId: cell.language,
+			uri: cell.uri,
+			isDirty: false,
+			versionId: 1
+		};
+	}
 
 	private _onDidChangeOutputs = new Emitter<ISplice<IProcessedOutput>[]>();
 	readonly onDidChangeOutputs: Event<ISplice<IProcessedOutput>[]> = this._onDidChangeOutputs.event;
@@ -94,13 +84,6 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	readonly uri: URI;
 	readonly cellKind: CellKind;
 
-	// todo@jrieken this is a little fish because we have
-	// vscode.TextDocument for which we never fired an onDidOpen
-	// event and which doesn't appear in the list of documents.
-	// this will change once the "real" document comes along. We
-	// should come up with a better approach here...
-	readonly defaultDocument: DettachedCellDocumentData;
-
 	constructor(
 		private _proxy: MainThreadNotebookShape,
 		readonly notebook: ExtHostNotebookDocument,
@@ -112,7 +95,6 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		this.handle = cell.handle;
 		this.uri = URI.revive(cell.uri);
 		this.cellKind = cell.cellKind;
-		this.defaultDocument = new DettachedCellDocumentData(cell);
 
 		this._outputs = cell.outputs;
 		for (const output of this._outputs) {
@@ -128,7 +110,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	get document(): vscode.TextDocument {
-		return this._extHostDocument.getDocument(this.uri)?.document ?? this.defaultDocument.document;
+		return this._extHostDocument.getDocument(this.uri)!.document;
 	}
 
 	get language(): string {
@@ -348,7 +330,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	dispose() {
 		this._disposed = true;
 		super.dispose();
-		this._cellDisposableMapping.forEach(cell => cell.dispose());
+		dispose(this._cellDisposableMapping.values());
 	}
 
 	get fileName() { return this.uri.fsPath; }
@@ -380,12 +362,17 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		}
 
 		const contentChangeEvents: vscode.NotebookCellsChangeData[] = [];
+		const addedCellDocuments: IModelAddedData[] = [];
 
 		splices.reverse().forEach(splice => {
 			const cellDtos = splice[2];
 			const newCells = cellDtos.map(cell => {
 
 				const extCell = new ExtHostCell(this._proxy, this, this._documentsAndEditors, cell);
+
+				if (!initialization) {
+					addedCellDocuments.push(ExtHostCell.asModelAddData(cell));
+				}
 
 				if (!this._cellDisposableMapping.has(extCell.handle)) {
 					this._cellDisposableMapping.set(extCell.handle, new DisposableStore());
@@ -403,20 +390,21 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			for (let j = splice[0]; j < splice[0] + splice[1]; j++) {
 				this._cellDisposableMapping.get(this.cells[j].handle)?.dispose();
 				this._cellDisposableMapping.delete(this.cells[j].handle);
-
 			}
 
 			const deletedItems = this.cells.splice(splice[0], splice[1], ...newCells);
 
-			const event: vscode.NotebookCellsChangeData = {
+			contentChangeEvents.push({
 				start: splice[0],
 				deletedCount: splice[1],
 				deletedItems,
 				items: newCells
-			};
-
-			contentChangeEvents.push(event);
+			});
 		});
+
+		if (addedCellDocuments) {
+			this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({ addedDocuments: addedCellDocuments });
+		}
 
 		if (!initialization) {
 			this._emitter.emitModelChange({
@@ -467,7 +455,6 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	private $changeCellLanguage(index: number, language: string): void {
 		const cell = this.cells[index];
-		cell.defaultDocument._acceptLanguageId(language);
 		const event: vscode.NotebookCellLanguageChangeEvent = { document: this, cell, language };
 		this._emitter.emitCellLanguageChange(event);
 	}
@@ -1526,7 +1513,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._editors.set(editorId, { editor });
 	}
 
-	async $acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta) {
+	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void {
 		let editorChanged = false;
 
 		if (delta.removedDocuments) {
@@ -1538,6 +1525,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				if (document) {
 					document.dispose();
 					this._documents.delete(revivedUriStr);
+					this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: document.cells.map(cell => cell.uri) });
 					this._onDidCloseNotebookDocument.fire(document);
 				}
 
@@ -1552,6 +1540,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (delta.addedDocuments) {
+
+			const addedCellDocuments: IModelAddedData[] = [];
+
 			delta.addedDocuments.forEach(modelData => {
 				const revivedUri = URI.revive(modelData.uri);
 				const revivedUriStr = revivedUri.toString();
@@ -1598,6 +1589,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						]]
 					});
 
+					// add cell document as vscode.TextDocument
+					addedCellDocuments.push(...modelData.cells.map(ExtHostCell.asModelAddData));
+
 					this._documents.get(revivedUriStr)?.dispose();
 					this._documents.set(revivedUriStr, document);
 
@@ -1607,6 +1601,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						editorChanged = true;
 					}
 				}
+
+				this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({
+					addedDocuments: addedCellDocuments
+				});
 
 				const document = this._documents.get(revivedUriStr)!;
 				this._onDidOpenNotebookDocument.fire(document);

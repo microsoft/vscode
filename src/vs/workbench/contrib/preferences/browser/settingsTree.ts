@@ -636,7 +636,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 
-		template.descriptionElement.innerHTML = '';
+		template.descriptionElement.innerText = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
 			template.toDispose.add(disposables);
@@ -649,7 +649,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
 		template.descriptionElement.id = baseId + '_setting_description';
 
-		template.otherOverridesElement.innerHTML = '';
+		template.otherOverridesElement.innerText = '';
 		template.otherOverridesElement.style.display = 'none';
 		if (element.overriddenScopeList.length) {
 			template.otherOverridesElement.style.display = 'inline';
@@ -686,7 +686,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
 			const disposables = new DisposableStore();
 			template.elementDisposables.add(disposables);
-			template.deprecationWarningElement.innerHTML = '';
+			template.deprecationWarningElement.innerText = '';
 			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, element.setting.deprecationMessage!, template.elementDisposables));
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
@@ -820,7 +820,7 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 	}
 
 	renderElement(element: ITreeNode<SettingsTreeGroupElement, never>, index: number, templateData: IGroupTitleTemplate): void {
-		templateData.parent.innerHTML = '';
+		templateData.parent.innerText = '';
 		const labelElement = DOM.append(templateData.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.element.level}`);
 		labelElement.textContent = element.element.label;
@@ -1365,7 +1365,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		template.selectBox.select(idx);
 		template.onChange = idx => onChange(dataElement.setting.enum![idx]);
 
-		template.enumDescriptionElement.innerHTML = '';
+		template.enumDescriptionElement.innerText = '';
 	}
 }
 

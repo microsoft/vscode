@@ -373,7 +373,7 @@ class SuggestionDetails {
 			this.docs.textContent = documentation;
 		} else {
 			this.docs.classList.add('markdown-docs');
-			this.docs.innerHTML = '';
+			this.docs.innerText = '';
 			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);

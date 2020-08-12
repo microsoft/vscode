@@ -885,6 +885,12 @@ export class Diagnostic {
 	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+		if (!Range.isRange(range)) {
+			throw new TypeError('range must be set');
+		}
+		if (!message) {
+			throw new TypeError('message must be set');
+		}
 		this.range = range;
 		this.message = message;
 		this.severity = severity;

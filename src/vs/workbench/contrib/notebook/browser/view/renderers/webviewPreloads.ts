@@ -422,7 +422,7 @@ function webviewPreloads() {
 			case 'clear':
 				queuedOuputActions.clear(); // stop all loading outputs
 				onWillDestroyOutput.fire([undefined, undefined]);
-				document.getElementById('container')!.innerHTML = '';
+				document.getElementById('container')!.innerText = '';
 
 				outputObservers.forEach(ob => {
 					ob.disconnect();

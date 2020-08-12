@@ -506,7 +506,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (!this.shouldShowWelcome()) {
 			removeClass(this.bodyContainer, 'welcome');
-			this.viewWelcomeContainer.innerHTML = '';
+			this.viewWelcomeContainer.innerText = '';
 			this.scrollableElement.scanDomNode();
 			return;
 		}
@@ -515,14 +515,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (contents.length === 0) {
 			removeClass(this.bodyContainer, 'welcome');
-			this.viewWelcomeContainer.innerHTML = '';
+			this.viewWelcomeContainer.innerText = '';
 			this.scrollableElement.scanDomNode();
 			return;
 		}
 
 		const disposables = new DisposableStore();
 		addClass(this.bodyContainer, 'welcome');
-		this.viewWelcomeContainer.innerHTML = '';
+		this.viewWelcomeContainer.innerText = '';
 
 		let buttonIndex = 0;
 
