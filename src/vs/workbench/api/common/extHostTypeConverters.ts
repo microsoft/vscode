@@ -131,8 +131,9 @@ export namespace DiagnosticTag {
 				return types.DiagnosticTag.Unnecessary;
 			case MarkerTag.Deprecated:
 				return types.DiagnosticTag.Deprecated;
+			default:
+				return undefined;
 		}
-		return undefined;
 	}
 }
 
@@ -210,8 +211,9 @@ export namespace DiagnosticSeverity {
 				return types.DiagnosticSeverity.Error;
 			case MarkerSeverity.Hint:
 				return types.DiagnosticSeverity.Hint;
+			default:
+				return types.DiagnosticSeverity.Error;
 		}
-		return types.DiagnosticSeverity.Error;
 	}
 }
 
@@ -1253,9 +1255,9 @@ export namespace LogLevel {
 				return _MainLogLevel.Critical;
 			case types.LogLevel.Off:
 				return _MainLogLevel.Off;
+			default:
+				return _MainLogLevel.Info;
 		}
-
-		return _MainLogLevel.Info;
 	}
 
 	export function to(mainLevel: _MainLogLevel): types.LogLevel {
@@ -1274,8 +1276,8 @@ export namespace LogLevel {
 				return types.LogLevel.Critical;
 			case _MainLogLevel.Off:
 				return types.LogLevel.Off;
+			default:
+				return types.LogLevel.Info;
 		}
-
-		return types.LogLevel.Info;
 	}
 }
