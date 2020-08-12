@@ -7,6 +7,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 class SCMInput implements ISCMInput {
 
@@ -113,6 +114,7 @@ export class SCMService implements ISCMService {
 	private _repositories: ISCMRepository[] = [];
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
+	private providerCount: IContextKey<number>;
 	private _selectedRepository: ISCMRepository | undefined;
 
 	private readonly _onDidSelectRepository = new Emitter<ISCMRepository | undefined>();
@@ -124,7 +126,12 @@ export class SCMService implements ISCMService {
 	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');
@@ -150,6 +157,8 @@ export class SCMService implements ISCMService {
 			if (this._selectedRepository === repository) {
 				this.select(this._repositories[0]);
 			}
+
+			this.providerCount.set(this._repositories.length);
 		});
 
 		const repository = new SCMRepository(provider, disposable);
@@ -162,6 +171,7 @@ export class SCMService implements ISCMService {
 			repository.setSelected(true);
 		}
 
+		this.providerCount.set(this._repositories.length);
 		return repository;
 	}
 

@@ -131,6 +131,46 @@ suite('Notebook API tests', () => {
 		await firstDocumentClose;
 	});
 
+	test('notebook open/close, all cell-documents are ready', async function () {
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+
+		const p = getEventOncePromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
+			for (let cell of notebook.cells) {
+				const doc = vscode.workspace.textDocuments.find(doc => doc.uri.toString() === cell.uri.toString());
+				assert.ok(doc);
+				assert.strictEqual(doc === cell.document, true);
+				assert.strictEqual(doc?.languageId, cell.language);
+				assert.strictEqual(doc?.isDirty, false);
+				assert.strictEqual(doc?.isClosed, false);
+			}
+		});
+
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await p;
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
+	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		let didHappen = false;
+		const p = getEventOncePromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
+			if (doc.uri.scheme !== 'vscode-notebook-cell') {
+				return;
+			}
+			const notebook = vscode.notebook.notebookDocuments.find(notebook => {
+				const cell = notebook.cells.find(cell => cell.document === doc);
+				return Boolean(cell);
+			});
+			assert.ok(notebook, `notebook for cell ${doc.uri} NOT found`);
+			didHappen = true;
+		});
+
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await p;
+		assert.strictEqual(didHappen, true);
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
 	test('shared document in notebook editors', async function () {
 		assertInitalState();
 

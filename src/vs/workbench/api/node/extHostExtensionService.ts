@@ -14,6 +14,7 @@ import { CLIServer } from 'vs/workbench/api/node/extHostCLIServer';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -42,6 +43,8 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 }
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
+
+	readonly extensionRuntime = ExtensionRuntime.Node;
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		// initialize API and register actors

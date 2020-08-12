@@ -338,7 +338,7 @@ class CompletionAcceptedCommand implements Command {
 		if (item instanceof MyCompletionItem) {
 			/* __GDPR__
 				"completions.accept" : {
-					"isPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -555,12 +555,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		/* __GDPR__
 			"completions.execute" : {
-				"duration" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"type" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"count" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"updateGraphDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"includesPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]
@@ -641,7 +641,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
 				item.insertText = snippet;
 				if (parameterCount > 0) {
-					commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					//Fix for https://github.com/microsoft/vscode/issues/104059
+					//Don't show parameter hints if "editor.parameterHints.enabled": false
+					if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
+						commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					}
 				}
 			}
 		}

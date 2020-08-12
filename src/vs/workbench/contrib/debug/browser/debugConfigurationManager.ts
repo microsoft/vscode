@@ -49,6 +49,8 @@ const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
 
 interface IDynamicPickItem { label: string, launch: ILaunch, config: IConfig }
 
+export const debugAdapterRegisteredEmitter = new Emitter<void>();
+
 export class ConfigurationManager implements IConfigurationManager {
 	private debuggers: Debugger[];
 	private breakpointModeIdsSet = new Set<string>();
@@ -95,7 +97,12 @@ export class ConfigurationManager implements IConfigurationManager {
 	// debuggers
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
+		const firstTimeRegistration = debugTypes.length && this.debugAdapterFactories.size === 0;
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
+		if (firstTimeRegistration) {
+			debugAdapterRegisteredEmitter.fire();
+		}
+
 		return {
 			dispose: () => {
 				debugTypes.forEach(debugType => this.debugAdapterFactories.delete(debugType));

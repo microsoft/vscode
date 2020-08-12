@@ -762,15 +762,6 @@ declare module 'vscode' {
 		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export namespace debug {
-
-		/**
-		 * Stop the given debug session or stop all debug sessions if session is omitted.
-		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
-		 */
-		export function stopDebugging(session?: DebugSession): Thenable<void>;
-	}
-
 	//#endregion
 
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
@@ -2011,6 +2002,25 @@ declare module 'vscode' {
 		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/104436
+
+	export enum ExtensionRuntime {
+		/**
+		 * The extension is running in a NodeJS extension host. Runtime access to NodeJS APIs is available.
+		 */
+		Node = 1,
+		/**
+		 * The extension is running in a Webworker extension host. Runtime access is limited to Webworker APIs.
+		 */
+		Webworker = 2
+	}
+
+	export interface ExtensionContext {
+		readonly extensionRuntime: ExtensionRuntime;
 	}
 
 	//#endregion

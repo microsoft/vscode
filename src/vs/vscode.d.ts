@@ -11216,6 +11216,12 @@ declare module 'vscode' {
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
 
 		/**
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
+		 */
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
+
+		/**
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
 		*/

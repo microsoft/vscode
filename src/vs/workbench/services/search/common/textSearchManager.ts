@@ -54,7 +54,7 @@ export class TextSearchManager {
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
-					if (newResultSize > 0) {
+					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
 						this.collector!.add(result, folderIdx);
 					}
 				}
@@ -83,10 +83,15 @@ export class TextSearchManager {
 	}
 
 	private resultSize(result: TextSearchResult): number {
-		const match = <TextSearchMatch>result;
-		return Array.isArray(match.ranges) ?
-			match.ranges.length :
-			1;
+		if (extensionResultIsMatch(result)) {
+			return Array.isArray(result.ranges) ?
+				result.ranges.length :
+				1;
+		}
+		else {
+			// #104400 context lines shoudn't count towards result count
+			return 0;
+		}
 	}
 
 	private trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {

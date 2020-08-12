@@ -425,7 +425,7 @@ export function getCellUndoRedoComparisonKey(uri: URI) {
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook-cell';
+	export const scheme = Schemas.vscodeNotebookCell;
 	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {

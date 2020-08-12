@@ -881,7 +881,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this.messageDomNode.textContent = localize('empty', "No elements found");
 			this._empty = true;
 		} else {
-			this.messageDomNode.innerHTML = '';
+			this.messageDomNode.innerText = '';
 			this._empty = false;
 		}
 
