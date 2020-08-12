@@ -22,6 +22,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class ExpressionContainer implements IExpressionContainer {
 
@@ -366,6 +367,7 @@ export class StackFrame implements IStackFrame {
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
+	private callStackCancellationTokens: CancellationTokenSource[] = [];
 	public stoppedDetails: IRawStoppedDetails | undefined;
 	public stopped: boolean;
 
@@ -384,6 +386,8 @@ export class Thread implements IThread {
 			this.staleCallStack = this.callStack;
 		}
 		this.callStack = [];
+		this.callStackCancellationTokens.forEach(c => c.dispose(true));
+		this.callStackCancellationTokens = [];
 	}
 
 	getCallStack(): IStackFrame[] {
@@ -424,8 +428,10 @@ export class Thread implements IThread {
 
 	private async getCallStackImpl(startFrame: number, levels: number): Promise<IStackFrame[]> {
 		try {
-			const response = await this.session.stackTrace(this.threadId, startFrame, levels);
-			if (!response || !response.body) {
+			const tokenSource = new CancellationTokenSource();
+			this.callStackCancellationTokens.push(tokenSource);
+			const response = await this.session.stackTrace(this.threadId, startFrame, levels, tokenSource.token);
+			if (!response || !response.body || tokenSource.token.isCancellationRequested) {
 				return [];
 			}
 
