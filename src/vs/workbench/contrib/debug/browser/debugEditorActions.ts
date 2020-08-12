@@ -144,7 +144,15 @@ export class RunToCursorAction extends EditorAction {
 			const uri = editor.getModel().uri;
 			const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
 			if (!bpExists) {
-				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction');
+				let column = 0;
+				const focusedStackFrame = debugService.getViewModel().focusedStackFrame;
+				if (focusedStackFrame && focusedStackFrame.source.uri.toString() === uri.toString() && focusedStackFrame.range.startLineNumber === position.lineNumber) {
+					// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
+					// otherwise set it at the precise column #102199
+					column = position.column;
+				}
+
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], 'debugEditorActions.runToCursorAction');
 				if (breakpoints && breakpoints.length) {
 					breakpointToRemove = breakpoints[0];
 				}

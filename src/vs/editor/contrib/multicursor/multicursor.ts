@@ -601,13 +601,15 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		}
 
 		if (findState.searchScope) {
-			const state = findState.searchScope;
+			const states = findState.searchScope;
 			let inSelection: FindMatch[] | null = [];
-			for (let i = 0; i < matches.length; i++) {
-				if (matches[i].range.endLineNumber <= state.endLineNumber && matches[i].range.startLineNumber >= state.startLineNumber) {
-					inSelection.push(matches[i]);
-				}
-			}
+			matches.forEach((match) => {
+				states.forEach((state) => {
+					if (match.range.endLineNumber <= state.endLineNumber && match.range.startLineNumber >= state.startLineNumber) {
+						inSelection!.push(match);
+					}
+				});
+			});
 			matches = inSelection;
 		}
 

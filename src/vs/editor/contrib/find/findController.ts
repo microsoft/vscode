@@ -233,12 +233,22 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			this._state.change({ searchScope: null }, true);
 		} else {
 			if (this._editor.hasModel()) {
-				let selection = this._editor.getSelection();
-				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-					selection = selection.setEndPosition(selection.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-				}
-				if (!selection.isEmpty()) {
-					this._state.change({ searchScope: selection }, true);
+				let selections = this._editor.getSelections();
+				selections.map(selection => {
+					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+						selection = selection.setEndPosition(
+							selection.endLineNumber - 1,
+							this._editor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1)
+						);
+					}
+					if (!selection.isEmpty()) {
+						return selection;
+					}
+					return null;
+				}).filter(element => !!element);
+
+				if (selections.length) {
+					this._state.change({ searchScope: selections }, true);
 				}
 			}
 		}
@@ -299,9 +309,9 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 
 		if (opts.updateSearchScope) {
-			let currentSelection = this._editor.getSelection();
-			if (!currentSelection.isEmpty()) {
-				stateChanges.searchScope = currentSelection;
+			let currentSelections = this._editor.getSelections();
+			if (currentSelections.some(selection => !selection.isEmpty())) {
+				stateChanges.searchScope = currentSelections;
 			}
 		}
 
