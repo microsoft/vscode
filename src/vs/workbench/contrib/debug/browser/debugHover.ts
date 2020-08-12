@@ -97,13 +97,14 @@ export class DebugHoverWidget implements IContentWidget {
 
 	private create(): void {
 		this.domNode = $('.debug-hover-widget');
+		const titleNode = $('.title');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
-		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
+		this.complexValueTitle = dom.append(this.complexValueContainer, titleNode);
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
 		const dataSource = new DebugHoverDataSource();
 
-		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
+		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(this.editor), [this.instantiationService.createInstance(VariablesRenderer)],
 			dataSource, {
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
@@ -139,6 +140,9 @@ export class DebugHoverWidget implements IContentWidget {
 			} else {
 				this.domNode.style.color = '';
 			}
+			const fontSize = this.editor.getOption(EditorOption.fontSize);
+			titleNode.style.height = `${fontSize}`;
+			titleNode.style.lineHeight = `${fontSize - 1}`;
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
 
@@ -357,8 +361,14 @@ class DebugHoverDataSource implements IAsyncDataSource<IExpression, IExpression>
 }
 
 class DebugHoverDelegate implements IListVirtualDelegate<IExpression> {
+
+	constructor(
+		private editor: ICodeEditor
+	) { }
 	getHeight(element: IExpression): number {
-		return 18;
+		const fontSize = this.editor.getOption(EditorOption.fontSize);
+		const additionalSize = 2;
+		return fontSize + additionalSize;
 	}
 
 	getTemplateId(element: IExpression): string {
