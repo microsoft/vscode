@@ -17,11 +17,11 @@ import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView'
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, DEBUG_PANEL_ID, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
-	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST,
+	CONTEXT_DEBUG_STATE, VARIABLES_VIEW_ID, CALLSTACK_VIEW_ID, WATCH_VIEW_ID, BREAKPOINTS_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_CALLSTACK_ITEM_TYPE, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_DEBUG_UX, BREAKPOINT_EDITOR_CONTRIBUTION_ID, REPL_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, EDITOR_CONTRIBUTION_ID,
 } from 'vs/workbench/contrib/debug/common/debug';
 import { StartAction, AddFunctionBreakpointAction, ConfigureAction, DisableAllBreakpointsAction, EnableAllBreakpointsAction, RemoveAllBreakpointsAction, RunAction, ReapplyBreakpointsAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { DebugToolBar } from 'vs/workbench/contrib/debug/browser/debugToolBar';
-import * as service from 'vs/workbench/contrib/debug/browser/debugService';
+import { DebugService } from 'vs/workbench/contrib/debug/browser/debugService';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
@@ -51,22 +51,27 @@ import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/de
 import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
+import { debugAdapterRegisteredEmitter } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
+import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
 // register service
-registerSingleton(IDebugService, service.DebugService, true);
+debugAdapterRegisteredEmitter.event(() => {
+	// Register these contributions lazily only once a debug adapter extension has been registered
+	registerWorkbenchContributions();
+	registerColors();
+	registerCommands();
+	registerCommandsAndActions();
+	registerDebugMenu();
+	registerDebugPanel();
+	registerEditorActions();
+});
+registerSingleton(IDebugService, DebugService, true);
 registerDebugView();
-
-registerColors();
-registerCommands();
-registerCommandsAndActions();
-registerContributions();
-registerDebugMenu();
-registerDebugPanel();
 registerConfiguration();
-registerEditorActions();
+regsiterEditorContributions();
 
-function registerContributions(): void {
+function registerWorkbenchContributions(): void {
 	// Register Debug Workbench Contributions
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugProgressContribution, LifecyclePhase.Eventually);
@@ -77,10 +82,6 @@ function registerContributions(): void {
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
 
-	// Editor contributions
-	registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
-	registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);
-
 	// Register Quick Access
 	Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
 		ctor: StartDebugQuickAccessProvider,
@@ -89,6 +90,13 @@ function registerContributions(): void {
 		placeholder: nls.localize('startDebugPlaceholder', "Type the name of a launch configuration to run."),
 		helpEntries: [{ description: nls.localize('startDebuggingHelp', "Start Debugging"), needsEditor: false }]
 	});
+
+}
+
+function regsiterEditorContributions(): void {
+	registerEditorContribution('editor.contrib.callStack', CallStackEditorContribution);
+	registerEditorContribution(BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointEditorContribution);
+	registerEditorContribution(EDITOR_CONTRIBUTION_ID, DebugEditorContribution);
 }
 
 function registerCommandsAndActions(): void {
