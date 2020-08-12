@@ -429,7 +429,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.setSubText(extension, reloadAction, template);
-		template.content.innerHTML = ''; // Clear content before setting navbar actions.
+		template.content.innerText = ''; // Clear content before setting navbar actions.
 
 		template.navbar.clear();
 
@@ -560,7 +560,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.contentDisposables.clear();
-		template.content.innerHTML = '';
+		template.content.innerText = '';
 		this.activeElement = null;
 		if (id) {
 			this.open(id, extension, template)

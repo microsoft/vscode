@@ -471,7 +471,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.currentRenderedCell = element;
 		templateData.currentEditor = undefined;
 		templateData.editorPart!.style.display = 'none';
-		templateData.cellContainer.innerHTML = '';
+		templateData.cellContainer.innerText = '';
 
 		if (height === undefined) {
 			return;
@@ -1139,7 +1139,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			return;
 		}
 
-		templateData.outputContainer.innerHTML = '';
+		templateData.outputContainer.innerText = '';
 
 		const elementDisposables = templateData.elementDisposables;
 
@@ -1286,7 +1286,7 @@ export class RunStateRenderer {
 				}
 			}, RunStateRenderer.MIN_SPINNER_TIME);
 		} else {
-			this.element.innerHTML = '';
+			this.element.innerText = '';
 		}
 	}
 }

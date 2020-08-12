@@ -108,7 +108,7 @@ class CodeLensContentWidget implements IContentWidget {
 		} else {
 			// symbols and commands
 			if (!innerHtml) {
-				innerHtml = '&#160;';
+				innerHtml = '\u00a0';
 			}
 			this._domNode.innerHTML = innerHtml;
 			if (this._isEmpty && animate) {
