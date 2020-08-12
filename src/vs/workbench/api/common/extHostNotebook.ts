@@ -1513,7 +1513,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._editors.set(editorId, { editor });
 	}
 
-	async $acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta) {
+	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void {
 		let editorChanged = false;
 
 		if (delta.removedDocuments) {

@@ -48,7 +48,7 @@ suite('NotebookConcatDocument', function () {
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
 				handle: 0,
 				uri: notebookUri,
@@ -72,7 +72,7 @@ suite('NotebookConcatDocument', function () {
 				}
 			]
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 

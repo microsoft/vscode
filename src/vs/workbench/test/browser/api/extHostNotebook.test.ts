@@ -10,7 +10,7 @@ import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
-import { MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookDocument, ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
@@ -47,7 +47,7 @@ suite('NotebookCell#Document', function () {
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
 				handle: 0,
 				uri: notebookUri,
@@ -77,7 +77,7 @@ suite('NotebookCell#Document', function () {
 				selections: [0]
 			}]
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 
 		notebook = extHostNotebooks.notebookDocuments[0]!;
 
@@ -116,7 +116,7 @@ suite('NotebookCell#Document', function () {
 			removedCellUris.push(doc.uri.toString());
 		});
 
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
 		reg.dispose();
 
 		assert.strictEqual(removedCellUris.length, 2);
@@ -173,5 +173,46 @@ suite('NotebookCell#Document', function () {
 
 		await p;
 
+	});
+
+	test('cell document stays open when notebook is still open', async function () {
+
+		const docs: vscode.TextDocument[] = [];
+		const addData: IModelAddedData[] = [];
+		for (let cell of notebook.cells) {
+			const doc = extHostDocuments.getDocument(cell.uri);
+			assert.ok(doc);
+			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			docs.push(doc);
+			addData.push({
+				EOL: '\n',
+				isDirty: doc.isDirty,
+				lines: doc.getText().split('\n'),
+				modeId: doc.languageId,
+				uri: doc.uri,
+				versionId: doc.version
+			});
+		}
+
+		// this call happens when opening a document on the main side
+		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ addedDocuments: addData });
+
+		// this call happens when closing a document from the main side
+		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: docs.map(d => d.uri) });
+
+		// notebook is still open -> cell documents stay open
+		for (let cell of notebook.cells) {
+			assert.ok(extHostDocuments.getDocument(cell.uri));
+			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
+		}
+
+		// close notebook -> docs are closed
+		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
+		for (let cell of notebook.cells) {
+			assert.throws(() => extHostDocuments.getDocument(cell.uri));
+		}
+		for (let doc of docs) {
+			assert.equal(doc.isClosed, true);
+		}
 	});
 });
