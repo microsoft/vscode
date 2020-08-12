@@ -46,7 +46,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { CommandService } from 'vs/workbench/services/commands/common/commandService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -72,7 +72,6 @@ export class DebugService implements IDebugService {
 	private previousState: State | undefined;
 	private sessionCancellationTokens = new Map<string, CancellationTokenSource>();
 	private activity: IDisposable | undefined;
-	private commandService!: CommandService;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -89,7 +88,8 @@ export class DebugService implements IDebugService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
-		@IActivityService private readonly activityService: IActivityService
+		@IActivityService private readonly activityService: IActivityService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		this.toDispose = [];
 
@@ -120,7 +120,6 @@ export class DebugService implements IDebugService {
 
 		this.viewModel = new ViewModel(contextKeyService);
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
-		this.commandService = this.instantiationService.createInstance(CommandService);
 
 		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 		this.toDispose.push(this.lifecycleService.onShutdown(this.dispose, this));
