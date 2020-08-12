@@ -58,6 +58,10 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		return disposable;
 	}
 
+	getContextViewElement(): HTMLElement {
+		return this.contextView.getViewElement();
+	}
+
 	layout(): void {
 		this.contextView.layout();
 	}

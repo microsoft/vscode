@@ -142,10 +142,30 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		await this.activateProactiveRecommendations();
 
 		const recommendations = [
-			...this.configBasedRecommendations.recommendations,
-			...this.exeBasedRecommendations.recommendations,
+			...this.configBasedRecommendations.otherRecommendations,
+			...this.exeBasedRecommendations.otherRecommendations,
 			...this.dynamicWorkspaceRecommendations.recommendations,
 			...this.experimentalRecommendations.recommendations
+		];
+
+		const extensionIds = distinct(recommendations.map(e => e.extensionId))
+			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+
+		shuffle(extensionIds, this.sessionSeed);
+
+		return extensionIds.map(extensionId => {
+			const sources: ExtensionRecommendationSource[] = distinct(recommendations.filter(r => r.extensionId === extensionId).map(r => r.source));
+			return (<IExtensionRecommendation>{ extensionId, sources });
+		});
+	}
+
+	async getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+		await this.activateProactiveRecommendations();
+
+		const recommendations = [
+			...this.fileBasedRecommendations.importantRecommendations,
+			...this.configBasedRecommendations.importantRecommendations,
+			...this.exeBasedRecommendations.importantRecommendations,
 		];
 
 		const extensionIds = distinct(recommendations.map(e => e.extensionId))

@@ -71,7 +71,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.treeView.refresh()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeConflictEditors()));
+		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeDiffEditors()));
 		this._register(decorationsService.registerDecorationsProvider(this._register(new UserDataSyncResourcesDecorationProvider(this.userDataSyncPreview))));
 
 		this.registerActions();
@@ -349,12 +349,13 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private closeConflictEditors() {
+	private closeDiffEditors() {
 		for (const previewResource of this.userDataSyncPreview.resources) {
-			if (previewResource.mergeState !== MergeState.Conflict) {
+			if (previewResource.mergeState === MergeState.Accepted) {
 				for (const input of this.editorService.editors) {
 					if (input instanceof DiffEditorInput) {
-						if (isEqual(previewResource.remote, input.secondary.resource) && isEqual(previewResource.merged, input.primary.resource)) {
+						if (isEqual(previewResource.remote, input.secondary.resource) &&
+							(isEqual(previewResource.merged, input.primary.resource) || isEqual(previewResource.local, input.primary.resource))) {
 							input.dispose();
 						}
 					}

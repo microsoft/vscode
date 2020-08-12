@@ -163,7 +163,11 @@ export class TypeScriptServerSpawner {
 		let tsServerLogFile: string | undefined;
 
 		if (kind === TsServerProcessKind.Syntax) {
-			args.push('--syntaxOnly');
+			if (apiVersion.gte(API.v401)) {
+				args.push('--serverMode', 'partialSemantic');
+			} else {
+				args.push('--syntaxOnly');
+			}
 		}
 
 		if (apiVersion.gte(API.v250)) {

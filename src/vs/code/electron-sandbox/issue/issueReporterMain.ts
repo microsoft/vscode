@@ -553,7 +553,7 @@ export class IssueReporter extends Disposable {
 
 	private clearSearchResults(): void {
 		const similarIssues = this.getElementById('similar-issues')!;
-		similarIssues.innerHTML = '';
+		similarIssues.innerText = '';
 		this.numberOfSearchResultsDisplayed = 0;
 	}
 
@@ -564,7 +564,7 @@ export class IssueReporter extends Disposable {
 
 		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
 			response.json().then(result => {
-				similarIssues.innerHTML = '';
+				similarIssues.innerText = '';
 				if (result && result.items) {
 					this.displaySearchResults(result.items);
 				} else {
@@ -713,7 +713,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		sourceSelect.innerHTML = '';
+		sourceSelect.innerText = '';
 		if (issueType === IssueType.FeatureRequest) {
 			sourceSelect.append(...[
 				this.makeOption('', localize('selectSource', "Select source"), true),
@@ -1079,7 +1079,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
-		const target = document.querySelector('.block-extensions .block-info');
+		const target = document.querySelector<HTMLElement>('.block-extensions .block-info');
 		if (target) {
 			if (this.configuration.disableExtensions) {
 				target.innerHTML = localize('disabledExtensions', "Extensions are disabled");
@@ -1090,7 +1090,7 @@ export class IssueReporter extends Disposable {
 			extensions = extensions || [];
 
 			if (!extensions.length) {
-				target.innerHTML = 'Extensions: none' + themeExclusionStr;
+				target.innerText = 'Extensions: none' + themeExclusionStr;
 				return;
 			}
 
@@ -1100,10 +1100,10 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateSearchedExtensionTable(extensions: IssueReporterExtensionData[]): void {
-		const target = document.querySelector('.block-searchedExtensions .block-info');
+		const target = document.querySelector<HTMLElement>('.block-searchedExtensions .block-info');
 		if (target) {
 			if (!extensions.length) {
-				target.innerHTML = 'Extensions: none';
+				target.innerText = 'Extensions: none';
 				return;
 			}
 

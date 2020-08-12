@@ -151,7 +151,8 @@ export class TunnelService extends AbstractTunnelService {
 				socketFactory: nodeSocketFactory,
 				addressProvider,
 				signService: this.signService,
-				logService: this.logService
+				logService: this.logService,
+				ipcLogger: null
 			};
 
 			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);

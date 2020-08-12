@@ -24,7 +24,7 @@ export class NotebookOutputRendererInfo {
 	}
 
 	matches(mimeType: string) {
-		let matched = this.mimeTypeGlobs.find(pattern => pattern(mimeType));
+		const matched = this.mimeTypeGlobs.find(pattern => pattern(mimeType));
 		if (matched) {
 			return true;
 		}

@@ -856,6 +856,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((exitCode) => {
+					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
 					this.removeFromActiveTasks(task);
@@ -886,12 +887,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 							// There is nothing else to do here.
 						}
 					}
-					// Hack to work around #92868 until terminal is fixed.
-					setTimeout(() => {
-						onData.dispose();
-						startStopProblemMatcher.done();
-						startStopProblemMatcher.dispose();
-					}, 100);
+					startStopProblemMatcher.done();
+					startStopProblemMatcher.dispose();
 					if (!processStartedSignaled && terminal) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId!));
 						processStartedSignaled = true;

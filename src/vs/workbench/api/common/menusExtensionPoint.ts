@@ -288,7 +288,7 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
 				type: 'string'
 			}
 		}
@@ -307,7 +307,7 @@ namespace schema {
 				type: 'string'
 			},
 			group: {
-				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this command belongs'),
+				description: localize('vscode.extension.contributes.menuItem.group', 'Group into which this item belongs'),
 				type: 'string'
 			}
 		}
@@ -354,7 +354,12 @@ namespace schema {
 			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
-		}))
+		})),
+		additionalProperties: {
+			description: 'Submenu',
+			type: 'array',
+			items: { oneOf: [menuItem, submenuItem] }
+		}
 	};
 
 	export const submenusContribution: IJSONSchema = {
@@ -576,7 +581,7 @@ submenusExtensionPoint.setHandler(extensions => {
 			}
 
 			if (!extension.description.enableProposedApi) {
-				collector.error(localize('submenu.proposedAPI.invalid', "Submenus are proposed API and are only available when running out of dev or with the following command line switch: --enable-proposed-api {1}", extension.description.identifier.value));
+				collector.error(localize('submenu.proposedAPI.invalid', "Submenus are proposed API and are only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.identifier.value));
 				return;
 			}
 

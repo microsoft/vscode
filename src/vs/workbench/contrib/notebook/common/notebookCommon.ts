@@ -97,6 +97,8 @@ export interface NotebookCellMetadata {
 	runState?: NotebookCellRunState;
 	runStartTime?: number;
 	lastRunDuration?: number;
+	inputCollapsed?: boolean;
+	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };
 }
 
@@ -323,7 +325,8 @@ export enum NotebookCellsChangeType {
 	CellClearOutput = 3,
 	CellsClearOutput = 4,
 	ChangeLanguage = 5,
-	Initialize = 6
+	Initialize = 6,
+	ChangeMetadata = 7
 }
 
 export interface NotebookCellsInitializeEvent {
@@ -363,7 +366,14 @@ export interface NotebookCellsChangeLanguageEvent {
 	readonly language: string;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
+export interface NotebookCellsChangeMetadataEvent {
+	readonly kind: NotebookCellsChangeType.ChangeMetadata;
+	readonly versionId: number;
+	readonly index: number;
+	readonly metadata: NotebookCellMetadata;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2
@@ -403,10 +413,19 @@ export interface NotebookDataDto {
 	readonly metadata: NotebookDocumentMetadata;
 }
 
+export function getCellUndoRedoComparisonKey(uri: URI) {
+	const data = CellUri.parse(uri);
+	if (!data) {
+		return uri.toString();
+	}
+
+	return data.notebook.toString();
+}
+
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook-cell';
+	export const scheme = Schemas.vscodeNotebookCell;
 	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
@@ -670,4 +689,5 @@ export interface INotebookKernelProvider {
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
 	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
+	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }
