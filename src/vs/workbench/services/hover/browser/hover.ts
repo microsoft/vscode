@@ -109,4 +109,10 @@ export interface IHoverTarget extends IDisposable {
 	 * wrapped text.
 	 */
 	readonly targetElements: readonly HTMLElement[];
+
+	/**
+	 * An optional absolute x coordinate to position the hover with, for example to position the
+	 * hover using `MouseEvent.pageX`.
+	 */
+	x?: number;
 }
