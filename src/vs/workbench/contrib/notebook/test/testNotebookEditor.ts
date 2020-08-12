@@ -68,7 +68,7 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	multipleKernelsAvailable: boolean = false;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
-
+	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
 
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
