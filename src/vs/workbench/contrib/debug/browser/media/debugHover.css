@@ -22,11 +22,8 @@
 .monaco-editor .debug-hover-widget .complex-value .title {
 	padding-left: 15px;
 	padding-right: 2px;
-	font-size: 11px;
-	line-height: 18px;
 	word-break: normal;
 	text-overflow: ellipsis;
-	height: 18px;
 	overflow: hidden;
 	white-space: pre;
 	border-bottom: 1px solid rgba(128, 128, 128, 0.35);
