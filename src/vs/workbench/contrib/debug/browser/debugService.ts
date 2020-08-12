@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
-import { first, distinct } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import * as errors from 'vs/base/common/errors';
 import severity from 'vs/base/common/severity';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -991,11 +991,8 @@ export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFr
 		}
 	}
 
-	if (!stackFrame) {
-		if (thread) {
-			const callStack = thread.getCallStack();
-			stackFrame = first(callStack, sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
-		}
+	if (!stackFrame && thread) {
+		stackFrame = thread.getTopStackFrame();
 	}
 
 	return { session, thread, stackFrame };

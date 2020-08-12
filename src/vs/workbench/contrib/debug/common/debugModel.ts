@@ -10,7 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { distinct, lastIndex } from 'vs/base/common/arrays';
+import { distinct, lastIndex, first } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
@@ -396,6 +396,10 @@ export class Thread implements IThread {
 
 	getStaleCallStack(): ReadonlyArray<IStackFrame> {
 		return this.staleCallStack;
+	}
+
+	getTopStackFrame(): IStackFrame | undefined {
+		return first(this.getCallStack(), sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
 	}
 
 	get stateLabel(): string {

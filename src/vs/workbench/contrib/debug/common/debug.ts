@@ -288,6 +288,12 @@ export interface IThread extends ITreeElement {
 	 */
 	getCallStack(): ReadonlyArray<IStackFrame>;
 
+
+	/**
+	 * Gets the top stack frame that is not hidden if the callstack has already been received from the debug adapter
+	 */
+	getTopStackFrame(): IStackFrame | undefined;
+
 	/**
 	 * Invalidates the callstack cache
 	 */
