@@ -51,6 +51,10 @@ import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/deb
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { notebookKernelProviderAssociationsSettingId, NotebookKernelProviderAssociations } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
+import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IAction, Separator } from 'vs/base/common/actions';
 
 const $ = DOM.$;
 
@@ -192,6 +196,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._renderedEditors.get(focused);
 	}
 
+	private readonly _onDidChangeActiveCell = this._register(new Emitter<void>());
+	readonly onDidChangeActiveCell: Event<void> = this._onDidChangeActiveCell.event;
+
+
 	private _cursorNavigationMode: boolean = false;
 	get cursorNavigationMode(): boolean {
 		return this._cursorNavigationMode;
@@ -207,7 +215,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@INotebookService private notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
-		@ILayoutService private readonly layoutService: ILayoutService
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
 		this._memento = new Memento(NotebookEditorWidget.ID, storageService);
@@ -460,13 +470,38 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._register(this._list.onDidChangeFocus(_e => {
 			this._onDidChangeActiveEditor.fire(this);
+			this._onDidChangeActiveCell.fire();
 			this._cursorNavigationMode = false;
+		}));
+
+		this._register(this._list.onContextMenu(e => {
+			this.showListContextMenu(e);
 		}));
 
 		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
 		this._register(widgetFocusTracker);
 		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusEmitter.fire()));
+	}
 
+	private showListContextMenu(e: IListContextMenuEvent<CellViewModel>) {
+		this.contextMenuService.showContextMenu({
+			getActions: () => {
+				const result: IAction[] = [];
+				const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
+				const groups = menu.getActions();
+				menu.dispose();
+
+				for (let group of groups) {
+					const [, actions] = group;
+					result.push(...actions);
+					result.push(new Separator());
+				}
+
+				result.pop(); // remove last separator
+				return result;
+			},
+			getAnchor: () => e.anchor
+		});
 	}
 
 	private _updateForCursorNavigationMode(applyFocusChange: () => void): void {
@@ -556,7 +591,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const focused = this._list!.getFocusedElements()[0];
 			if (focused) {
 				if (!this._cellContextKeyManager) {
-					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.contextKeyService, textModel, focused as CellViewModel));
+					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.contextKeyService, this, textModel, focused as CellViewModel));
 				}
 
 				this._cellContextKeyManager.updateForElement(focused as CellViewModel);

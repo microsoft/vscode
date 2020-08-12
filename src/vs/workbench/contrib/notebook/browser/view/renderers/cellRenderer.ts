@@ -209,7 +209,7 @@ abstract class AbstractCellRenderer {
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
 		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
 
-		const actions = this.getCellToolbarActions(menu);
+		const actions = this.getCellToolbarActions(menu, false);
 		toolbar.setActions(actions.primary, actions.secondary);
 
 		return toolbar;
@@ -254,19 +254,19 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	private getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
 
 		return result;
 	}
 
 	protected setupCellToolbarActions(templateData: BaseCellRenderTemplate, disposables: DisposableStore): void {
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(templateData.titleMenu);
+			const actions = this.getCellToolbarActions(templateData.titleMenu, true);
 
 			const hadFocus = DOM.isAncestor(document.activeElement, templateData.toolbar.getElement());
 			templateData.toolbar.setActions(actions.primary, actions.secondary);
@@ -480,7 +480,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const elementDisposables = templateData.elementDisposables;
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor.viewModel?.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel?.notebookDocument!, element));
 
 		// render toolbar first
 		this.setupCellToolbarActions(templateData, elementDisposables);
@@ -1147,7 +1147,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
-		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor.viewModel?.notebookDocument!, element));
+		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel?.notebookDocument!, element));
 
 		this.updateForLayout(element, templateData);
 		elementDisposables.add(element.onDidChangeLayout(() => {

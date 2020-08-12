@@ -8,7 +8,6 @@
   "private": true,
   "activationEvents": [
     "onFileSystem:memfs",
-    "onFileSystem:github",
     "onDebug"
   ],
   "browser": "./dist/browser/extension",
