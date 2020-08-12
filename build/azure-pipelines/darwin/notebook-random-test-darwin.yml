@@ -4,6 +4,7 @@ steps:
     versionSpec: "12.14.1"
 
 - script: |
+    set -e
     git fetch origin master
     git merge origin/master
     git log -n 1
