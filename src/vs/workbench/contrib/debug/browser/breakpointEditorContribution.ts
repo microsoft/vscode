@@ -32,7 +32,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 
@@ -87,7 +87,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null = null;
 	if (showBreakpointsInOverviewRuler) {
 		overviewRulerDecoration = {
-			color: 'rgb(124, 40, 49)',
+			color: themeColorFromId(debugIconBreakpointForeground),
 			position: OverviewRulerLane.Left
 		};
 	}

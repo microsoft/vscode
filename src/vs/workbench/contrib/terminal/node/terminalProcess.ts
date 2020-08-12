@@ -18,6 +18,13 @@ import { findExecutable } from 'vs/workbench/contrib/terminal/node/terminalEnvir
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 
+// Writing large amounts of data can be corrupted for some reason, after looking into this is
+// appears to be a race condition around writing to the FD which may be based on how powerful the
+// hardware is. The workaround for this is to space out when large amounts of data is being written
+// to the terminal. See https://github.com/microsoft/vscode/issues/38137
+const WRITE_MAX_CHUNK_SIZE = 50;
+const WRITE_INTERVAL_MS = 5;
+
 export class TerminalProcess extends Disposable implements ITerminalChildProcess {
 	private _exitCode: number | undefined;
 	private _exitMessage: string | undefined;
@@ -27,6 +34,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	private _processStartupComplete: Promise<void> | undefined;
 	private _isDisposed: boolean = false;
 	private _titleInterval: NodeJS.Timer | null = null;
+	private _writeQueue: string[] = [];
+	private _writeTimeout: NodeJS.Timeout | undefined;
 	private readonly _initialCwd: string;
 	private readonly _ptyOptions: pty.IPtyForkOptions | pty.IWindowsPtyForkOptions;
 
@@ -232,8 +241,37 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		if (this._isDisposed || !this._ptyProcess) {
 			return;
 		}
+		for (let i = 0; i <= Math.floor(data.length / WRITE_MAX_CHUNK_SIZE); i++) {
+			this._writeQueue.push(data.substr(i * WRITE_MAX_CHUNK_SIZE, WRITE_MAX_CHUNK_SIZE));
+		}
+		this._startWrite();
+	}
+
+	private _startWrite(): void {
+		// Don't write if it's already queued of is there is nothing to write
+		if (this._writeTimeout !== undefined || this._writeQueue.length === 0) {
+			return;
+		}
+
+		this._doWrite();
+
+		// Don't queue more writes if the queue is empty
+		if (this._writeQueue.length === 0) {
+			this._writeTimeout = undefined;
+			return;
+		}
+
+		// Queue the next write
+		this._writeTimeout = setTimeout(() => {
+			this._writeTimeout = undefined;
+			this._startWrite();
+		}, WRITE_INTERVAL_MS);
+	}
+
+	private _doWrite(): void {
+		const data = this._writeQueue.shift()!;
 		this._logService.trace('IPty#write', `${data.length} characters`);
-		this._ptyProcess.write(data);
+		this._ptyProcess!.write(data);
 	}
 
 	public resize(cols: number, rows: number): void {

@@ -718,6 +718,7 @@ export interface IViewPaneContainer {
 	getActions(): IAction[];
 	getSecondaryActions(): IAction[];
 	getActionViewItem(action: IAction): IActionViewItem | undefined;
+	getActionsContext(): unknown;
 	getView(viewId: string): IView | undefined;
 	saveState(): void;
 }

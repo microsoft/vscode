@@ -99,6 +99,7 @@ registerAction2(class extends Action2 {
 
 		const picker = quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.items = picks;
+		picker.activeItems = picks.filter(pick => (pick as IQuickPickItem).picked) as (IQuickPickItem & { run(): void; kernelProviderId?: string; })[];
 		picker.placeholder = nls.localize('pickAction', "Select Action");
 		picker.matchOnDetail = true;
 

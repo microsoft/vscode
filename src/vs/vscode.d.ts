@@ -5421,6 +5421,66 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Provides information on a line in a terminal in order to provide links for it.
+	 */
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	/**
+	 * A provider that enables detection and handling of links within terminals.
+	 */
+	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
+		/**
+		 * Provide terminal links for the given context. Note that this can be called multiple times
+		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
+		 * that could have problems when asynchronous usage may overlap.
+		 * @param context Information about what links are being provided for.
+		 * @param token A cancellation token.
+		 * @return A list of terminal links for the given line.
+		 */
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 * @param link The link to handle.
+		 */
+		handleTerminalLink(link: T): ProviderResult<void>;
+	}
+
+	/**
+	 * A link on a terminal line.
+	 */
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	/**
 	 * In a remote window the extension kind describes if an extension
 	 * runs where the UI (window) runs or if an extension runs remotely.
 	 */
@@ -8183,6 +8243,13 @@ declare module 'vscode' {
 			 */
 			readonly supportsMultipleEditorsPerDocument?: boolean;
 		}): Disposable;
+
+		/**
+		 * Register provider that enables the detection and handling of links within the terminal.
+		 * @param provider The provider that provides the terminal links.
+		 * @return Disposable that unregisters the provider.
+		 */
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
 		 * The currently active color theme as configured in the settings. The active
@@ -11147,6 +11214,12 @@ declare module 'vscode' {
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
+
+		/**
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
+		 */
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
 
 		/**
 		 * Add breakpoints.

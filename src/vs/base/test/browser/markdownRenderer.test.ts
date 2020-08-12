@@ -18,7 +18,6 @@ suite('MarkdownRenderer', () => {
 			const result: HTMLElement = renderMarkdown(markdown);
 			const renderer = new marked.Renderer();
 			const imageFromMarked = marked(markdown.value, {
-				sanitize: true,
 				renderer
 			}).trim();
 			assert.strictEqual(result.innerHTML, imageFromMarked);
@@ -29,7 +28,6 @@ suite('MarkdownRenderer', () => {
 			const result: HTMLElement = renderMarkdown(markdown);
 			const renderer = new marked.Renderer();
 			const imageFromMarked = marked(markdown.value, {
-				sanitize: true,
 				renderer
 			}).trim();
 			assert.strictEqual(result.innerHTML, imageFromMarked);

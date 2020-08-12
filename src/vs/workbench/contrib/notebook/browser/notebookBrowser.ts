@@ -193,6 +193,7 @@ export interface INotebookEditor extends IEditor {
 
 	getId(): string;
 	getDomNode(): HTMLElement;
+	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**
@@ -258,7 +259,7 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Move a cell to a specific position
 	 */
-	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null>;
+	moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null>;
 
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
@@ -506,6 +507,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	timer: TimerRenderer;
 	focusIndicatorRight: HTMLElement;
 	focusIndicatorBottom: HTMLElement;
+	dragHandle: HTMLElement;
 }
 
 export function isCodeCellRenderTemplate(templateData: BaseCellRenderTemplate): templateData is CodeCellRenderTemplate {
