@@ -1381,6 +1381,11 @@ registerAction2(class extends NotebookCellAction {
 					when: NOTEBOOK_EDITOR_FOCUSED,
 					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.KEY_J,
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
+					group: '2_edit',
 				}
 			});
 	}
