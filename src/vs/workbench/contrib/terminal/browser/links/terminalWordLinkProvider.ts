@@ -53,9 +53,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			// Add a link if this is a separator and also remove trailing colon if exists
 			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
 				if (startX !== -1) {
-					text = this._trimTrailingColon(text);
 					let endX = x;
-					if (x - startX > text.length) {
+					if (text.slice(-1) === ':') {
+						text = text.slice(0, -1);
 						endX--;
 					}
 					result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x: endX, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
@@ -75,9 +75,9 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 		// Add the final link if there is one and also remove trailing colon if exists
 		if (startX !== -1) {
-			text = this._trimTrailingColon(text);
 			let endX = line.length;
-			if (line.length - startX > text.length) {
+			if (text.slice(-1) === ':') {
+				text = text.slice(0, -1);
 				endX--;
 			}
 			result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x: endX, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
@@ -85,12 +85,6 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 		return result;
 	}
-
-	// Remove trailing colon in the provided text
-	private _trimTrailingColon(text: string): string {
-		return (text.slice(-1) === ':') ? text.slice(0, -1) : text;
-	}
-
 
 	private async _activate(link: string) {
 		const results = await this._searchService.fileSearch(
