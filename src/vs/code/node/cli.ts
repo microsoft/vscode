@@ -13,7 +13,7 @@ import product from 'vs/platform/product/common/product';
 import * as paths from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isString } from 'vs/base/common/types';
 import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
@@ -328,7 +328,25 @@ export async function main(argv: string[]): Promise<any> {
 			addArg(argv, '--no-sandbox'); // Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox
 		}
 
-		const child = spawn(process.execPath, argv.slice(2), options);
+		let child: ChildProcess;
+		if (isMacintosh) {
+			let appArgs = ['-a', process.execPath];
+			if (args.wait) {
+				appArgs.push('--wait-apps');
+			}
+			const cliArgs = argv.slice(2);
+			const resolvedArgs = cliArgs.map(arg => {
+				if (arg.startsWith('--') || paths.isAbsolute(arg)) {
+					return arg;
+				} else {
+					return paths.resolve(arg);
+				}
+			});
+			appArgs.push('--args');
+			child = spawn('open', appArgs.concat(resolvedArgs), options);
+		} else {
+			child = spawn(process.execPath, argv.slice(2), options);
+		}
 
 		if (args.wait && waitMarkerFilePath) {
 			return new Promise<void>(c => {
