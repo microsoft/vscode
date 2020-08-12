@@ -329,17 +329,28 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
-		if (isMacintosh) {
+		if (isMacintosh && !process.env['VSCODE_DEV']) {
 			let appArgs = ['-a', process.execPath];
 			if (args.wait) {
 				appArgs.push('--wait-apps');
 			}
 			const cliArgs = argv.slice(2);
 			const resolvedArgs = cliArgs.map(arg => {
-				if (arg.startsWith('--') || paths.isAbsolute(arg)) {
+				if (arg === '.' || arg.startsWith('../')) {
+					return paths.resolve(arg);
+				} else if (arg.startsWith('-') || arg.startsWith('--')) {
 					return arg;
 				} else {
-					return paths.resolve(arg);
+					try {
+						const result = fs.statSync(arg);
+						if (result.isFile() || result.isDirectory()) {
+							return paths.resolve(arg);
+						} else {
+							return arg;
+						}
+					} catch (err) {
+						return arg;
+					}
 				}
 			});
 			appArgs.push('--args');
