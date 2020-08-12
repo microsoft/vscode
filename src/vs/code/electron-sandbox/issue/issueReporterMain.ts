@@ -812,11 +812,14 @@ export class IssueReporter extends Disposable {
 
 	private validateInput(inputId: string): boolean {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
+		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
 		if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
+			inputValidationMessage?.classList.remove('hidden');
 			return false;
 		} else {
 			inputElement.classList.remove('invalid-input');
+			inputValidationMessage?.classList.add('hidden');
 			return true;
 		}
 	}
