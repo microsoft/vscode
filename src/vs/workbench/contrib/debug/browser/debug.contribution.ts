@@ -60,12 +60,17 @@ debugAdapterRegisteredEmitter.event(() => {
 	// Register these contributions lazily only once a debug adapter extension has been registered
 	registerWorkbenchContributions();
 	registerColors();
-	registerCommands();
 	registerCommandsAndActions();
 	registerDebugMenu();
-	registerDebugPanel();
 	registerEditorActions();
 });
+registerCommands();
+registerDebugPanel();
+const debugCategory = nls.localize('debugCategory', "Debug");
+const runCategroy = nls.localize('runCategory', "Run");
+registry.registerWorkbenchAction(SyncActionDescriptor.from(StartAction, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated()), 'Debug: Start Debugging', debugCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(RunAction, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Run: Start Without Debugging', runCategroy);
+
 registerSingleton(IDebugService, DebugService, true);
 registerDebugView();
 registerConfiguration();
@@ -101,14 +106,9 @@ function regsiterEditorContributions(): void {
 
 function registerCommandsAndActions(): void {
 
-	const debugCategory = nls.localize('debugCategory', "Debug");
-	const runCategroy = nls.localize('runCategory', "Run");
-
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(StartAction, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated()), 'Debug: Start Debugging', debugCategory);
 	registry.registerWorkbenchAction(SyncActionDescriptor.from(ConfigureAction), 'Debug: Open launch.json', debugCategory);
 	registry.registerWorkbenchAction(SyncActionDescriptor.from(AddFunctionBreakpointAction), 'Debug: Add Function Breakpoint', debugCategory);
 	registry.registerWorkbenchAction(SyncActionDescriptor.from(ReapplyBreakpointsAction), 'Debug: Reapply All Breakpoints', debugCategory);
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(RunAction, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Run: Start Without Debugging', runCategroy);
 	registry.registerWorkbenchAction(SyncActionDescriptor.from(RemoveAllBreakpointsAction), 'Debug: Remove All Breakpoints', debugCategory);
 	registry.registerWorkbenchAction(SyncActionDescriptor.from(EnableAllBreakpointsAction), 'Debug: Enable All Breakpoints', debugCategory);
 	registry.registerWorkbenchAction(SyncActionDescriptor.from(DisableAllBreakpointsAction), 'Debug: Disable All Breakpoints', debugCategory);
