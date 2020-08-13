@@ -361,6 +361,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (CopyAction) {
 			this._register(CopyAction.addImplementation(PRIORITY, accessor => {
+				const activeElement = <HTMLElement>document.activeElement;
+				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+					return false;
+				}
+
 				const { editor, activeCell } = getContext();
 				if (!editor || !activeCell) {
 					return false;
@@ -382,6 +387,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (PasteAction) {
 			PasteAction.addImplementation(PRIORITY, () => {
+				const activeElement = <HTMLElement>document.activeElement;
+				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+					return false;
+				}
+
 				const pasteCells = this.getToCopy();
 
 				if (!pasteCells) {
@@ -465,6 +475,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (CutAction) {
 			CutAction.addImplementation(PRIORITY, accessor => {
+				const activeElement = <HTMLElement>document.activeElement;
+				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+					return false;
+				}
+
 				const { editor, activeCell } = getContext();
 				if (!editor || !activeCell) {
 					return false;
