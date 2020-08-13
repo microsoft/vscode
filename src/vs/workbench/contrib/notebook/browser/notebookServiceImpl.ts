@@ -426,7 +426,15 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 								cell.language,
 								cell.cellKind,
 								[],
-								cell.metadata
+								{
+									editable: cell.metadata?.editable,
+									runnable: cell.metadata?.runnable,
+									breakpointMargin: cell.metadata?.breakpointMargin,
+									hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+									inputCollapsed: cell.metadata?.inputCollapsed,
+									outputCollapsed: cell.metadata?.outputCollapsed,
+									custom: cell.metadata?.custom
+								}
 							);
 						} else {
 							return cell;

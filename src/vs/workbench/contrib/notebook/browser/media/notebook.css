@@ -26,10 +26,6 @@
 	z-index: 100;
 }
 
-.monaco-workbench .notebookOverlay .cell-list-container {
-	overflow: hidden;
-}
-
 .monaco-workbench .notebookOverlay .cell-list-container .overflowingContentWidgets > div {
 	z-index: 600 !important;
 	/* @rebornix: larger than the editor title bar */
@@ -157,7 +153,7 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground > .output-inner-container {
 	width: 100%;
-	padding: 8px;
+	padding: 4px 8px;
 	box-sizing: border-box;
 }
 
