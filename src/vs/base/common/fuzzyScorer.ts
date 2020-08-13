@@ -168,7 +168,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	score += 1;
 
 	// if (DEBUG) {
-	// 	console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLower[queryIndex]} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
+	// console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLowerCharAtIndex} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
 	// }
 
 	// Consecutive match bonus
@@ -176,7 +176,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		score += (matchesSequenceLength * 5);
 
 		// if (DEBUG) {
-		// 	console.log('Consecutive match bonus: ' + (matchesSequenceLength * 5));
+		// console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
 		// }
 	}
 
@@ -206,7 +206,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// 	console.log('After separtor bonus: +4');
+			// console.log(`After separtor bonus: +${separatorBonus}`);
 			// }
 		}
 
@@ -215,7 +215,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += 2;
 
 			// if (DEBUG) {
-			// 	console.log('Inside word upper case bonus: +1');
+			// 	console.log('Inside word upper case bonus: +2');
 			// }
 		}
 	}
