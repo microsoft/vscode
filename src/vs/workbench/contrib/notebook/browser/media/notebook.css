@@ -136,6 +136,7 @@
 	transform: translate3d(0px, 0px, 0px);
 	cursor: auto;
 	box-sizing: border-box;
+	z-index: 27; /* Over drag handle */
 }
 
 .monaco-workbench .notebookOverlay .output p {
@@ -152,7 +153,7 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground > .output-inner-container {
 	width: 100%;
-	padding: 8px;
+	padding: 4px 8px;
 	box-sizing: border-box;
 }
 
@@ -175,7 +176,6 @@
 	height: 16px;
 	cursor: pointer;
 	padding: 4px;
-	z-index: 27;
 }
 
 .monaco-workbench .notebookOverlay .output .error_message {
@@ -234,6 +234,7 @@
 	position: relative;
 	left: -23px;
 	cursor: pointer;
+	z-index: 27; /* Over drag handle */
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.collapsed .notebook-folding-indicator,
@@ -513,6 +514,12 @@
 	opacity: 0.5 !important;
 }
 
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container.emptyNotebook {
+	opacity: 1 !important;
+}
+
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
 	position: absolute;
 	display: flex;
@@ -528,23 +535,29 @@
 	display: none;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:focus-within,
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container:hover,
 .monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within,
 .monaco-workbench .notebookOverlay.notebook-editor-editable > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:hover {
 	opacity: 1;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar {
 	margin: 0px 8px;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-item {
 	display: flex;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-item.active,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-item.active {
 	transform: none;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
 	font-size: 12px;
 	margin: 0px;
@@ -552,19 +565,23 @@
 	padding: 0px 4px;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label .codicon,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label .codicon {
 	margin-right: 3px;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-action-bar,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-action-bar {
 	display: flex;
 	align-items: center;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item:first-child {
 	margin-right: 16px;
 }
 
+.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container span.codicon,
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container span.codicon {
 	text-align: center;
 	font-size: 14px;

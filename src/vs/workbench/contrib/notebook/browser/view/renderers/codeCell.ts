@@ -558,7 +558,8 @@ export class CodeCell extends Disposable {
 		const renderInfo = this.notebookService.getRendererInfo(renderId);
 
 		if (renderInfo) {
-			return `${renderId} (${renderInfo.extensionId.value})`;
+			const displayName = renderInfo.displayName !== '' ? renderInfo.displayName : renderInfo.id;
+			return `${displayName} (${renderInfo.extensionId.value})`;
 		}
 
 		return nls.localize('builtinRenderInfo', "built-in");

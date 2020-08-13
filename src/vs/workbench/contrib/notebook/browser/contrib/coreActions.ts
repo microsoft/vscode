@@ -38,8 +38,10 @@ const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 // Cell Commands
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
+const INSERT_CODE_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertCodeCellAtTop';
 const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
 const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
+const INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID = 'notebook.cell.insertMarkdownCellAtTop';
 const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
 const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
@@ -386,6 +388,13 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellTitle, {
 	group: CellOverflowToolbarGroups.Insert
 });
 
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+	submenu: MenuId.NotebookCellTitle,
+	title: localize('notebookMenu.cellTitle', "Notebook Cell"),
+	group: CellOverflowToolbarGroups.Insert,
+	when: NOTEBOOK_EDITOR_FOCUSED
+});
+
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_NOTEBOOK_COMMAND_ID,
@@ -570,9 +579,69 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
+				title: localize('notebookActions.insertCodeCellAtTop', "Add Code Cell At Top"),
+				f1: false
+			});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const context = this.getActiveEditorContext(accessor);
+		if (context) {
+			this.runWithContext(accessor, context);
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Code, 'above', undefined, true);
+		if (newCell) {
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		}
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID,
+				title: localize('notebookActions.insertMarkdownCellAtTop', "Add Markdown Cell At Top"),
+				f1: false
+			});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const context = this.getActiveEditorContext(accessor);
+		if (context) {
+			this.runWithContext(accessor, context);
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markdown, 'above', undefined, true);
+		if (newCell) {
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		}
+	}
+});
+
 MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	command: {
 		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: 0,
+	group: 'inline'
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+	command: {
+		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
 		title: localize('notebookActions.menu.insertCode', "$(add) Code"),
 		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
 	},
@@ -615,6 +684,16 @@ registerAction2(class extends InsertCellCommand {
 MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	command: {
 		id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
+		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
+		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
+	},
+	order: 1,
+	group: 'inline'
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+	command: {
+		id: INSERT_MARKDOWN_CELL_AT_TOP_COMMAND_ID,
 		title: localize('notebookActions.menu.insertMarkdown', "$(add) Markdown"),
 		tooltip: localize('notebookActions.menu.insertMarkdown.tooltip', "Add Markdown Cell")
 	},
@@ -1229,7 +1308,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 		const providerLanguages = [...context.notebookEditor.viewModel!.notebookDocument.languages, 'markdown'];
 		providerLanguages.forEach(languageId => {
 			let description: string;
-			if (languageId === context.cell.language) {
+			if (context.cell.cellKind === CellKind.Markdown ? (languageId === 'markdown') : (languageId === context.cell.language)) {
 				description = localize('languageDescription', "({0}) - Current Language", languageId);
 			} else {
 				description = localize('languageDescriptionConfigured', "({0})", languageId);
@@ -1452,7 +1531,7 @@ registerAction2(class extends NotebookCellAction {
 			},
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated()),
 				group: CellOverflowToolbarGroups.Collapse,
 			}
 		});
@@ -1475,7 +1554,7 @@ registerAction2(class extends NotebookCellAction {
 			},
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_INPUT_COLLAPSED),
 				group: CellOverflowToolbarGroups.Collapse,
 			}
 		});
@@ -1498,7 +1577,7 @@ registerAction2(class extends NotebookCellAction {
 			},
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
 				group: CellOverflowToolbarGroups.Collapse,
 			}
 		});
@@ -1521,7 +1600,7 @@ registerAction2(class extends NotebookCellAction {
 			},
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_OUTPUT_COLLAPSED),
 				group: CellOverflowToolbarGroups.Collapse,
 			}
 		});

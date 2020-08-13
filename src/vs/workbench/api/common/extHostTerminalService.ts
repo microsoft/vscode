@@ -175,6 +175,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 			// Nothing changed
 			return false;
 		}
+		if (cols === 0 || rows === 0) {
+			return false;
+		}
 		this._cols = cols;
 		this._rows = rows;
 		return true;

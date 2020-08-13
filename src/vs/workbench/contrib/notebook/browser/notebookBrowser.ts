@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IListContextMenuEvent, IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
@@ -190,6 +190,7 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	isDisposed: boolean;
 
@@ -424,6 +425,7 @@ export interface INotebookCellList {
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
+	onDidScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
 	onDidChangeContentHeight: Event<number>;
 	scrollTop: number;
@@ -435,6 +437,7 @@ export interface INotebookCellList {
 	readonly onDidHideOutput: Event<IProcessedOutput>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
+	readonly onContextMenu: Event<IListContextMenuEvent<CellViewModel>>;
 	detachViewModel(): void;
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;

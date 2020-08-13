@@ -16,6 +16,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -61,7 +62,9 @@ export interface INotebookService {
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable;
 	getContributedNotebookKernels(viewType: string, resource: URI): readonly INotebookKernelInfo[];
 	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
+	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
+
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;

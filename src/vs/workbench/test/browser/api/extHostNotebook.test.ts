@@ -97,11 +97,13 @@ suite('NotebookCell#Document', function () {
 		assert.ok(d1);
 		assert.equal(d1.languageId, c1.language);
 		assert.equal(d1.version, 1);
+		assert.ok(d1.notebook === notebook);
 
 		const d2 = extHostDocuments.getDocument(c2.uri);
 		assert.ok(d2);
 		assert.equal(d2.languageId, c2.language);
 		assert.equal(d2.version, 1);
+		assert.ok(d2.notebook === notebook);
 	});
 
 	test('cell document goes when notebook closes', async function () {
@@ -213,6 +215,12 @@ suite('NotebookCell#Document', function () {
 		}
 		for (let doc of docs) {
 			assert.equal(doc.isClosed, true);
+		}
+	});
+
+	test('cell document knows notebook', function () {
+		for (let cells of notebook.cells) {
+			assert.equal(cells.document.notebook === notebook, true);
 		}
 	});
 });

@@ -415,7 +415,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: UriComponents[]): Promise<void> {
-		const renderer = new MainThreadNotebookRenderer(this._proxy, type, extension.id, URI.revive(extension.location), selectors, preloads.map(uri => URI.revive(uri)));
+		const staticContribution = this._notebookService.getContributedNotebookOutputRenderers(type);
+
+		if (!staticContribution) {
+			throw new Error(`Notebook renderer for '${type}' is not statically registered.`);
+		}
+
+		const renderer = new MainThreadNotebookRenderer(this._proxy, type, staticContribution.displayName, extension.id, URI.revive(extension.location), selectors, preloads.map(uri => URI.revive(uri)));
 		this._notebookRenderers.set(type, renderer);
 		this._notebookService.registerNotebookRenderer(type, renderer);
 	}
@@ -674,10 +680,11 @@ export class MainThreadNotebookRenderer implements INotebookRendererInfo {
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
 		readonly id: string,
+		public displayName: string,
 		readonly extensionId: ExtensionIdentifier,
 		readonly extensionLocation: URI,
 		readonly selectors: INotebookMimeTypeSelector,
-		readonly preloads: URI[]
+		readonly preloads: URI[],
 	) {
 
 	}

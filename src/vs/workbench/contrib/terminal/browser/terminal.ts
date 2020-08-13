@@ -7,7 +7,7 @@ import { Terminal as XTermTerminal } from 'xterm';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -150,6 +150,12 @@ export interface ITerminalService {
 	manageWorkspaceShellPermissions(): void;
 
 	/**
+	 * Injects native Windows functionality into the service.
+	 */
+	setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void;
+	setLinuxDistro(linuxDistro: LinuxDistro): void;
+
+	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
 	 * On Windows, this included trying to prepare the path for WSL if needed.
 	 *
@@ -280,6 +286,14 @@ export interface ITerminalInstance {
 	readonly exitCode: number | undefined;
 
 	readonly areLinksReady: boolean;
+
+	/**
+	 * Returns an array of data events that have fired within the first 10 seconds. If this is
+	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
+	 * when objects that depend on the data events have delayed initialization, like extension
+	 * hosts.
+	 */
+	readonly initialDataEvents: string[] | undefined;
 
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	processReady: Promise<void>;

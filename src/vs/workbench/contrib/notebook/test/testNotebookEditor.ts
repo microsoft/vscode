@@ -33,6 +33,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -69,6 +70,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	multipleKernelsAvailable: boolean = false;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
+	onDidScroll = new Emitter<ScrollEvent>().event;
 
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;

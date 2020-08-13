@@ -298,7 +298,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					}));
 
 					if (notebookContribution.entrypoint) {
-						this._notebookRenderers.set(notebookContribution.viewType, new PureNotebookOutputRenderer(notebookContribution.viewType, extension.description, notebookContribution.entrypoint));
+						this._notebookRenderers.set(notebookContribution.viewType, new PureNotebookOutputRenderer(notebookContribution.viewType, notebookContribution.displayName, extension.description, notebookContribution.entrypoint));
 					}
 				}
 			}
@@ -361,6 +361,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (CopyAction) {
 			this._register(CopyAction.addImplementation(PRIORITY, accessor => {
+				const activeElement = <HTMLElement>document.activeElement;
+				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+					return false;
+				}
+
 				const { editor, activeCell } = getContext();
 				if (!editor || !activeCell) {
 					return false;
@@ -382,6 +387,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (PasteAction) {
 			PasteAction.addImplementation(PRIORITY, () => {
+				const activeElement = <HTMLElement>document.activeElement;
+				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+					return false;
+				}
+
 				const pasteCells = this.getToCopy();
 
 				if (!pasteCells) {
@@ -416,7 +426,15 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 								cell.language,
 								cell.cellKind,
 								[],
-								cell.metadata
+								{
+									editable: cell.metadata?.editable,
+									runnable: cell.metadata?.runnable,
+									breakpointMargin: cell.metadata?.breakpointMargin,
+									hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+									inputCollapsed: cell.metadata?.inputCollapsed,
+									outputCollapsed: cell.metadata?.outputCollapsed,
+									custom: cell.metadata?.custom
+								}
 							);
 						} else {
 							return cell;
@@ -465,6 +483,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (CutAction) {
 			CutAction.addImplementation(PRIORITY, accessor => {
+				const activeElement = <HTMLElement>document.activeElement;
+				if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+					return false;
+				}
+
 				const { editor, activeCell } = getContext();
 				if (!editor || !activeCell) {
 					return false;
@@ -524,6 +547,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookRenderer(id: string, renderer: INotebookRendererInfo) {
 		this._notebookRenderers.set(id, renderer);
+		const staticInfo = this.notebookRenderersInfoStore.get(id);
+
+		if (staticInfo) {
+
+		}
 	}
 
 	unregisterNotebookRenderer(id: string) {
@@ -972,8 +1000,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookProviderInfoStore.get(viewType);
 	}
 
-	getContributedNotebookOutputRenderers(mimeType: string): readonly NotebookOutputRendererInfo[] {
-		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
+	getContributedNotebookOutputRenderers(viewType: string): NotebookOutputRendererInfo | undefined {
+		return this.notebookRenderersInfoStore.get(viewType);
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {

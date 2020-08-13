@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'vs/base/common/assert';
+import * as vscode from 'vscode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
@@ -27,6 +28,14 @@ class Reference<T> {
 	unref() {
 		return --this._count === 0;
 	}
+}
+
+export interface IExtHostModelAddedData extends IModelAddedData {
+	notebook?: vscode.NotebookDocument;
+}
+
+export interface IExtHostDocumentsAndEditorsDelta extends IDocumentsAndEditorsDelta {
+	addedDocuments?: IExtHostModelAddedData[];
 }
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
@@ -54,6 +63,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	) { }
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
+		this.acceptDocumentsAndEditorsDelta(delta);
+	}
+
+	acceptDocumentsAndEditorsDelta(delta: IExtHostDocumentsAndEditorsDelta): void {
 
 		const removedDocuments: ExtHostDocumentData[] = [];
 		const addedDocuments: ExtHostDocumentData[] = [];
@@ -88,9 +101,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 						resource,
 						data.lines,
 						data.EOL,
-						data.modeId,
 						data.versionId,
-						data.isDirty
+						data.modeId,
+						data.isDirty,
+						data.notebook
 					));
 					this._documents.set(resource, ref);
 					addedDocuments.push(ref.value);
