@@ -85,6 +85,10 @@ steps:
 - script: |
     set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn electron x64
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+      yarn electron x64
+    VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-linux-x64-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-reh-linux-x64-min-ci

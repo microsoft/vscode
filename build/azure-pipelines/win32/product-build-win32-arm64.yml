@@ -97,6 +97,8 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+    exec { yarn electron $(VSCODE_ARCH) }
+    exec { yarn electron $(VSCODE_ARCH) }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-code-helper" }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }

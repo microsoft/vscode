@@ -23,6 +23,7 @@ test -d node_modules || yarn
 
 # Get electron
 yarn electron
+yarn electron
 
 # Unit Tests
 if [[ "$OSTYPE" == "darwin"* ]]; then

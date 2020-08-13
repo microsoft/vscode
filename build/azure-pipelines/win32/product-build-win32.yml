@@ -97,6 +97,8 @@ steps:
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
+    exec { yarn electron $(VSCODE_ARCH) }
+    exec { yarn electron $(VSCODE_ARCH) }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-reh-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-reh-web-win32-$env:VSCODE_ARCH-min-ci" }
@@ -107,6 +109,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
+    exec { yarn electron $(VSCODE_ARCH) }
     exec { yarn electron $(VSCODE_ARCH) }
     exec { .\scripts\test.bat --build --tfs "Unit Tests" }
   displayName: Run unit tests (Electron)

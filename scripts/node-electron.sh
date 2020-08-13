@@ -19,6 +19,7 @@ fi
 
 # Get electron
 yarn electron
+yarn electron
 
 popd
 

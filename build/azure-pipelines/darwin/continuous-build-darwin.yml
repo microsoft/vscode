@@ -27,6 +27,7 @@ steps:
 
 - script: |
     yarn electron x64
+    yarn electron x64
   displayName: Download Electron
 
 - script: |

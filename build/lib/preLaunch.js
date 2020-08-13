@@ -42,6 +42,7 @@ async function ensureCompiled() {
 async function main() {
     await ensureNodeModules();
     await getElectron();
+    await getElectron();
     await ensureCompiled();
     // Can't require this until after dependencies are installed
     const { getBuiltInExtensions } = require('./builtInExtensions');
