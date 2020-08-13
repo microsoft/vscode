@@ -1308,7 +1308,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 		const providerLanguages = [...context.notebookEditor.viewModel!.notebookDocument.languages, 'markdown'];
 		providerLanguages.forEach(languageId => {
 			let description: string;
-			if (languageId === context.cell.language) {
+			if (context.cell.cellKind === CellKind.Markdown ? (languageId === 'markdown') : (languageId === context.cell.language)) {
 				description = localize('languageDescription', "({0}) - Current Language", languageId);
 			} else {
 				description = localize('languageDescriptionConfigured', "({0})", languageId);
