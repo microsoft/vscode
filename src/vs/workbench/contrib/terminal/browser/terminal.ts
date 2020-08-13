@@ -287,6 +287,14 @@ export interface ITerminalInstance {
 
 	readonly areLinksReady: boolean;
 
+	/**
+	 * Returns an array of data events that have fired within the first 10 seconds. If this is
+	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
+	 * when objects that depend on the data events have delayed initialization, like extension
+	 * hosts.
+	 */
+	readonly initialDataEvents: string[] | undefined;
+
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	processReady: Promise<void>;
 

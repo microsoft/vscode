@@ -98,6 +98,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
+	private _initialDataEvents: string[] | undefined = [];
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -131,6 +132,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	public get areLinksReady(): boolean { return this._areLinksReady; }
+	public get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
@@ -231,6 +233,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.updateAccessibilitySupport();
 			}
 		}));
+
+		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
+		// running at that point.
+		let initialDataEventsTimeout: NodeJS.Timeout | undefined = setTimeout(() => {
+			initialDataEventsTimeout = undefined;
+			this._initialDataEvents = undefined;
+		}, 10000);
+		this._register({
+			dispose: () => {
+				if (initialDataEventsTimeout) {
+					clearTimeout(initialDataEventsTimeout);
+				}
+			}
+		});
 	}
 
 	public addDisposable(disposable: IDisposable): void {
@@ -862,11 +878,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
-		this._processManager.onProcessReady(() => {
-			this._onProcessIdReady.fire(this);
-		});
+		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onProcessData(data => this._onData.fire(data));
+		this._processManager.onProcessData(data => {
+			this._initialDataEvents?.push(data);
+			this._onData.fire(data);
+		});
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
