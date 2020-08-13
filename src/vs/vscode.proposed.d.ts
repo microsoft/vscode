@@ -2029,6 +2029,11 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/102091
 
 	export interface TextDocument {
+
+		/**
+		 * The [notebook](#NotebookDocument) that contains this document as a notebook cell or `undefined` when
+		 * the document is not contained by a notebook (this should be the more frequent case).
+		 */
 		notebook: NotebookDocument | undefined;
 	}
 	//#endregion
