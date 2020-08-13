@@ -488,8 +488,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 	constructor(
 		private menu: IMenu,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDebugService private readonly debugService: IDebugService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
 	get templateId(): string {
@@ -553,12 +552,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 				data.session.title = thread.stoppedDetails.text;
 			}
 		} else {
-			const hasChildSessions = this.debugService.getModel().getSessions().find(s => s.parentSession === session);
-			if (!hasChildSessions) {
-				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
-			} else {
-				data.stateLabel.style.display = 'none';
-			}
+			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}
 	}
 

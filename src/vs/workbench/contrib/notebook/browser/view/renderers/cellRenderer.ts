@@ -813,7 +813,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 	}
 
 	private render(): void {
-		const modeId = this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
+		const modeId = this.cell?.cellKind === CellKind.Markdown ? 'markdown' : this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
 		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
 	}
 }
@@ -1289,5 +1289,73 @@ export class RunStateRenderer {
 		} else {
 			this.element.innerText = '';
 		}
+	}
+}
+
+export class ListTopCellToolbar extends Disposable {
+	private topCellToolbar: HTMLElement;
+	private _modelDisposables = new DisposableStore();
+	constructor(
+		protected readonly notebookEditor: INotebookEditor,
+
+		insertionIndicatorContainer: HTMLElement,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		this.topCellToolbar = DOM.append(insertionIndicatorContainer, $('.cell-list-top-cell-toolbar-container'));
+
+		const toolbar = new ToolBar(this.topCellToolbar, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+
+		const cellMenu = this.instantiationService.createInstance(CellMenus);
+		const menu = this._register(cellMenu.getCellTopInsertionMenu(contextKeyService));
+
+		const actions = this.getCellToolbarActions(menu, false);
+		toolbar.setActions(actions.primary, actions.secondary);
+
+		this._register(toolbar);
+
+		this._register(this.notebookEditor.onDidChangeModel(() => {
+			this._modelDisposables.clear();
+
+			if (this.notebookEditor.viewModel) {
+				this._modelDisposables.add(this.notebookEditor.viewModel.onDidChangeViewCells(() => {
+					this.updateClass();
+				}));
+			}
+		}));
+
+		this.updateClass();
+	}
+
+	private updateClass() {
+		if (this.notebookEditor.viewModel?.length === 0) {
+			DOM.addClass(this.topCellToolbar, 'emptyNotebook');
+		} else {
+			DOM.removeClass(this.topCellToolbar, 'emptyNotebook');
+		}
+	}
+
+	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		createAndFillInActionBarActionsWithVerticalSeparators(menu, { shouldForwardArgs: true }, result, alwaysFillSecondaryActions, g => /^inline/.test(g));
+
+		return result;
 	}
 }

@@ -154,6 +154,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
 				this._onTerminalData(id, data);
 			});
+			// Send initial events if they exist
+			this._terminalService.terminalInstances.forEach(t => {
+				t.initialDataEvents?.forEach(d => this._onTerminalData(t.id, d));
+			});
 		}
 	}
 

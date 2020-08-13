@@ -35,15 +35,12 @@ import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKe
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { mock } from 'vs/base/test/common/mock';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
 	let editor = createTestCodeEditor({
 		model: model,
 		serviceCollection: new ServiceCollection(
-			[IConfigurationService, TestConfigurationService],
 			[ITelemetryService, NullTelemetryService],
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],

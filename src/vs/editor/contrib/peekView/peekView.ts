@@ -11,7 +11,6 @@ import { Action } from 'vs/base/common/actions';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import * as objects from 'vs/base/common/objects';
-import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -223,10 +222,10 @@ export abstract class PeekViewWidget extends ZoneWidget {
 
 	setTitle(primaryHeading: string, secondaryHeading?: string): void {
 		if (this._primaryHeading && this._secondaryHeading) {
-			this._primaryHeading.innerHTML = strings.escape(primaryHeading);
+			this._primaryHeading.innerText = primaryHeading;
 			this._primaryHeading.setAttribute('aria-label', primaryHeading);
 			if (secondaryHeading) {
-				this._secondaryHeading.innerHTML = strings.escape(secondaryHeading);
+				this._secondaryHeading.innerText = secondaryHeading;
 			} else {
 				dom.clearNode(this._secondaryHeading);
 			}
@@ -236,7 +235,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	setMetaTitle(value: string): void {
 		if (this._metaHeading) {
 			if (value) {
-				this._metaHeading.innerHTML = strings.escape(value);
+				this._metaHeading.innerText = value;
 				dom.show(this._metaHeading);
 			} else {
 				dom.hide(this._metaHeading);

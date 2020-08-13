@@ -35,6 +35,7 @@ import { isSafari } from 'vs/base/browser/browser';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { debugAdapterRegisteredEmitter } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 
 const $ = dom.$;
 
@@ -167,8 +168,11 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.registerListeners();
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
+		debugAdapterRegisteredEmitter.event(() => {
+			this.registerListeners();
+			this.setDecorationsScheduler.schedule();
+		});
 	}
 
 	private registerListeners(): void {

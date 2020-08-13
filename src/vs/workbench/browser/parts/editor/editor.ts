@@ -12,7 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
@@ -132,7 +132,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
-	const activeGroupCodeEditor = group.activeEditorPane ? getCodeEditor(group.activeEditorPane.getControl()) : undefined;
+	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
 			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);
