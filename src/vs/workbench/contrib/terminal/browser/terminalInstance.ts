@@ -236,14 +236,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
-		let initialDataEventsTimeout: NodeJS.Timeout | undefined = setTimeout(() => {
+		let initialDataEventsTimeout: number | undefined = window.setTimeout(() => {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
 		}, 10000);
 		this._register({
 			dispose: () => {
 				if (initialDataEventsTimeout) {
-					clearTimeout(initialDataEventsTimeout);
+					window.clearTimeout(initialDataEventsTimeout);
 				}
 			}
 		});
