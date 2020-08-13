@@ -1328,10 +1328,6 @@ export class ListTopCellToolbar extends Disposable {
 
 		this._register(toolbar);
 
-		this._register(this.notebookEditor.onDidScroll((e) => {
-			this.topCellToolbar.style.top = `-${e.scrollTop}px`;
-		}));
-
 		this._register(this.notebookEditor.onDidChangeModel(() => {
 			this._modelDisposables.clear();
 
