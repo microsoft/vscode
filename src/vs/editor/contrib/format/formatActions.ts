@@ -267,16 +267,16 @@ class FormatSelectionAction extends EditorAction {
 		}
 		const instaService = accessor.get(IInstantiationService);
 		const model = editor.getModel();
-		let range: Range = editor.getSelection();
-		if (range.isEmpty()) {
-			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
-		}
+		const promise = editor.getSelections().reduce(async (prev, range: Range) => {
+			await prev;
+			if (range.isEmpty()) {
+				range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
+			}
+			await instaService.invokeFunction(formatDocumentRangeWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None);
+		}, Promise.resolve());
 
 		const progressService = accessor.get(IEditorProgressService);
-		await progressService.showWhile(
-			instaService.invokeFunction(formatDocumentRangeWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None),
-			250
-		);
+		await progressService.showWhile(promise, 250);
 	}
 }
 

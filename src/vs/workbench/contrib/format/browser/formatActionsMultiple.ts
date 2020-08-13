@@ -300,15 +300,17 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 		const telemetryService = accessor.get(ITelemetryService);
 
 		const model = editor.getModel();
-		let range: Range = editor.getSelection();
-		if (range.isEmpty()) {
-			range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
-		}
 
 		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
 		if (typeof pick === 'number') {
-			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick], editor, range, CancellationToken.None);
+			await editor.getSelections().reduce(async (prev, range: Range) => {
+				await prev;
+				if (range.isEmpty()) {
+					range = new Range(range.startLineNumber, 1, range.startLineNumber, model.getLineMaxColumn(range.startLineNumber));
+				}
+				await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick], editor, range, CancellationToken.None);
+			}, Promise.resolve());
 		}
 
 		logFormatterTelemetry(telemetryService, 'range', provider, typeof pick === 'number' && provider[pick] || undefined);
