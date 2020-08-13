@@ -244,6 +244,7 @@ export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 export interface IAddedViewDescriptorState {
 	viewDescriptor: IViewDescriptor,
 	collapsed?: boolean;
+	visible?: boolean;
 }
 
 export interface IViewContainerModel {

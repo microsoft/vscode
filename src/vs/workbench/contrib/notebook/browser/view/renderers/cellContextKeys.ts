@@ -124,10 +124,8 @@ export class CellContextKeyManager extends Disposable {
 
 	private updateForOutputs() {
 		if (this.element instanceof CodeCellViewModel) {
-			console.log(this.element, this.element.outputs.length > 0);
 			this.cellHasOutputs.set(this.element.outputs.length > 0);
 		} else {
-			console.log(this.element, false);
 			this.cellHasOutputs.set(false);
 		}
 	}
