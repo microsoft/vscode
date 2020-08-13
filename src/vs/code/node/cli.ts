@@ -148,6 +148,7 @@ export async function main(argv: string[]): Promise<any> {
 			argv = argv.filter(a => a !== '-');
 		}
 
+		const canReadFromStdin = isLinux || isWindows || (isMacintosh && process.env['VSCODE_DEV']);
 		let stdinFilePath: string | undefined;
 		if (hasStdinWithoutTty()) {
 
@@ -157,24 +158,26 @@ export async function main(argv: string[]): Promise<any> {
 
 			if (args._.length === 0) {
 				if (hasReadStdinArg) {
-					stdinFilePath = getStdinFilePath();
+					if (canReadFromStdin) {
+						stdinFilePath = getStdinFilePath();
 
-					// returns a file path where stdin input is written into (write in progress).
-					try {
-						readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
+						// returns a file path where stdin input is written into (write in progress).
+						try {
+							readFromStdin(stdinFilePath, !!verbose); // throws error if file can not be written
 
-						// Make sure to open tmp file
-						addArg(argv, stdinFilePath);
+							// Make sure to open tmp file
+							addArg(argv, stdinFilePath);
 
-						// Enable --wait to get all data and ignore adding this to history
-						addArg(argv, '--wait');
-						addArg(argv, '--skip-add-to-recently-opened');
-						args.wait = true;
+							// Enable --wait to get all data and ignore adding this to history
+							addArg(argv, '--wait');
+							addArg(argv, '--skip-add-to-recently-opened');
+							args.wait = true;
 
-						console.log(`Reading from stdin via: ${stdinFilePath}`);
-					} catch (e) {
-						console.log(`Failed to create file to read via stdin: ${e.toString()}`);
-						stdinFilePath = undefined;
+							console.log(`Reading from stdin via: ${stdinFilePath}`);
+						} catch (e) {
+							console.log(`Failed to create file to read via stdin: ${e.toString()}`);
+							stdinFilePath = undefined;
+						}
 					}
 				} else {
 
@@ -334,6 +337,9 @@ export async function main(argv: string[]): Promise<any> {
 			if (args.wait) {
 				appArgs.push('--wait-apps');
 			}
+			if (hasReadStdinArg) {
+				appArgs.push('-f');
+			}
 			const cliArgs = argv.slice(2);
 			const resolvedArgs = cliArgs.map(arg => {
 				if (arg === '.' || arg.startsWith('../')) {
@@ -354,6 +360,9 @@ export async function main(argv: string[]): Promise<any> {
 				}
 			});
 			appArgs.push('--args');
+			if (hasReadStdinArg) {
+				appArgs.push('--skip-add-to-recently-opened');
+			}
 			child = spawn('open', appArgs.concat(resolvedArgs), options);
 		} else {
 			child = spawn(process.execPath, argv.slice(2), options);
