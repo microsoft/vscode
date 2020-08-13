@@ -964,7 +964,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		filter: vscode.NotebookOutputSelector,
 		renderer: vscode.NotebookOutputRenderer
 	): vscode.Disposable {
-		if (this._notebookKernels.has(type)) {
+		if (this._notebookOutputRenderers.has(type)) {
 			throw new Error(`Notebook renderer for '${type}' already registered`);
 		}
 

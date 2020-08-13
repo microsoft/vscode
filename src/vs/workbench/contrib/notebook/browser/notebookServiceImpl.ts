@@ -298,7 +298,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					}));
 
 					if (notebookContribution.entrypoint) {
-						this._notebookRenderers.set(notebookContribution.viewType, new PureNotebookOutputRenderer(notebookContribution.viewType, extension.description, notebookContribution.entrypoint));
+						this._notebookRenderers.set(notebookContribution.viewType, new PureNotebookOutputRenderer(notebookContribution.viewType, notebookContribution.displayName, extension.description, notebookContribution.entrypoint));
 					}
 				}
 			}
@@ -547,6 +547,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookRenderer(id: string, renderer: INotebookRendererInfo) {
 		this._notebookRenderers.set(id, renderer);
+		const staticInfo = this.notebookRenderersInfoStore.get(id);
+
+		if (staticInfo) {
+
+		}
 	}
 
 	unregisterNotebookRenderer(id: string) {
@@ -995,8 +1000,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookProviderInfoStore.get(viewType);
 	}
 
-	getContributedNotebookOutputRenderers(mimeType: string): readonly NotebookOutputRendererInfo[] {
-		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
+	getContributedNotebookOutputRenderers(viewType: string): NotebookOutputRendererInfo | undefined {
+		return this.notebookRenderersInfoStore.get(viewType);
 	}
 
 	getNotebookProviderResourceRoots(): URI[] {
