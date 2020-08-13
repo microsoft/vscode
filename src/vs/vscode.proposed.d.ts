@@ -2024,4 +2024,12 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/102091
+
+	export interface TextDocument {
+		notebook: NotebookDocument | undefined;
+	}
+	//#endregion
 }
