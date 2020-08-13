@@ -383,11 +383,17 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean
 
 	const description = accessor.getItemDescription(item);
 
+	// in order to speed up scoring, we cache the score with a unique hash based on:
+	// - label
+	// - description (if provided)
+	// - query (normalized)
+	// - number of query pieces (i.e. 'hello world' and 'helloworld' are different)
+	// - wether fuzzy matching is enabled or not
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${fuzzy}`;
+		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
 	} else {
-		cacheHash = `${label}${query.normalized}${fuzzy}`;
+		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
 	}
 
 	const cached = cache[cacheHash];
