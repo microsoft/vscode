@@ -579,7 +579,7 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -589,7 +589,14 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const context = this.getActiveEditorContext(accessor);
+		if (context) {
+			this.runWithContext(accessor, context);
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Code, 'above', undefined, true);
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -597,7 +604,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 });
 
-registerAction2(class extends NotebookCellAction {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -607,7 +614,14 @@ registerAction2(class extends NotebookCellAction {
 			});
 	}
 
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const context = this.getActiveEditorContext(accessor);
+		if (context) {
+			this.runWithContext(accessor, context);
+		}
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const newCell = context.notebookEditor.insertNotebookCell(undefined, CellKind.Markdown, 'above', undefined, true);
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');

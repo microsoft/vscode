@@ -1294,6 +1294,7 @@ export class RunStateRenderer {
 
 export class ListTopCellToolbar extends Disposable {
 	private topCellToolbar: HTMLElement;
+	private _modelDisposables = new DisposableStore();
 	constructor(
 		protected readonly notebookEditor: INotebookEditor,
 
@@ -1330,6 +1331,26 @@ export class ListTopCellToolbar extends Disposable {
 		this._register(this.notebookEditor.onDidScroll((e) => {
 			this.topCellToolbar.style.top = `-${e.scrollTop}px`;
 		}));
+
+		this._register(this.notebookEditor.onDidChangeModel(() => {
+			this._modelDisposables.clear();
+
+			if (this.notebookEditor.viewModel) {
+				this._modelDisposables.add(this.notebookEditor.viewModel.onDidChangeViewCells(() => {
+					this.updateClass();
+				}));
+			}
+		}));
+
+		this.updateClass();
+	}
+
+	private updateClass() {
+		if (this.notebookEditor.viewModel?.length === 0) {
+			DOM.addClass(this.topCellToolbar, 'emptyNotebook');
+		} else {
+			DOM.removeClass(this.topCellToolbar, 'emptyNotebook');
+		}
 	}
 
 	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
