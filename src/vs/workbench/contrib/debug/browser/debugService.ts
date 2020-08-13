@@ -28,7 +28,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { parse, getFirstFrame } from 'vs/base/common/console';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { deepClone, equals } from 'vs/base/common/objects';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -46,6 +46,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -87,7 +88,8 @@ export class DebugService implements IDebugService {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
-		@IActivityService private readonly activityService: IActivityService
+		@IActivityService private readonly activityService: IActivityService,
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		this.toDispose = [];
 
@@ -438,7 +440,18 @@ export class DebugService implements IDebugService {
 							nls.localize('debugTypeMissing', "Missing property 'type' for the chosen launch configuration.");
 					}
 
-					await this.showError(message);
+					const actionList: IAction[] = [];
+
+					actionList.push(new Action(
+						'installAdditionalDebuggers',
+						nls.localize('installAdditionalDebuggers', "Install {0} Extension", resolvedConfig.type),
+						undefined,
+						true,
+						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
+					));
+
+					await this.showError(message, actionList);
+
 					return false;
 				}
 
