@@ -642,18 +642,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					}
 				}
 			}
-		} else if (this._notebookViewModel && this._notebookViewModel.viewCells.length === 1 && this._notebookViewModel.viewCells[0].cellKind === CellKind.Code) {
-			// there is only one code cell in the document
-			const cell = this._notebookViewModel!.viewCells[0];
-			if (cell.getTextLength() === 0) {
-				// the cell is empty, very likely a template cell, focus it
-				this.selectElement(cell);
-				await this.revealLineInCenterAsync(cell, 1);
-				const editor = this._renderedEditors.get(cell)!;
-				if (editor) {
-					editor.focus();
-				}
-			}
 		}
 	}
 
