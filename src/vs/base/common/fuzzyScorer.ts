@@ -212,7 +212,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 
 		// Inside word upper case bonus (camel case)
 		else if (isUpper(target.charCodeAt(targetIndex))) {
-			score += 1;
+			score += 2;
 
 			// if (DEBUG) {
 			// 	console.log('Inside word upper case bonus: +1');
