@@ -267,6 +267,57 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 	}
 }
 
+export class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
+
+	readonly #viewType: string;
+
+	readonly #webview: ExtHostWebview;
+
+	#isDisposed = false;
+
+	constructor(
+		handle: extHostProtocol.WebviewPanelHandle,
+		proxy: extHostProtocol.MainThreadWebviewsShape,
+		viewType: string,
+		webview: ExtHostWebview
+	) {
+		super();
+
+		this.#viewType = viewType;
+		this.#webview = webview;
+	}
+
+	public dispose() {
+		if (this.#isDisposed) {
+			return;
+		}
+
+		this.#isDisposed = true;
+		this.#onDidDispose.fire();
+
+		super.dispose();
+	}
+
+	readonly #onDidChangeVisibility = this._register(new Emitter<void>());
+	public readonly onDidChangeVisibility = this.#onDidChangeVisibility.event;
+
+	readonly #onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this.#onDidDispose.event;
+
+	get visible() {
+		// todo
+		return true;
+	}
+
+	get webview() {
+		return this.#webview;
+	}
+
+	get viewType(): string {
+		return this.#viewType;
+	}
+}
+
 class CustomDocumentStoreEntry {
 
 	private _backupCounter = 1;
@@ -412,6 +463,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		readonly extension: IExtensionDescription;
 	}>();
 
+	private readonly _viewProviders = new Map<string, {
+		readonly provider: vscode.WebviewViewProvider;
+		readonly extension: IExtensionDescription;
+	}>();
+
 	private readonly _editorProviders = new EditorProviderStore();
 
 	private readonly _documents = new CustomDocumentStore();
@@ -464,6 +520,24 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		return new extHostTypes.Disposable(() => {
 			this._serializers.delete(viewType);
+			this._proxy.$unregisterSerializer(viewType);
+		});
+	}
+
+	public registerWebviewViewProvider(
+		extension: IExtensionDescription,
+		viewType: string,
+		provider: vscode.WebviewViewProvider,
+	): vscode.Disposable {
+		if (this._viewProviders.has(viewType)) {
+			throw new Error(`View provider for '${viewType}' already registered`);
+		}
+
+		this._viewProviders.set(viewType, { provider, extension });
+		this._proxy.$registerWebviewViewProvider(viewType);
+
+		return new extHostTypes.Disposable(() => {
+			this._viewProviders.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
 		});
 	}
@@ -581,6 +655,23 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
+	}
+
+	async $resolveWebviewView(
+		webviewHandle: string,
+		viewType: string,
+		state: any,
+	): Promise<void> {
+		const entry = this._viewProviders.get(viewType);
+		if (!entry) {
+			throw new Error(`No view provider found for '${viewType}'`);
+		}
+
+		const { provider, extension } = entry;
+
+		const webview = new ExtHostWebview(webviewHandle, this._proxy, reviveOptions({ /* todo */ }), this.initData, this.workspace, extension, this._deprecationService);
+		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, webview);
+		await provider.resolveWebviewView(revivedView, state);
 	}
 
 	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {

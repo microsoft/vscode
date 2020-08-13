@@ -629,6 +629,8 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
+
+	$registerWebviewViewProvider(viewType: string): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -662,6 +664,12 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string>;
 
 	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
+
+	$resolveWebviewView(
+		webviewHandle: WebviewPanelHandle,
+		viewType: string,
+		state: any,
+	): Promise<void>;
 }
 
 export enum CellKind {

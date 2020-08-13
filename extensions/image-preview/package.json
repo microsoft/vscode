@@ -24,7 +24,8 @@
   "activationEvents": [
     "onCustomEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut"
+    "onCommand:imagePreview.zoomOut",
+    "*"
   ],
   "contributes": {
     "customEditors": [
@@ -39,6 +40,16 @@
         ]
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "cats.cat",
+          "name": "Cats",
+          "visibility": "visible"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "imagePreview.zoomIn",

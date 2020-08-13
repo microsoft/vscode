@@ -2048,4 +2048,74 @@ declare module 'vscode' {
 		notebook: NotebookDocument | undefined;
 	}
 	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/46585
+
+	/**
+	 * A webview based view.
+	 */
+	export interface WebviewView {
+		/**
+		 * Identifies the type of the webview view, such as `'markdown.preview'`.
+		 */
+		readonly viewType: string;
+
+		/**
+		 * The underlying webview for the view.
+		 */
+		readonly webview: Webview;
+
+		/**
+		 * Fired when the view is disposed.
+		 *
+		 * This is called when the view is hidden by the user.
+		 *
+		 * Trying to use the view after it has been disposed throws an exception.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Tracks if the webview is currently visible.
+		 *
+		 * Views are visible when they are on the screen and expanded.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Event fired when the visibility of the view changes
+		 */
+		readonly onDidChangeVisibility: Event<void>;
+	}
+
+	/**
+	 * Provider for creating `WebviewView` elements.
+	 */
+	export interface WebviewViewProvider {
+		/**
+		 * Revolves a webview view.
+		 *
+		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
+		 * first loaded or when the user hides and then shows a view again.
+		 *
+		 * @param webviewView Webview panel to restore. The serializer should take ownership of this panel. The
+		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
+		 * @param state Persisted state from the webview content.
+		 */
+		resolveWebviewView(webviewView: WebviewView, state: unknown | undefined): Promise<void> | void;
+	}
+
+	namespace window {
+		/**
+		 * Register a new provider for webview views.
+		 *
+		 * @param viewId Unique id of the view. This should match the `id` from the
+		 *   `views` contribution in the package.json.
+		 * @param provider Provider for the webview views.
+		 *
+		 * @return Disposable that unregisters the provider.
+		 */
+		export function registerWebviewViewProvider(viewId: string, provider: WebviewViewProvider): Disposable;
+	}
+	//#endregion
 }

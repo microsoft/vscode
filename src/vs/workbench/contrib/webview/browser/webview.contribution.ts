@@ -18,6 +18,7 @@ import { getActiveWebview, HideWebViewEditorFindCommand, ReloadWebviewAction, Se
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
+import './webviewView';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
 	WebviewEditor,
