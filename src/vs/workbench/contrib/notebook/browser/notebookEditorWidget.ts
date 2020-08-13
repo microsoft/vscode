@@ -1678,6 +1678,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._localStore.clear();
 		this._list?.dispose();
+		this._listTopCellToolbar?.dispose();
 
 		this._overlayContainer.remove();
 		this.viewModel?.dispose();
