@@ -35,7 +35,7 @@ suite('ExtHostDocumentData', () => {
 			'and this is line number two', //27
 			'it is followed by #3', //20
 			'and finished with the fourth.', //29
-		], '\n', 'text', 1, false);
+		], '\n', 1, 'text', false);
 	});
 
 	test('readonly-ness', () => {
@@ -55,7 +55,7 @@ suite('ExtHostDocumentData', () => {
 				saved = uri;
 				return Promise.resolve(true);
 			}
-		}, URI.parse('foo:bar'), [], '\n', 'text', 1, true);
+		}, URI.parse('foo:bar'), [], '\n', 1, 'text', true);
 
 		return data.document.save().then(() => {
 			assert.equal(saved.toString(), 'foo:bar');
@@ -242,7 +242,7 @@ suite('ExtHostDocumentData', () => {
 	test('getWordRangeAtPosition', () => {
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			'aaaa bbbb+cccc abc'
-		], '\n', 'text', 1, false);
+		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 2))!;
 		assert.equal(range.start.line, 0);
@@ -276,7 +276,7 @@ suite('ExtHostDocumentData', () => {
 			'function() {',
 			'	"far boo"',
 			'}'
-		], '\n', 'text', 1, false);
+		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 0), /\/\*.+\*\//);
 		assert.equal(range, undefined);
@@ -304,7 +304,7 @@ suite('ExtHostDocumentData', () => {
 
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			perfData._$_$_expensive
-		], '\n', 'text', 1, false);
+		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
 		assert.equal(range, undefined);
@@ -323,7 +323,7 @@ suite('ExtHostDocumentData', () => {
 
 		data = new ExtHostDocumentData(undefined!, URI.file(''), [
 			line
-		], '\n', 'text', 1, false);
+		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
 		assert.equal(range.start.line, 0);
@@ -387,7 +387,7 @@ suite('ExtHostDocumentData updates line mapping', () => {
 	}
 
 	function testLineMappingDirectionAfterEvents(lines: string[], eol: string, direction: AssertDocumentLineMappingDirection, e: IModelChangedEvent): void {
-		let myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 'text', 1, false);
+		let myDocument = new ExtHostDocumentData(undefined!, URI.file(''), lines.slice(0), eol, 1, 'text', false);
 		assertDocumentLineMapping(myDocument, direction);
 
 		myDocument.onEvents(e);

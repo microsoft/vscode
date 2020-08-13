@@ -488,8 +488,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 	constructor(
 		private menu: IMenu,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IDebugService private readonly debugService: IDebugService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
 	get templateId(): string {
@@ -545,7 +544,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		};
 		setActionBar();
 		data.elementDisposable.push(this.menu.onDidChange(() => setActionBar()));
-		data.stateLabel.hidden = false;
+		data.stateLabel.style.display = '';
 
 		if (thread && thread.stoppedDetails) {
 			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
@@ -553,12 +552,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 				data.session.title = thread.stoppedDetails.text;
 			}
 		} else {
-			const hasChildSessions = this.debugService.getModel().getSessions().find(s => s.parentSession === session);
-			if (!hasChildSessions) {
-				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
-			} else {
-				data.stateLabel.hidden = true;
-			}
+			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 		}
 	}
 

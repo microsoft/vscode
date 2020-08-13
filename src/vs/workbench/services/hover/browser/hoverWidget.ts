@@ -141,7 +141,7 @@ export class HoverWidget extends Widget {
 		// Get horizontal alignment and position
 		let targetLeft = this._target.x !== undefined ? this._target.x : Math.min(...targetBounds.map(e => e.left));
 		if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-			this._x = document.documentElement.clientWidth;
+			this._x = document.documentElement.clientWidth - 1;
 			this._hover.containerDomNode.classList.add('right-aligned');
 		} else {
 			this._x = targetLeft;

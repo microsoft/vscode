@@ -62,6 +62,7 @@ viewsRegistry.registerViews([{
 	workspace: true,
 	canMoveView: true,
 	weight: 80,
+	order: -999,
 	containerIcon: Codicon.sourceControl.classNames
 }], viewContainer);
 

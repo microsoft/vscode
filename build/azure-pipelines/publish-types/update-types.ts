@@ -45,7 +45,7 @@ function repeat(str: string, times: number): string {
 }
 
 function convertTabsToSpaces(str: string): string {
-	return str.replace(/^\t+/gm, value => repeat('    ', value.length));
+	return str.replace(/\t/gm, value => repeat('    ', value.length));
 }
 
 function getNewFileContent(content: string, tag: string) {

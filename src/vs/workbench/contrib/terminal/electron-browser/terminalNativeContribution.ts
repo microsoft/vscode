@@ -5,45 +5,53 @@
 
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
-import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { execFile } from 'child_process';
-import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-browser/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
-export class TerminalNativeService extends Disposable implements ITerminalNativeService {
+export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
 	public _serviceBrand: undefined;
-
-	public get linuxDistro(): LinuxDistro { return linuxDistro; }
-
-	private readonly _onRequestFocusActiveInstance = this._register(new Emitter<void>());
-	public get onRequestFocusActiveInstance(): Event<void> { return this._onRequestFocusActiveInstance.event; }
-	private readonly _onOsResume = this._register(new Emitter<void>());
-	public get onOsResume(): Event<void> { return this._onOsResume.event; }
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IElectronService electronService: IElectronService
+		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
+		@IElectronService readonly electronService: IElectronService
 	) {
 		super();
 
-		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this._onOpenFileRequest(request));
-		this._register(electronService.onOSResume(() => this._onOsResume.fire()));
+		ipcRenderer.on('vscode:openFiles', (_: unknown, request: IOpenFileRequest) => this._onOpenFileRequest(request));
+		this._register(electronService.onOSResume(() => this._onOsResume()));
+
+		this._terminalService.setLinuxDistro(linuxDistro);
+		this._terminalService.setNativeWindowsDelegate({
+			getWslPath: this._getWslPath.bind(this),
+			getWindowsBuildNumber: this._getWindowsBuildNumber.bind(this)
+		});
 
 		const connection = remoteAgentService.getConnection();
 		if (connection && connection.remoteAuthority) {
 			registerRemoteContributions();
 		}
+	}
+
+	private _onOsResume(): void {
+		const activeTab = this._terminalService.getActiveTab();
+		if (!activeTab) {
+			return;
+		}
+		activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
@@ -52,12 +60,14 @@ export class TerminalNativeService extends Disposable implements ITerminalNative
 		// marker file to get deleted and then focus back to the integrated terminal.
 		if (request.termProgram === 'vscode' && request.filesToWait) {
 			const waitMarkerFileUri = URI.revive(request.filesToWait.waitMarkerFileUri);
-			await this.whenFileDeleted(waitMarkerFileUri);
-			this._onRequestFocusActiveInstance.fire();
+			await this._whenFileDeleted(waitMarkerFileUri);
+
+			// Focus active terminal
+			this._terminalService.getActiveInstance()?.focus();
 		}
 	}
 
-	public whenFileDeleted(path: URI): Promise<void> {
+	private _whenFileDeleted(path: URI): Promise<void> {
 		// Complete when wait marker file is deleted
 		return new Promise<void>(resolve => {
 			let running = false;
@@ -80,7 +90,7 @@ export class TerminalNativeService extends Disposable implements ITerminalNative
 	 * Converts a path to a path on WSL using the wslpath utility.
 	 * @param path The original path.
 	 */
-	public getWslPath(path: string): Promise<string> {
+	private _getWslPath(path: string): Promise<string> {
 		if (getWindowsBuildNumber() < 17063) {
 			throw new Error('wslpath does not exist on Windows build < 17063');
 		}
@@ -92,7 +102,7 @@ export class TerminalNativeService extends Disposable implements ITerminalNative
 		});
 	}
 
-	public getWindowsBuildNumber(): number {
+	private _getWindowsBuildNumber(): number {
 		return getWindowsBuildNumber();
 	}
 }

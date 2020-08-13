@@ -598,7 +598,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
-			toggleMenuTitle
+			toggleMenuTitle,
+			renderDropdownAsChildElement: true
 		});
 		return toolbar;
 	}
