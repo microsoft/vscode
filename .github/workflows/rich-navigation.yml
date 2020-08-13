@@ -14,7 +14,7 @@ jobs:
       run: yarn --frozen-lockfile
       env:
         CHILD_CONCURRENCY: 1
-    - uses: microsoft/RichCodeNavIndexer@v0.1
+    - uses: microsoft/RichCodeNavIndexer@v0.1.4
       with:
         languages: typescript
         repo-token: ${{ secrets.GITHUB_TOKEN }}
