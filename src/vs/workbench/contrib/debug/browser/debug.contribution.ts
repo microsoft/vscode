@@ -62,8 +62,8 @@ debugAdapterRegisteredEmitter.event(() => {
 	registerColors();
 	registerCommandsAndActions();
 	registerDebugMenu();
-	registerEditorActions();
 });
+registerEditorActions();
 registerCommands();
 registerDebugPanel();
 const debugCategory = nls.localize('debugCategory', "Debug");
