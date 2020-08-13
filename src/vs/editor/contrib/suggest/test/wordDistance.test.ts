@@ -81,9 +81,14 @@ suite('suggest, word distance', function () {
 
 		distance = await WordDistance.create(service, editor);
 
+		disposables.add(service);
 		disposables.add(mode);
 		disposables.add(model);
 		disposables.add(editor);
+	});
+
+	teardown(function () {
+		disposables.clear();
 	});
 
 	function createSuggestItem(label: string, overwriteBefore: number, position: IPosition): CompletionItem {
