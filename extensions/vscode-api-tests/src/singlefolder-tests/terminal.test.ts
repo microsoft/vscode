@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 // Disable terminal tests:
@@ -168,8 +168,10 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			const terminal = window.createTerminal(options);
 			try {
 				equal(terminal.name, 'foo');
-				deepEqual(terminal.creationOptions, options);
-				throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+				const terminalOptions = terminal.creationOptions as TerminalOptions;
+				equal(terminalOptions.name, 'foo');
+				equal(terminalOptions.hideFromUser, true);
+				throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 			} catch (e) {
 				done(e);
 				return;
@@ -605,8 +607,10 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const terminal = window.createTerminal(options);
 				try {
 					equal(terminal.name, 'foo');
-					deepEqual(terminal.creationOptions, options);
-					throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+					const terminalOptions = terminal.creationOptions as ExtensionTerminalOptions;
+					equal(terminalOptions.name, 'foo');
+					equal(terminalOptions.pty, pty);
+					throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 				} catch (e) {
 					done(e);
 				}
