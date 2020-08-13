@@ -925,6 +925,51 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
+	test('compareFilesByScore - prefer shorter match (bug #103052) - foo bar', function () {
+		const resourceA = URI.file('app/emails/foo.bar.js');
+		const resourceB = URI.file('app/emails/other-footer.other-bar.js');
+
+		for (const query of ['foo bar', 'foobar']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceA);
+			assert.equal(res[1], resourceB);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceA);
+			assert.equal(res[1], resourceB);
+		}
+	});
+
+	test('compareFilesByScore - prefer shorter match (bug #103052) - payment model', function () {
+		const resourceA = URI.file('app/components/payment/payment.model.js');
+		const resourceB = URI.file('app/components/online-payments-history/online-payments-history.model.js');
+
+		for (const query of ['payment model', 'paymentmodel']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceA);
+			assert.equal(res[1], resourceB);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceA);
+			assert.equal(res[1], resourceB);
+		}
+	});
+
+	test('compareFilesByScore - prefer shorter match (bug #103052) - color', function () {
+		const resourceA = URI.file('app/constants/color.js');
+		const resourceB = URI.file('app/components/model/input/pick-avatar-color.js');
+
+		for (const query of ['color js', 'colorjs']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceA);
+			assert.equal(res[1], resourceB);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceA);
+			assert.equal(res[1], resourceB);
+		}
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
