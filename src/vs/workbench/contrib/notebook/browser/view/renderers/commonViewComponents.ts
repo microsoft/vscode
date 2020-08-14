@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -73,5 +74,6 @@ export class CellLanguageStatusBarItem extends Disposable {
 	private render(): void {
 		const modeId = this.cell?.cellKind === CellKind.Markdown ? 'markdown' : this.modeService.getModeIdForLanguageName(this.cell!.language) || this.cell!.language;
 		this.labelElement.textContent = this.modeService.getLanguageName(modeId) || this.modeService.getLanguageName('plaintext');
+		this.labelElement.title = localize('notebook.cell.status.language', "Select Cell Language Mode");
 	}
 }
