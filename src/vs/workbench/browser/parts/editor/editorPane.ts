@@ -19,6 +19,25 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+
+/**
+ * Should be implemented by editors that have their own ScopedContextKeyService
+ */
+export interface IEditorWithContext {
+	/**
+	 * Execute `fn` with the editor's services.
+	 */
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
+}
+
+export function isEditorWithContext(editor: unknown): editor is IEditorWithContext {
+	return !!(editor && !!(editor as IEditorWithContext).invokeWithinContext);
+}
+
+export function getEditorWithContext(thing: unknown): IEditorWithContext | null {
+	return isEditorWithContext(thing) ? thing : null;
+}
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
