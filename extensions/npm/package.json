@@ -56,7 +56,6 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "npm:showScriptExplorer",
           "icon": "images/code.svg",
           "visibility": "hidden"
         }
@@ -232,6 +231,7 @@
           "type": "boolean",
           "default": false,
           "scope": "resource",
+          "deprecationMessage": "The NPM Script Explorer is now available in 'Views' menu in the Explorer in all folders.",
           "description": "%config.npm.enableScriptExplorer%"
         },
         "npm.enableRunFromFolder": {
