@@ -58,7 +58,8 @@ suite('Hash', () => {
 
 	test('all different', () => {
 		const candidates: any[] = [
-			null, undefined, {}, [], 0, false, true, '', ' ', [null], [undefined], [undefined, undefined], { '': undefined }, { [' ']: undefined }
+			null, undefined, {}, [], 0, false, true, '', ' ', [null], [undefined], [undefined, undefined], { '': undefined }, { [' ']: undefined },
+			'ab', 'ba', ['ab']
 		];
 		const hashes: number[] = candidates.map(hash);
 		for (let i = 0; i < hashes.length; i++) {
