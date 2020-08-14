@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellLanguageStatusBarItem, RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -27,6 +27,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 

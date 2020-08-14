@@ -33,7 +33,7 @@ import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate, ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate, ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -59,6 +59,7 @@ import { isMacintosh, isNative } from 'vs/base/common/platform';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
 
 const $ = DOM.$;
 
