@@ -33,8 +33,7 @@ const intlFileNameCollatorNumericCaseInsenstive: IdleValue<{ collator: Intl.Coll
 	return {
 		collator: collator
 	};
-});
-
+});/** Compares filenames without distinguishing the name from the extension. Disambiguates by unicode comparison. */
 export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	const a = one || '';
 	const b = other || '';
@@ -49,35 +48,15 @@ export function compareFileNames(one: string | null, other: string | null, caseS
 	return result;
 }
 
-/** Compares filenames by name then extension, sorting numbers numerically instead of alphabetically. */
-export function compareFileNamesNumeric(one: string | null, other: string | null): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one, true);
-	const [otherName, otherExtension] = extractNameAndExtension(other, true);
+/** Compares filenames without distinguishing the name from the extension. Disambiguates by length, not unicode comparison. */
+export function compareFileNamesDefault(one: string | null, other: string | null): number {
 	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsenstive.value.collator;
-	let result;
+	one = one || '';
+	other = other || '';
 
-	// Check for name differences, comparing numbers numerically instead of alphabetically.
-	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
-	if (result !== 0) {
-		return result;
-	}
-
-	// Check for case insensitive extension differences, comparing numbers numerically instead of alphabetically.
-	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
-	if (result !== 0) {
-		return result;
-	}
-
-	// Disambiguate the extension case if needed.
-	if (oneExtension !== otherExtension) {
-		return collatorNumeric.compare(oneExtension, otherExtension);
-	}
-
-	return 0;
+	// Compare the entire filename - both name and extension - and disambiguate by length if needed
+	return compareAndDisambiguateByLength(collatorNumeric, one, other);
 }
-
-const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
 export function noIntlCompareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	if (!caseSensitive) {
@@ -123,10 +102,12 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	return result;
 }
 
-/** Compares filenames by extenson, then by name. Sorts numbers numerically, not alphabetically. */
-export function compareFileExtensionsNumeric(one: string | null, other: string | null): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one, true);
-	const [otherName, otherExtension] = extractNameAndExtension(other, true);
+/** Compares filenames by extenson, then by full filename */
+export function compareFileExtensionsDefault(one: string | null, other: string | null): number {
+	one = one || '';
+	other = other || '';
+	const oneExtension = extractExtension(one);
+	const otherExtension = extractExtension(other);
 	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
 	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsenstive.value.collator;
 	let result;
@@ -137,19 +118,11 @@ export function compareFileExtensionsNumeric(one: string | null, other: string |
 		return result;
 	}
 
-	// Compare names.
-	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
-	if (result !== 0) {
-		return result;
-	}
-
-	// Disambiguate extension case if needed.
-	if (oneExtension !== otherExtension) {
-		return collatorNumeric.compare(oneExtension, otherExtension);
-	}
-
-	return 0;
+	// Compare full filenames
+	return compareAndDisambiguateByLength(collatorNumeric, one, other);
 }
+
+const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
 /** Extracts the name and extension from a full filename, with optional special handling for dotfiles */
 function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): [string, string] {
@@ -164,6 +137,13 @@ function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): 
 	}
 
 	return result;
+}
+
+/** Extracts the extension from a full filename. Treats dotfiles as names, not extensions. */
+function extractExtension(str?: string | null): string {
+	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
+
+	return (match && match[1] && match[1].charAt(0) !== '.' && match[3]) || '';
 }
 
 function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {

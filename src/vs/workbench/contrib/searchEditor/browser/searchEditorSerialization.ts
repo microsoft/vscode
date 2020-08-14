@@ -208,7 +208,7 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 };
 
 export const serializeSearchResultForEditor =
-	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
+	(searchResult: SearchResult, rawIncludePattern: string, rawExcludePattern: string, contextLines: number, labelFormatter: (x: URI) => string, sortOrder: SearchSortOrder, limitHit?: boolean): { matchRanges: Range[], text: string, config: Partial<SearchConfiguration> } => {
 		if (!searchResult.query) { throw Error('Internal Error: Expected query, got null'); }
 		const config = contentPatternToSearchConfiguration(searchResult.query, rawIncludePattern, rawExcludePattern, contextLines);
 
@@ -219,7 +219,11 @@ export const serializeSearchResultForEditor =
 			searchResult.count()
 				? `${resultcount} - ${filecount}`
 				: localize('noResults', "No Results"),
-			''];
+		];
+		if (limitHit) {
+			info.push(localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."));
+		}
+		info.push('');
 
 		const matchComparer = (a: FileMatch | FolderMatch, b: FileMatch | FolderMatch) => searchMatchComparer(a, b, sortOrder);
 

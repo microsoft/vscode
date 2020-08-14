@@ -780,6 +780,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		const changedItem = { ...item };
 		const onKeyChange = (key: ObjectKey) => {
 			changedItem.key = key;
+			okButton.enabled = key.data !== '';
 
 			const suggestedValue = this.valueSuggester(key.data) ?? item.value;
 
@@ -843,6 +844,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		rowElement.append(keyElement, valueContainer);
 
 		const okButton = this._register(new Button(rowElement));
+		okButton.enabled = changedItem.key.data !== '';
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 

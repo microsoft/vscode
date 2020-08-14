@@ -146,6 +146,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.editorPart);
 		DOM.hide(this.markdownContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
+		this.viewCell.renderedMarkdownHeight = 0;
 	}
 
 	private viewUpdateEditing(): void {
@@ -176,7 +177,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 			editorHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
-			this.templateData.editorContainer.innerHTML = '';
+			this.templateData.editorContainer.innerText = '';
 
 			// create a special context key service that set the inCompositeEditor-contextkey
 			const editorContextKeyService = this.contextKeyService.createScoped();
@@ -188,7 +189,8 @@ export class StatefulMarkdownCell extends Disposable {
 				dimension: {
 					width: width,
 					height: editorHeight
-				}
+				},
+				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {});
 			this.templateData.currentEditor = this.editor;
 
@@ -239,7 +241,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.renderedEditors.delete(this.viewCell);
 
-		this.markdownContainer.innerHTML = '';
+		this.markdownContainer.innerText = '';
 		this.viewCell.clearHTML();
 		const markdownRenderer = this.viewCell.getMarkdownRenderer();
 		const renderedHTML = this.viewCell.getHTML();
@@ -259,7 +261,7 @@ export class StatefulMarkdownCell extends Disposable {
 			}));
 
 			this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
-				this.markdownContainer.innerHTML = '';
+				this.markdownContainer.innerText = '';
 				this.viewCell.clearHTML();
 				const renderedHTML = this.viewCell.getHTML();
 				if (renderedHTML) {
@@ -310,7 +312,7 @@ export class StatefulMarkdownCell extends Disposable {
 	setFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
-				this.templateData.foldingIndicator.innerHTML = '';
+				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
 				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');

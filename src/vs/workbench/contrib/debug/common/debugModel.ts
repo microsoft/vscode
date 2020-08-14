@@ -10,7 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { distinct, lastIndex } from 'vs/base/common/arrays';
+import { distinct, lastIndex, first } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
@@ -22,6 +22,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export class ExpressionContainer implements IExpressionContainer {
 
@@ -366,6 +367,7 @@ export class StackFrame implements IStackFrame {
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
+	private callStackCancellationTokens: CancellationTokenSource[] = [];
 	public stoppedDetails: IRawStoppedDetails | undefined;
 	public stopped: boolean;
 
@@ -384,6 +386,8 @@ export class Thread implements IThread {
 			this.staleCallStack = this.callStack;
 		}
 		this.callStack = [];
+		this.callStackCancellationTokens.forEach(c => c.dispose(true));
+		this.callStackCancellationTokens = [];
 	}
 
 	getCallStack(): IStackFrame[] {
@@ -392,6 +396,10 @@ export class Thread implements IThread {
 
 	getStaleCallStack(): ReadonlyArray<IStackFrame> {
 		return this.staleCallStack;
+	}
+
+	getTopStackFrame(): IStackFrame | undefined {
+		return first(this.getCallStack(), sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
 	}
 
 	get stateLabel(): string {
@@ -424,8 +432,10 @@ export class Thread implements IThread {
 
 	private async getCallStackImpl(startFrame: number, levels: number): Promise<IStackFrame[]> {
 		try {
-			const response = await this.session.stackTrace(this.threadId, startFrame, levels);
-			if (!response || !response.body) {
+			const tokenSource = new CancellationTokenSource();
+			this.callStackCancellationTokens.push(tokenSource);
+			const response = await this.session.stackTrace(this.threadId, startFrame, levels, tokenSource.token);
+			if (!response || !response.body || tokenSource.token.isCancellationRequested) {
 				return [];
 			}
 

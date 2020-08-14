@@ -1323,6 +1323,10 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		return this.view.element(index);
 	}
 
+	indexOf(element: T): number {
+		return this.view.indexOf(element);
+	}
+
 	get length(): number {
 		return this.view.length;
 	}

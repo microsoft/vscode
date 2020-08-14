@@ -32,9 +32,10 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { isSafari } from 'vs/base/browser/browser';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { debugAdapterRegisteredEmitter } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 
 const $ = dom.$;
 
@@ -87,7 +88,7 @@ function getBreakpointDecorationOptions(model: ITextModel, breakpoint: IBreakpoi
 	let overviewRulerDecoration: IModelDecorationOverviewRulerOptions | null = null;
 	if (showBreakpointsInOverviewRuler) {
 		overviewRulerDecoration = {
-			color: 'rgb(124, 40, 49)',
+			color: themeColorFromId(debugIconBreakpointForeground),
 			position: OverviewRulerLane.Left
 		};
 	}
@@ -167,8 +168,11 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		@ILabelService private readonly labelService: ILabelService
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
-		this.registerListeners();
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
+		debugAdapterRegisteredEmitter.event(() => {
+			this.registerListeners();
+			this.setDecorationsScheduler.schedule();
+		});
 	}
 
 	private registerListeners(): void {

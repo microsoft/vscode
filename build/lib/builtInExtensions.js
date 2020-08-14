@@ -18,7 +18,9 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 
 const root = path.dirname(path.dirname(__dirname));
-const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productjson.builtInExtensions;
+const webBuiltInExtensions = productjson.webBuiltInExtensions;
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
@@ -107,7 +109,7 @@ exports.getBuiltInExtensions = function getBuiltInExtensions() {
 	const control = readControlFile();
 	const streams = [];
 
-	for (const extension of builtInExtensions) {
+	for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
 		let controlState = control[extension.name] || 'marketplace';
 		control[extension.name] = controlState;
 

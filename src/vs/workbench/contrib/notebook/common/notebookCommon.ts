@@ -113,6 +113,7 @@ export interface INotebookMimeTypeSelector {
 
 export interface INotebookRendererInfo {
 	id: string;
+	displayName: string;
 	extensionId: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[],
@@ -413,10 +414,19 @@ export interface NotebookDataDto {
 	readonly metadata: NotebookDocumentMetadata;
 }
 
+export function getCellUndoRedoComparisonKey(uri: URI) {
+	const data = CellUri.parse(uri);
+	if (!data) {
+		return uri.toString();
+	}
+
+	return data.notebook.toString();
+}
+
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook-cell';
+	export const scheme = Schemas.vscodeNotebookCell;
 	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {

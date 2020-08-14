@@ -309,10 +309,10 @@ suite('FindController', async () => {
 			assert.equal(findController.getState().searchScope, null);
 
 			findController.getState().change({
-				searchScope: new Range(1, 1, 1, 5)
+				searchScope: [new Range(1, 1, 1, 5)]
 			}, false);
 
-			assert.deepEqual(findController.getState().searchScope, new Range(1, 1, 1, 5));
+			assert.deepEqual(findController.getState().searchScope, [new Range(1, 1, 1, 5)]);
 
 			findController.closeFindWidget();
 			assert.equal(findController.getState().searchScope, null);
@@ -523,10 +523,8 @@ suite('FindController query options persistence', async () => {
 			'var z = (3 * 5)',
 		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, async (editor) => {
 			// clipboardState = '';
-			editor.setSelection(new Range(1, 1, 2, 1));
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
-
-			await findController.start({
+			const findConfig = {
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: false,
 				seedSearchStringFromGlobalClipboard: false,
@@ -534,9 +532,17 @@ suite('FindController query options persistence', async () => {
 				shouldAnimate: false,
 				updateSearchScope: true,
 				loop: true
-			});
+			};
 
-			assert.deepEqual(findController.getState().searchScope, new Selection(1, 1, 2, 1));
+			editor.setSelection(new Range(1, 1, 2, 1));
+			findController.start(findConfig);
+			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1)]);
+
+			findController.closeFindWidget();
+
+			editor.setSelections([new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
+			findController.start(findConfig);
+			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 1, 2, 1), new Selection(2, 1, 2, 5)]);
 		});
 	});
 
@@ -584,7 +590,7 @@ suite('FindController query options persistence', async () => {
 				loop: true
 			});
 
-			assert.deepEqual(findController.getState().searchScope, new Selection(1, 2, 1, 3));
+			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 2, 1, 3)]);
 		});
 	});
 
@@ -609,7 +615,7 @@ suite('FindController query options persistence', async () => {
 				loop: true
 			});
 
-			assert.deepEqual(findController.getState().searchScope, new Selection(1, 6, 2, 1));
+			assert.deepEqual(findController.getState().searchScope, [new Selection(1, 6, 2, 1)]);
 		});
 	});
 });

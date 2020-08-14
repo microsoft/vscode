@@ -8,7 +8,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
-import { InstallRecommendedExtensionAction, ShowRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallRecommendedExtensionAction, ShowRecommendedExtensionAction, ShowRecommendedExtensionsAction, InstallRecommendedExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionRecommendationSource, IExtensionRecommendationReson } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionsConfiguration, ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -65,26 +65,40 @@ export abstract class ExtensionRecommendations extends Disposable {
 		}
 	}
 
-	protected promptImportantExtensionInstallNotification(extensionId: string, message: string): void {
+	protected promptImportantExtensionsInstallNotification(extensionIds: string[], message: string): void {
 		this.notificationService.prompt(Severity.Info, message,
 			[{
-				label: localize('install', 'Install'),
-				run: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId });
-					this.runAction(this.instantiationService.createInstance(InstallRecommendedExtensionAction, extensionId));
+				label: extensionIds.length === 1 ? localize('install', 'Install') : localize('installAll', "Install All"),
+				run: async () => {
+					for (const extensionId of extensionIds) {
+						this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'install', extensionId });
+					}
+					if (extensionIds.length === 1) {
+						this.runAction(this.instantiationService.createInstance(InstallRecommendedExtensionAction, extensionIds[0]));
+					} else {
+						this.runAction(this.instantiationService.createInstance(InstallRecommendedExtensionsAction, InstallRecommendedExtensionsAction.ID, InstallRecommendedExtensionsAction.LABEL, extensionIds, 'install-recommendations'));
+					}
 				}
 			}, {
-				label: localize('moreInformation', "More Information"),
+				label: extensionIds.length === 1 ? localize('moreInformation', "More Information") : localize('showRecommendations', "Show Recommendations"),
 				run: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId });
-					this.runAction(this.instantiationService.createInstance(ShowRecommendedExtensionAction, extensionId));
+					for (const extensionId of extensionIds) {
+						this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId });
+					}
+					if (extensionIds.length === 1) {
+						this.runAction(this.instantiationService.createInstance(ShowRecommendedExtensionAction, extensionIds[0]));
+					} else {
+						this.runAction(this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, ShowRecommendedExtensionsAction.LABEL));
+					}
 				}
 			}, {
 				label: choiceNever,
 				isSecondary: true,
 				run: () => {
-					this.addToImportantRecommendationsIgnore(extensionId);
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId });
+					for (const extensionId of extensionIds) {
+						this.addToImportantRecommendationsIgnore(extensionId);
+						this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId });
+					}
 					this.notificationService.prompt(
 						Severity.Info,
 						localize('ignoreExtensionRecommendations', "Do you want to ignore all extension recommendations?"),
@@ -101,7 +115,9 @@ export abstract class ExtensionRecommendations extends Disposable {
 			{
 				sticky: true,
 				onCancel: () => {
-					this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId });
+					for (const extensionId of extensionIds) {
+						this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId });
+					}
 				}
 			}
 		);

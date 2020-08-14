@@ -343,7 +343,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		return [...resourcePreviews.values()];
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
 		let content = await super.resolveContent(uri);
 		if (content) {
 			const syncData = this.parseSyncData(content);
@@ -354,7 +354,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 					const resource = joinPath(uri, snippet);
 					const comparableResource = joinPath(this.snippetsFolder, snippet);
 					const exists = await this.fileService.exists(comparableResource);
-					result.push({ resource, comparableResource: exists ? comparableResource : undefined });
+					result.push({ resource, comparableResource: exists ? comparableResource : joinPath(this.syncPreviewFolder, snippet).with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' }) });
 				}
 				return result;
 			}

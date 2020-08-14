@@ -977,7 +977,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const id = extension.identifier.id.toLowerCase();
 
 		// first remove the extension completely from ignored extensions
-		let currentValue = [...this.configurationService.getValue<string[]>('sync.ignoredExtensions')].map(id => id.toLowerCase());
+		let currentValue = [...this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions')].map(id => id.toLowerCase());
 		currentValue = currentValue.filter(v => v !== id && v !== `-${id}`);
 
 		// If ignored, then add only if it is ignored by default
@@ -990,7 +990,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			currentValue.push(id);
 		}
 
-		return this.configurationService.updateValue('sync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 	}
 
 	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {

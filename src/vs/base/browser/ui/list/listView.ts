@@ -602,6 +602,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		return this.items[index].element;
 	}
 
+	indexOf(element: T): number {
+		return this.items.findIndex(item => item.element === element);
+	}
+
 	domElement(index: number): HTMLElement | null {
 		const row = this.items[index].row;
 		return row && row.domNode;

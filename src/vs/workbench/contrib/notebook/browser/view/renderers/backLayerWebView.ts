@@ -107,6 +107,7 @@ export interface IContentWidgetTopRequest {
 export interface IViewScrollTopRequestMessage {
 	type: 'view-scroll';
 	top?: number;
+	forceDisplay: boolean;
 	widgets: IContentWidgetTopRequest[];
 	version: number;
 }
@@ -273,6 +274,10 @@ export class BackLayerWebView extends Disposable {
 						background-color: var(--vscode-notebook-symbolHighlightBackground);
 					}
 
+					#container > div > div > div {
+						overflow-x: scroll;
+					}
+
 					body {
 						padding: 0px;
 						height: 100%;
@@ -338,6 +343,13 @@ export class BackLayerWebView extends Disposable {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
+		}
+
+		const cell = this.insetMapping.get(output)!.cell;
+
+		const currCell = this.notebookEditor.viewModel?.viewCells.find(vc => vc.handle === cell.handle);
+		if (currCell !== cell && currCell !== undefined) {
+			this.insetMapping.get(output)!.cell = currCell as CodeCellViewModel;
 		}
 
 		return { cell: this.insetMapping.get(output)!.cell, output };
@@ -580,7 +592,7 @@ ${loaderJs}
 		return true;
 	}
 
-	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
+	updateViewScrollTop(top: number, forceDisplay: boolean, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -605,6 +617,7 @@ ${loaderJs}
 			top,
 			type: 'view-scroll',
 			version: version++,
+			forceDisplay,
 			widgets: widgets
 		});
 	}

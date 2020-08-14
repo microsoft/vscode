@@ -33,6 +33,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -68,7 +69,8 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	multipleKernelsAvailable: boolean = false;
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
-
+	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
+	onDidScroll = new Emitter<ScrollEvent>().event;
 
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
@@ -80,6 +82,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidFocusEditorWidget: Event<void> = new Emitter<void>().event;
 	hasFocus(): boolean {
 		return true;
+	}
+
+	hasWebviewFocus() {
+		return false;
 	}
 
 	hasOutputTextSelection() {
@@ -96,6 +102,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
 	activeCodeEditor: IEditor | undefined;
 	getDomNode(): HTMLElement {
+		throw new Error('Method not implemented.');
+	}
+
+	getOverflowContainerDomNode(): HTMLElement {
 		throw new Error('Method not implemented.');
 	}
 
@@ -169,7 +179,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellToIdx(cell: ICellViewModel, index: number): Promise<ICellViewModel | null> {
+	async moveCellsToIdx(index: number, length: number, toIdx: number): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 

@@ -168,13 +168,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 				const toggleAccountsVisibilityAction = new Action(
 					'toggleAccountsVisibility',
-					nls.localize('accounts', "Accounts"),
+					this.accountsVisibilityPreference ? nls.localize('hideAccounts', "Hide Accounts") : nls.localize('showAccounts', "Show Accounts"),
 					undefined,
 					true,
 					async () => { this.accountsVisibilityPreference = !this.accountsVisibilityPreference; }
 				);
 
-				toggleAccountsVisibilityAction.checked = !!this.accountsActivityAction;
 				actions.push(toggleAccountsVisibilityAction);
 				actions.push(new Separator());
 
@@ -321,21 +320,22 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		if (viewContainerOrActionId === GLOBAL_ACTIVITY_ID) {
-			return this.showGlobalActivity(this.globalActivity, this.globalActivityAction, badge, clazz, priority);
+			return this.showGlobalActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 		}
 
 		if (viewContainerOrActionId === ACCOUNTS_ACTIIVTY_ID) {
-			return this.showGlobalActivity(this.accountsActivity, this.accountsActivityAction, badge, clazz, priority);
+			return this.showGlobalActivity(ACCOUNTS_ACTIIVTY_ID, badge, clazz, priority);
 		}
 
 		return Disposable.None;
 	}
 
-	private showGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined, badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	private showGlobalActivity(activityId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (typeof priority !== 'number') {
 			priority = 0;
 		}
 		const activity: ICompositeActivity = { badge, clazz, priority };
+		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
 
 		for (let i = 0; i <= activityCache.length; i++) {
 			if (i === activityCache.length) {
@@ -346,36 +346,42 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				break;
 			}
 		}
-		this.updateGlobalActivity(activityCache, activityAction);
+		this.updateGlobalActivity(activityId);
 
-		return toDisposable(() => this.removeGlobalActivity(activityCache, activityAction, activity));
+		return toDisposable(() => this.removeGlobalActivity(activityId, activity));
 	}
 
-	private removeGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined, activity: ICompositeActivity): void {
+	private removeGlobalActivity(activityId: string, activity: ICompositeActivity): void {
+		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
 		const index = activityCache.indexOf(activity);
 		if (index !== -1) {
 			activityCache.splice(index, 1);
-			this.updateGlobalActivity(activityCache, activityAction);
+			this.updateGlobalActivity(activityId);
 		}
 	}
 
-	private updateGlobalActivity(activityCache: ICompositeActivity[], activityAction: ActivityAction | undefined): void {
-		const globalActivityAction = assertIsDefined(activityAction);
+	private updateGlobalActivity(activityId: string): void {
+		const activityAction = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivityAction : this.accountsActivityAction;
+		if (!activityAction) {
+			return;
+		}
+
+		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
 		if (activityCache.length) {
 			const [{ badge, clazz, priority }] = activityCache;
 			if (badge instanceof NumberBadge && activityCache.length > 1) {
-				const cumulativeNumberBadge = this.getCumulativeNumberBadge(priority);
-				globalActivityAction.setBadge(cumulativeNumberBadge);
+				const cumulativeNumberBadge = this.getCumulativeNumberBadge(activityCache, priority);
+				activityAction.setBadge(cumulativeNumberBadge);
 			} else {
-				globalActivityAction.setBadge(badge, clazz);
+				activityAction.setBadge(badge, clazz);
 			}
 		} else {
-			globalActivityAction.setBadge(undefined);
+			activityAction.setBadge(undefined);
 		}
 	}
 
-	private getCumulativeNumberBadge(priority: number): NumberBadge {
-		const numberActivities = this.globalActivity.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
+	private getCumulativeNumberBadge(activityCache: ICompositeActivity[], priority: number): NumberBadge {
+		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
 		let number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
 		let descriptorFn = (): string => {
 			return numberActivities.reduce((result, activity, index) => {
@@ -625,7 +631,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 		}
 
-		this.updateGlobalActivity(this.accountsActivity, this.accountsActivityAction);
+		this.updateGlobalActivity(ACCOUNTS_ACTIIVTY_ID);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction } {

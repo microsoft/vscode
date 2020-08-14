@@ -192,12 +192,16 @@ export namespace CustomExecutionDTO {
 
 
 export namespace TaskHandleDTO {
-	export function from(value: types.Task): tasks.TaskHandleDTO {
+	export function from(value: types.Task, workspaceService?: IExtHostWorkspace): tasks.TaskHandleDTO {
 		let folder: UriComponents | string;
 		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
 		} else if (value.scope !== undefined && typeof value.scope === 'number') {
-			folder = USER_TASKS_GROUP_KEY;
+			if ((value.scope === types.TaskScope.Workspace) && workspaceService && workspaceService.workspaceFile) {
+				folder = workspaceService.workspaceFile;
+			} else {
+				folder = USER_TASKS_GROUP_KEY;
+			}
 		}
 		return {
 			id: value._id!,

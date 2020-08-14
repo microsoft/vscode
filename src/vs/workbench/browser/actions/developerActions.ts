@@ -179,7 +179,7 @@ class ToggleScreencastModeAction extends Action2 {
 					|| length > 20
 					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
 				) {
-					keyboardMarker.innerHTML = '';
+					keyboardMarker.innerText = '';
 					length = 0;
 				}
 

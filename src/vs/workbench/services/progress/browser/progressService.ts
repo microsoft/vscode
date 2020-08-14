@@ -505,7 +505,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			'workbench.action.quit',
 			'workbench.action.reloadWindow',
 			'copy',
-			'cut'
+			'cut',
+			'editor.action.clipboardCopyAction',
+			'editor.action.clipboardCutAction'
 		];
 
 		let dialog: Dialog;

@@ -93,7 +93,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				.map(e => ({
 					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
 					location: e.extensionLocation,
-					type: ExtensionType.System,
+					type: e.isBuiltin ? ExtensionType.System : ExtensionType.User,
 					packageJSON: e.packageJSON,
 				}))
 		);
