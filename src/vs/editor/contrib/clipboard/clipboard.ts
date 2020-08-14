@@ -16,6 +16,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -23,10 +25,7 @@ const supportsCut = (platform.isNative || document.queryCommandSupported('cut'))
 const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
 // IE and Edge have trouble with setting html content in clipboard
 const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdge);
-// Chrome incorrectly returns true for document.queryCommandSupported('paste')
-// when the paste feature is available but the calling script has insufficient
-// privileges to actually perform the action
-const supportsPaste = (platform.isNative || (!browser.isChrome && document.queryCommandSupported('paste')));
+const supportsPaste = true;
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
@@ -167,8 +166,11 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 
 	// 1. handle case when focus is in editor.
 	target.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const clipboardService = accessor.get(IClipboardService);
+
 		// Only if editor text focus (i.e. not if editor has widget focus).
-		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const focusedEditor = codeEditorService.getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			if (browserCommand === 'cut' || browserCommand === 'copy') {
 				// Do not execute if there is no selection and empty selection clipboard is off
@@ -178,7 +180,23 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 					return true;
 				}
 			}
-			document.execCommand(browserCommand);
+			const result = document.execCommand(browserCommand);
+			// Web: certain browsers do not allow document.execCommand('paste')
+			// and as such we implement a workaround via the clipboard service
+			// Refs: https://github.com/microsoft/vscode/issues/82604
+			if (!result && platform.isWeb && browserCommand === 'paste') {
+				(async () => {
+					const clipboardText = await clipboardService.readText();
+
+					const selection = focusedEditor.getSelection();
+					if (selection) {
+						const edits = [EditOperation.insert(selection.getPosition(), clipboardText)];
+
+						focusedEditor.executeEdits('clipboard', edits);
+					}
+				})();
+				return true;
+			}
 			return true;
 		}
 		return false;
