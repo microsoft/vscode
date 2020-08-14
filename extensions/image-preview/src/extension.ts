@@ -34,9 +34,21 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 
 	vscode.window.registerWebviewViewProvider('cats.cat', new class implements vscode.WebviewViewProvider {
-		async resolveWebviewView(viewView: vscode.WebviewView, _state: unknown) {
-			await new Promise(resolve => setTimeout(resolve, 10000));
-			viewView.webview.html = '<img src="https://media.giphy.com/media/E6jscXfv3AkWQ/giphy.gif">';
+		async resolveWebviewView(webviewView: vscode.WebviewView, _state: unknown) {
+			await new Promise(resolve => setTimeout(resolve, 2000));
+
+			webviewView.webview.html = `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Document</title>
+			</head>
+			<body style="background-color: transparent">
+				<img src="https://media.giphy.com/media/E6jscXfv3AkWQ/giphy.gif">
+			</body>
+			</html>`;
+
 		}
 	});
 }
