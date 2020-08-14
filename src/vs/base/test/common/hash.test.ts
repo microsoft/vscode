@@ -65,7 +65,7 @@ suite('Hash', () => {
 		for (let i = 0; i < hashes.length; i++) {
 			assert.equal(hashes[i], hash(candidates[i])); // verify that repeated invocation returns the same hash
 			for (let k = i + 1; k < hashes.length; k++) {
-				assert.notEqual(hashes[i], hashes[k], `Same hash ${hashes[i]} for ${JSON.stringify(candidates[i])} ans ${JSON.stringify(candidates[k])}`);
+				assert.notEqual(hashes[i], hashes[k], `Same hash ${hashes[i]} for ${JSON.stringify(candidates[i])} and ${JSON.stringify(candidates[k])}`);
 			}
 		}
 	});
