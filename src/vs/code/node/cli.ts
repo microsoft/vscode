@@ -332,13 +332,22 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		let child: ChildProcess;
+		let conditionalCallback = Promise.resolve();
 		if (isMacintosh && !process.env['VSCODE_DEV']) {
 			let appArgs = ['-a', process.execPath];
+			// Open a new instance of the application even if one is already running.
+			appArgs.push('--new');
 			if (args.wait) {
+				// Blocks until the used applications are closed (even if they were already running).
 				appArgs.push('--wait-apps');
 			}
 			if (hasReadStdinArg) {
+				// Reads input from standard input.
 				appArgs.push('-f');
+			}
+			if (args.status) {
+				// Does not bring the application to the foreground.
+				appArgs.push('--background');
 			}
 			const cliArgs = argv.slice(2);
 			const resolvedArgs = cliArgs.map(arg => {
@@ -359,9 +368,29 @@ export async function main(argv: string[]): Promise<any> {
 					}
 				}
 			});
+			// All remaining arguments are passed in argv to the application's main() function instead of opened.
 			appArgs.push('--args');
 			if (hasReadStdinArg) {
 				appArgs.push('--skip-add-to-recently-opened');
+			}
+			if (args.status) {
+				let lastModifiedTimeMs = 0;
+				const statusResource = paths.join(os.tmpdir(), `${product.applicationName}-status.log`);
+				conditionalCallback = new Promise((resolve) => {
+					const poll = setInterval(async () => {
+						try {
+							const stat = fs.statSync(statusResource);
+							if (lastModifiedTimeMs === stat.mtimeMs) {
+								clearInterval(poll);
+								const result = await fs.promises.readFile(statusResource);
+								console.log(result.toString());
+								await fs.promises.unlink(statusResource);
+								resolve();
+							}
+							lastModifiedTimeMs = stat.mtimeMs;
+						} catch (err) { }
+					}, 100);
+				});
 			}
 			child = spawn('open', appArgs.concat(resolvedArgs), options);
 		} else {
@@ -385,7 +414,7 @@ export async function main(argv: string[]): Promise<any> {
 			});
 		}
 
-		return Promise.all(processCallbacks.map(callback => callback(child)));
+		return Promise.all(processCallbacks.map(callback => callback(child)).concat(conditionalCallback));
 	}
 }
 
