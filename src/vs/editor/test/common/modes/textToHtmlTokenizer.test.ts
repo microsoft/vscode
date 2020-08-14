@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ColorId, FontStyle, IState, LanguageIdentifier, MetadataConsts, TokenizationRegistry } from 'vs/editor/common/modes';
-import { tokenizeLineToHTML, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeLineToHTML, tokenizeLineToHTMLElement, tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewLineToken, ViewLineTokens } from 'vs/editor/test/common/core/viewLineToken';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 
@@ -271,6 +271,139 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 				'<div>',
 				'<span style="color: #000000;">&#160;&#160;</span>',
 				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">C</span>',
+				'</div>'
+			].join('')
+		);
+	});
+
+	test('tokenizeLineToHTMLElement', () => {
+		const text = 'Ciao hello world!';
+		const lineTokens = new ViewLineTokens([
+			new ViewLineToken(
+				4,
+				(
+					(3 << MetadataConsts.FOREGROUND_OFFSET)
+					| ((FontStyle.Bold | FontStyle.Italic) << MetadataConsts.FONT_STYLE_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				5,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				10,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				11,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new ViewLineToken(
+				17,
+				(
+					(5 << MetadataConsts.FOREGROUND_OFFSET)
+					| ((FontStyle.Underline) << MetadataConsts.FONT_STYLE_OFFSET)
+				) >>> 0
+			)
+		]);
+		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
+
+		// Change HTML character entities to their numeric equivalent
+		function charToNumericEntities(s: string): string {
+			return s.replace(/&nbsp;/gi, '&#160;');
+		}
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 0, 17, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #0000ff;text-decoration: underline;">world!</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 0, 12, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #0000ff;text-decoration: underline;">w</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 0, 11, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">Ciao</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 1, 11, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #ff0000;font-style: italic;font-weight: bold;">iao</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 4, 11, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #000000;">&#160;</span>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 5, 11, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #00ff00;">hello</span>',
+				'<span style="color: #000000;">&#160;</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 5, 10, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #00ff00;">hello</span>',
+				'</div>'
+			].join('')
+		);
+
+		assert.equal(
+			charToNumericEntities(tokenizeLineToHTMLElement(text, lineTokens, colorMap, 6, 9, 4, true).outerHTML),
+			[
+				'<div>',
+				'<span style="color: #00ff00;">ell</span>',
 				'</div>'
 			].join('')
 		);

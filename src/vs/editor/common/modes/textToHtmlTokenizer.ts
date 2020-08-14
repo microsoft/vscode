@@ -9,6 +9,7 @@ import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IState, LanguageId } from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize2 } from 'vs/editor/common/modes/nullMode';
+import { createHTMLElement } from 'vs/base/common/htmlElement';
 
 export interface IReducedTokenizationSupport {
 	getInitialState(): IState;
@@ -22,6 +23,63 @@ const fallback: IReducedTokenizationSupport = {
 
 export function tokenizeToString(text: string, tokenizationSupport: IReducedTokenizationSupport = fallback): string {
 	return _tokenizeToString(text, tokenizationSupport || fallback);
+}
+
+export function tokenizeLineToHTMLElement(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): HTMLElement {
+	const div = createHTMLElement<HTMLDivElement>('div');
+	let charIndex = startOffset;
+	let tabsCharDelta = 0;
+
+	for (let tokenIndex = 0, tokenCount = viewLineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
+		const tokenEndIndex = viewLineTokens.getEndOffset(tokenIndex);
+
+		if (tokenEndIndex <= startOffset) {
+			continue;
+		}
+
+		let textContent = '';
+
+		for (; charIndex < tokenEndIndex && charIndex < endOffset; charIndex++) {
+			const charCode = text.charCodeAt(charIndex);
+
+			switch (charCode) {
+				case CharCode.Tab:
+					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
+					tabsCharDelta += insertSpacesCount - 1;
+					textContent += (useNbsp ? '\u00a0' : ' ').repeat(insertSpacesCount);
+					break;
+
+				case CharCode.Null:
+					textContent += '\u0000';
+					break;
+
+				case CharCode.UTF8_BOM:
+				case CharCode.LINE_SEPARATOR:
+				case CharCode.PARAGRAPH_SEPARATOR:
+				case CharCode.NEXT_LINE:
+					textContent += '\ufffd';
+					break;
+
+				case CharCode.CarriageReturn:
+					// zero width space, because carriage return would introduce a line break
+					textContent += '\u200B';
+					break;
+
+				case CharCode.Space:
+					textContent += useNbsp ? '\u00a0' : ' ';
+					break;
+
+				default:
+					textContent += String.fromCharCode(charCode);
+			}
+		}
+		div.appendChild(createHTMLElement<HTMLSpanElement>('span', textContent, '', viewLineTokens.getInlineStyle(tokenIndex, colorMap)));
+
+		if (tokenEndIndex > endOffset || charIndex >= endOffset) {
+			break;
+		}
+	}
+	return div;
 }
 
 export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): string {

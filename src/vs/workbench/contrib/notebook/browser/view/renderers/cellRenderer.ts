@@ -24,7 +24,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { tokenizeLineToHTMLElement } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
 import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -49,6 +49,8 @@ import { CellKind, NotebookCellMetadata, NotebookCellRunState } from 'vs/workben
 import { createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 import { CodiconActionViewItem, CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
+import { CSSStyleDeclarationMutable } from 'vs/base/common/styler';
+import { createHTMLElement } from 'vs/base/common/htmlElement';
 
 const $ = DOM.$;
 
@@ -502,7 +504,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	getRichText(editor: ICodeEditor, modelRange: Range): string | null {
+	getRichText(editor: ICodeEditor, modelRange: Range): HTMLDivElement | null {
 		const model = editor.getModel();
 		if (!model) {
 			return null;
@@ -512,28 +514,26 @@ class EditorTextRenderer {
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return `<div style="`
-			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
-			+ `font-family: ${fontFamily};`
-			+ `font-weight: ${fontInfo.fontWeight};`
-			+ `font-size: ${fontInfo.fontSize}px;`
-			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this.getRichTextLines(model, modelRange, colorMap)
-			+ '</div>';
+		const style = new CSSStyleDeclarationMutable();
+		style.set('color', colorMap[modes.ColorId.DefaultForeground]);
+		style.set('backgroundColor', colorMap[modes.ColorId.DefaultBackground]);
+		style.set('fontFamily', fontFamily);
+		style.set('fontWeight', fontInfo.fontWeight);
+		style.set('fontSize', `${fontInfo.fontSize}px`);
+		style.set('lineHeight', `${fontInfo.lineHeight}px`);
+		style.set('whiteSpace', 'pre');
+		const div = createHTMLElement<HTMLDivElement>('div', '', '', style);
+		this.renderRichTextLines(div, model, modelRange, colorMap);
+		return div;
 	}
 
-	private getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
+	private renderRichTextLines(parent: HTMLElement, model: ITextModel, modelRange: Range, colorMap: string[]): void {
 		const startLineNumber = modelRange.startLineNumber;
 		const startColumn = modelRange.startColumn;
 		const endLineNumber = modelRange.endLineNumber;
 		const endColumn = modelRange.endColumn;
 
 		const tabSize = model.getOptions().tabSize;
-
-		let result = '';
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
 			const lineTokens = model.getLineTokens(lineNumber);
@@ -542,13 +542,11 @@ class EditorTextRenderer {
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);
 
 			if (lineContent === '') {
-				result += '<br>';
+				parent.appendChild(createHTMLElement<HTMLBRElement>('br'));
 			} else {
-				result += tokenizeLineToHTML(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows);
+				parent.appendChild(tokenizeLineToHTMLElement(lineContent, lineTokens.inflate(), colorMap, startOffset, endOffset, tabSize, platform.isWindows));
 			}
 		}
-
-		return result;
 	}
 
 	private getDefaultColorMap(): string[] {
@@ -579,7 +577,7 @@ class CodeCellDragImageRenderer {
 		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
 
-		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
+		const editorContainer = dragImageContainer.querySelector<HTMLElement>('.cell-editor-container');
 		if (!editorContainer) {
 			return null;
 		}
@@ -588,8 +586,8 @@ class CodeCellDragImageRenderer {
 		if (!richEditorText) {
 			return null;
 		}
-
-		editorContainer.innerHTML = richEditorText;
+		editorContainer.innerText = '';
+		editorContainer.appendChild(richEditorText);
 
 		return dragImageContainer;
 	}
