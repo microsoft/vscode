@@ -21,7 +21,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/path';
-import { getActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getActiveNotebookEditor, INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Memento } from 'vs/workbench/common/memento';
@@ -342,7 +342,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._register(UndoCommand.addImplementation(PRIORITY, () => {
 			const { editor } = getContext();
 			if (editor?.viewModel) {
-				editor?.viewModel.undo();
+				editor?.viewModel.undo().then(cellResources => {
+					if (cellResources?.length) {
+						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
+					}
+				});
 				return true;
 			}
 
@@ -352,7 +356,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._register(RedoCommand.addImplementation(PRIORITY, () => {
 			const { editor } = getContext();
 			if (editor?.viewModel) {
-				editor?.viewModel.redo();
+				editor?.viewModel.redo().then(cellResources => {
+					if (cellResources?.length) {
+						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] } }));
+					}
+				});
 				return true;
 			}
 

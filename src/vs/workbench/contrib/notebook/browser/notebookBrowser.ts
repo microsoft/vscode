@@ -28,6 +28,8 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
+import { EditorOptions } from 'vs/workbench/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -170,6 +172,21 @@ export interface INotebookDeltaDecoration {
 	options: INotebookCellDecorationOptions;
 }
 
+export class NotebookEditorOptions extends EditorOptions {
+
+	readonly cellOptions?: IResourceEditorInput;
+
+	constructor(options: Partial<NotebookEditorOptions>) {
+		super();
+		this.overwrite(options);
+		this.cellOptions = options.cellOptions;
+	}
+
+	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
+		return new NotebookEditorOptions({ ...this, ...options });
+	}
+}
+
 export interface INotebookEditor extends IEditor {
 
 	cursorNavigationMode: boolean;
@@ -209,6 +226,7 @@ export interface INotebookEditor extends IEditor {
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
+	setOptions(options: NotebookEditorOptions | undefined): Promise<void>;
 
 	/**
 	 * Select & focus cell
