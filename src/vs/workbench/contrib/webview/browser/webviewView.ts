@@ -22,12 +22,14 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IWebviewService, Webview, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 declare const ResizeObserver: any;
 
 class WebviewViewPane extends ViewPane {
 
 	private _webview?: WebviewOverlay;
+	private _activated = false;
 
 	private _container?: HTMLElement;
 	private _resizeObserver?: any;
@@ -43,6 +45,7 @@ class WebviewViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 	) {
@@ -62,20 +65,6 @@ class WebviewViewPane extends ViewPane {
 
 		this._container = container;
 
-		if (!this._webview) {
-			const webview = this.webviewService.createWebviewOverlay(generateUuid(), {}, {}, undefined);
-			this._webview = webview;
-
-			this._register(toDisposable(() => {
-				this._webview?.release(this);
-			}));
-
-			this.withProgress(() => {
-				return Registry.as<IViewWebviewViewResolverRegistry>(Extensions.WebviewViewResolverRegistry)
-					.resolve(this.id, webview);
-			});
-		}
-
 		if (!this._resizeObserver) {
 			this._resizeObserver = new ResizeObserver(() => {
 				setImmediate(() => {
@@ -91,8 +80,10 @@ class WebviewViewPane extends ViewPane {
 			this._resizeObserver.observe(container);
 		}
 
-		this._webview.claim(this);
-		this._webview.layoutWebviewOverElement(container);
+		// if (this._webview) {
+		// 	this._webview.claim(this);
+		// 	this._webview.layoutWebviewOverElement(container);
+		// }
 	}
 
 	protected layoutBody(height: number, width: number): void {
@@ -108,19 +99,36 @@ class WebviewViewPane extends ViewPane {
 	}
 
 	private updateTreeVisibility() {
-		if (!this._webview) {
-			return;
-		}
-
 		if (this.isBodyVisible()) {
-			this._webview.claim(this);
+			this.activate();
+			this._webview?.claim(this);
 		} else {
-			this._webview.release(this);
+			this._webview?.release(this);
 		}
 	}
 
-	private withProgress(task: () => Promise<void>): Promise<void> {
-		return this.progressService.withProgress({ location: this.getProgressLocation(), delay: 500 }, task);
+	private activate() {
+		if (!this._activated) {
+			this._activated = true;
+
+			const webview = this.webviewService.createWebviewOverlay(generateUuid(), {}, {}, undefined);
+			this._webview = webview;
+
+			this._register(toDisposable(() => {
+				this._webview?.release(this);
+			}));
+
+			this.extensionService.activateByEvent(`onView:${this.id}`);
+
+			this.withProgress(() => {
+				return Registry.as<IViewWebviewViewResolverRegistry>(Extensions.WebviewViewResolverRegistry)
+					.resolve(this.id, webview);
+			});
+		}
+	}
+
+	private async withProgress(task: () => Promise<void>): Promise<void> {
+		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 }
 
@@ -194,22 +202,3 @@ class WebviewViewResolverRegistry extends Disposable implements IViewWebviewView
 
 Registry.add(Extensions.WebviewViewResolverRegistry, new WebviewViewResolverRegistry());
 
-
-/**
- * class RevivalPool {
-	private _awaitingRevival: Array<{ input: WebviewInput, resolve: () => void }> = [];
-
-	public add(input: WebviewInput, resolve: () => void) {
-		this._awaitingRevival.push({ input, resolve });
-	}
-
-	public reviveFor(reviver: WebviewResolver, cancellation: CancellationToken) {
-		const toRevive = this._awaitingRevival.filter(({ input }) => canRevive(reviver, input));
-		this._awaitingRevival = this._awaitingRevival.filter(({ input }) => !canRevive(reviver, input));
-
-		for (const { input, resolve } of toRevive) {
-			reviver.resolveWebview(input, cancellation).then(resolve);
-		}
-	}
-}
- */

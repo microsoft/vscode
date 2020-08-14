@@ -25,7 +25,7 @@
     "onCustomEditor:imagePreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut",
-    "*"
+    "onView:cats.cat"
   ],
   "contributes": {
     "customEditors": [
@@ -45,7 +45,7 @@
         {
           "type": "webview",
           "id": "cats.cat",
-          "name": "Cats",
+          "name": "Cat",
           "visibility": "visible"
         }
       ]
