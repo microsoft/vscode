@@ -414,10 +414,16 @@ export class MainThreadTask implements MainThreadTaskShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange((event: TaskEvent) => {
+		this._taskService.onDidStateChange(async (event: TaskEvent) => {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId!);
+				const execution = TaskExecutionDTO.from(task.getTaskExecution());
+				let resolvedDefinition: TaskDefinitionDTO | undefined;
+				if (execution.task && execution.task.execution && CustomExecutionDTO.is(execution.task.execution)) {
+					resolvedDefinition = await this._configurationResolverService.resolveWithInteractionReplace(task.getWorkspaceFolder(),
+						execution.task.definition, 'tasks');
+				}
+				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {

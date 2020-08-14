@@ -995,7 +995,7 @@ declare module 'vscode' {
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
-		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
+		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
 	//#endregion
 
