@@ -75,15 +75,10 @@ class WebviewViewPane extends ViewPane {
 			});
 
 			this._register(toDisposable(() => {
-				this._resizeObserver.unobserve();
+				this._resizeObserver.disconnect();
 			}));
 			this._resizeObserver.observe(container);
 		}
-
-		// if (this._webview) {
-		// 	this._webview.claim(this);
-		// 	this._webview.layoutWebviewOverElement(container);
-		// }
 	}
 
 	protected layoutBody(height: number, width: number): void {
