@@ -140,9 +140,6 @@ export class DebugHoverWidget implements IContentWidget {
 			} else {
 				this.domNode.style.color = '';
 			}
-			const fontSize = this.editor.getOption(EditorOption.fontSize);
-			titleNode.style.height = `${fontSize}`;
-			titleNode.style.lineHeight = `${fontSize - 1}`;
 		}));
 		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
 
