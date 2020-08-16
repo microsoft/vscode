@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/replFilter';
+import 'vs/css!./media/treeFilter';
 import * as DOM from 'vs/base/browser/dom';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Delayer } from 'vs/base/common/async';
@@ -16,7 +16,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { localize } from 'vs/nls';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IReplFiltersChangeEvent {
 	filterText?: boolean;
@@ -29,7 +30,7 @@ export interface IReplFiltersOptions {
 	layout: DOM.Dimension;
 }
 
-export class ReplFilterState extends Disposable {
+export class TreeFilterState extends Disposable {
 
 	private readonly _onDidChange: Emitter<IReplFiltersChangeEvent> = this._register(new Emitter<IReplFiltersChangeEvent>());
 	readonly onDidChange: Event<IReplFiltersChangeEvent> = this._onDidChange.event;
@@ -66,7 +67,7 @@ export class ReplFilterState extends Disposable {
 	}
 }
 
-export class ReplFilterActionViewItem extends BaseActionViewItem {
+export class TreeFilterPanelActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container: HTMLElement | undefined;
@@ -74,8 +75,10 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		private filters: ReplFilterState,
+		private placeholder: string,
+		private filters: TreeFilterState,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService) {
 		super(null, action);
 		this.delayedFilterUpdate = new Delayer<void>(200);
@@ -84,12 +87,14 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'repl-panel-action-filter-container');
+		DOM.addClass(this.container, 'panel-action-tree-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;
 		this.createInput(this.element);
 		this.updateClass();
+
+		this.adjustInputBox();
 	}
 
 	focus(): void {
@@ -106,9 +111,10 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	private createInput(container: HTMLElement): void {
 		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
-			placeholder: localize('workbench.debug.filter.placeholder', "Filter. E.g.: text, !exclude"),
+			placeholder: this.placeholder,
 			history: this.filters.filterHistory
 		}));
+		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.filters.filterText;
 		this._register(this.filterInputBox.onDidChange(() => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
 		this._register(this.filters.onDidChange((event: IReplFiltersChangeEvent) => {
@@ -150,14 +156,16 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private onInputKeyDown(event: StandardKeyboardEvent) {
-		let handled = false;
 		if (event.equals(KeyCode.Escape)) {
 			this.clearFilterText();
-			handled = true;
-		}
-		if (handled) {
 			event.stopPropagation();
 			event.preventDefault();
+		}
+	}
+
+	private adjustInputBox(): void {
+		if (this.element && this.filterInputBox) {
+			this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.element, 'small') ? '25px' : '150px';
 		}
 	}
 
@@ -165,16 +173,17 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		if (this.element && this.container) {
 			this.element.className = this.class;
 			DOM.toggleClass(this.container, 'grow', DOM.hasClass(this.element, 'grow'));
+			this.adjustInputBox();
 		}
 	}
 
 	protected get class(): string {
 		if (this.filters.layout.width > 800) {
-			return 'repl-panel-action-filter grow';
+			return 'panel-action-tree-filter grow';
 		} else if (this.filters.layout.width < 600) {
-			return 'repl-panel-action-filter small';
+			return 'panel-action-tree-filter small';
 		} else {
-			return 'repl-panel-action-filter';
+			return 'panel-action-tree-filter';
 		}
 	}
 }

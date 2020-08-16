@@ -18,10 +18,6 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 
 	static matchQuery = matchesFuzzy;
 
-	constructor(initialQuery: string) {
-		this.filterQuery = initialQuery;
-	}
-
 	private _parsedQueries: ParsedQuery[] = [];
 	set filterQuery(query: string) {
 		this._parsedQueries = [];

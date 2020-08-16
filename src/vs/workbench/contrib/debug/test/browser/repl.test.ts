@@ -195,7 +195,7 @@ suite('Debug - REPL', () => {
 	test('repl filter', async () => {
 		const session = createMockSession(model);
 		const repl = new ReplModel();
-		const replFilter = new ReplFilter('');
+		const replFilter = new ReplFilter();
 
 		repl.setFilter((element) => {
 			const filterResult = replFilter.filter(element, TreeVisibility.Visible);
