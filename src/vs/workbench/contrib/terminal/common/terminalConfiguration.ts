@@ -6,7 +6,7 @@
 import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, ENUM_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
 
 export const terminalConfiguration: IConfigurationNode = {
@@ -136,14 +136,30 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		'terminal.integrated.fontWeight': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'anyOf': [
+				{
+					enum: ENUM_FONT_WEIGHT,
+				},
+				{
+					type: 'number',
+					minimum: MINIMUM_FONT_WEIGHT,
+					maximum: MAXIMUM_FONT_WEIGHT
+				}
+			],
 			description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
 			default: 'normal'
 		},
 		'terminal.integrated.fontWeightBold': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
+			'anyOf': [
+				{
+					enum: ENUM_FONT_WEIGHT,
+				},
+				{
+					type: 'number',
+					minimum: MINIMUM_FONT_WEIGHT,
+					maximum: MAXIMUM_FONT_WEIGHT
+				}
+			],
 			description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
 			default: 'bold'
 		},
