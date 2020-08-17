@@ -611,7 +611,6 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 				endColumn: data.endColumn,
 				instructionReference: data.instructionReference,
 				offset: data.offset
-				// TODO: copy additional debug adapter data
 			};
 			return bp;
 		}
