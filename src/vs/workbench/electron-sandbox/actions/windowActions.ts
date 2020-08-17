@@ -50,7 +50,8 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(id, label);
 	}
@@ -64,7 +65,7 @@ export abstract class BaseZoomAction extends Action {
 
 		await this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level);
 
-		applyZoom(level);
+		applyZoom(this.electronService, level);
 	}
 }
 
@@ -76,9 +77,10 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, configurationService);
+		super(id, label, configurationService, electronService);
 	}
 
 	async run(): Promise<void> {
@@ -94,9 +96,10 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, configurationService);
+		super(id, label, configurationService, electronService);
 	}
 
 	async run(): Promise<void> {
@@ -112,9 +115,10 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, configurationService);
+		super(id, label, configurationService, electronService);
 	}
 
 	async run(): Promise<void> {

@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
+	const { ipcRenderer, crashReporter, contextBridge } = require('electron');
 
 	const globals = {
 
@@ -54,21 +54,6 @@
 			removeListener(channel, listener) {
 				if (validateIPC(channel)) {
 					ipcRenderer.removeListener(channel, listener);
-				}
-			}
-		},
-
-		/**
-		 * Support for subset of methods of Electron's `webFrame` type.
-		 */
-		webFrame: {
-
-			/**
-			 * @param {number} level
-			 */
-			setZoomLevel(level) {
-				if (typeof level === 'number') {
-					webFrame.setZoomLevel(level);
 				}
 			}
 		},

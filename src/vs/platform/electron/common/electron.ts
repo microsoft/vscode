@@ -44,6 +44,8 @@ export interface ICommonElectronService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
+	setZoomLevel(level: number): Promise<void>;
+
 	focusWindow(options?: { windowId?: number }): Promise<void>;
 
 	// Dialogs

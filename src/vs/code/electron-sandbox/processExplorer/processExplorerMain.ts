@@ -8,7 +8,7 @@ import { ElectronService, IElectronService } from 'vs/platform/electron/electron
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
@@ -16,6 +16,8 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -60,6 +62,20 @@ class ProcessExplorer {
 		this.lastRequestTime = Date.now();
 		ipcRenderer.send('vscode:windowsInfoRequest');
 		ipcRenderer.send('vscode:listProcesses');
+
+		document.onkeydown = (e: KeyboardEvent) => {
+			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+
+			// Cmd/Ctrl + zooms in
+			if (cmdOrCtrlKey && e.keyCode === 187) {
+				zoomIn(this.electronService);
+			}
+
+			// Cmd/Ctrl - zooms out
+			if (cmdOrCtrlKey && e.keyCode === 189) {
+				zoomOut(this.electronService);
+			}
+		};
 	}
 
 	private getProcessList(rootProcess: ProcessItem, isLocal: boolean, totalMem: number): FormattedProcessItem[] {
@@ -405,23 +421,10 @@ class ProcessExplorer {
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
 	addClass(document.body, platformClass); // used by our fonts
-	applyZoom(data.zoomLevel);
+	setZoomFactor(zoomLevelToZoomFactor(data.zoomLevel));
+	setZoomLevel(data.zoomLevel, true /* isTrusted */);
 
 	const processExplorer = new ProcessExplorer(windowId, data);
-
-	document.onkeydown = (e: KeyboardEvent) => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-
-		// Cmd/Ctrl + zooms in
-		if (cmdOrCtrlKey && e.keyCode === 187) {
-			zoomIn();
-		}
-
-		// Cmd/Ctrl - zooms out
-		if (cmdOrCtrlKey && e.keyCode === 189) {
-			zoomOut();
-		}
-	};
 
 	// Cmd/Ctrl + w closes process explorer
 	window.addEventListener('keydown', e => {

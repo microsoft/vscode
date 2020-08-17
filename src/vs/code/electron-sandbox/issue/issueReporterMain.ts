@@ -7,7 +7,7 @@ import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
+import { zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
@@ -24,7 +24,8 @@ import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/com
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
 
 const MAX_URL_LENGTH = 2045;
 
@@ -145,7 +146,8 @@ export class IssueReporter extends Disposable {
 
 		this.setUpTypes();
 		this.setEventHandlers();
-		applyZoom(configuration.data.zoomLevel);
+		setZoomFactor(zoomLevelToZoomFactor(configuration.data.zoomLevel));
+		setZoomLevel(configuration.data.zoomLevel, true /* isTrusted */);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 
@@ -462,12 +464,12 @@ export class IssueReporter extends Disposable {
 
 			// Cmd/Ctrl + zooms in
 			if (cmdOrCtrlKey && e.keyCode === 187) {
-				zoomIn();
+				zoomIn(this.electronService);
 			}
 
 			// Cmd/Ctrl - zooms out
 			if (cmdOrCtrlKey && e.keyCode === 189) {
-				zoomOut();
+				zoomOut(this.electronService);
 			}
 
 			// With latest electron upgrade, cmd+a is no longer propagating correctly for inputs in this window on mac

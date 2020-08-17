@@ -340,7 +340,7 @@ export class NativeWindow extends Disposable {
 		}
 
 		if (getZoomLevel() !== configuredZoomLevel) {
-			applyZoom(configuredZoomLevel);
+			applyZoom(this.electronService, configuredZoomLevel);
 		}
 	}
 

@@ -8,7 +8,7 @@ import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-m
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
 import { ICommonElectronService } from 'vs/platform/electron/common/electron';
@@ -169,6 +169,13 @@ export class ElectronMainService implements IElectronMainService {
 		const window = this.windowById(windowId);
 		if (window) {
 			window.win.minimize();
+		}
+	}
+
+	async setZoomLevel(windowId: number | undefined, level: number): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			window.win.webContents.setZoomFactor(zoomLevelToZoomFactor(level));
 		}
 	}
 
