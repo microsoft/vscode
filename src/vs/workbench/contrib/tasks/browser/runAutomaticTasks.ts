@@ -8,12 +8,11 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
-import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
+import { RunOnOptions, Task, TaskRunSource, TASKS_CATEGORY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
-import { TASKS_CATEGORY } from 'vs/workbench/contrib/tasks/browser/task.contribution';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
