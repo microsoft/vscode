@@ -559,9 +559,9 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.ViewPortCenter:
 				case CursorMove_.Direction.ViewPortIfOutside:
 					return CursorMoveCommands.viewportMove(viewModel, cursors, args.direction, inSelectionMode, value);
+				default:
+					return null;
 			}
-
-			return null;
 		}
 	}
 

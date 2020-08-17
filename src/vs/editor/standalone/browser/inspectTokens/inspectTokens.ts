@@ -265,8 +265,8 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 			case StandardTokenType.Comment: return 'Comment';
 			case StandardTokenType.String: return 'String';
 			case StandardTokenType.RegEx: return 'RegEx';
+			default: return '??';
 		}
-		return '??';
 	}
 
 	private _fontStyleToString(fontStyle: FontStyle): string {
