@@ -752,6 +752,17 @@ declare module 'vscode' {
 		compact?: boolean;
 	}
 
+	/**
+	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolBreakpoint {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+	}
+
+	export interface DebugSession {
+		getDebugProtocolBreakpoint(breakpoint: Breakpoint): DebugProtocolBreakpoint | undefined;
+	}
+
 	// deprecated debug API
 
 	export interface DebugConfigurationProvider {

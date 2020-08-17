@@ -597,6 +597,27 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 		return data ? data.id : undefined;
 	}
 
+	getDebugProtocolBreakpoint(sessionId: string): DebugProtocol.Breakpoint | undefined {
+		const data = this.sessionData.get(sessionId);
+		if (data) {
+			const bp: DebugProtocol.Breakpoint = {
+				id: data.id,
+				verified: data.verified,
+				message: data.message,
+				source: data.source,
+				line: data.line,
+				column: data.column,
+				endLine: data.endLine,
+				endColumn: data.endColumn,
+				instructionReference: data.instructionReference,
+				offset: data.offset
+				// TODO: copy additional debug adapter data
+			};
+			return bp;
+		}
+		return undefined;
+	}
+
 	toJSON(): any {
 		const result = Object.create(null);
 		result.enabled = this.enabled;
@@ -1092,6 +1113,14 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({
 			sessionOnly: true
 		});
+	}
+
+	getDebugProtocolBreakpoint(breakpointId: string, sessionId: string): DebugProtocol.Breakpoint | undefined {
+		const bp = this.breakpoints.find(bp => bp.getId());
+		if (bp) {
+			return bp.getDebugProtocolBreakpoint(sessionId);
+		}
+		return undefined;
 	}
 
 	private sortAndDeDup(): void {
