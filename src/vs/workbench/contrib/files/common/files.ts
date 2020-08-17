@@ -169,7 +169,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	private static textFileToResource(resource: URI): URI {
 		const { scheme, query } = JSON.parse(resource.query);
-		return resource.with({ scheme: scheme, query: query });
+		return resource.with({ scheme, query });
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
