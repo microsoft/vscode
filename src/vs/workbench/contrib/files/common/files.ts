@@ -164,12 +164,13 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 	}
 
 	private static resourceToTextFile(scheme: string, resource: URI): URI {
+		// Use query string to stash original scheme and original query
 		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme, query: resource.query }) });
 	}
 
 	private static textFileToResource(resource: URI): URI {
-		const { scheme, query } = JSON.parse(resource.query);
-		return resource.with({ scheme, query });
+		// Restore original values stashed in query string by resourceToTextFile
+		return resource.with(JSON.parse(resource.query));
 	}
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
