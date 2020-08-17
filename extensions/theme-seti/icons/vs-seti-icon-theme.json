@@ -1623,6 +1623,7 @@
 		"license": "_license",
 		"licence": "_license",
 		"copying": "_license",
+		"unlicense": "_license",
 		"compiling": "_license_1",
 		"contributing": "_license_2",
 		"qmakefile": "_makefile_1",
