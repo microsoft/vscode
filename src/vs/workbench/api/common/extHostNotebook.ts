@@ -934,7 +934,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		private _documentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _webviewInitData: WebviewInitData,
 		private readonly logService: ILogService,
-		private readonly _extensionStoragePaths?: IExtensionStoragePaths,
+		private readonly _extensionStoragePaths: IExtensionStoragePaths,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 
@@ -1175,11 +1175,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			return;
 		}
 
-		let storageRoot: URI | undefined;
-		if (this._extensionStoragePaths) {
-			storageRoot = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
-		}
-
+		const storageRoot = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
 		let document = this._documents.get(revivedUri);
 
 		if (!document) {
@@ -1547,10 +1543,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const revivedUri = URI.revive(modelData.uri);
 				const viewType = modelData.viewType;
 				const entry = this._notebookContentProviders.get(viewType);
-				let storageRoot: URI | undefined;
-				if (entry && this._extensionStoragePaths) {
-					storageRoot = this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension);
-				}
+				const storageRoot = entry && (this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
+
 
 				if (!this._documents.has(revivedUri)) {
 					const that = this;
