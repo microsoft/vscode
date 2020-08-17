@@ -19,6 +19,7 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
+export const TASKS_CATEGORY = { value: nls.localize('tasksCategory', "Tasks"), original: 'Tasks' };
 
 export enum ShellQuoting {
 	/**
