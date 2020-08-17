@@ -209,7 +209,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized keybindings...`);
-			const lastSyncContent = content !== null ? this.toSyncContent(content, null) : null;
+			const lastSyncContent = content !== null ? this.toSyncContent(content, null) : remoteUserData.syncData?.content;
 			await this.updateLastSyncUserData({
 				ref: remoteUserData.ref,
 				syncData: lastSyncContent ? {
