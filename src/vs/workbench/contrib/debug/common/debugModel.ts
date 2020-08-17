@@ -1116,7 +1116,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	getDebugProtocolBreakpoint(breakpointId: string, sessionId: string): DebugProtocol.Breakpoint | undefined {
-		const bp = this.breakpoints.find(bp => bp.getId());
+		const bp = this.breakpoints.find(bp => bp.getId() === breakpointId);
 		if (bp) {
 			return bp.getDebugProtocolBreakpoint(sessionId);
 		}
