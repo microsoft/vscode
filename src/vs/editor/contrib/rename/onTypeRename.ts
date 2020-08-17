@@ -69,7 +69,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 		this._currentRequest = null;
 		this._currentDecorations = [];
-		this._stopPattern = /^\s/;
+		this._stopPattern = /\s/;
 		this._ignoreChangeEvent = false;
 		this._updateMirrors = this._register(new RunOnceScheduler(() => this._doUpdateMirrors(), 0));
 
@@ -126,9 +126,11 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 			if (e.isUndoing || e.isRedoing) {
 				return;
 			}
-			if (e.changes[0] && this._stopPattern.test(e.changes[0].text)) {
-				this.stopAll();
-				return;
+			for (const change of e.changes) {
+				if (this._stopPattern.test(change.text)) {
+					this.stopAll();
+					return;
+				}
 			}
 			this._updateMirrors.schedule();
 		}));
