@@ -74,7 +74,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected get element(): T | undefined { return this._element; }
 
 	private _focused: boolean | undefined;
-	protected get focused(): boolean { return !!this._focused; }
+	public get isFocused(): boolean { return !!this._focused; }
 
 	private _state: WebviewState.State = new WebviewState.Initializing([]);
 
