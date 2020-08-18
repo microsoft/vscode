@@ -106,6 +106,10 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		}
 
 		this._localToDispose.add(this._editor.onDidChangeCursorPosition((e) => {
+			if (e.secondaryPositions.length > 0) {
+				this.clearLinkedUI(); // multi-cursor, don't run
+				return;
+			}
 			// no regions, run
 			if (this._currentDecorations.length === 0) {
 				this.updateLinkedUI(e.position);
