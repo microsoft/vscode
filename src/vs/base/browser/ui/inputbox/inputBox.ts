@@ -170,7 +170,7 @@ export class InputBox extends Widget {
 			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
 
 			this.mirror = dom.append(wrapper, $('div.mirror'));
-			this.mirror.innerHTML = '&#160;';
+			this.mirror.innerText = '\u00a0';
 
 			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
 
@@ -529,7 +529,7 @@ export class InputBox extends Widget {
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;
 		} else {
-			this.mirror.innerHTML = '&#160;';
+			this.mirror.innerText = '\u00a0';
 		}
 
 		this.layout();

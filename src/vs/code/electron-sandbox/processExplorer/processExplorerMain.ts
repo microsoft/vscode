@@ -267,7 +267,7 @@ class ProcessExplorer {
 			return;
 		}
 
-		container.innerHTML = '';
+		container.innerText = '';
 		this.listeners.clear();
 
 		const tableHead = document.createElement('thead');

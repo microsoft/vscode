@@ -153,7 +153,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		this._localDisposableStore.add(this.view.onMouseDblClick(() => {
 			const focus = this.getFocusedElements()[0];
-			if (focus && focus.cellKind === CellKind.Markdown) {
+
+			if (focus && focus.cellKind === CellKind.Markdown && !focus.metadata?.inputCollapsed) {
 				focus.editState = CellEditState.Editing;
 				focus.focusMode = CellFocusMode.Editor;
 			}
@@ -240,7 +241,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	elementHeight(element: ICellViewModel): number {
-		let index = this._getViewIndexUpperBound(element);
+		const index = this._getViewIndexUpperBound(element);
 		if (index === undefined || index < 0 || index >= this.length) {
 			this._getViewIndexUpperBound(element);
 			throw new ListError(this.listUser, `Invalid index ${index}`);
@@ -377,7 +378,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// set hidden ranges prefix sum
 		let start = 0;
 		let index = 0;
-		let ret: number[] = [];
+		const ret: number[] = [];
 
 		while (index < newRanges.length) {
 			for (let j = start; j < newRanges[index].start - 1; j++) {
@@ -476,6 +477,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+				// it's already after the last hidden range
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			}
 			return undefined;
 		} else {
 			return viewIndexInfo.index;
@@ -490,6 +495,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
+
+		if (viewIndexInfo.remainder !== 0) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			}
+		}
 
 		return viewIndexInfo.index;
 	}
@@ -620,7 +631,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getAbsoluteTopOfElement(element: ICellViewModel): number {
-		let index = this._getViewIndexUpperBound(element);
+		const index = this._getViewIndexUpperBound(element);
 		if (index === undefined || index < 0 || index >= this.length) {
 			this._getViewIndexUpperBound(element);
 			throw new ListError(this.listUser, `Invalid index ${index}`);
@@ -754,8 +765,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private async _revealRangeInCenterInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
 		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
 			const element = this.view.element(viewIndex);
-			let positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			let positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
+			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
 			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
@@ -786,8 +797,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private async _revealRangeInCenterIfOutsideViewportInternalAsync(viewIndex: number, range: Range, revealType: CellRevealType): Promise<void> {
 		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
 			const element = this.view.element(viewIndex);
-			let positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
-			let positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
+			const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			const positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
 			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {

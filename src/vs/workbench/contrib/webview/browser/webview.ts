@@ -93,6 +93,8 @@ export interface Webview extends IDisposable {
 	initialScrollProgress: number;
 	state: string | undefined;
 
+	readonly isFocused: boolean;
+
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
 	readonly onDidClickLink: Event<string>;

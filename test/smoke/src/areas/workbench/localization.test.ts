@@ -6,7 +6,7 @@
 import { Application, Quality } from '../../../../automation';
 
 export function setup() {
-	describe.skip('Localization', () => {
+	describe('Localization', () => {
 		before(async function () {
 			const app = this.app as Application;
 
@@ -15,7 +15,7 @@ export function setup() {
 			}
 
 			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', 'German Language Pack for Visual Studio Code', '1.47.3', 'Microsoft');
+			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de');
 
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});

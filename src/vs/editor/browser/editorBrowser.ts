@@ -1055,3 +1055,14 @@ export function getCodeEditor(thing: any): ICodeEditor | null {
 
 	return null;
 }
+
+/**
+ *@internal
+ */
+export function getIEditor(thing: any): editorCommon.IEditor | null {
+	if (isCodeEditor(thing) || isDiffEditor(thing)) {
+		return thing;
+	}
+
+	return null;
+}

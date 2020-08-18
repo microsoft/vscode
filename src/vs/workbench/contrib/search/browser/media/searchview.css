@@ -39,14 +39,14 @@
 	padding-left: 4px;
 }
 
-.search-view .search-widget .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
-}
-
 /* NOTE: height is also used in searchWidget.ts as a constant*/
 .search-view .search-widget .monaco-inputbox > .wrapper > textarea.input {
 	overflow: initial;
 	height: 24px; /* set initial height before measure */
+}
+
+.search-view .search-widget .monaco-findInput .monaco-scrollable-element .scrollbar {
+	opacity: 0;
 }
 
 .search-view .monaco-inputbox > .wrapper > textarea.input {

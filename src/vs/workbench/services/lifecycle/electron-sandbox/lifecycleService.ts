@@ -135,16 +135,16 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		let message: string;
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				message = localize('errorClose', "An unexpected error prevented the window from closing ({0}).", toErrorMessage(error));
+				message = localize('errorClose', "An unexpected error was thrown while attempting to close the window ({0}).", toErrorMessage(error));
 				break;
 			case ShutdownReason.QUIT:
-				message = localize('errorQuit', "An unexpected error prevented the application from closing ({0}).", toErrorMessage(error));
+				message = localize('errorQuit', "An unexpected error was thrown while attempting to quit the application ({0}).", toErrorMessage(error));
 				break;
 			case ShutdownReason.RELOAD:
-				message = localize('errorReload', "An unexpected error prevented the window from reloading ({0}).", toErrorMessage(error));
+				message = localize('errorReload', "An unexpected error was thrown while attempting to reload the window ({0}).", toErrorMessage(error));
 				break;
 			case ShutdownReason.LOAD:
-				message = localize('errorLoad', "An unexpected error prevented the window from changing it's workspace ({0}).", toErrorMessage(error));
+				message = localize('errorLoad', "An unexpected error was thrown while attempting to change the workspace of the window ({0}).", toErrorMessage(error));
 				break;
 		}
 

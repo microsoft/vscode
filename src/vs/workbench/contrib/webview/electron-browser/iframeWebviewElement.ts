@@ -122,7 +122,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 		// Workaround this by debouncing the focus and making sure we are not focused on an input
 		// when we try to re-focus.
 		this._focusDelayer.trigger(async () => {
-			if (!this.focused || !this.element) {
+			if (!this.isFocused || !this.element) {
 				return;
 			}
 

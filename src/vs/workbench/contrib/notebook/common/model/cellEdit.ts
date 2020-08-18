@@ -13,7 +13,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 export interface ITextCellEditingDelegate {
 	insertCell?(index: number, cell: NotebookCellTextModel): void;
 	deleteCell?(index: number): void;
-	moveCell?(fromIndex: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void;
+	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void;
 	emitSelections(selections: number[]): void;
 }
 
@@ -100,6 +100,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 	constructor(
 		public resource: URI,
 		private fromIndex: number,
+		private length: number,
 		private toIndex: number,
 		private editingDelegate: ITextCellEditingDelegate,
 		private beforedSelections: number[] | undefined,
@@ -112,7 +113,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 			throw new Error('Notebook Move Cell not implemented for Undo/Redo');
 		}
 
-		this.editingDelegate.moveCell(this.toIndex, this.fromIndex, this.endSelections, this.beforedSelections);
+		this.editingDelegate.moveCell(this.toIndex, this.length, this.fromIndex, this.endSelections, this.beforedSelections);
 		if (this.beforedSelections) {
 			this.editingDelegate.emitSelections(this.beforedSelections);
 		}
@@ -123,7 +124,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 			throw new Error('Notebook Move Cell not implemented for Undo/Redo');
 		}
 
-		this.editingDelegate.moveCell(this.fromIndex, this.toIndex, this.beforedSelections, this.endSelections);
+		this.editingDelegate.moveCell(this.fromIndex, this.length, this.toIndex, this.beforedSelections, this.endSelections);
 		if (this.endSelections) {
 			this.editingDelegate.emitSelections(this.endSelections);
 		}

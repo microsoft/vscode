@@ -2606,7 +2606,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			if (buildTasks.length === 1) {
 				this.tryResolveTask(buildTasks[0]).then(resolvedTask => {
-					this.run(resolvedTask).then(undefined, reason => {
+					this.run(resolvedTask, undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 				});
@@ -2617,7 +2617,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (tasks.length > 0) {
 					let { defaults, users } = this.splitPerGroupType(tasks);
 					if (defaults.length === 1) {
-						this.run(defaults[0]).then(undefined, reason => {
+						this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 						return;
@@ -2641,7 +2641,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								this.runConfigureDefaultBuildTask();
 								return;
 							}
-							this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
 								// eat the error, it has already been surfaced to the user and we don't care about it here
 							});
 						});
@@ -2667,7 +2667,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (tasks.length > 0) {
 				let { defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
-					this.run(defaults[0]).then(undefined, reason => {
+					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 					return;
@@ -2691,7 +2691,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this.runConfigureTasks();
 						return;
 					}
-					this.run(task).then(undefined, reason => {
+					this.run(task, undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 				});

@@ -1061,9 +1061,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return !this.state.activityBar.hidden;
 			case Parts.EDITOR_PART:
 				return !this.state.editor.hidden;
+			default:
+				return true; // any other part cannot be hidden
 		}
-
-		return true; // any other part cannot be hidden
 	}
 
 	focus(): void {

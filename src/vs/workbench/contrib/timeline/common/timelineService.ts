@@ -11,6 +11,10 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions, TimelinePaneId } from './timeline';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
 export class TimelineService implements ITimelineService {
 	declare readonly _serviceBrand: undefined;
@@ -23,13 +27,30 @@ export class TimelineService implements ITimelineService {
 	private readonly _onDidChangeUri = new Emitter<URI>();
 	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
 
+	private excludedSources: Set<string>;
+	private readonly hasProviderContext: IContextKey<boolean>;
 	private readonly providers = new Map<string, TimelineProvider>();
 	private readonly providerSubscriptions = new Map<string, IDisposable>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IViewsService protected viewsService: IViewsService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
+		this.hasProviderContext = TimelineHasProviderContext.bindTo(this.contextKeyService);
+
+		this.excludedSources = new Set(configurationService.getValue('timeline.excludeSources'));
+		configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('timeline.excludeSources')) {
+				this.excludedSources = new Set(this.configurationService.getValue('timeline.excludeSources'));
+
+				this.updateHasProviderContext();
+			}
+		}, this);
+
+		this.updateHasProviderContext();
+
 		// let source = 'fast-source';
 		// this.registerTimelineProvider({
 		// 	scheme: '*',
@@ -213,6 +234,9 @@ export class TimelineService implements ITimelineService {
 		}
 
 		this.providers.set(id, provider);
+
+		this.updateHasProviderContext();
+
 		if (provider.onDidChange) {
 			this.providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
 		}
@@ -235,11 +259,24 @@ export class TimelineService implements ITimelineService {
 
 		this.providers.delete(id);
 		this.providerSubscriptions.delete(id);
+
+		this.updateHasProviderContext();
+
 		this._onDidChangeProviders.fire({ removed: [id] });
 	}
 
 	setUri(uri: URI) {
 		this.viewsService.openView(TimelinePaneId, true);
 		this._onDidChangeUri.fire(uri);
+	}
+
+	private updateHasProviderContext() {
+		if (this.providers.size === 0) {
+			this.hasProviderContext.set(false);
+			return;
+		}
+
+		const hasProviders = [...this.providers.keys()].some(id => !this.excludedSources.has(id));
+		this.hasProviderContext.set(hasProviders);
 	}
 }

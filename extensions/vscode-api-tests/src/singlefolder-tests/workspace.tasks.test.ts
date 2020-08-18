@@ -212,7 +212,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		});
 
 		// https://github.com/microsoft/vscode/issues/100577
-		test.skip('A CustomExecution task can be fetched and executed', () => {
+		test('A CustomExecution task can be fetched and executed', () => {
 			return new Promise(async (resolve, reject) => {
 				class CustomTerminal implements Pseudoterminal {
 					private readonly writeEmitter = new EventEmitter<string>();

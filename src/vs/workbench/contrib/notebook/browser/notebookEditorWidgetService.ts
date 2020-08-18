@@ -68,7 +68,7 @@ class NotebookEditorWidgetService implements INotebookEditorWidgetService {
 			const widgets = this._notebookWidgets.get(group.id);
 			this._notebookWidgets.delete(group.id);
 			if (widgets) {
-				for (let value of widgets.values()) {
+				for (const value of widgets.values()) {
 					value.token = undefined;
 					this._disposeWidget(value.widget);
 				}

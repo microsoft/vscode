@@ -138,6 +138,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		addClass(data.element, 'loading');
 
 		data.root.removeAttribute('aria-label');
+		data.root.removeAttribute('data-extension-id');
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
@@ -150,6 +151,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
+		data.root.setAttribute('data-extension-id', extension.identifier.id);
 
 		if (extension.state !== ExtensionState.Uninstalled && !extension.server) {
 			// Get the extension if it is installed and has no server information
