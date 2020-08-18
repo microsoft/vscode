@@ -108,8 +108,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			return this._hash;
 		}
 
-		// this._hash = hash([hash(this.getValue()), this._metadata]);
-		this._hash = hash(this.getValue());
+		this._hash = hash([hash(this.getValue()), this._metadata]);
+		// this._hash = hash(this.getValue());
 		return this._hash;
 	}
 

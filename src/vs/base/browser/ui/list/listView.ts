@@ -54,6 +54,10 @@ export interface IListViewOptionsUpdate {
 	readonly horizontalScrolling?: boolean;
 }
 
+export interface IListViewRangeMapProvider {
+	(): RangeMap;
+}
+
 export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly dnd?: IListViewDragAndDrop<T>;
 	readonly useShadows?: boolean;
@@ -64,6 +68,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly mouseSupport?: boolean;
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
 	readonly transformOptimization?: boolean;
+	readonly rangeMapProvider?: IListViewRangeMapProvider;
 }
 
 const DefaultOptions = {
@@ -209,6 +214,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private items: IItem<T>[];
 	private itemId: number;
 	private rangeMap: RangeMap;
+	private rangeMapProvider: IListViewRangeMapProvider;
 	private cache: RowCache<T>;
 	private renderers = new Map<string, IListRenderer<any /* TODO@joao */, any>>();
 	private lastRenderTop: number;
@@ -289,7 +295,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.items = [];
 		this.itemId = 0;
-		this.rangeMap = new RangeMap();
+		this.rangeMapProvider = getOrDefault(options, o => o.rangeMapProvider, () => new RangeMap());
+		this.rangeMap = this.rangeMapProvider();
 
 		for (const renderer of renderers) {
 			this.renderers.set(renderer.templateId, renderer);
@@ -469,7 +476,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		// TODO@joao: improve this optimization to catch even more cases
 		if (start === 0 && deleteCount >= this.items.length) {
-			this.rangeMap = new RangeMap();
+			this.rangeMap = this.rangeMapProvider();
 			this.rangeMap.splice(0, 0, inserted);
 			this.items = inserted;
 			deleted = [];

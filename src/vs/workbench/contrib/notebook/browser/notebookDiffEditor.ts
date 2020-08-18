@@ -24,6 +24,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 
 
 export class NotebookDiffEditor extends BaseEditor {
@@ -170,6 +171,47 @@ export class NotebookDiffEditor extends BaseEditor {
 				...modifiedCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(e => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(e => update())),
 			]);
 		});
+
+		// console.log(diffResult);
+
+		// diffResult.changes.forEach(change => {
+		// 	if (change.modifiedLength === 0) {
+		// 		// deletion ...
+		// 		return;
+		// 	}
+
+		// 	if (change.originalLength === 0) {
+		// 		// insertion
+		// 		return;
+		// 	}
+
+		// 	for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
+		// 		let originalIndex = change.originalStart + i;
+		// 		let modifiedIndex = change.modifiedStart + i;
+
+		// 		const originalCell = this._originalWidget!.viewModel!.viewCells[originalIndex];
+		// 		const modifiedCell = this._widget!.viewModel!.viewCells[modifiedIndex];
+
+		// 		if (originalCell.getText() !== modifiedCell.getText()) {
+		// 			console.log(`original cell ${originalIndex} content change`);
+		// 			const originalLines = originalCell.textBuffer.getLinesContent();
+		// 			const modifiedLines = modifiedCell.textBuffer.getLinesContent();
+		// 			const diffComputer = new DiffComputer(originalLines, modifiedLines, {
+		// 				shouldComputeCharChanges: true,
+		// 				shouldPostProcessCharChanges: true,
+		// 				shouldIgnoreTrimWhitespace: false,
+		// 				shouldMakePrettyDiff: true,
+		// 				maxComputationTime: 5000
+		// 			});
+
+		// 			const diffResult = diffComputer.computeDiff();
+		// 			console.log(diffResult);
+		// 		} else {
+		// 			console.log(`original cell ${originalIndex} metadata change`)
+		// 		}
+
+		// 	}
+		// });
 
 		this._originalCellDecorations = this._originalWidget.deltaCellDecorations(this._originalCellDecorations, originalDecorations);
 		this._cellDecorations = this._widget.deltaCellDecorations(this._cellDecorations, modifiedDecorations);

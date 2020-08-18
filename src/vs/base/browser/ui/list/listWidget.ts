@@ -16,7 +16,7 @@ import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardE
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
-import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate } from './listView';
+import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate, IListViewRangeMapProvider } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -854,6 +854,7 @@ export interface IListOptions<T> {
 	readonly horizontalScrolling?: boolean;
 	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
+	readonly rangeMapProvider?: IListViewRangeMapProvider;
 	readonly smoothScrolling?: boolean;
 }
 
