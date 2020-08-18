@@ -110,6 +110,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		};
 	}
 
+	hasDebuggers(): boolean {
+		return this.debugAdapterFactories.size > 0;
+	}
+
 	createDebugAdapter(session: IDebugSession): IDebugAdapter | undefined {
 		let factory = this.debugAdapterFactories.get(session.configuration.type);
 		if (factory) {

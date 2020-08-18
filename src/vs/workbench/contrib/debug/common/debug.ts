@@ -658,6 +658,8 @@ export interface IConfigurationManager {
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
+	hasDebuggers(): boolean;
+
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 
 	getAllConfigurations(): { launch: ILaunch, name: string, presentation?: IConfigPresentation }[];
