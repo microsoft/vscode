@@ -60,7 +60,6 @@ import { isMacintosh, isNative } from 'vs/base/common/platform';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
-import { RangeMapWithWhitespace } from 'vs/workbench/contrib/notebook/browser/view/rangeMapWithWhitespace';
 
 const $ = DOM.$;
 
@@ -414,9 +413,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
 				transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
-				rangeMapProvider: () => {
-					return new RangeMapWithWhitespace();
-				},
 				styleController: (_suffix: string) => { return this._list!; },
 				overrideStyles: {
 					listBackground: editorBackground,

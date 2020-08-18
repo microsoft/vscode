@@ -83,7 +83,7 @@ export function consolidate(groups: IRangedGroup[]): IRangedGroup[] {
  * Concatenates several collections of ranged groups into a single
  * collection.
  */
-export function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
+function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 

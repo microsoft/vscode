@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { concat, groupIntersect, IItem, IRangedGroup, shift } from 'vs/base/browser/ui/list/rangeMap';
+import { consolidate, groupIntersect, IItem, IRangedGroup, RangeMap, shift } from 'vs/base/browser/ui/list/rangeMap';
 
 export class ListWhitespace {
 
@@ -15,17 +15,25 @@ export class ListWhitespace {
 	) { }
 }
 
-// [ { start: 0, len: 2, size: 2 }, { start: 2, len: 1, size: 3 }, {} ]
-export class RangeMapWithWhitespace {
+function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
+	return consolidate(groups.reduce((r, g) => r.concat(g), []));
+}
 
-	private groups: IRangedGroup[] = [];
+// [ { start: 0, len: 2, size: 2 }, { start: 2, len: 1, size: 3 }, {} ]
+export class RangeMapWithWhitespace extends RangeMap {
+
+	private rangeGroups: IRangedGroup[] = [];
 	private whitespaces: ListWhitespace[] = [];
-	private _size = 0;
+	private _mapSize = 0;
+
+	constructor() {
+		super();
+	}
 
 	splice(index: number, deleteCount: number, items: IItem[] = []): void {
 		const diff = items.length - deleteCount;
-		const before = groupIntersect({ start: 0, end: index }, this.groups);
-		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.groups)
+		const before = groupIntersect({ start: 0, end: index }, this.rangeGroups);
+		const after = groupIntersect({ start: index + deleteCount, end: Number.POSITIVE_INFINITY }, this.rangeGroups)
 			.map<IRangedGroup>(g => ({ range: shift(g.range, diff), size: g.size }));
 
 		const middle = items.map<IRangedGroup>((item, i) => ({
@@ -33,8 +41,8 @@ export class RangeMapWithWhitespace {
 			size: item.size
 		}));
 
-		this.groups = concat(before, middle, after);
-		this._size = this.groups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
+		this.rangeGroups = concat(before, middle, after);
+		this._mapSize = this.rangeGroups.reduce((t, g) => t + (g.size * (g.range.end - g.range.start)), 0);
 
 		const deleteRange = deleteCount > 0 ? [index, index + deleteCount - 1] : [];
 		const indexDelta = items.length - deleteCount;
@@ -121,20 +129,20 @@ export class RangeMapWithWhitespace {
 	 * Returns the number of items in the range map.
 	 */
 	get count(): number {
-		const len = this.groups.length;
+		const len = this.rangeGroups.length;
 
 		if (!len) {
 			return 0;
 		}
 
-		return this.groups[len - 1].range.end;
+		return this.rangeGroups[len - 1].range.end;
 	}
 
 	/**
 	 * Returns the sum of the sizes of all items in the range map.
 	 */
 	get size(): number {
-		return this._size
+		return this._mapSize
 			+ (this.whitespaces.length ? this.whitespaces[this.whitespaces.length - 1]?.prefixSum : 0);
 	}
 
@@ -183,7 +191,7 @@ export class RangeMapWithWhitespace {
 		let index = 0;
 		let size = 0;
 
-		for (let group of this.groups) {
+		for (let group of this.rangeGroups) {
 			const count = group.range.end - group.range.start;
 			const newSize = size + (count * group.size);
 
@@ -230,7 +238,7 @@ export class RangeMapWithWhitespace {
 		let position = 0;
 		let count = 0;
 
-		for (let group of this.groups) {
+		for (let group of this.rangeGroups) {
 			const groupCount = group.range.end - group.range.start;
 			const newCount = count + groupCount;
 

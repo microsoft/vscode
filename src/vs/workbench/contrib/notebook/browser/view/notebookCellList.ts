@@ -28,6 +28,7 @@ import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/br
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { editorBackground, foreground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { NotebookGutter, NotebookGutterDelegate, GutterRenderer } from 'vs/workbench/contrib/notebook/browser/view/notebookGutter';
+import { RangeMapWithWhitespace } from 'vs/workbench/contrib/notebook/browser/view/rangeMapWithWhitespace';
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;
@@ -67,6 +68,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
 	private _cellListGutter: WorkbenchList<CellViewModel>;
+	private _rangeMap = new RangeMapWithWhitespace();
 
 	constructor(
 		private listUser: string,
@@ -82,7 +84,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
+		super(listUser, container, delegate, renderers, {
+			...options,
+			rangeMapProvider: () => {
+				return this._rangeMap;
+			}
+		}, contextKeyService, listService, themeService, configurationService, keybindingService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
 		this._previousFocusedElements = this.getFocusedElements();
@@ -645,11 +652,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	insertWhitespace(index: number, height: number) {
-		this.view.insertWhitespace(index, height);
+		this._rangeMap.insertWhitespace(index, height);
+		this.view.rerender();
 	}
 
 	updateWhitespace(index: number, newHeight: number) {
-		this.view.updateWhitespace(index, newHeight);
+		this._rangeMap.updateWhitespace(index, newHeight);
+		this.view.rerender();
 	}
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
