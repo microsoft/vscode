@@ -19,6 +19,7 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -82,6 +83,13 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * this method to construct the editor widget.
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
+
+	/**
+	 * Should be overridden by editors that have their own ScopedContextKeyService
+	 */
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | null {
+		return null;
+	}
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this

@@ -17,7 +17,7 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -58,6 +58,19 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
 		this.doSaveOrClearTextDiffEditorViewState(editor);
+	}
+
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | null {
+		const control = this.getControl();
+		if (!control) {
+			return null;
+		}
+
+		if (control.getOriginalEditor().hasTextFocus()) {
+			return control.getOriginalEditor().invokeWithinContext(fn);
+		} else {
+			return control.getModifiedEditor().invokeWithinContext(fn);
+		}
 	}
 
 	getTitle(): string {

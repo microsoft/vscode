@@ -14,7 +14,7 @@ import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditor
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -198,6 +198,14 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 
 	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
 		// Subclasses can override
+	}
+
+	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | null {
+		if (!this.editorControl) {
+			return null;
+		}
+
+		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(fn) : null;
 	}
 
 	focus(): void {

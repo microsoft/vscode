@@ -790,9 +790,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region invokeWithinEditorContext()
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		const activeTextEditorControl = this.activeTextEditorControl;
-		if (isCodeEditor(activeTextEditorControl)) {
-			return activeTextEditorControl.invokeWithinContext(fn);
+		const result = this.activeEditorPane?.invokeWithinContext(fn);
+		if (result) {
+			return result;
 		}
 
 		const activeGroup = this.editorGroupService.activeGroup;
