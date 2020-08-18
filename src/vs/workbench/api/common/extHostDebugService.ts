@@ -958,7 +958,7 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 		return this._debugServiceProxy.$customDebugAdapterRequest(this._id, command, args);
 	}
 
-	public getDebugProtocolBreakpoint(breakpoint: vscode.Breakpoint): vscode.DebugProtocolBreakpoint | undefined {
+	public getDebugProtocolBreakpoint(breakpoint: vscode.Breakpoint): Promise<vscode.DebugProtocolBreakpoint | undefined> {
 		return this._debugServiceProxy.$getDebugProtocolBreakpoint(this._id, breakpoint.id);
 	}
 }
