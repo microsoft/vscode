@@ -60,6 +60,7 @@ import { isMacintosh, isNative } from 'vs/base/common/platform';
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
+import { RangeMapWithWhitespace } from 'vs/workbench/contrib/notebook/browser/view/rangeMapWithWhitespace';
 
 const $ = DOM.$;
 
@@ -442,6 +443,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					onFocusPrevious: (applyFocusPrevious: () => void) => this._updateForCursorNavigationMode(applyFocusPrevious),
 				}
 			},
+			new RangeMapWithWhitespace()
 		);
 		this._dndController.setList(this._list);
 

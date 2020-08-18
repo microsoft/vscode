@@ -68,7 +68,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
 	private _cellListGutter: WorkbenchList<CellViewModel>;
-	private _rangeMap = new RangeMapWithWhitespace();
+	private _rangeMap: RangeMapWithWhitespace;
 
 	constructor(
 		private listUser: string,
@@ -78,6 +78,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: INotebookCellListOptions,
+		rangeMap: RangeMapWithWhitespace,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -87,9 +88,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super(listUser, container, delegate, renderers, {
 			...options,
 			rangeMapProvider: () => {
-				return this._rangeMap;
+				return rangeMap;
 			}
 		}, contextKeyService, listService, themeService, configurationService, keybindingService);
+		this._rangeMap = rangeMap;
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
 		this._previousFocusedElements = this.getFocusedElements();
