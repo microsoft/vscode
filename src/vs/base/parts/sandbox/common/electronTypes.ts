@@ -209,8 +209,49 @@ export interface SaveDialogReturnValue {
 	bookmark?: string;
 }
 
+export interface FileFilter {
+
+	// Docs: http://electronjs.org/docs/api/structures/file-filter
+
+	extensions: string[];
+	name: string;
+}
+
+export interface InputEvent {
+
+	// Docs: http://electronjs.org/docs/api/structures/input-event
+
+	/**
+	 * An array of modifiers of the event, can be `shift`, `control`, `alt`, `meta`,
+	 * `isKeypad`, `isAutoRepeat`, `leftButtonDown`, `middleButtonDown`,
+	 * `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
+	 */
+	modifiers: Array<'shift' | 'control' | 'alt' | 'meta' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+}
+
+export interface MouseInputEvent extends InputEvent {
+
+	// Docs: http://electronjs.org/docs/api/structures/mouse-input-event
+
+	/**
+	 * The button pressed, can be `left`, `middle`, `right`.
+	 */
+	button?: ('left' | 'middle' | 'right');
+	clickCount?: number;
+	globalX?: number;
+	globalY?: number;
+	movementX?: number;
+	movementY?: number;
+	/**
+	 * The type of the event, can be `mouseDown`, `mouseUp`, `mouseEnter`,
+	 * `mouseLeave`, `contextMenu`, `mouseWheel` or `mouseMove`.
+	 */
+	type: ('mouseDown' | 'mouseUp' | 'mouseEnter' | 'mouseLeave' | 'contextMenu' | 'mouseWheel' | 'mouseMove');
+	x: number;
+	y: number;
+}
+
 export interface CrashReporterStartOptions {
-	companyName: string;
 	/**
 	 * URL that crash reports will be sent to as POST.
 	 */
@@ -220,30 +261,51 @@ export interface CrashReporterStartOptions {
 	 */
 	productName?: string;
 	/**
-	 * Whether crash reports should be sent to the server. Default is `true`.
+	 * Deprecated alias for `{ globalExtra: { _companyName: ... } }`.
+	 *
+	 * @deprecated
+	 */
+	companyName?: string;
+	/**
+	 * Whether crash reports should be sent to the server. If false, crash reports will
+	 * be collected and stored in the crashes directory, but not uploaded. Default is
+	 * `true`.
 	 */
 	uploadToServer?: boolean;
 	/**
-	 * Default is `false`.
+	 * If true, crashes generated in the main process will not be forwarded to the
+	 * system crash handler. Default is `false`.
 	 */
 	ignoreSystemCrashHandler?: boolean;
 	/**
-	 * An object you can define that will be sent along with the report. Only string
-	 * properties are sent correctly. Nested objects are not supported. When using
-	 * Windows, the property names and values must be fewer than 64 characters.
+	 * If true, limit the number of crashes uploaded to 1/hour. Default is `false`.
+	 *
+	 * @platform darwin,win32
+	 */
+	rateLimit?: boolean;
+	/**
+	 * If true, crash reports will be compressed and uploaded with `Content-Encoding:
+	 * gzip`. Not all collection servers support compressed payloads. Default is
+	 * `false`.
+	 *
+	 * @platform darwin,win32
+	 */
+	compress?: boolean;
+	/**
+	 * Extra string key/value annotations that will be sent along with crash reports
+	 * that are generated in the main process. Only string values are supported.
+	 * Crashes generated in child processes will not contain these extra parameters to
+	 * crash reports generated from child processes, call `addExtraParameter` from the
+	 * child process.
 	 */
 	extra?: Record<string, string>;
 	/**
-	 * Directory to store the crash reports temporarily (only used when the crash
-	 * reporter is started via `process.crashReporter.start`).
+	 * Extra string key/value annotations that will be sent along with any crash
+	 * reports generated in any process. These annotations cannot be changed once the
+	 * crash reporter has been started. If a key is present in both the global extra
+	 * parameters and the process-specific extra parameters, then the global one will
+	 * take precedence. By default, `productName` and the app version are included, as
+	 * well as the Electron version.
 	 */
-	crashesDirectory?: string;
-}
-
-export interface FileFilter {
-
-	// Docs: http://electronjs.org/docs/api/structures/file-filter
-
-	extensions: string[];
-	name: string;
+	globalExtra?: Record<string, string>;
 }

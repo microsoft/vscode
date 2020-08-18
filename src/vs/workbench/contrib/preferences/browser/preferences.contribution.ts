@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
+import { InputFocusedContext, IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -39,6 +39,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { AbstractSideBySideEditorInputFactory } from 'vs/workbench/browser/parts/editor/editor.contribution';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -49,6 +50,8 @@ const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocuse
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
+const SETTINGS_EDITOR_COMMAND_FOCUS_TOC2 = 'settings.action.focusTOC2';
+const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
@@ -89,79 +92,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
-interface ISerializedPreferencesEditorInput {
-	name: string;
-	description: string;
-
-	detailsSerialized: string;
-	masterSerialized: string;
-
-	detailsTypeId: string;
-	masterTypeId: string;
-}
-
 // Register Preferences Editor Input Factory
-class PreferencesEditorInputFactory implements IEditorInputFactory {
+class PreferencesEditorInputFactory extends AbstractSideBySideEditorInputFactory {
 
-	canSerialize(editorInput: EditorInput): boolean {
-		const input = <PreferencesEditorInput>editorInput;
-
-		if (input.details && input.master) {
-			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
-			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
-
-			return !!(detailsInputFactory?.canSerialize(input.details) && masterInputFactory?.canSerialize(input.master));
-		}
-
-		return false;
-	}
-
-	serialize(editorInput: EditorInput): string | undefined {
-		const input = <PreferencesEditorInput>editorInput;
-
-		if (input.details && input.master) {
-			const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-			const detailsInputFactory = registry.getEditorInputFactory(input.details.getTypeId());
-			const masterInputFactory = registry.getEditorInputFactory(input.master.getTypeId());
-
-			if (detailsInputFactory && masterInputFactory) {
-				const detailsSerialized = detailsInputFactory.serialize(input.details);
-				const masterSerialized = masterInputFactory.serialize(input.master);
-
-				if (detailsSerialized && masterSerialized) {
-					return JSON.stringify(<ISerializedPreferencesEditorInput>{
-						name: input.getName(),
-						description: input.getDescription(),
-						detailsSerialized,
-						masterSerialized,
-						detailsTypeId: input.details.getTypeId(),
-						masterTypeId: input.master.getTypeId()
-					});
-				}
-			}
-		}
-
-		return undefined;
-	}
-
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
-		const deserialized: ISerializedPreferencesEditorInput = JSON.parse(serializedEditorInput);
-
-		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories);
-		const detailsInputFactory = registry.getEditorInputFactory(deserialized.detailsTypeId);
-		const masterInputFactory = registry.getEditorInputFactory(deserialized.masterTypeId);
-
-		if (detailsInputFactory && masterInputFactory) {
-			const detailsInput = detailsInputFactory.deserialize(instantiationService, deserialized.detailsSerialized);
-			const masterInput = masterInputFactory.deserialize(instantiationService, deserialized.masterSerialized);
-
-			if (detailsInput && masterInput) {
-				return new PreferencesEditorInput(deserialized.name, deserialized.description, detailsInput, masterInput);
-			}
-		}
-
-		return undefined;
+	protected createEditorInput(name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return new PreferencesEditorInput(name, description, secondaryInput, primaryInput);
 	}
 }
 
@@ -574,6 +509,14 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 			return null;
 		}
+
+		function settingsEditorFocusSearch(accessor: ServicesAccessor) {
+			const preferencesEditor = getPreferencesEditor(accessor);
+			if (preferencesEditor) {
+				preferencesEditor.focusSearch();
+			}
+		}
+
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -588,12 +531,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 
-			run(accessor: ServicesAccessor) {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor) {
-					preferencesEditor.focusSearch();
-				}
+			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_SEARCH,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
+					keybinding: {
+						primary: KeyCode.Escape,
+						weight: KeybindingWeight.WorkbenchContrib,
+						when: null
+					},
+					title: nls.localize('settings.focusSearch', "Focus settings search")
+				});
 			}
+
+			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
 		});
 
 		registerAction2(class extends Action2 {
@@ -758,16 +713,76 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
-					precondition: CONTEXT_SETTINGS_EDITOR,
+					keybinding: [
+						{
+							primary: KeyCode.Escape,
+							weight: KeybindingWeight.WorkbenchContrib,
+							when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate()),
+						},
+						{
+							primary: KeyCode.LeftArrow,
+							weight: KeybindingWeight.WorkbenchContrib,
+							when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate(), InputFocusedContext.negate())
+						}],
 					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
 				});
 			}
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				if (preferencesEditor instanceof SettingsEditor2) {
-					preferencesEditor.focusTOC();
+				if (!(preferencesEditor instanceof SettingsEditor2)) {
+					return;
 				}
+
+				if (document.activeElement?.classList.contains('monaco-list')) {
+					preferencesEditor.focusTOC();
+				} else {
+					preferencesEditor.focusSettings();
+				}
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL,
+					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate()),
+					keybinding: {
+						primary: KeyCode.Enter,
+						weight: KeybindingWeight.WorkbenchContrib,
+					},
+					title: nls.localize('settings.focusSettingControl', "Focus setting control")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				if (!(preferencesEditor instanceof SettingsEditor2)) {
+					return;
+				}
+
+				if (document.activeElement?.classList.contains('monaco-list')) {
+					preferencesEditor.focusSettings(true);
+				}
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC2,
+
+					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
+				});
+			}
+
+			run(accessor: ServicesAccessor): void {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				if (!(preferencesEditor instanceof SettingsEditor2)) {
+					return;
+				}
+
+				preferencesEditor.focusTOC();
 			}
 		});
 

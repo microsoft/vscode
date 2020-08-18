@@ -82,6 +82,7 @@ export class SearchEditor extends BaseTextEditor {
 	private messageDisposables: IDisposable[] = [];
 	private container: HTMLElement;
 	private searchModel: SearchModel;
+	private ongoingOperations: number = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -389,7 +390,7 @@ export class SearchEditor extends BaseTextEditor {
 		const matchText = model.getValueInRange(matchRange);
 		let file = '';
 		for (let line = matchRange.startLineNumber; line >= 1; line--) {
-			let lineText = model.getValueInRange(new Range(line, 1, line, 2));
+			const lineText = model.getValueInRange(new Range(line, 1, line, 2));
 			if (lineText !== ' ') { file = model.getLineContent(line); break; }
 		}
 		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
@@ -410,7 +411,7 @@ export class SearchEditor extends BaseTextEditor {
 		this.searchResultEditor.focus();
 	}
 
-	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; }) {
+	async triggerSearch(_options?: { resetCursor?: boolean; delay?: number; focusResults?: boolean }) {
 		const options = { resetCursor: true, delay: 0, ..._options };
 
 		if (!this.pauseSearching) {
@@ -420,6 +421,9 @@ export class SearchEditor extends BaseTextEditor {
 				if (options.resetCursor) {
 					this.searchResultEditor.setPosition(new Position(1, 1));
 					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+				}
+				if (options.focusResults) {
+					this.searchResultEditor.focus();
 				}
 			}, options.delay);
 		}
@@ -490,7 +494,14 @@ export class SearchEditor extends BaseTextEditor {
 		}
 
 		this.searchOperation.start(500);
-		await this.searchModel.search(query).finally(() => this.searchOperation.stop());
+		this.ongoingOperations++;
+		const exit = await this.searchModel.search(query).finally(() => {
+			this.ongoingOperations--;
+			if (this.ongoingOperations === 0) {
+				this.searchOperation.stop();
+			}
+		});
+
 		const input = this.getInput();
 		if (!input ||
 			input !== startInput ||
@@ -498,10 +509,11 @@ export class SearchEditor extends BaseTextEditor {
 			return;
 		}
 
+		const sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
 		const { body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		input.config = config;
@@ -540,8 +552,10 @@ export class SearchEditor extends BaseTextEditor {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, token);
+		if (token.isCancellationRequested) { return; }
 
 		const { body, config } = await newInput.getModels();
+		if (token.isCancellationRequested) { return; }
 
 		this.searchResultEditor.setModel(body);
 		this.pauseSearching = true;

@@ -14,12 +14,13 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           path: ./actions
-          ref: v19
+          ref: v34
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Run Locker
         uses: ./actions/locker
         with:
           daysSinceClose: 45
+          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           daysSinceUpdate: 3
           ignoredLabel: "*out-of-scope"

@@ -314,7 +314,6 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		cursorWidth: 1,
 		fontFamily: DEFAULT_FONT_FAMILY,
 		ariaLabel: ariaLabel || '',
-
 		snippetSuggestions: 'none',
 		suggest: { filterGraceful: false, showIcons: false },
 		autoClosingBrackets: 'never'

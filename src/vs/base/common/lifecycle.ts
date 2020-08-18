@@ -45,6 +45,14 @@ function trackDisposable<T extends IDisposable>(x: T): T {
 	return x;
 }
 
+export class MultiDisposeError extends Error {
+	constructor(
+		public readonly errors: any[]
+	) {
+		super(`Encounter errors while disposing of store. Errors: [${errors.join(', ')}]`);
+	}
+}
+
 export interface IDisposable {
 	dispose(): void;
 }
@@ -60,13 +68,26 @@ export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
 export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
 	if (Iterable.is(arg)) {
-		for (let d of arg) {
+		let errors: any[] = [];
+
+		for (const d of arg) {
 			if (d) {
 				markTracked(d);
-				d.dispose();
+				try {
+					d.dispose();
+				} catch (e) {
+					errors.push(e);
+				}
 			}
 		}
-		return arg;
+
+		if (errors.length === 1) {
+			throw errors[0];
+		} else if (errors.length > 1) {
+			throw new MultiDisposeError(errors);
+		}
+
+		return Array.isArray(arg) ? [] : arg;
 	} else if (arg) {
 		markTracked(arg);
 		arg.dispose();
@@ -116,8 +137,11 @@ export class DisposableStore implements IDisposable {
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {
-		this._toDispose.forEach(item => item.dispose());
-		this._toDispose.clear();
+		try {
+			dispose(this._toDispose.values());
+		} finally {
+			this._toDispose.clear();
+		}
 	}
 
 	public add<T extends IDisposable>(t: T): T {
@@ -219,11 +243,11 @@ export abstract class ReferenceCollection<T> {
 
 	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
-	acquire(key: string): IReference<T> {
+	acquire(key: string, ...args: any[]): IReference<T> {
 		let reference = this.references.get(key);
 
 		if (!reference) {
-			reference = { counter: 0, object: this.createReferencedObject(key) };
+			reference = { counter: 0, object: this.createReferencedObject(key, ...args) };
 			this.references.set(key, reference);
 		}
 
@@ -240,7 +264,7 @@ export abstract class ReferenceCollection<T> {
 		return { object, dispose };
 	}
 
-	protected abstract createReferencedObject(key: string): T;
+	protected abstract createReferencedObject(key: string, ...args: any[]): T;
 	protected abstract destroyReferencedObject(key: string, object: T): void;
 }
 

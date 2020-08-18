@@ -18,7 +18,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -28,6 +28,7 @@ import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWid
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -277,7 +278,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
-			this.ui.title.innerHTML = '&nbsp;';
+			this.ui.title.innerText = '\u00a0;';
 		}
 		const description = this.getDescription();
 		if (this.ui.description.textContent !== description) {
@@ -353,10 +354,12 @@ class QuickInput extends Disposable implements IQuickInput {
 		this.ui.inputBox.showDecoration(severity);
 		if (severity === Severity.Error) {
 			const styles = this.ui.inputBox.stylesForType(severity);
+			this.ui.message.style.color = styles.foreground ? `${styles.foreground}` : '';
 			this.ui.message.style.backgroundColor = styles.background ? `${styles.background}` : '';
 			this.ui.message.style.border = styles.border ? `1px solid ${styles.border}` : '';
 			this.ui.message.style.paddingBottom = '4px';
 		} else {
+			this.ui.message.style.color = '';
 			this.ui.message.style.backgroundColor = '';
 			this.ui.message.style.border = '';
 			this.ui.message.style.paddingBottom = '';
@@ -1228,10 +1231,10 @@ export class QuickInputController extends Disposable {
 			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
-			this.previousFocusElement = undefined;
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
-				this.hide(true);
+				this.hide();
 			}
+			this.previousFocusElement = undefined;
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -1572,13 +1575,14 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	hide(focusLost?: boolean) {
+	hide() {
 		const controller = this.controller;
 		if (controller) {
+			const focusChanged = !this.ui?.container.contains(document.activeElement);
 			this.controller = null;
 			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
-			if (!focusLost) {
+			if (!focusChanged) {
 				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
 					this.previousFocusElement.focus();
 					this.previousFocusElement = undefined;

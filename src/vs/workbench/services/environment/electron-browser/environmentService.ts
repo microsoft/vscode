@@ -17,15 +17,13 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly configuration: INativeEnvironmentConfiguration;
 
-	readonly disableCrashReporter: boolean;
 	readonly crashReporterDirectory?: string;
+	readonly crashReporterId?: string;
 
 	readonly cliPath: string;
 
 	readonly log?: string;
 	readonly extHostLogsPath: URI;
-
-	readonly userHome: URI;
 }
 
 export interface INativeEnvironmentConfiguration extends IEnvironmentConfiguration, INativeWindowConfiguration { }
@@ -42,15 +40,10 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	}
 
 	@memoize
-	get webviewResourceRoot(): string {
-		return `${Schemas.oldVscodeWebviewResource}://{{resource}}`;
-
-		// TODO mjbvz: restore when switching to new protcol
-		// return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`;
-	}
+	get webviewResourceRoot(): string { return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`; }
 
 	@memoize
-	get webviewCspSource(): string { return `${Schemas.oldVscodeWebviewResource}:`; }
+	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }

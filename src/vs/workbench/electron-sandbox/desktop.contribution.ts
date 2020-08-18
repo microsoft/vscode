@@ -89,7 +89,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 	// Actions: Developer
 	(function registerDeveloperActions(): void {
-		const developerCategory = nls.localize('developer', "Developer");
+		const developerCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
 		registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowWithExtensionsDisabledAction), 'Developer: Reload With Extensions Disabled', developerCategory);
 		registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleDevToolsAction), 'Developer: Toggle Developer Tools', developerCategory);
 
@@ -343,6 +343,21 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			'force-color-profile': {
 				type: 'string',
 				markdownDescription: nls.localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
+			},
+			'enable-crash-reporter': {
+				type: 'boolean',
+				markdownDescription: nls.localize('argv.enableCrashReporter', 'Allows to disable crash reporting, should restart the app if the value is changed.')
+			},
+			'crash-reporter-id': {
+				type: 'string',
+				markdownDescription: nls.localize('argv.crashReporterId', 'Unique id used for correlating crash reports sent from this app instance.')
+			},
+			'enable-proposed-api': {
+				type: 'array',
+				description: nls.localize('argv.enebleProposedApi', "Enable proposed APIs for a list of extension ids (such as \`vscode.git\`). Proposed APIs are unstable and subject to breaking without warning at any time. This should only be set for extension development and testing purposes."),
+				items: {
+					type: 'string'
+				}
 			}
 		}
 	};

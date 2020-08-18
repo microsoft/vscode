@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
+import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
@@ -24,6 +24,8 @@ export interface ICommonElectronService {
 
 	readonly onWindowFocus: Event<number>;
 	readonly onWindowBlur: Event<number>;
+
+	readonly onOSResume: Event<unknown>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -61,6 +63,11 @@ export interface ICommonElectronService {
 	openExternal(url: string): Promise<boolean>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
+	isAdmin(): Promise<boolean>;
+	getTotalMem(): Promise<number>;
+
+	// Process
+	killProcess(pid: number, code: string): Promise<void>;
 
 	// clipboard
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
@@ -80,16 +87,18 @@ export interface ICommonElectronService {
 	toggleWindowTabsBar(): Promise<void>;
 
 	// Lifecycle
+	notifyReady(): Promise<void>
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;
 	closeWindowById(windowId: number): Promise<void>;
 	quit(): Promise<void>;
+	exit(code: number): Promise<void>;
 
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
-	startCrashReporter(options: CrashReporterStartOptions): Promise<void>;
+	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;

@@ -15,6 +15,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { extUri } from 'vs/base/common/resources';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -28,9 +29,9 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
 	constructor(
+		resource: URI,
 		private name: string | undefined,
 		private description: string | undefined,
-		resource: URI,
 		private preferredMode: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
@@ -40,7 +41,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 		@ILabelService labelService: ILabelService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 	}
 
 	getTypeId(): string {
@@ -109,13 +110,12 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 	}
 
 	matches(otherInput: unknown): boolean {
-		if (super.matches(otherInput) === true) {
+		if (otherInput === this) {
 			return true;
 		}
 
-		// Compare by properties
 		if (otherInput instanceof ResourceEditorInput) {
-			return otherInput.resource.toString() === this.resource.toString();
+			return extUri.isEqual(otherInput.resource, this.resource);
 		}
 
 		return false;

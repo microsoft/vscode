@@ -5,10 +5,9 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { join } from 'path';
 import * as vscode from 'vscode';
 import { disposeAll } from '../utils/dispose';
-import { createTestEditor, joinLines, wait } from './testUtils';
+import { createTestEditor, joinLines, retryUntilDocumentChanges, wait } from './testUtils';
 
 suite('TypeScript Quick Fix', () => {
 
@@ -29,11 +28,9 @@ suite('TypeScript Quick Fix', () => {
 			`const b = 2;`,
 		);
 
-		await wait(2000);
-
-		await vscode.commands.executeCommand('editor.action.autoFix');
-
-		await wait(500);
+		await retryUntilDocumentChanges(testDocumentUri, { retries: 10, timeout: 500 }, _disposables, () => {
+			return vscode.commands.executeCommand('editor.action.autoFix');
+		});
 
 		assert.strictEqual(editor.document.getText(), joinLines(
 			`export const _ = 1;`,
@@ -42,7 +39,9 @@ suite('TypeScript Quick Fix', () => {
 	});
 
 	test('Add import should be a preferred fix if there is only one possible import', async () => {
-		await createTestEditor(workspaceFile('foo.ts'),
+		const testDocumentUri = workspaceFile('foo.ts');
+
+		await createTestEditor(testDocumentUri,
 			`export const foo = 1;`);
 
 		const editor = await createTestEditor(workspaceFile('index.ts'),
@@ -50,11 +49,11 @@ suite('TypeScript Quick Fix', () => {
 			`foo$0;`
 		);
 
-		await wait(3000);
+		await retryUntilDocumentChanges(testDocumentUri, { retries: 10, timeout: 500 }, _disposables, () => {
+			return vscode.commands.executeCommand('editor.action.autoFix');
+		});
 
-		await vscode.commands.executeCommand('editor.action.autoFix');
-
-		await wait(500);
+		// Document should not have been changed here
 
 		assert.strictEqual(editor.document.getText(), joinLines(
 			`import { foo } from "./foo";`,
@@ -123,6 +122,25 @@ suite('TypeScript Quick Fix', () => {
 		assert.strictEqual(fixes![1].title, `Remove unused declaration for: 'Foo'`);
 	});
 
+	test('Should prioritize implement abstract class over remove unused #101486', async () => {
+		const testDocumentUri = workspaceFile('foo.ts');
+		const editor = await createTestEditor(testDocumentUri,
+			`export abstract class Foo { abstract foo(): number; }`,
+			`class ConcreteFoo extends Foo { }`,
+		);
+
+		await wait(3000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			editor.document.lineAt(1).range
+		);
+
+		assert.strictEqual(fixes?.length, 2);
+		assert.strictEqual(fixes![0].title, `Implement inherited abstract class`);
+		assert.strictEqual(fixes![1].title, `Remove unused declaration for: 'ConcreteFoo'`);
+	});
+
 	test('Add all missing imports should come after other add import fixes #98613', async () => {
 		await createTestEditor(workspaceFile('foo.ts'),
 			`export const foo = 1;`);
@@ -150,8 +168,6 @@ suite('TypeScript Quick Fix', () => {
 	});
 });
 
-
 function workspaceFile(fileName: string) {
-	return vscode.Uri.file(join(vscode.workspace.rootPath!, fileName));
+	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, fileName);
 }
-

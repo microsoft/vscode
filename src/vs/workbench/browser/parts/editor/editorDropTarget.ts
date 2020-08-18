@@ -12,7 +12,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
-import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, MergeGroupMode, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -277,13 +277,13 @@ class DropOverlay extends Themable {
 						pinned: true,										// always pin dropped editor
 						sticky: sourceGroup.isSticky(draggedEditor.editor)	// preserve sticky state
 					}));
-					targetGroup.openEditor(draggedEditor.editor, options);
+					const copyEditor = this.isCopyOperation(event, draggedEditor);
+					targetGroup.openEditor(draggedEditor.editor, options, copyEditor ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
 
 					// Ensure target has focus
 					targetGroup.focus();
 
 					// Close in source group unless we copy
-					const copyEditor = this.isCopyOperation(event, draggedEditor);
 					if (!copyEditor) {
 						sourceGroup.closeEditor(draggedEditor.editor);
 					}
@@ -530,8 +530,12 @@ class DropOverlay extends Themable {
 	}
 }
 
-export interface EditorDropTargetDelegate {
-	groupContainsPredicate?(groupView: IEditorGroupView): boolean;
+export interface IEditorDropTargetDelegate {
+
+	/**
+	 * A helper to figure out if the drop target contains the provided group.
+	 */
+	containsGroup?(groupView: IEditorGroupView): boolean;
 }
 
 export class EditorDropTarget extends Themable {
@@ -546,7 +550,7 @@ export class EditorDropTarget extends Themable {
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		private container: HTMLElement,
-		private readonly delegate: EditorDropTargetDelegate,
+		private readonly delegate: IEditorDropTargetDelegate,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -620,7 +624,8 @@ export class EditorDropTarget extends Themable {
 
 	private findTargetGroupView(child: HTMLElement): IEditorGroupView | undefined {
 		const groups = this.accessor.groups;
-		return groups.find(groupView => isAncestor(child, groupView.element) || this.delegate.groupContainsPredicate?.(groupView));
+
+		return groups.find(groupView => isAncestor(child, groupView.element) || this.delegate.containsGroup?.(groupView));
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {

@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -115,7 +115,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn test-browser --build --browser chromium --browser firefox }
+    exec { yarn test-browser --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -135,18 +135,18 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
-    $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
-    $AppNameShort = $AppProductJson.nameShort
-    exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-remote-integration.bat }
-  displayName: Run remote integration tests (Electron)
+    exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
+  displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
-  displayName: Run integration tests (Browser)
+    $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
+    $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
+    $AppNameShort = $AppProductJson.nameShort
+    exec { $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"; $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-remote-integration.bat }
+  displayName: Run remote integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: PublishPipelineArtifact@0
@@ -156,6 +156,13 @@ steps:
   displayName: 'Publish Crash Reports'
   continueOnError: true
   condition: failed()
+
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
@@ -218,7 +225,7 @@ steps:
     restoreSolution: 'build\azure-pipelines\win32\ESRPClient\packages.config'
     feedsToUse: config
     nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
-    externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
+    externalFeedCredentials: 'ESRP Nuget'
     restoreDirectory: packages
 
 - task: ESRPImportCertTask@1

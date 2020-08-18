@@ -55,6 +55,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 	}
 
+	public get isFocused() {
+		return !!this._webview.value?.isFocused;
+	}
+
 	private readonly _onDispose = this._register(new Emitter<void>());
 	public onDispose = this._onDispose.event;
 
@@ -113,7 +117,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
-			webview.html = this._html;
+
+			if (this._html) {
+				webview.html = this._html;
+			}
+
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
@@ -142,7 +150,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 				this._onDidUpdateState.fire(state);
 			}));
 
-			this._pendingMessages.forEach(msg => webview.sendMessage(msg));
+			this._pendingMessages.forEach(msg => webview.postMessage(msg));
 			this._pendingMessages.clear();
 		}
 		this.container.style.visibility = 'visible';
@@ -203,9 +211,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private readonly _onMissingCsp = this._register(new Emitter<ExtensionIdentifier>());
 	public readonly onMissingCsp: Event<any> = this._onMissingCsp.event;
 
-	sendMessage(data: any): void {
+	postMessage(data: any): void {
 		if (this._webview.value) {
-			this._webview.value.sendMessage(data);
+			this._webview.value.postMessage(data);
 		} else {
 			this._pendingMessages.add(data);
 		}
@@ -214,6 +222,11 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	focus(): void { this.withWebview(webview => webview.focus()); }
 	reload(): void { this.withWebview(webview => webview.reload()); }
 	selectAll(): void { this.withWebview(webview => webview.selectAll()); }
+	copy(): void { this.withWebview(webview => webview.copy()); }
+	paste(): void { this.withWebview(webview => webview.paste()); }
+	cut(): void { this.withWebview(webview => webview.cut()); }
+	undo(): void { this.withWebview(webview => webview.undo()); }
+	redo(): void { this.withWebview(webview => webview.redo()); }
 
 	showFind() {
 		if (this._webview.value) {

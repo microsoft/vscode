@@ -19,7 +19,7 @@
     "jsonc-parser": "^2.2.1",
     "rimraf": "^2.6.3",
     "semver": "5.5.1",
-    "typescript-vscode-sh-plugin": "^0.6.13",
+    "typescript-vscode-sh-plugin": "^0.6.14",
     "vscode-extension-telemetry": "0.1.1",
     "vscode-nls": "^4.1.1"
   },
@@ -27,10 +27,15 @@
     "@types/node": "^12.11.7",
     "@types/rimraf": "2.0.2",
     "@types/semver": "^5.5.0",
+    "copy-webpack-plugin": "^6.0.3",
+    "terser": "^4.8.0",
+    "typescript-web-server": "git://github.com/mjbvz/ts-server-web-build",
     "vscode": "^1.1.36"
   },
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:typescript-language-features",
+    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "activationEvents": [
     "onLanguage:javascript",
@@ -50,6 +55,7 @@
     "onLanguage:jsonc"
   ],
   "main": "./out/extension",
+  "browser": "./dist/browser/extension",
   "contributes": {
     "jsonValidation": [
       {
@@ -58,7 +64,7 @@
       },
       {
         "fileMatch": "tsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "url": "https://json.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -66,7 +72,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "url": "https://json.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig-*.json",
@@ -74,7 +80,7 @@
       },
       {
         "fileMatch": "tsconfig-*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/tsconfig.json"
+        "url": "https://json.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -82,27 +88,27 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/typings.json"
+        "url": "https://json.schemastore.org/typings"
       },
       {
         "fileMatch": ".bowerrc",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/bowerrc.json"
+        "url": "https://json.schemastore.org/bowerrc"
       },
       {
         "fileMatch": ".babelrc",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+        "url": "https://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": ".babelrc.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+        "url": "https://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": "babel.config.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/babelrc.json"
+        "url": "https://json.schemastore.org/babelrc"
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+        "url": "https://json.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.json",
@@ -110,7 +116,7 @@
       },
       {
         "fileMatch": "jsconfig.*.json",
-        "url": "https://schemastore.azurewebsites.net/schemas/json/jsconfig.json"
+        "url": "https://json.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.*.json",
@@ -680,6 +686,22 @@
           "description": "%typescript.preferences.importModuleSpecifierEnding%",
           "scope": "resource"
         },
+        "typescript.preferences.includePackageJsonAutoImports": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "enumDescriptions": [
+            "%typescript.preferences.includePackageJsonAutoImports.auto%",
+            "%typescript.preferences.includePackageJsonAutoImports.on%",
+            "%typescript.preferences.includePackageJsonAutoImports.off%"
+          ],
+          "default": "auto",
+          "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
+          "scope": "window"
+        },
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
@@ -1008,10 +1030,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
       }

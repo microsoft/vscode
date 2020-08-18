@@ -5,17 +5,18 @@
 
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
-import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resources';
 import { escape } from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,6 +39,7 @@ import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOption
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -141,7 +143,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			const activeInput = this._editorService.activeEditor;
-			if (activeInput instanceof DiffEditorInput && activeInput.master instanceof WebviewInput && activeInput.details instanceof WebviewInput) {
+			if (activeInput instanceof DiffEditorInput && activeInput.primary instanceof WebviewInput && activeInput.secondary instanceof WebviewInput) {
 				this.registerWebviewFromDiffEditorListeners(activeInput);
 			}
 
@@ -183,6 +185,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			return matchedWorkingCopies;
 
 		});
+	}
+
+	dispose() {
+		super.dispose();
+
+		for (const disposable of this._editorProviders.values()) {
+			disposable.dispose();
+		}
+		this._editorProviders.clear();
 	}
 
 	public $createWebviewPanel(
@@ -252,7 +263,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 	public async $postMessage(handle: extHostProtocol.WebviewPanelHandle, message: any): Promise<boolean> {
 		const webview = this.getWebviewInput(handle);
-		webview.webview.sendMessage(message);
+		webview.webview.postMessage(message);
 		return true;
 	}
 
@@ -320,7 +331,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		options: modes.IWebviewPanelOptions,
 		capabilities: extHostProtocol.CustomTextEditorCapabilities,
 		supportsMultipleEditorsPerDocument: boolean,
-	): DisposableStore {
+	): void {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
@@ -396,8 +407,6 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}));
 
 		this._editorProviders.set(viewType, disposables);
-
-		return disposables;
 	}
 
 	public $unregisterEditorProvider(viewType: string): void {
@@ -468,22 +477,22 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	private registerWebviewFromDiffEditorListeners(diffEditorInput: DiffEditorInput): void {
-		const master = diffEditorInput.master as WebviewInput;
-		const details = diffEditorInput.details as WebviewInput;
+		const primary = diffEditorInput.primary as WebviewInput;
+		const secondary = diffEditorInput.secondary as WebviewInput;
 
-		if (this._webviewFromDiffEditorHandles.has(master.id) || this._webviewFromDiffEditorHandles.has(details.id)) {
+		if (this._webviewFromDiffEditorHandles.has(primary.id) || this._webviewFromDiffEditorHandles.has(secondary.id)) {
 			return;
 		}
 
-		this._webviewFromDiffEditorHandles.add(master.id);
-		this._webviewFromDiffEditorHandles.add(details.id);
+		this._webviewFromDiffEditorHandles.add(primary.id);
+		this._webviewFromDiffEditorHandles.add(secondary.id);
 
 		const disposables = new DisposableStore();
-		disposables.add(master.webview.onDidFocus(() => this.updateWebviewViewStates(master)));
-		disposables.add(details.webview.onDidFocus(() => this.updateWebviewViewStates(details)));
+		disposables.add(primary.webview.onDidFocus(() => this.updateWebviewViewStates(primary)));
+		disposables.add(secondary.webview.onDidFocus(() => this.updateWebviewViewStates(secondary)));
 		disposables.add(diffEditorInput.onDispose(() => {
-			this._webviewFromDiffEditorHandles.delete(master.id);
-			this._webviewFromDiffEditorHandles.delete(details.id);
+			this._webviewFromDiffEditorHandles.delete(primary.id);
+			this._webviewFromDiffEditorHandles.delete(secondary.id);
 			dispose(disposables);
 		}));
 	}
@@ -515,8 +524,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		for (const group of this._editorGroupService.groups) {
 			for (const input of group.editors) {
 				if (input instanceof DiffEditorInput) {
-					updateViewStatesForInput(group, input, input.master);
-					updateViewStatesForInput(group, input, input.details);
+					updateViewStatesForInput(group, input, input.primary);
+					updateViewStatesForInput(group, input, input.secondary);
 				} else {
 					updateViewStatesForInput(group, input, input);
 				}
@@ -654,10 +663,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		fromBackup: boolean,
 		private readonly _editable: boolean,
 		private readonly _getEditors: () => CustomEditorInput[],
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@ILabelService private readonly _labelService: ILabelService,
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IFileService private readonly _fileService: IFileService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 	) {
 		super();
 
@@ -838,11 +849,20 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return !!await this.saveCustomEditor(options);
 	}
 
-	public async saveCustomEditor(_options?: ISaveOptions): Promise<URI | undefined> {
+	public async saveCustomEditor(options?: ISaveOptions): Promise<URI | undefined> {
 		if (!this._editable) {
 			return undefined;
 		}
-		// TODO: handle save untitled case
+
+		if (this._editorResource.scheme === Schemas.untitled) {
+			const targetUri = await this.suggestUntitledSavePath(options);
+			if (!targetUri) {
+				return undefined;
+			}
+
+			await this.saveCustomEditorAs(this._editorResource, targetUri, options);
+			return targetUri;
+		}
 
 		const savePromise = createCancelablePromise(token => this._proxy.$onSave(this._editorResource, this.viewType, token));
 		this._ongoingSave?.cancel();
@@ -862,6 +882,18 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			}
 		}
 		return this._editorResource;
+	}
+
+	private suggestUntitledSavePath(options: ISaveOptions | undefined): Promise<URI | undefined> {
+		if (this._editorResource.scheme !== Schemas.untitled) {
+			throw new Error('Resource is not untitled');
+		}
+
+		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
+		const localResrouce = toLocalResource(this._editorResource, remoteAuthority);
+
+
+		return this._fileDialogService.pickFileToSave(localResrouce, options?.availableFileSystems);
 	}
 
 	public async saveCustomEditorAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {

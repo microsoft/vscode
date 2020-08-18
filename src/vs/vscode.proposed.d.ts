@@ -18,51 +18,6 @@ declare module 'vscode' {
 
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
-	export interface AuthenticationSession {
-		id: string;
-		getAccessToken(): Thenable<string>;
-		account: {
-			displayName: string;
-			id: string;
-		};
-		scopes: string[];
-	}
-
-	export class AuthenticationSession2 {
-		/**
-		 * The identifier of the authentication session.
-		 */
-		readonly id: string;
-
-		/**
-		 * The access token.
-		 */
-		readonly accessToken: string;
-
-		/**
-		 * The account associated with the session.
-		 */
-		readonly account: {
-			/**
-			 * The human-readable name of the account.
-			 */
-			readonly displayName: string;
-
-			/**
-			 * The unique identifier of the account.
-			 */
-			readonly id: string;
-		};
-
-		/**
-		 * The permissions granted by the session's access token. Available scopes
-		 * are defined by the authentication provider.
-		 */
-		readonly scopes: string[];
-
-		constructor(id: string, accessToken: string, account: { displayName: string, id: string }, scopes: string[]);
-	}
-
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
 	 */
@@ -70,48 +25,32 @@ declare module 'vscode' {
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
 		 */
-		readonly added: string[];
+		readonly added: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
 		 */
-		readonly removed: string[];
-	}
-
-	/**
-	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
-	 */
-	export interface AuthenticationGetSessionOptions {
-		/**
-		 *  Whether login should be performed if there is no matching session. Defaults to false.
-		 */
-		createIfNone?: boolean;
-
-		/**
-		 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
-		 * Defaults to false.
-		 */
-		clearSessionPreference?: boolean;
+		readonly removed: ReadonlyArray<AuthenticationProviderInformation>;
 	}
 
 	/**
 	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
 	*/
-	export interface AuthenticationSessionsChangeEvent {
+	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
 		*/
-		readonly added: string[];
+		readonly added: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
 		 */
-		readonly removed: string[];
+		readonly removed: ReadonlyArray<string>;
 
 		/**
 		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
 		 */
-		readonly changed: string[];
+		readonly changed: ReadonlyArray<string>;
 	}
 
 	/**
@@ -130,7 +69,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable name of the provider.
 		 */
-		readonly displayName: string;
+		readonly label: string;
 
 		/**
 		 * Whether it is possible to be signed into multiple accounts at once with this provider
@@ -141,17 +80,17 @@ declare module 'vscode' {
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
-		readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+		readonly onDidChangeSessions: Event<AuthenticationProviderAuthenticationSessionsChangeEvent>;
 
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession2>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Thenable<AuthenticationSession2>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -178,72 +117,22 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * @deprecated
 		 * The ids of the currently registered authentication providers.
 		 * @returns An array of the ids of authentication providers that are currently registered.
 		 */
 		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
 
 		/**
+		 * @deprecated
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
-		export const providerIds: string[];
+		export const providerIds: ReadonlyArray<string>;
 
 		/**
-		 * Returns whether a provider has any sessions matching the requested scopes. This request
-		 * is transparent to the user, not UI is shown. Rejects if a provider with providerId is not
-		 * registered.
-		 * @param providerId The id of the provider
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		 * provider
-		 * @returns A thenable that resolve to whether the provider has sessions with the requested scopes.
+		 * An array of the information of authentication providers that are currently registered.
 		 */
-		export function hasSessions(providerId: string, scopes: string[]): Thenable<boolean>;
-
-		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session
-		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession2>;
-
-		/**
-		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
-		 * quickpick to select which account they would like to use.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @param options The [getSessionOptions](#GetSessionOptions) to use
-		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
-		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession2 | undefined>;
-
-		/**
-		 * @deprecated
-		 * Get existing authentication sessions. Rejects if a provider with providerId is not
-		 * registered, or if the user does not consent to sharing authentication information with
-		 * the extension.
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		 * provider
-		 */
-		export function getSessions(providerId: string, scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
-
-		/**
-		 * @deprecated
-		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
-		* providerId is not registered, or if the user does not consent to sharing authentication
-		* information with the extension.
-		* @param providerId The id of the provider to use
-		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
-		* provider
-		*/
-		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+		export const providers: ReadonlyArray<AuthenticationProviderInformation>;
 
 		/**
 		 * @deprecated
@@ -253,13 +142,6 @@ declare module 'vscode' {
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
-
-		/**
-		* An [event](#Event) which fires when the array of sessions has changed, or data
-		* within a session has changed for a provider. Fires with the ids of the providers
-		* that have had session data change.
-		*/
-		export const onDidChangeSessions: Event<{ [providerId: string]: AuthenticationSessionsChangeEvent; }>;
 	}
 
 	//#endregion
@@ -342,6 +224,9 @@ declare module 'vscode' {
 		/**
 		 * Forwards a port. If the current resolver implements RemoteAuthorityResolver:forwardPort then that will be used to make the tunnel.
 		 * By default, openTunnel only support localhost; however, RemoteAuthorityResolver:tunnelFactory can be used to support other ips.
+		 *
+		 * @throws When run in an environment without a remote.
+		 *
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
@@ -366,13 +251,14 @@ declare module 'vscode' {
 
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
-		// TODO@isidorn
+		// For historic reasons we use an or string here. Once we finalize this API we should start using enums instead and adopt it in extensions.
 		// eslint-disable-next-line vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
 		workspaceSuffix?: string;
 		authorityPrefix?: string;
+		stripPathStartingSeparator?: boolean;
 	}
 
 	export namespace workspace {
@@ -851,6 +737,32 @@ declare module 'vscode' {
 
 	//#region debug
 
+	export interface DebugSessionOptions {
+		/**
+		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
+		 */
+		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 */
+		compact?: boolean;
+	}
+
+	/**
+	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolBreakpoint {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+	}
+
+	export interface DebugSession {
+		getDebugProtocolBreakpoint(breakpoint: Breakpoint): DebugProtocolBreakpoint | undefined;
+	}
+
 	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
@@ -974,9 +886,9 @@ declare module 'vscode' {
 
 	namespace window {
 		/**
-		 * An event which fires when the terminal's pty slave pseudo-device is written to. In other
-		 * words, this provides access to the raw data stream from the process running within the
-		 * terminal, including VT sequences.
+		 * An event which fires when the terminal's child pseudo-device is written to (the shell).
+		 * In other words, this provides access to the raw data stream from the process running
+		 * within the terminal, including VT sequences.
 		 */
 		export const onDidWriteTerminalData: Event<TerminalDataWriteEvent>;
 	}
@@ -1017,35 +929,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
-
-	export namespace window {
-		/**
-		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
-		 * handle links that are activated within terminals.
-		 * @param handler The link handler being registered.
-		 * @return A disposable that unregisters the link handler.
-		 */
-		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
-	}
-
-	/**
-	 * Describes how to handle terminal links.
-	 */
-	export interface TerminalLinkHandler {
-		/**
-		 * Handles a link that is activated within the terminal.
-		 *
-		 * @param terminal The terminal the link was activated on.
-		 * @param link The text of the link activated.
-		 * @return Whether the link was handled, if the link was handled this link will not be
-		 * considered by any other extension or by the default built-in link handler.
-		 */
-		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
-	}
-
-	//#endregion
-
 	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -1082,6 +965,11 @@ declare module 'vscode' {
 
 	}
 
+	// https://github.com/microsoft/vscode/issues/100741
+	export interface TreeDataProvider<T> {
+		resolveTreeItem?(element: T, item: TreeItem2): TreeItem2 | Thenable<TreeItem2>;
+	}
+
 	export class TreeItem2 extends TreeItem {
 		/**
 		 * Label describing this item. When `falsy`, it is derived from [resourceUri](#TreeItem.resourceUri).
@@ -1089,9 +977,9 @@ declare module 'vscode' {
 		label?: string | TreeItemLabel | /* for compilation */ any;
 
 		/**
-		 * Accessibility information used when screen reader interacts with this tree item.
+		 * Content to be shown when you hover over the tree item.
 		 */
-		accessibilityInformation?: AccessibilityInformation;
+		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
 		 * @param label Label describing this item
@@ -1118,7 +1006,7 @@ declare module 'vscode' {
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param callback The callback that will be called when the task is started by a user.
 		 */
-		constructor(callback: (resolvedDefinition?: TaskDefinition) => Thenable<Pseudoterminal>);
+		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
 	//#endregion
 
@@ -1255,18 +1143,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Allow theme icons in hovers: https://github.com/microsoft/vscode/issues/84695
-
-	export interface MarkdownString {
-
-		/**
-		 * Indicates that this markdown string can contain [ThemeIcons](#ThemeIcon), e.g. `$(zap)`.
-		 */
-		readonly supportThemeIcons?: boolean;
-	}
-
-	//#endregion
-
 	//#region @rebornix: Notebook
 
 	export enum CellKind {
@@ -1301,6 +1177,13 @@ declare module 'vscode' {
 		traceback: string[];
 	}
 
+	export interface NotebookCellOutputMetadata {
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		custom?: { [key: string]: any };
+	}
+
 	export interface CellDisplayOutput {
 		outputKind: CellOutputKind.Rich;
 		/**
@@ -1321,6 +1204,8 @@ declare module 'vscode' {
 		 * }
 		 */
 		data: { [key: string]: any; };
+
+		readonly metadata?: NotebookCellOutputMetadata;
 	}
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
@@ -1330,6 +1215,11 @@ declare module 'vscode' {
 		Idle = 2,
 		Success = 3,
 		Error = 4
+	}
+
+	export enum NotebookRunState {
+		Running = 1,
+		Idle = 2
 	}
 
 	export interface NotebookCellMetadata {
@@ -1382,6 +1272,16 @@ declare module 'vscode' {
 		lastRunDuration?: number;
 
 		/**
+		 * Whether a code cell's editor is collapsed
+		 */
+		inputCollapsed?: boolean;
+
+		/**
+		 * Whether a code cell's outputs are collapsed
+		 */
+		outputCollapsed?: boolean;
+
+		/**
 		 * Additional attributes of a cell metadata.
 		 */
 		custom?: { [key: string]: any };
@@ -1392,8 +1292,6 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
-		// API remove `source` or doc it as shorthand for document.getText()
-		readonly source: string;
 		language: string;
 		outputs: CellOutput[];
 		metadata: NotebookCellMetadata;
@@ -1436,12 +1334,19 @@ declare module 'vscode' {
 		 * Additional attributes of the document metadata.
 		 */
 		custom?: { [key: string]: any };
+
+		/**
+		 * The document's current run state
+		 */
+		runState?: NotebookRunState;
 	}
 
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly fileName: string;
+		readonly viewType: string;
 		readonly isDirty: boolean;
+		readonly isUntitled: boolean;
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
@@ -1449,16 +1354,22 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookConcatTextDocument {
+		uri: Uri;
 		isClosed: boolean;
 		dispose(): void;
 		onDidChange: Event<void>;
 		version: number;
 		getText(): string;
 		getText(range: Range): string;
+
 		offsetAt(position: Position): number;
 		positionAt(offset: number): Position;
+		validateRange(range: Range): Range;
+		validatePosition(position: Position): Position;
+
 		locationAt(positionOrRange: Position | Range): Location;
 		positionAt(location: Location): Position;
+		contains(uri: Uri): boolean
 	}
 
 	export interface NotebookEditorCellEdit {
@@ -1498,6 +1409,11 @@ declare module 'vscode' {
 		readonly onDidDispose: Event<void>;
 
 		/**
+		 * Active kernel used in the editor
+		 */
+		readonly kernel?: NotebookKernel;
+
+		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
 		readonly onDidReceiveMessage: Event<any>;
@@ -1519,8 +1435,13 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookOutputSelector {
-		type: string;
-		subTypes?: string[];
+		mimeTypes?: string[];
+	}
+
+	export interface NotebookRenderRequest {
+		output: CellDisplayOutput;
+		mimeType: string;
+		outputId: string;
 	}
 
 	export interface NotebookOutputRenderer {
@@ -1529,13 +1450,29 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
-		preloads?: Uri[];
+		render(document: NotebookDocument, request: NotebookRenderRequest): string;
+
+		/**
+		 * Call before HTML from the renderer is executed, and will be called for
+		 * every editor associated with notebook documents where the renderer
+		 * is or was used.
+		 *
+		 * The communication object will only send and receive messages to the
+		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
+		 * this specific renderer's ID.
+		 *
+		 * If you need to keep an association between the communication object
+		 * and the document for use in the `render()` method, you can use a WeakMap.
+		 */
+		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
+
+		readonly preloads?: Uri[];
 	}
 
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
+		readonly deletedItems: NotebookCell[];
 		readonly items: NotebookCell[];
 	}
 
@@ -1577,6 +1514,11 @@ declare module 'vscode' {
 		readonly language: string;
 	}
 
+	export interface NotebookCellMetadataChangeEvent {
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+	}
+
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
@@ -1591,7 +1533,7 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
-	interface NotebookDocumentEditEvent {
+	interface NotebookDocumentContentChangeEvent {
 
 		/**
 		 * The document that the edit is for.
@@ -1599,29 +1541,144 @@ declare module 'vscode' {
 		readonly document: NotebookDocument;
 	}
 
+	interface NotebookDocumentEditEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This will be shown to users in the UI for undo/redo operations.
+		 */
+		readonly label?: string;
+	}
+
+	interface NotebookDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openCustomDocument` when opening a notebook editor from a backup.
+		 */
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
+	}
+
+	interface NotebookDocumentBackupContext {
+		readonly destination: Uri;
+	}
+
+	interface NotebookDocumentOpenContext {
+		readonly backupId?: string;
+	}
+
+	/**
+	 * Communication object passed to the {@link NotebookContentProvider} and
+	 * {@link NotebookOutputRenderer} to communicate with the webview.
+	 */
+	export interface NotebookCommunication {
+		/**
+		 * ID of the editor this object communicates with. A single notebook
+		 * document can have multiple attached webviews and editors, when the
+		 * notebook is split for instance. The editor ID lets you differentiate
+		 * between them.
+		 */
+		readonly editorId: string;
+
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
 	export interface NotebookContentProvider {
-		openNotebook(uri: Uri): NotebookData | Promise<NotebookData>;
+		/**
+		 * Content providers should always use [file system providers](#FileSystemProvider) to
+		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
+		 */
+		openNotebook(uri: Uri, openContext: NotebookDocumentOpenContext): NotebookData | Promise<NotebookData>;
+		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
-
-		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
-		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
+		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 
 		kernel?: NotebookKernel;
 	}
 
 	export interface NotebookKernel {
+		readonly id?: string;
 		label: string;
+		description?: string;
+		isPreferred?: boolean;
 		preloads?: Uri[];
-		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
-		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell): void;
+		cancelCellExecution(document: NotebookDocument, cell: NotebookCell): void;
+		executeAllCells(document: NotebookDocument): void;
+		cancelAllCellsExecution(document: NotebookDocument): void;
+	}
+
+	export interface NotebookDocumentFilter {
+		viewType?: string;
+		filenamePattern?: GlobPattern;
+		excludeFileNamePattern?: GlobPattern;
+	}
+
+	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
+		onDidChangeKernels?: Event<void>;
+		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
+		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
 
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
 			provider: NotebookContentProvider
+		): Disposable;
+
+		export function registerNotebookKernelProvider(
+			selector: NotebookDocumentFilter,
+			provider: NotebookKernelProvider
 		): Disposable;
 
 		export function registerNotebookKernel(
@@ -1638,17 +1695,22 @@ declare module 'vscode' {
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * All currently known notebook documents.
+		 */
+		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+
 		export let visibleNotebookEditors: NotebookEditor[];
 		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
-
-		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
-		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		export let activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
+		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.
@@ -1657,43 +1719,8 @@ declare module 'vscode' {
 		 * @param selector
 		 */
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
-	}
 
-	//#endregion
-
-	//#region @connor4312 extension mode: https://github.com/microsoft/vscode/issues/95926
-
-	/**
-	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
-	 * mode the specific extension is running in.
-	 */
-	export enum ExtensionMode {
-		/**
-		 * The extension is installed normally (for example, from the marketplace
-		 * or VSIX) in VS Code.
-		 */
-		Release = 1,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` provided
-		 * when launching VS Code.
-		 */
-		Development = 2,
-
-		/**
-		 * The extension is running from an `--extensionDevelopmentPath` and
-		 * the extension host is running unit tests.
-		 */
-		Test = 3,
-	}
-
-	export interface ExtensionContext {
-		/**
-		 * The mode the extension is running in. This is specific to the current
-		 * extension. One extension may be in `ExtensionMode.Development` while
-		 * other extensions in the host run in `ExtensionMode.Release`.
-		 */
-		readonly extensionMode: ExtensionMode;
+		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
 	}
 
 	//#endregion
@@ -1889,80 +1916,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/86788
-
-	export interface CodeActionProviderMetadata {
-		/**
-		 * Static documentation for a class of code actions.
-		 *
-		 * The documentation is shown in the code actions menu if either:
-		 *
-		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
-		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
-		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
-		 *   VS Code will use the documentation for `RefactorExtract` intead of the documentation for `Refactor`.
-		 *
-		 * - Any code actions of `kind` are returned by the provider.
-		 */
-		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command; }>;
-	}
-
-	//#endregion
-
-	//#region Dialog title: https://github.com/microsoft/vscode/issues/82871
-
-	/**
-	 * Options to configure the behaviour of a file open dialog.
-	 *
-	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
-	 * which enforces to open either files or folder, but *not both*.
-	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
-	 * and the editor then silently adjusts the options to select files.
-	 */
-	export interface OpenDialogOptions {
-		/**
-		 * Dialog title.
-		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on open dialogs.
-		 */
-		title?: string;
-	}
-
-	/**
-	 * Options to configure the behaviour of a file save dialog.
-	 */
-	export interface SaveDialogOptions {
-		/**
-		 * Dialog title.
-		 *
-		 * Depending on the underlying operating system this parameter might be ignored, since some
-		 * systems do not present title on save dialogs.
-		 */
-		title?: string;
-	}
-
-	//#endregion
-
-	//#region Accessibility information: https://github.com/microsoft/vscode/issues/95360
-
-	/**
-	 * Accessibility information which controls screen reader behavior.
-	 */
-	export interface AccessibilityInformation {
-		label: string;
-		role?: string;
-	}
-
-	export interface StatusBarItem {
-		/**
-		 * Accessibility information used when screen reader interacts with this StatusBar item
-		 */
-		accessibilityInformation?: AccessibilityInformation;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/91555
 
 	export enum StandardTokenType {
@@ -1981,5 +1934,118 @@ declare module 'vscode' {
 		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
 	}
 
+	//#endregion
+
+	//#region Support `scmResourceState` in `when` clauses #86180 https://github.com/microsoft/vscode/issues/86180
+
+	export interface SourceControlResourceState {
+		/**
+		 * Context value of the resource state. This can be used to contribute resource specific actions.
+		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"scm/resourceState/context": [
+		 *				{
+		 *					"command": "extension.diff",
+		 *					"when": "scmResourceState == diffable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
+		 */
+		readonly contextValue?: string;
+	}
+
+	//#endregion
+	//#region https://github.com/microsoft/vscode/issues/101857
+
+	export interface ExtensionContext {
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly logUri: Uri;
+
+		/**
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly storageUri: Uri | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly globalStorageUri: Uri;
+
+		/**
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
+		 */
+		readonly logPath: string;
+		/**
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
+		 */
+		readonly storagePath: string | undefined;
+		/**
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
+		 */
+		readonly globalStoragePath: string;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/104436
+
+	export enum ExtensionRuntime {
+		/**
+		 * The extension is running in a NodeJS extension host. Runtime access to NodeJS APIs is available.
+		 */
+		Node = 1,
+		/**
+		 * The extension is running in a Webworker extension host. Runtime access is limited to Webworker APIs.
+		 */
+		Webworker = 2
+	}
+
+	export interface ExtensionContext {
+		readonly extensionRuntime: ExtensionRuntime;
+	}
+
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/102091
+
+	export interface TextDocument {
+
+		/**
+		 * The [notebook](#NotebookDocument) that contains this document as a notebook cell or `undefined` when
+		 * the document is not contained by a notebook (this should be the more frequent case).
+		 */
+		notebook: NotebookDocument | undefined;
+	}
 	//#endregion
 }

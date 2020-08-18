@@ -14,6 +14,7 @@ import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
 
 export const enum ConnectionType {
 	Management = 1,
@@ -246,6 +247,7 @@ export interface IConnectionOptions {
 	addressProvider: IAddressProvider;
 	signService: ISignService;
 	logService: ILogService;
+	ipcLogger: IIPCLogger | null;
 }
 
 async function resolveConnectionOptions(options: IConnectionOptions, reconnectionToken: string, reconnectionProtocol: PersistentProtocol | null): Promise<ISimpleConnectionOptions> {
@@ -493,7 +495,7 @@ export class ManagementPersistentConnection extends PersistentConnection {
 		this.client = this._register(new Client<RemoteAgentConnectionContext>(protocol, {
 			remoteAuthority: remoteAuthority,
 			clientId: clientId
-		}));
+		}, options.ipcLogger));
 	}
 
 	protected async _reconnect(options: ISimpleConnectionOptions): Promise<void> {

@@ -12,8 +12,8 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, 
 import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IAction } from 'vs/base/common/actions';
-import { IActionViewItem, ActionsOrientation, Separator, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -33,14 +33,14 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { MenuId, MenuItemAction, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId, MenuItemAction, registerAction2, Action2, IAction2Options, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Link } from 'vs/platform/opener/browser/link';
-import { CompositeDragAndDropObserver, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, DragAndDropObserver, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
@@ -293,6 +293,7 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			renderDropdownAsChildElement: true
 		});
 
 		this._register(this.toolbar);
@@ -450,7 +451,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private setActions(): void {
 		if (this.toolbar) {
-			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
+			this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()));
 			this.toolbar.context = this.getActionsContext();
 		}
 	}
@@ -482,7 +483,9 @@ export abstract class ViewPane extends Pane implements IView {
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action instanceof MenuItemAction) {
-			return this.instantiationService.createInstance(ContextAwareMenuEntryActionViewItem, action);
+			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+		} else if (action instanceof SubmenuItemAction) {
+			return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 		}
 		return undefined;
 	}
@@ -504,7 +507,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (!this.shouldShowWelcome()) {
 			removeClass(this.bodyContainer, 'welcome');
-			this.viewWelcomeContainer.innerHTML = '';
+			this.viewWelcomeContainer.innerText = '';
 			this.scrollableElement.scanDomNode();
 			return;
 		}
@@ -513,14 +516,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (contents.length === 0) {
 			removeClass(this.bodyContainer, 'welcome');
-			this.viewWelcomeContainer.innerHTML = '';
+			this.viewWelcomeContainer.innerText = '';
 			this.scrollableElement.scanDomNode();
 			return;
 		}
 
 		const disposables = new DisposableStore();
 		addClass(this.bodyContainer, 'welcome');
-		this.viewWelcomeContainer.innerHTML = '';
+		this.viewWelcomeContainer.innerText = '';
 
 		let buttonIndex = 0;
 
@@ -604,6 +607,8 @@ const enum DropDirection {
 	RIGHT
 }
 
+type BoundingRect = { top: number, left: number, bottom: number, right: number };
+
 class ViewPaneDropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
@@ -625,6 +630,7 @@ class ViewPaneDropOverlay extends Themable {
 	constructor(
 		private paneElement: HTMLElement,
 		private orientation: Orientation | undefined,
+		private bounds: BoundingRect | undefined,
 		protected location: ViewContainerLocation,
 		protected themeService: IThemeService,
 	) {
@@ -756,7 +762,22 @@ class ViewPaneDropOverlay extends Themable {
 				this.doPositionOverlay({ top: '0', right: '0', width: '50%', height: '100%' });
 				break;
 			default:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+				// const top = this.bounds?.top || 0;
+				// const left = this.bounds?.bottom || 0;
+
+				let top = '0';
+				let left = '0';
+				let width = '100%';
+				let height = '100%';
+				if (this.bounds) {
+					const boundingRect = this.container.getBoundingClientRect();
+					top = `${this.bounds.top - boundingRect.top}px`;
+					left = `${this.bounds.left - boundingRect.left}px`;
+					height = `${this.bounds.bottom - this.bounds.top}px`;
+					width = `${this.bounds.right - this.bounds.left}px`;
+				}
+
+				this.doPositionOverlay({ top, left, width, height });
 		}
 
 		if ((this.orientation === Orientation.VERTICAL && paneHeight <= 25) ||
@@ -897,9 +918,35 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
 		let overlay: ViewPaneDropOverlay | undefined;
+		const getOverlayBounds: () => BoundingRect = () => {
+			const fullSize = parent.getBoundingClientRect();
+			const lastPane = this.panes[this.panes.length - 1].element.getBoundingClientRect();
+			const top = this.orientation === Orientation.VERTICAL ? lastPane.bottom : fullSize.top;
+			const left = this.orientation === Orientation.HORIZONTAL ? lastPane.right : fullSize.left;
+
+			return {
+				top,
+				bottom: fullSize.bottom,
+				left,
+				right: fullSize.right,
+			};
+		};
+
+		const inBounds = (bounds: BoundingRect, pos: { x: number, y: number }) => {
+			return pos.x >= bounds.left && pos.x <= bounds.right && pos.y >= bounds.top && pos.y <= bounds.bottom;
+		};
+
+
+		let bounds: BoundingRect;
+
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragEnter: (e) => {
-				if (!overlay && this.panes.length === 0) {
+				bounds = getOverlayBounds();
+				if (overlay && overlay.disposed) {
+					overlay = undefined;
+				}
+
+				if (!overlay && inBounds(bounds, e.eventData)) {
 					const dropData = e.dragAndDropData.getData();
 					if (dropData.type === 'view') {
 
@@ -910,18 +957,31 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							return;
 						}
 
-						overlay = new ViewPaneDropOverlay(parent, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+						overlay = new ViewPaneDropOverlay(parent, undefined, bounds, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 					}
 
 					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
 						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
-						if (!viewsToMove.some(v => !v.canMoveView)) {
-							overlay = new ViewPaneDropOverlay(parent, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
+							overlay = new ViewPaneDropOverlay(parent, undefined, bounds, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
+				}
+			},
+			onDragOver: (e) => {
+				if (overlay && overlay.disposed) {
+					overlay = undefined;
+				}
 
+				if (overlay && !inBounds(bounds, e.eventData)) {
+					overlay.dispose();
+					overlay = undefined;
+				}
+
+				if (inBounds(bounds, e.eventData)) {
+					toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
 				}
 			},
 			onDragLeave: (e) => {
@@ -947,8 +1007,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						}
 					}
 
+					const paneCount = this.panes.length;
+
 					if (viewsToMove.length > 0) {
 						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer);
+					}
+
+					if (paneCount > 0) {
+						for (const view of viewsToMove) {
+							const paneToMove = this.panes.find(p => p.id === view.id);
+							if (paneToMove) {
+								this.movePane(paneToMove, this.panes[this.panes.length - 1]);
+							}
+						}
 					}
 				}
 
@@ -977,6 +1048,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateViewHeaders();
 			}
 		});
+
+		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => this._onTitleAreaUpdate.fire()));
 	}
 
 	getTitle(): string {
@@ -1035,14 +1108,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		}
 
-		const viewToggleActions = this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
-			id: `${viewDescriptor.id}.toggleVisibility`,
-			label: viewDescriptor.name,
-			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
-			run: () => this.toggleViewVisibility(viewDescriptor.id)
-		}));
-
+		const viewToggleActions = this.getViewsVisibilityActions();
 		if (result.length && viewToggleActions.length) {
 			result.push(new Separator());
 		}
@@ -1066,6 +1132,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 
 		return [];
+	}
+
+	getActionsContext(): unknown {
+		return undefined;
+	}
+
+	getViewsVisibilityActions(): IAction[] {
+		return this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
+			id: `${viewDescriptor.id}.toggleVisibility`,
+			label: viewDescriptor.name,
+			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
+			run: () => this.toggleViewVisibility(viewDescriptor.id)
+		}));
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -1350,18 +1430,21 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							return;
 						}
 
-						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 					}
 
 					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id && !this.viewContainer.rejectAddedViews) {
 						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
-						if (!viewsToMove.some(v => !v.canMoveView)) {
-							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
 				}
+			},
+			onDragOver: (e) => {
+				toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
 			},
 			onDragLeave: (e) => {
 				overlay?.dispose();

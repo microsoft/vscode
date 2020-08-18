@@ -162,7 +162,7 @@ export namespace SemanticTokenRule {
 			&& TokenStyle.equals(r1.style, r2.style);
 	}
 	export function is(r: any): r is SemanticTokenRule {
-		return r && r.selector && typeof r.selector.selectorString === 'string' && TokenStyle.is(r.style);
+		return r && r.selector && typeof r.selector.id === 'string' && TokenStyle.is(r.style);
 	}
 }
 
@@ -312,9 +312,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	};
 
 	constructor() {
-		this.tokenTypeById = {};
-		this.tokenModifierById = {};
-		this.typeHierarchy = {};
+		this.tokenTypeById = Object.create(null);
+		this.tokenModifierById = Object.create(null);
+		this.typeHierarchy = Object.create(null);
 	}
 
 	public registerTokenType(id: string, description: string, superType?: string, deprecationMessage?: string): void {
@@ -331,7 +331,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
 		this.tokenStylingSchema.properties[id] = stylingSchemeEntry;
-		this.typeHierarchy = {};
+		this.typeHierarchy = Object.create(null);
 	}
 
 	public registerTokenModifier(id: string, description: string, deprecationMessage?: string): void {
@@ -398,7 +398,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	public deregisterTokenType(id: string): void {
 		delete this.tokenTypeById[id];
 		delete this.tokenStylingSchema.properties[id];
-		this.typeHierarchy = {};
+		this.typeHierarchy = Object.create(null);
 	}
 
 	public deregisterTokenModifier(id: string): void {

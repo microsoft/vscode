@@ -505,7 +505,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			'workbench.action.quit',
 			'workbench.action.reloadWindow',
 			'copy',
-			'cut'
+			'cut',
+			'editor.action.clipboardCopyAction',
+			'editor.action.clipboardCutAction'
 		];
 
 		let dialog: Dialog;
@@ -525,7 +527,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
 						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
 						if (resolved?.commandId) {
-							if (allowableCommands.indexOf(resolved.commandId) === -1) {
+							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);
 							}
 						}

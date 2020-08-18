@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -110,9 +110,13 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
+import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/browser/textFileService';
+import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
-	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
+	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined);
 }
 
 export interface ITestInstantiationService extends IInstantiationService {
@@ -226,7 +230,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IModeService modeService: IModeService
 	) {
 		super(
 			fileService,
@@ -243,7 +248,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			codeEditorService,
 			pathService,
 			workingCopyFileService,
-			uriIdentityService
+			uriIdentityService,
+			modeService
 		);
 	}
 
@@ -271,6 +277,31 @@ export class TestTextFileService extends BrowserTextFileService {
 			size: 10
 		};
 	}
+}
+
+export class TestBrowserTextFileServiceWithEncodingOverrides extends BrowserTextFileService {
+
+	private _testEncoding: TestEncodingOracle | undefined;
+	get encoding(): TestEncodingOracle {
+		if (!this._testEncoding) {
+			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+		}
+
+		return this._testEncoding;
+	}
+}
+
+export class TestEncodingOracle extends EncodingOracle {
+
+	protected get encodingOverrides(): IEncodingOverride[] {
+		return [
+			{ extension: 'utf16le', encoding: UTF16le },
+			{ extension: 'utf16be', encoding: UTF16be },
+			{ extension: 'utf8bom', encoding: UTF8_with_bom }
+		];
+	}
+
+	protected set encodingOverrides(overrides: IEncodingOverride[]) { }
 }
 
 class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService {
@@ -495,6 +526,7 @@ export class TestViewsService implements IViewsService {
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
 	closeView(id: string): void { }
 	getViewProgressIndicator(id: string) { return null!; }
+	getActiveViewPaneContainerWithId(id: string) { return null; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -752,7 +784,7 @@ export class TestFileService implements IFileService {
 		this.lastReadFileUri = resource;
 
 		return Promise.resolve({
-			resource: resource,
+			resource,
 			value: {
 				on: (event: string, callback: Function): void => {
 					if (event === 'data') {
@@ -762,6 +794,7 @@ export class TestFileService implements IFileService {
 						callback();
 					}
 				},
+				removeListener: () => { },
 				resume: () => { },
 				pause: () => { },
 				destroy: () => { }
@@ -834,6 +867,7 @@ export class TestFileService implements IFileService {
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 	dispose(): void { }
 
+	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
 	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
 	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
@@ -941,6 +975,39 @@ export class RemoteFileSystemProvider implements IFileSystemProvider {
 	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return this.diskFileSystemProvider.write!(fd, pos, data, offset, length); }
 
 	private toFileResource(resource: URI): URI { return resource.with({ scheme: Schemas.file, authority: '' }); }
+}
+
+export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider implements IFileSystemProviderWithFileReadStreamCapability {
+	readonly capabilities: FileSystemProviderCapabilities =
+		FileSystemProviderCapabilities.FileReadWrite
+		| FileSystemProviderCapabilities.PathCaseSensitive
+		| FileSystemProviderCapabilities.FileReadStream;
+
+
+	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
+		const BUFFER_SIZE = 64 * 1024;
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+
+		(async () => {
+			try {
+				const data = await this.readFile(resource);
+
+				let offset = 0;
+				while (offset < data.length) {
+					await timeout(0);
+					await stream.write(data.subarray(offset, offset + BUFFER_SIZE));
+					offset += BUFFER_SIZE;
+				}
+
+				await timeout(0);
+				stream.end();
+			} catch (error) {
+				stream.end(error);
+			}
+		})();
+
+		return stream;
+	}
 }
 
 export const productService: IProductService = { _serviceBrand: undefined, ...product };
@@ -1055,6 +1122,9 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 }
 
 export class TestFileEditorInput extends EditorInput implements IFileEditorInput {
+
+	readonly preferredResource = this.resource;
+
 	gotDisposed = false;
 	gotSaved = false;
 	gotSavedAs = false;
@@ -1072,6 +1142,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	getTypeId() { return this.typeId; }
 	resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	matches(other: EditorInput): boolean { return !!(other?.resource && this.resource.toString() === other.resource.toString() && other instanceof TestFileEditorInput && other.getTypeId() === this.typeId); }
+	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
@@ -1109,7 +1180,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.gotDisposed = true;
 	}
 	movedEditor: IMoveResult | undefined = undefined;
-	move(): IMoveResult | undefined { return this.movedEditor; }
+	rename(): IMoveResult | undefined { return this.movedEditor; }
 }
 
 export class TestEditorPart extends EditorPart {
@@ -1149,7 +1220,7 @@ export class TestPathService implements IPathService {
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
 
-	get userHome() { return Promise.resolve(this.fallbackUserHome); }
+	async userHome() { return this.fallbackUserHome; }
 	get resolvedUserHome() { return this.fallbackUserHome; }
 
 	async fileURI(path: string): Promise<URI> {

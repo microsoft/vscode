@@ -47,6 +47,9 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { Schemas } from 'vs/base/common/network';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { TunnelService } from 'vs/platform/remote/node/tunnelService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -162,6 +165,8 @@ class CodeMain {
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
 		services.set(IStorageKeysSyncRegistryService, new SyncDescriptor(StorageKeysSyncRegistryService));
+		services.set(IProductService, { _serviceBrand: undefined, ...product });
+		services.set(ITunnelService, new SyncDescriptor(TunnelService));
 
 		return [new InstantiationService(services, true), instanceEnvironment, environmentService];
 	}
@@ -173,8 +178,8 @@ class CodeMain {
 			environmentService.extensionsPath,
 			environmentService.nodeCachedDataDir,
 			environmentService.logsPath,
-			environmentService.globalStorageHome,
-			environmentService.workspaceStorageHome,
+			environmentService.globalStorageHome.fsPath,
+			environmentService.workspaceStorageHome.fsPath,
 			environmentService.backupHome.fsPath
 		].map((path): undefined | Promise<void> => path ? mkdirp(path) : undefined));
 
@@ -284,7 +289,8 @@ class CodeMain {
 
 			// Process Info
 			if (args.status) {
-				return instantiationService.invokeFunction(async accessor => {
+				return instantiationService.invokeFunction(async () => {
+
 					// Create a diagnostic service connected to the existing shared process
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
 					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
@@ -352,7 +358,10 @@ class CodeMain {
 	}
 
 	private showStartupWarningDialog(message: string, detail: string): void {
-		dialog.showMessageBox({
+		// use sync variant here because we likely exit after this method
+		// due to startup issues and otherwise the dialog seems to disappear
+		// https://github.com/microsoft/vscode/issues/104493
+		dialog.showMessageBoxSync({
 			title: product.nameLong,
 			type: 'warning',
 			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],

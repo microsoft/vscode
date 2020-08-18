@@ -194,8 +194,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
-		this.domNodes.signature.innerHTML = '';
-		this.domNodes.docs.innerHTML = '';
+		this.domNodes.signature.innerText = '';
+		this.domNodes.docs.innerText = '';
 
 		const signature = hints.signatures[hints.activeSignature];
 		if (!signature) {

@@ -220,6 +220,16 @@ suite('KeybindingsEditing', () => {
 			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
+	test('remove a default keybinding should not ad duplicate entries', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }];
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		await testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'a', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } } }));
+		assert.deepEqual(getUserKeybindings(), expected);
+	});
+
 	test('remove a user keybinding', () => {
 		writeToKeybindingsFile({ key: 'alt+c', command: 'b' });
 		return testObject.removeKeybinding(aResolvedKeybindingItem({ command: 'b', firstPart: { keyCode: KeyCode.KEY_C, modifiers: { altKey: true } }, isDefault: false }))

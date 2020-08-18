@@ -15,7 +15,7 @@ export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 
 	constructor(
 		logService: ILogService,
-		private electronService: IElectronService,
+		private readonly electronService: IElectronService,
 		options?: IDiskFileSystemProviderOptions
 	) {
 		super(logService, options);

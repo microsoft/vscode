@@ -7,12 +7,13 @@ const path = require('path');
 const Mocha = require('mocha');
 const minimist = require('minimist');
 
-const suite = 'Smoke Tests';
-
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
+	boolean: 'web',
 	string: ['f', 'g']
 });
+
+const suite = opts['web'] ? 'Browser Smoke Tests' : 'Smoke Tests';
 
 const options = {
 	color: true,

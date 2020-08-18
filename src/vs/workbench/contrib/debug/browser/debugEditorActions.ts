@@ -9,8 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
@@ -144,7 +143,15 @@ export class RunToCursorAction extends EditorAction {
 			const uri = editor.getModel().uri;
 			const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
 			if (!bpExists) {
-				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction');
+				let column = 0;
+				const focusedStackFrame = debugService.getViewModel().focusedStackFrame;
+				if (focusedStackFrame && focusedStackFrame.source.uri.toString() === uri.toString() && focusedStackFrame.range.startLineNumber === position.lineNumber) {
+					// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
+					// otherwise set it at the precise column #102199
+					column = position.column;
+				}
+
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], 'debugEditorActions.runToCursorAction');
 				if (breakpoints && breakpoints.length) {
 					breakpointToRemove = breakpoints[0];
 				}
@@ -181,7 +188,7 @@ class SelectionToReplAction extends EditorAction {
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await viewsService.openView(REPL_VIEW_ID, true);
+		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }
 
@@ -202,13 +209,13 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
-		const viewletService = accessor.get(IViewletService);
+		const viewsService = accessor.get(IViewsService);
 		if (!editor.hasModel()) {
 			return;
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		await viewletService.openViewlet(VIEWLET_ID);
+		await viewsService.openView(WATCH_VIEW_ID);
 		debugService.addWatchExpression(text);
 	}
 }
@@ -247,7 +254,7 @@ class ShowDebugHoverAction extends EditorAction {
 class StepIntoTargetsAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.stepIntoTargets';
-	public static readonly LABEL = nls.localize('stepIntoTargets', "Step Into Targets...");
+	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Targets...");
 
 	constructor() {
 		super({
@@ -348,13 +355,15 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 	}
 }
 
-registerEditorAction(ToggleBreakpointAction);
-registerEditorAction(ConditionalBreakpointAction);
-registerEditorAction(LogPointAction);
-registerEditorAction(RunToCursorAction);
-registerEditorAction(StepIntoTargetsAction);
-registerEditorAction(SelectionToReplAction);
-registerEditorAction(SelectionToWatchExpressionsAction);
-registerEditorAction(ShowDebugHoverAction);
-registerEditorAction(GoToNextBreakpointAction);
-registerEditorAction(GoToPreviousBreakpointAction);
+export function registerEditorActions(): void {
+	registerEditorAction(ToggleBreakpointAction);
+	registerEditorAction(ConditionalBreakpointAction);
+	registerEditorAction(LogPointAction);
+	registerEditorAction(RunToCursorAction);
+	registerEditorAction(StepIntoTargetsAction);
+	registerEditorAction(SelectionToReplAction);
+	registerEditorAction(SelectionToWatchExpressionsAction);
+	registerEditorAction(ShowDebugHoverAction);
+	registerEditorAction(GoToNextBreakpointAction);
+	registerEditorAction(GoToPreviousBreakpointAction);
+}

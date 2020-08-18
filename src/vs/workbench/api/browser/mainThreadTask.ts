@@ -5,15 +5,14 @@
 
 import * as nls from 'vs/nls';
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as Objects from 'vs/base/common/objects';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary, forEach } from 'vs/base/common/collections';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
@@ -64,7 +63,7 @@ namespace TaskProcessEndedDTO {
 
 namespace TaskDefinitionDTO {
 	export function from(value: KeyedTaskIdentifier): TaskDefinitionDTO {
-		const result = Objects.assign(Object.create(null), value);
+		const result = Object.assign(Object.create(null), value);
 		delete result._key;
 		return result;
 	}
@@ -85,13 +84,13 @@ namespace TaskPresentationOptionsDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		return Objects.assign(Object.create(null), value);
+		return Object.assign(Object.create(null), value);
 	}
 	export function to(value: TaskPresentationOptionsDTO | undefined): PresentationOptions {
 		if (value === undefined || value === null) {
 			return PresentationOptions.defaults;
 		}
-		return Objects.assign(Object.create(null), PresentationOptions.defaults, value);
+		return Object.assign(Object.create(null), PresentationOptions.defaults, value);
 	}
 }
 
@@ -100,13 +99,13 @@ namespace RunOptionsDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		return Objects.assign(Object.create(null), value);
+		return Object.assign(Object.create(null), value);
 	}
 	export function to(value: RunOptionsDTO | undefined): RunOptions {
 		if (value === undefined || value === null) {
 			return RunOptions.defaults;
 		}
-		return Objects.assign(Object.create(null), RunOptions.defaults, value);
+		return Object.assign(Object.create(null), RunOptions.defaults, value);
 	}
 }
 
@@ -328,10 +327,10 @@ namespace TaskDTO {
 			result.detail = task.configurationProperties.detail;
 		}
 		if (!ConfiguringTask.is(task) && task.command) {
-			if (task.command.runtime === RuntimeType.Process) {
-				result.execution = ProcessExecutionDTO.from(task.command);
-			} else if (task.command.runtime === RuntimeType.Shell) {
-				result.execution = ShellExecutionDTO.from(task.command);
+			switch (task.command.runtime) {
+				case RuntimeType.Process: result.execution = ProcessExecutionDTO.from(task.command); break;
+				case RuntimeType.Shell: result.execution = ShellExecutionDTO.from(task.command); break;
+				case RuntimeType.CustomExecution: result.execution = CustomExecutionDTO.from(task.command); break;
 			}
 		}
 		if (task.configurationProperties.problemMatchers) {
@@ -368,7 +367,7 @@ namespace TaskDTO {
 
 		const label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
 		const definition = TaskDefinitionDTO.to(task.definition, executeOnly)!;
-		const id = `${task.source.extensionId}.${definition._key}`;
+		const id = (CustomExecutionDTO.is(task.execution!) && task._id) ? task._id : `${task.source.extensionId}.${definition._key}`;
 		const result: ContributedTask = new ContributedTask(
 			id, // uuidMap.getUUID(identifier)
 			source,
@@ -415,10 +414,16 @@ export class MainThreadTask implements MainThreadTaskShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange((event: TaskEvent) => {
+		this._taskService.onDidStateChange(async (event: TaskEvent) => {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId!);
+				const execution = TaskExecutionDTO.from(task.getTaskExecution());
+				let resolvedDefinition: TaskDefinitionDTO | undefined;
+				if (execution.task && execution.task.execution && CustomExecutionDTO.is(execution.task.execution)) {
+					resolvedDefinition = await this._configurationResolverService.resolveWithInteractionReplace(task.getWorkspaceFolder(),
+						execution.task.definition, 'tasks');
+				}
+				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
@@ -510,12 +515,54 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
+	private getWorkspace(value: UriComponents | string): string | IWorkspace | IWorkspaceFolder | null {
+		let workspace;
+		if (typeof value === 'string') {
+			workspace = value;
+		} else {
+			const workspaceObject = this._workspaceContextServer.getWorkspace();
+			const uri = URI.revive(value);
+			if (workspaceObject.configuration?.toString() === uri.toString()) {
+				workspace = workspaceObject;
+			} else {
+				workspace = this._workspaceContextServer.getWorkspaceFolder(uri);
+			}
+		}
+		return workspace;
+	}
+
+	public async $getTaskExecution(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
+		if (TaskHandleDTO.is(value)) {
+			const workspace = this.getWorkspace(value.workspaceFolder);
+			if (workspace) {
+				const task = await this._taskService.getTask(workspace, value.id, true);
+				if (task) {
+					return {
+						id: task._id,
+						task: TaskDTO.from(task)
+					};
+				}
+				throw new Error('Task not found');
+			} else {
+				throw new Error('No workspace folder');
+			}
+		} else {
+			const task = TaskDTO.to(value, this._workspaceContextServer, true)!;
+			return {
+				id: task._id,
+				task: TaskDTO.from(task)
+			};
+		}
+	}
+
+	// Passing in a TaskHandleDTO will cause the task to get re-resolved, which is important for tasks are coming from the core,
+	// such as those gotten from a fetchTasks, since they can have missing configuration properties.
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
-				if (workspaceFolder) {
-					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
+				const workspace = this.getWorkspace(value.workspaceFolder);
+				if (workspace) {
+					this._taskService.getTask(workspace, value.id, true).then((task: Task | undefined) => {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {
@@ -547,6 +594,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 	}
+
 
 	public $customExecutionComplete(id: string, result?: number): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
@@ -587,6 +635,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $registerTaskSystem(key: string, info: TaskSystemInfoDTO): void {
 		let platform: Platform.Platform;
 		switch (info.platform) {
+			case 'Web':
+				platform = Platform.Platform.Web;
+				break;
 			case 'win32':
 				platform = Platform.Platform.Windows;
 				break;
@@ -605,7 +656,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables | undefined> => {
 				const vars: string[] = [];
 				toResolve.variables.forEach(item => vars.push(item));
 				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
@@ -613,8 +664,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 					forEach(values.variables, (entry) => {
 						partiallyResolvedVars.push(entry.value);
 					});
-					return new Promise<ResolvedVariables>((resolve, reject) => {
+					return new Promise<ResolvedVariables | undefined>((resolve, reject) => {
 						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks', undefined, target).then(resolvedVars => {
+							if (!resolvedVars) {
+								resolve(undefined);
+							}
+
 							const result: ResolvedVariables = {
 								process: undefined,
 								variables: new Map<string, string>()
@@ -642,7 +697,15 @@ export class MainThreadTask implements MainThreadTaskShape {
 			},
 			getDefaultShellAndArgs: (): Promise<{ shell: string, args: string[] | string | undefined }> => {
 				return Promise.resolve(this._proxy.$getDefaultShellAndArgs());
+			},
+			findExecutable: (command: string, cwd?: string, paths?: string[]): Promise<string | undefined> => {
+				return this._proxy.$findExecutable(command, cwd, paths);
 			}
 		});
 	}
+
+	async $registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void> {
+		return this._taskService.registerSupportedExecutions(custom, shell, process);
+	}
+
 }
