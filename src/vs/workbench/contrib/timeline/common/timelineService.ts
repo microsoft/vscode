@@ -271,12 +271,6 @@ export class TimelineService implements ITimelineService {
 	}
 
 	private updateHasProviderContext() {
-		if (this.providers.size === 0) {
-			this.hasProviderContext.set(false);
-			return;
-		}
-
-		const hasProviders = [...this.providers.keys()].some(id => !this.excludedSources.has(id));
-		this.hasProviderContext.set(hasProviders);
+		this.hasProviderContext.set(this.providers.size !== 0);
 	}
 }
