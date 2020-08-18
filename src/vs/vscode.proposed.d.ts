@@ -2057,7 +2057,7 @@ declare module 'vscode' {
 	 */
 	export interface WebviewView {
 		/**
-		 * Identifies the type of the webview view, such as `'markdown.preview'`.
+		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
 		 */
 		readonly viewType: string;
 
@@ -2067,9 +2067,12 @@ declare module 'vscode' {
 		readonly webview: Webview;
 
 		/**
-		 * Fired when the view is disposed.
+		 * Event fired when the view is disposed.
 		 *
-		 * This is called when the view is hidden by the user.
+		 * Views are disposed of in a few cases:
+		 *
+		 * - When a view is collapsed and `retainContextWhenHidden` has not been set.
+		 * - When a view is hidden by a user.
 		 *
 		 * Trying to use the view after it has been disposed throws an exception.
 		 */
@@ -2088,6 +2091,37 @@ declare module 'vscode' {
 		readonly onDidChangeVisibility: Event<void>;
 	}
 
+	interface WebviewViewResolveContext<T = unknown> {
+		/**
+		 * Persisted state from the webview content.
+		 *
+		 * To save resources, VS Code normally deallocates webview views that are not visible. For example, if the user
+		 * collapse a view or switching to another top level activity, the underlying webview document is deallocates.
+		 *
+		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
+		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to
+		 * save off a webview's state so that it can be quickly recreated as needed.
+		 *
+		 * To save off a persisted state, inside the webview call `acquireVsCodeApi().setState()` with
+		 * any json serializable object. To restore the state again, call `getState()`. For example:
+		 *
+		 * ```js
+		 * // Within the webview
+		 * const vscode = acquireVsCodeApi();
+		 *
+		 * // Get existing state
+		 * const oldState = vscode.getState() || { value: 0 };
+		 *
+		 * // Update state
+		 * setState({ value: oldState.value + 1 })
+		 * ```
+		 *
+		 * VS Code ensures that the persisted state is saved correctly when a webview is hidden and across
+		 * editor restarts.
+		 */
+		readonly state: T | undefined;
+	}
+
 	/**
 	 * Provider for creating `WebviewView` elements.
 	 */
@@ -2100,9 +2134,12 @@ declare module 'vscode' {
 		 *
 		 * @param webviewView Webview panel to restore. The serializer should take ownership of this panel. The
 		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
-		 * @param state Persisted state from the webview content.
+		 * @param context Additional metadata about the view being resolved.
+		 * @param token Cancellation token indicating that the view being provided is no longer needed.
+		 *
+		 * @return Optional promise indicating that the view has been fully resolved.
 		 */
-		resolveWebviewView(webviewView: WebviewView, state: unknown | undefined): Promise<void> | void;
+		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Promise<void> | void;
 	}
 
 	namespace window {
@@ -2115,7 +2152,12 @@ declare module 'vscode' {
 		 *
 		 * @return Disposable that unregisters the provider.
 		 */
-		export function registerWebviewViewProvider(viewId: string, provider: WebviewViewProvider): Disposable;
+		export function registerWebviewViewProvider(viewId: string, provider: WebviewViewProvider, options?: {
+			/**
+			 * Content settings for the webview created for this view.
+			 */
+			readonly webviewOptions?: WebviewPanelOptions;
+		}): Disposable;
 	}
 	//#endregion
 }
