@@ -87,13 +87,13 @@ export class NotebookDiffEditor extends BaseEditor {
 		await this._originalWidget.setModel(model.original.notebook, undefined);
 
 		this._register(this._widget.onWillScroll(e => {
-			if (this._originalWidget) {
+			if (this._originalWidget && this._originalWidget.scrollTop !== e.scrollTop) {
 				this._originalWidget.scrollTop = e.scrollTop;
 			}
 		}));
 
 		this._register(this._originalWidget.onWillScroll(e => {
-			if (this._widget) {
+			if (this._widget && this._widget.scrollTop !== e.scrollTop) {
 				this._widget.scrollTop = e.scrollTop;
 			}
 		}));
