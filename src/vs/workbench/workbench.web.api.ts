@@ -8,7 +8,6 @@ import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
 import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ICredentialsProvider } from 'vs/workbench/services/credentials/browser/credentialsService';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { LogLevel } from 'vs/platform/log/common/log';
@@ -19,6 +18,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
+import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;

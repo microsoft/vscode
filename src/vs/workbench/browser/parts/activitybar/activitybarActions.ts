@@ -28,12 +28,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getAuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -125,7 +126,8 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -178,10 +180,11 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 		const result = await Promise.all(allSessions);
 		let menus: IAction[] = [];
+		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getAuthenticationSession(this.environmentService.options?.credentialsProvider, this.productService) : undefined;
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 			Object.keys(sessionInfo.sessions).forEach(accountName => {
-				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === this.environmentService.options?.authenticationSessionId);
+				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id || this.environmentService.options?.authenticationSessionId));
 				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
 					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
 				});
