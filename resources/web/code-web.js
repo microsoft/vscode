@@ -397,7 +397,7 @@ async function handleCallback(req, res, parsedUrl) {
 
 	// add to map of known callbacks
 	mapCallbackUriToRequestId.set(requestId, JSON.stringify({ scheme: vscodeScheme || 'code-oss', authority: vscodeAuthority, path: vscodePath, query, fragment: vscodeFragment }));
-	return serveFile(req, res, path.join(APP_ROOT, 'resources', 'serverless', 'callback.html'), { 'Content-Type': 'text/html' });
+	return serveFile(req, res, path.join(APP_ROOT, 'resources', 'web', 'callback.html'), { 'Content-Type': 'text/html' });
 }
 
 /**
