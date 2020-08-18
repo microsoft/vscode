@@ -30,6 +30,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -185,6 +186,18 @@ export class NotebookEditorOptions extends EditorOptions {
 	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
 		return new NotebookEditorOptions({ ...this, ...options });
 	}
+}
+
+export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
+
+export interface INotebookEditorContributionDescription {
+	id: string;
+	ctor: INotebookEditorContributionCtor;
+}
+
+export interface INotebookEditorWidgetOptions {
+
+	contributions?: INotebookEditorContributionDescription[];
 }
 
 export interface INotebookEditor extends IEditor {

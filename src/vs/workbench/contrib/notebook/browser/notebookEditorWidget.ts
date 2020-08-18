@@ -27,7 +27,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration, NotebookEditorOptions, INotebookEditorWidgetOptions, INotebookEditorContributionDescription } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -203,6 +203,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	constructor(
+		private readonly editorWidgetOptions: INotebookEditorWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private notebookService: INotebookService,
@@ -339,7 +340,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(this.contextKeyService);
 		this._notebookHasMultipleKernels.set(false);
 
-		const contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
+		let contributions: INotebookEditorContributionDescription[];
+		if (Array.isArray(this.editorWidgetOptions.contributions)) {
+			contributions = this.editorWidgetOptions.contributions;
+		} else {
+			contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
+		}
 
 		for (const desc of contributions) {
 			try {
