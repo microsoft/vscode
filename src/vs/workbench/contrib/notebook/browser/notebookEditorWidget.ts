@@ -1954,25 +1954,35 @@ registerThemingParticipant((theme, collector) => {
 
 	const modifiedBackground = theme.getColor(editorGutterModifiedBackground);
 	if (modifiedBackground) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-cell-modified .cell-focus-indicator,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.nb-cell-modified.markdown-cell-row {
+		collector.addRule(`
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row .nb-cell-modified .cell-focus-indicator {
+			background-color: ${modifiedBackground} !important;
+		}
+
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .nb-cell-modified {
 			background-color: ${modifiedBackground} !important;
 		}`);
 	}
 
 	const addedBackground = theme.getColor(diffInserted);
 	if (addedBackground) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row .nb-cell-added .cell-focus-indicator,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .nb-cell-added,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-rowd.code-cell-row .nb-cell-adde {
+		collector.addRule(`
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row .nb-cell-added .cell-focus-indicator {
+			background-color: ${addedBackground} !important;
+		}
+
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .nb-cell-added {
 			background-color: ${addedBackground} !important;
 		}`);
 	}
 	const deletedBackground = theme.getColor(diffRemoved);
 	if (deletedBackground) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row .nb-cell-deleted .cell-focus-indicator,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .nb-cell-deleted,
-		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row .nb-cell-deleted {
+		collector.addRule(`
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row .nb-cell-deleted .cell-focus-indicator {
+			background-color: ${deletedBackground} !important;
+		}
+
+		.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .nb-cell-deleted {
 			background-color: ${deletedBackground} !important;
 		}`);
 	}
