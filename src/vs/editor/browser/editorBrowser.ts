@@ -1044,12 +1044,18 @@ export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeC
 /**
  *@internal
  */
-export function getCodeEditor(thing: any): ICodeEditor | null {
+export function getCodeEditor(thing: any, focused: boolean = false): ICodeEditor | null {
 	if (isCodeEditor(thing)) {
 		return thing;
 	}
 
 	if (isDiffEditor(thing)) {
+		if (focused) {
+			let editor = thing.getOriginalEditor();
+			if (editor.hasTextFocus()) {
+				return editor;
+			}
+		}
 		return thing.getModifiedEditor();
 	}
 
