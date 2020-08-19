@@ -32,7 +32,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { CustomTreeView } from 'vs/workbench/contrib/views/browser/treeView';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -236,76 +236,24 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 	jsonSchema: viewsContribution
 });
 
-
-export interface IViewResolver {
-	resolve(viewDescriptor: Partial<IViewDescriptor>): IViewDescriptor;
+export enum ViewType {
+	Tree = 'tree',
+	Webview = 'webview'
 }
-
-export namespace Extensions {
-	export const ViewResolverRegistry = 'workbench.registry.viewResolver';
-}
-
-export interface IViewResolverRegistry {
-	register(type: string, resolver: IViewResolver): IDisposable;
-
-	tryResolve(viewDescriptor: Partial<IViewDescriptor>): IViewDescriptor | undefined;
-}
-
-class ViewResolverRegistry extends Disposable implements IViewResolverRegistry {
-
-	private readonly _views = new Map<string, IViewResolver>();
-
-	register(type: string, resolver: IViewResolver): IDisposable {
-		if (this._views.has(type)) {
-			throw new Error(`View resolver already registered for ${type}`);
-		}
-
-		this._views.set(type, resolver);
-
-		return toDisposable(() => {
-			this._views.delete(type);
-		});
-	}
-
-	tryResolve(viewDescriptor: Partial<IViewDescriptor>): IViewDescriptor | undefined {
-		const resolver = this._views.get(viewDescriptor.type!);
-		if (!resolver) {
-			return undefined;
-		}
-		return resolver.resolve(viewDescriptor);
-	}
-}
-
-Registry.add(Extensions.ViewResolverRegistry, new ViewResolverRegistry());
-
-
-const treeViewType = 'tree';
 
 const TEST_VIEW_CONTAINER_ORDER = 6;
 export class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private viewContainersRegistry: IViewContainersRegistry;
 	private viewsRegistry: IViewsRegistry;
-	private readonly viewResolverRegistry: IViewResolverRegistry;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-		this.viewResolverRegistry = Registry.as<IViewResolverRegistry>(Extensions.ViewResolverRegistry);
 		this.handleAndRegisterCustomViewContainers();
 		this.handleAndRegisterCustomViews();
-
-		this.viewResolverRegistry.register(treeViewType, {
-			resolve: (viewDescriptor: IViewDescriptor): ITreeViewDescriptor => {
-				return {
-					...viewDescriptor,
-					ctorDescriptor: new SyncDescriptor(TreeViewPane),
-					treeView: instantiationService.createInstance(CustomTreeView, viewDescriptor.id!, viewDescriptor.name!),
-				};
-			}
-		});
 	}
 
 	private handleAndRegisterCustomViewContainers() {
@@ -510,8 +458,14 @@ export class ViewsExtensionHandler implements IWorkbenchContribution {
 					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
 					const initialVisibility = this.convertInitialVisibility(item.visibility);
 
-					const partialViewDescriptor = <Partial<ICustomTreeViewDescriptor>>{
-						type: !item.type ? treeViewType : item.type,
+					const type = this.getViewType(item.type);
+					if (!type) {
+						return null;
+					}
+
+					const viewDescriptor = <ICustomTreeViewDescriptor>{
+						type: type,
+						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
 						name: item.name,
 						when: ContextKeyExpr.deserialize(item.when),
@@ -519,6 +473,7 @@ export class ViewsExtensionHandler implements IWorkbenchContribution {
 						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
 						canMoveView: true,
+						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
 						extensionId: extension.description.identifier,
@@ -528,10 +483,6 @@ export class ViewsExtensionHandler implements IWorkbenchContribution {
 						hideByDefault: initialVisibility === InitialVisibility.Hidden
 					};
 
-					const viewDescriptor = this.viewResolverRegistry.tryResolve(partialViewDescriptor);
-					if (!viewDescriptor) {
-						return null;
-					}
 
 					viewIds.add(viewDescriptor.id);
 					return viewDescriptor;
@@ -543,6 +494,16 @@ export class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 
 		this.viewsRegistry.registerViews2(allViewDescriptors);
+	}
+
+	private getViewType(type: string | undefined): ViewType | undefined {
+		if (type === ViewType.Webview) {
+			return ViewType.Webview;
+		}
+		if (!type || type === ViewType.Tree) {
+			return ViewType.Tree;
+		}
+		return undefined;
 	}
 
 	private getDefaultViewContainer(): ViewContainer {

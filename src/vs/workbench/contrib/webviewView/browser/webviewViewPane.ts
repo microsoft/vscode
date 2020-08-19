@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { setImmediate } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
