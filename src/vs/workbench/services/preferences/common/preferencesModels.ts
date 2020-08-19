@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, tail, find, coalesce } from 'vs/base/common/arrays';
+import { flatten, tail, coalesce } from 'vs/base/common/arrays';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONVisitor, visit } from 'vs/base/common/json';
 import { Disposable, IReference } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -291,7 +290,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				};
-				setting.range = assign(setting.range, {
+				setting.range = Object.assign(setting.range, {
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				});
@@ -357,11 +356,11 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
 					const valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
+					setting.valueRange = Object.assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
-					setting.range = assign(setting.range, {
+					setting.range = Object.assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
@@ -393,11 +392,11 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting!.overrides![overrideSetting!.overrides!.length - 1];
 				if (setting) {
 					const valueEndPosition = model.getPositionAt(offset + length);
-					setting.valueRange = assign(setting.valueRange, {
+					setting.valueRange = Object.assign(setting.valueRange, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
-					setting.range = assign(setting.range, {
+					setting.range = Object.assign(setting.range, {
 						endLineNumber: valueEndPosition.lineNumber,
 						endColumn: valueEndPosition.column
 					});
@@ -558,14 +557,14 @@ export class DefaultSettings extends Disposable {
 		seenSettings = seenSettings ? seenSettings : {};
 		let title = config.title;
 		if (!title) {
-			const configWithTitleAndSameId = find(configurations, c => (c.id === config.id) && c.title);
+			const configWithTitleAndSameId = configurations.find(c => (c.id === config.id) && c.title);
 			if (configWithTitleAndSameId) {
 				title = configWithTitleAndSameId.title;
 			}
 		}
 		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = find(result, g => g.title === title);
+				settingsGroup = result.find(g => g.title === title && g.contributedByExtension);
 				if (!settingsGroup) {
 					settingsGroup = { sections: [{ settings: [] }], id: config.id || '', title: title || '', titleRange: nullRange, range: nullRange, contributedByExtension: !!config.extensionInfo };
 					result.push(settingsGroup);
