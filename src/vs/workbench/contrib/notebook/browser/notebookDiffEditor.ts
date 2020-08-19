@@ -9,7 +9,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
@@ -19,12 +19,20 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, LcsDiff } from 'vs/base/common/diff/diff';
 import { CellSequence, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
-
+import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
+import { createDecoration, DECORATIONS, isChangeOrDelete, isChangeOrInsert } from 'vs/editor/browser/widget/diffEditorWidget';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { Color } from 'vs/base/common/color';
+import { IModelDeltaDecoration, IReadonlyTextBuffer, ITextBuffer, ITextModel } from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
+import { Constants } from 'vs/base/common/uint';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { defaultInsertColor, defaultRemoveColor, diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 
 export class NotebookDiffEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebookDiffEditor';
@@ -37,16 +45,17 @@ export class NotebookDiffEditor extends BaseEditor {
 	private _originalWidget: NotebookEditorWidget | null = null;
 	private _cellDecorations: string[] = [];
 	private _originalCellDecorations: string[] = [];
-
+	private _strategy!: DiffEditorWidgetSideBySide;
 
 	constructor(
 		@IFileService private readonly fileService: FileService,
+		@IThemeService readonly themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 	) {
 		super(NotebookDiffEditor.ID, telemetryService, themeService, storageService);
+
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -113,6 +122,9 @@ export class NotebookDiffEditor extends BaseEditor {
 		this._register(model.modified.notebook.onDidChangeCells(() => {
 			this._update(model);
 		}));
+
+		this._setStrategy(new DiffEditorWidgetSideBySide());
+
 		this._update(model);
 	}
 
@@ -121,6 +133,19 @@ export class NotebookDiffEditor extends BaseEditor {
 		const diffResult = diff.ComputeDiff(false);
 
 		this._adjustHeight(diffResult);
+	}
+
+	private _setStrategy(newStrategy: DiffEditorWidgetSideBySide): void {
+		if (this._strategy) {
+			this._strategy.dispose();
+		}
+
+		this._strategy = newStrategy;
+		newStrategy.applyColors(this.themeService.getColorTheme());
+
+		// if (this._diffComputationResult) {
+		// 	this._updateDecorations();
+		// }
 	}
 
 	private _adjustHeight(diffResult: IDiffResult) {
@@ -173,44 +198,61 @@ export class NotebookDiffEditor extends BaseEditor {
 
 		// console.log(diffResult);
 
-		// diffResult.changes.forEach(change => {
-		// 	if (change.modifiedLength === 0) {
-		// 		// deletion ...
-		// 		return;
-		// 	}
+		diffResult.changes.forEach(change => {
+			if (change.modifiedLength === 0) {
+				// deletion ...
+				return;
+			}
 
-		// 	if (change.originalLength === 0) {
-		// 		// insertion
-		// 		return;
-		// 	}
+			if (change.originalLength === 0) {
+				// insertion
+				return;
+			}
 
-		// 	for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
-		// 		let originalIndex = change.originalStart + i;
-		// 		let modifiedIndex = change.modifiedStart + i;
+			for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
+				let originalIndex = change.originalStart + i;
+				let modifiedIndex = change.modifiedStart + i;
 
-		// 		const originalCell = this._originalWidget!.viewModel!.viewCells[originalIndex];
-		// 		const modifiedCell = this._widget!.viewModel!.viewCells[modifiedIndex];
+				const originalCell = this._originalWidget!.viewModel!.viewCells[originalIndex];
+				const modifiedCell = this._widget!.viewModel!.viewCells[modifiedIndex];
 
-		// 		if (originalCell.getText() !== modifiedCell.getText()) {
-		// 			console.log(`original cell ${originalIndex} content change`);
-		// 			const originalLines = originalCell.textBuffer.getLinesContent();
-		// 			const modifiedLines = modifiedCell.textBuffer.getLinesContent();
-		// 			const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-		// 				shouldComputeCharChanges: true,
-		// 				shouldPostProcessCharChanges: true,
-		// 				shouldIgnoreTrimWhitespace: false,
-		// 				shouldMakePrettyDiff: true,
-		// 				maxComputationTime: 5000
-		// 			});
+				if (originalCell.getText() !== modifiedCell.getText()) {
+					console.log(`original cell ${originalIndex} content change`);
+					const originalLines = originalCell.textBuffer.getLinesContent();
+					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
+					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
+						shouldComputeCharChanges: true,
+						shouldPostProcessCharChanges: true,
+						shouldIgnoreTrimWhitespace: false,
+						shouldMakePrettyDiff: true,
+						maxComputationTime: 5000
+					});
 
-		// 			const diffResult = diffComputer.computeDiff();
-		// 			console.log(diffResult);
-		// 		} else {
-		// 			console.log(`original cell ${originalIndex} metadata change`)
-		// 		}
+					const lineChanges = diffComputer.computeDiff().changes;
+					const lineDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, false, false, originalCell.textBuffer, modifiedCell.textBuffer);
 
-		// 	}
-		// });
+					this._originalWidget?.changeModelDecorations(accessor => {
+						accessor.deltaDecorations([], [{
+							ownerId: originalCell.handle,
+							decorations: lineDecorations.original.decorations
+						}]);
+					});
+
+					this._widget?.changeModelDecorations(accessor => {
+						accessor.deltaDecorations([], [{
+							ownerId: modifiedCell.handle,
+							decorations: lineDecorations.modified.decorations
+						}]);
+					});
+
+					console.log(lineDecorations);
+
+				} else {
+					// console.log(`original cell ${originalIndex} metadata change`);
+				}
+
+			}
+		});
 
 		this._originalCellDecorations = this._originalWidget.deltaCellDecorations(this._originalCellDecorations, originalDecorations);
 		this._cellDecorations = this._widget.deltaCellDecorations(this._cellDecorations, modifiedDecorations);
@@ -270,4 +312,177 @@ export class NotebookDiffEditor extends BaseEditor {
 		}, this._originalElement);
 	}
 
+}
+
+interface IEditorDiffDecorations {
+	decorations: IModelDeltaDecoration[];
+	// overviewZones: OverviewRulerZone[];
+}
+
+interface IEditorsDiffDecorationsWithZones {
+	original: IEditorDiffDecorations;
+	modified: IEditorDiffDecorations;
+}
+
+export class DiffEditorWidgetSideBySide extends Disposable {
+	private _insertColor: Color | null = null;
+	private _removeColor: Color | null = null;
+
+	constructor() {
+		super();
+	}
+
+	public applyColors(theme: IColorTheme): boolean {
+		let newInsertColor = (theme.getColor(diffInserted) || defaultInsertColor).transparent(2);
+		let newRemoveColor = (theme.getColor(diffRemoved) || defaultRemoveColor).transparent(2);
+		let hasChanges = !newInsertColor.equals(this._insertColor) || !newRemoveColor.equals(this._removeColor);
+		this._insertColor = newInsertColor;
+		this._removeColor = newRemoveColor;
+		return hasChanges;
+	}
+
+	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalModel: IReadonlyTextBuffer, modifiedModel: IReadonlyTextBuffer): IEditorsDiffDecorationsWithZones {
+		// Get view zones
+		// modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
+		// 	return a.afterLineNumber - b.afterLineNumber;
+		// });
+		// originalWhitespaces = originalWhitespaces.sort((a, b) => {
+		// 	return a.afterLineNumber - b.afterLineNumber;
+		// });
+		// let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
+
+		// Get decorations & overview ruler zones
+		let originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalModel);
+		let modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, modifiedModel);
+
+		return {
+			original: {
+				decorations: originalDecorations.decorations,
+				// overviewZones: originalDecorations.overviewZones,
+				// zones: zones.original
+			},
+			modified: {
+				decorations: modifiedDecorations.decorations,
+				// overviewZones: modifiedDecorations.overviewZones,
+				// zones: zones.modified
+			}
+		};
+	}
+
+	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalModel: IReadonlyTextBuffer): IEditorDiffDecorations {
+		const overviewZoneColor = String(this._removeColor);
+
+		let result: IEditorDiffDecorations = {
+			decorations: [],
+			// overviewZones: []
+		};
+
+		for (let i = 0, length = lineChanges.length; i < length; i++) {
+			let lineChange = lineChanges[i];
+
+			if (isChangeOrDelete(lineChange)) {
+				result.decorations.push({
+					range: new Range(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER),
+					options: (renderIndicators ? DECORATIONS.lineDeleteWithSign : DECORATIONS.lineDelete)
+				});
+				if (!isChangeOrInsert(lineChange) || !lineChange.charChanges) {
+					result.decorations.push(createDecoration(lineChange.originalStartLineNumber, 1, lineChange.originalEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charDeleteWholeLine));
+				}
+
+				// result.overviewZones.push(new OverviewRulerZone(
+				// 	lineChange.originalStartLineNumber,
+				// 	lineChange.originalEndLineNumber,
+				// 	overviewZoneColor
+				// ));
+
+				if (lineChange.charChanges) {
+					for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
+						let charChange = lineChange.charChanges[j];
+						if (isChangeOrDelete(charChange)) {
+							if (ignoreTrimWhitespace) {
+								for (let lineNumber = charChange.originalStartLineNumber; lineNumber <= charChange.originalEndLineNumber; lineNumber++) {
+									let startColumn: number;
+									let endColumn: number;
+									if (lineNumber === charChange.originalStartLineNumber) {
+										startColumn = charChange.originalStartColumn;
+									} else {
+										startColumn = originalModel.getLineFirstNonWhitespaceColumn(lineNumber);
+									}
+									if (lineNumber === charChange.originalEndLineNumber) {
+										endColumn = charChange.originalEndColumn;
+									} else {
+										endColumn = originalModel.getLineLastNonWhitespaceColumn(lineNumber);
+									}
+									result.decorations.push(createDecoration(lineNumber, startColumn, lineNumber, endColumn, DECORATIONS.charDelete));
+								}
+							} else {
+								result.decorations.push(createDecoration(charChange.originalStartLineNumber, charChange.originalStartColumn, charChange.originalEndLineNumber, charChange.originalEndColumn, DECORATIONS.charDelete));
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return result;
+	}
+
+	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, modifiedModel: IReadonlyTextBuffer): IEditorDiffDecorations {
+		const overviewZoneColor = String(this._insertColor);
+
+		let result: IEditorDiffDecorations = {
+			decorations: [],
+			// overviewZones: []
+		};
+
+
+		for (let i = 0, length = lineChanges.length; i < length; i++) {
+			let lineChange = lineChanges[i];
+
+			if (isChangeOrInsert(lineChange)) {
+
+				result.decorations.push({
+					range: new Range(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER),
+					options: (renderIndicators ? DECORATIONS.lineInsertWithSign : DECORATIONS.lineInsert)
+				});
+				if (!isChangeOrDelete(lineChange) || !lineChange.charChanges) {
+					result.decorations.push(createDecoration(lineChange.modifiedStartLineNumber, 1, lineChange.modifiedEndLineNumber, Constants.MAX_SAFE_SMALL_INTEGER, DECORATIONS.charInsertWholeLine));
+				}
+				// result.overviewZones.push(new OverviewRulerZone(
+				// 	lineChange.modifiedStartLineNumber,
+				// 	lineChange.modifiedEndLineNumber,
+				// 	overviewZoneColor
+				// ));
+
+				if (lineChange.charChanges) {
+					for (let j = 0, lengthJ = lineChange.charChanges.length; j < lengthJ; j++) {
+						let charChange = lineChange.charChanges[j];
+						if (isChangeOrInsert(charChange)) {
+							if (ignoreTrimWhitespace) {
+								for (let lineNumber = charChange.modifiedStartLineNumber; lineNumber <= charChange.modifiedEndLineNumber; lineNumber++) {
+									let startColumn: number;
+									let endColumn: number;
+									if (lineNumber === charChange.modifiedStartLineNumber) {
+										startColumn = charChange.modifiedStartColumn;
+									} else {
+										startColumn = modifiedModel.getLineFirstNonWhitespaceColumn(lineNumber);
+									}
+									if (lineNumber === charChange.modifiedEndLineNumber) {
+										endColumn = charChange.modifiedEndColumn;
+									} else {
+										endColumn = modifiedModel.getLineLastNonWhitespaceColumn(lineNumber);
+									}
+									result.decorations.push(createDecoration(lineNumber, startColumn, lineNumber, endColumn, DECORATIONS.charInsert));
+								}
+							} else {
+								result.decorations.push(createDecoration(charChange.modifiedStartLineNumber, charChange.modifiedStartColumn, charChange.modifiedEndLineNumber, charChange.modifiedEndColumn, DECORATIONS.charInsert));
+							}
+						}
+					}
+				}
+
+			}
+		}
+		return result;
+	}
 }

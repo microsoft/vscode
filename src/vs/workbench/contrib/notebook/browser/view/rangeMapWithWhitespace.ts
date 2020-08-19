@@ -19,6 +19,15 @@ function concat(...groups: IRangedGroup[][]): IRangedGroup[] {
 	return consolidate(groups.reduce((r, g) => r.concat(g), []));
 }
 
+// [ { start: 0, len: 10, size: 100 } ]
+// [ { start: 0, len: 5, size: 100 }, { start: 5, len: 1, size: 200 }, { start: 6, len: 5, size: 100 } ]
+
+// [ { afterIndex: 0, height: 20 }, { afterIndex: 2, height: 20 } ]
+// 0: 0
+// 1: 100 + 20
+// 2: 100*2 + 20
+// 3: 100*3 + 20 + 20
+
 // [ { start: 0, len: 2, size: 2 }, { start: 2, len: 1, size: 3 }, {} ]
 export class RangeMapWithWhitespace extends RangeMap {
 
