@@ -737,21 +737,6 @@ declare module 'vscode' {
 
 	//#region debug
 
-	export interface DebugSessionOptions {
-		/**
-		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
-		 * When this property is not specified, the value from the parent session (if there is one) is used.
-		 */
-		noDebug?: boolean;
-
-		/**
-		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
-		 * By default, the debug session will never hide its parent.
-		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
-		 */
-		compact?: boolean;
-	}
-
 	/**
 	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
 	 */

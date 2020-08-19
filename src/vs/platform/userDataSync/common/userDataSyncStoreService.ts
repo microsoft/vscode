@@ -393,6 +393,10 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		this._onTokenSucceed.fire();
 
+		if (context.res.statusCode === 409) {
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Conflict (409). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Conflict, operationId);
+		}
+
 		if (context.res.statusCode === 410) {
 			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because the requested resource is not longer available (410).`, UserDataSyncErrorCode.Gone, operationId);
 		}
