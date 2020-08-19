@@ -58,7 +58,7 @@ export enum Settings {
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
 
-	BACKGROUND = 'workbench.background',
+	BACKGROUND_CSS = 'workbench.backgroundCSS',
 }
 
 enum Storage {
@@ -244,7 +244,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			editorWidgetSet: new Set<IEditor>()
 		},
 
-		background: '',
+		backgroundCSS: '',
 	};
 
 	constructor(
@@ -565,7 +565,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 
 		// Background CSS
-		this.state.background = this.getBackgroundSetting();
+		this.state.backgroundCSS = this.getBackgroundSetting();
 
 		this.state.hasFocus = this.hostService.hasFocus;
 
@@ -1753,13 +1753,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setBackgroundCSS(backgroundCSS: string) {
-		this.state.background = backgroundCSS;
+		this.state.backgroundCSS = backgroundCSS;
 		const editorPart = this.getPart(Parts.EDITOR_PART);
-		editorPart.element.style.background = backgroundCSS || '';
+		editorPart.element.style.background = backgroundCSS;
 	}
 
 	private getBackgroundSetting(): string {
-		return this.configurationService.getValue<string | undefined>(Settings.BACKGROUND) ||
+		return this.configurationService.getValue<string | undefined>(Settings.BACKGROUND_CSS) ||
 			this.themeService.getColorTheme().getColor(editorBackground)?.toString() ||
 			'';
 	}
