@@ -23,7 +23,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
@@ -36,8 +35,8 @@ import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/c
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
 import { Webview, WebviewExtensionDescription, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { Extensions, IViewWebviewViewResolverRegistry } from 'vs/workbench/contrib/webview/browser/webviewView';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IWebviewViewService } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -142,6 +141,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBackupFileService private readonly _backupService: IBackupFileService,
+		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();
 
@@ -327,31 +327,30 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			throw new Error(`View provider for ${viewType} already registered`);
 		}
 
-		Registry.as<IViewWebviewViewResolverRegistry>(Extensions.WebviewViewResolverRegistry)
-			.register(viewType, {
-				resolve: async (webview: WebviewOverlay) => {
-					this._webviewViews.set(viewType, webview);
+		this._webviewViewService.register(viewType, {
+			resolve: async (webview: WebviewOverlay, cancellation: CancellationToken) => {
+				this._webviewViews.set(viewType, webview);
 
-					const handle = viewType;
-					this.hookupWebviewEventDelegate(handle, webview);
+				const handle = viewType;
+				this.hookupWebviewEventDelegate(handle, webview);
 
-					let state = undefined;
-					if (webview.state) {
-						try {
-							state = JSON.parse(webview.state);
-						} catch (e) {
-							console.error('Could not load webview state', e, webview.state);
-						}
-					}
-
+				let state = undefined;
+				if (webview.state) {
 					try {
-						await this._proxy.$resolveWebviewView(handle, viewType, state);
-					} catch (error) {
-						onUnexpectedError(error);
-						webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+						state = JSON.parse(webview.state);
+					} catch (e) {
+						console.error('Could not load webview state', e, webview.state);
 					}
 				}
-			});
+
+				try {
+					await this._proxy.$resolveWebviewView(handle, viewType, state, cancellation);
+				} catch (error) {
+					onUnexpectedError(error);
+					webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+				}
+			}
+		});
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {

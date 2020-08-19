@@ -665,11 +665,7 @@ export interface ExtHostWebviewsShape {
 
 	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
 
-	$resolveWebviewView(
-		webviewHandle: WebviewPanelHandle,
-		viewType: string,
-		state: any,
-	): Promise<void>;
+	$resolveWebviewView(webviewHandle: WebviewPanelHandle, viewType: string, state: any, cancellation: CancellationToken): Promise<void>;
 }
 
 export enum CellKind {

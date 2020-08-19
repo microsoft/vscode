@@ -661,6 +661,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		webviewHandle: string,
 		viewType: string,
 		state: any,
+		cancellation: CancellationToken,
 	): Promise<void> {
 		const entry = this._viewProviders.get(viewType);
 		if (!entry) {
@@ -671,7 +672,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, reviveOptions({ /* todo */ }), this.initData, this.workspace, extension, this._deprecationService);
 		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, webview);
-		await provider.resolveWebviewView(revivedView, state);
+		await provider.resolveWebviewView(revivedView, { state }, cancellation);
 	}
 
 	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
