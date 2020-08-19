@@ -67,10 +67,10 @@ export class NotebookDiffEditor extends BaseEditor {
 		// const group = this.group!;
 
 		await super.setInput(input, options, token);
-		this._widget = this.instantiationService.createInstance(NotebookEditorWidget, { isEmbeded: true, contributions: [] });
+		this._widget = this.instantiationService.createInstance(NotebookEditorWidget, { isEmbedded: true, contributions: [] });
 		this._widget.createEditor();
 
-		this._originalWidget = this.instantiationService.createInstance(NotebookEditorWidget, { isEmbeded: true, contributions: [] });
+		this._originalWidget = this.instantiationService.createInstance(NotebookEditorWidget, { isEmbedded: true, contributions: [] });
 		this._originalWidget.createEditor();
 
 		if (this._dimension) {

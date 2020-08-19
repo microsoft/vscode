@@ -50,6 +50,7 @@ export class TestCell extends NotebookCellTextModel {
 }
 
 export class TestNotebookEditor implements INotebookEditor {
+	isEmbedded = false;
 	private _isDisposed = false;
 
 	get isDisposed() {
@@ -59,7 +60,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	get viewModel() {
 		return undefined;
 	}
-	creationOptions: INotebookEditorCreationOptions = { isEmbeded: false };
+	creationOptions: INotebookEditorCreationOptions = { isEmbedded: false };
 
 	constructor(
 	) { }

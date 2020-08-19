@@ -213,6 +213,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._cursorNavigationMode = v;
 	}
 
+	readonly isEmbedded: boolean;
+
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -226,6 +228,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super();
+		this.isEmbedded = creationOptions.isEmbedded || false;
 		this._memento = new Memento(NotebookEditorWidget.ID, storageService);
 		this._activeKernelMemento = new Memento(NotebookEditorActiveKernelCache, storageService);
 

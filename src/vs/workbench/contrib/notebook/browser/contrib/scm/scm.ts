@@ -37,7 +37,7 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 	) {
 		super();
 
-		if (!this._notebookEditor.creationOptions.isEmbeded) {
+		if (!this._notebookEditor.creationOptions.isEmbedded) {
 			this._register(this._notebookEditor.onDidChangeModel(() => {
 				this._localDisposable.clear();
 				this._diffDelayer.cancel();

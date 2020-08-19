@@ -197,11 +197,12 @@ export interface INotebookEditorContributionDescription {
 }
 
 export interface INotebookEditorCreationOptions {
-	readonly isEmbeded?: boolean;
+	readonly isEmbedded?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
 }
 
 export interface INotebookEditor extends IEditor {
+	isEmbedded: boolean;
 
 	cursorNavigationMode: boolean;
 
