@@ -52,7 +52,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { initializeUserData } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 class BrowserMain extends Disposable {
 
@@ -209,7 +209,9 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IRequestService, requestService);
 
 		// initialize user data
-		await initializeUserData(environmentService, fileService, storageService, productService, requestService, logService);
+		const userDataInitializationService = new UserDataInitializationService(environmentService, fileService, storageService, productService, requestService, logService);
+		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
+		await userDataInitializationService.initializeRequiredResources();
 
 		return { serviceCollection, logService, storageService };
 	}
