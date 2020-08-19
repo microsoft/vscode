@@ -178,7 +178,11 @@ registerAction2(class extends EditorAction2 {
 			menu: {
 				id: MenuId.EditorContextPeek,
 				group: 'navigation',
-				order: 1000
+				order: 1000,
+				when: ContextKeyExpr.and(
+					_ctxHasCallHierarchyProvider,
+					PeekContext.notInPeekEditor
+				),
 			},
 			keybinding: {
 				when: EditorContextKeys.editorTextFocus,
