@@ -28,10 +28,9 @@ import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { createDecoration, DECORATIONS, isChangeOrDelete, isChangeOrInsert } from 'vs/editor/browser/widget/diffEditorWidget';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { IModelDeltaDecoration, IReadonlyTextBuffer, ITextBuffer, ITextModel } from 'vs/editor/common/model';
+import { IModelDeltaDecoration, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Constants } from 'vs/base/common/uint';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
 
 export class NotebookDiffEditor extends BaseEditor {
@@ -383,7 +382,7 @@ export class DiffEditorWidgetSideBySide extends Disposable {
 	}
 
 	protected _getOriginalEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalModel: IReadonlyTextBuffer): IEditorDiffDecorations {
-		const overviewZoneColor = String(this._removeColor);
+		// const overviewZoneColor = String(this._removeColor);
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
@@ -441,7 +440,7 @@ export class DiffEditorWidgetSideBySide extends Disposable {
 	}
 
 	protected _getModifiedEditorDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, modifiedModel: IReadonlyTextBuffer): IEditorDiffDecorations {
-		const overviewZoneColor = String(this._insertColor);
+		// const overviewZoneColor = String(this._insertColor);
 
 		let result: IEditorDiffDecorations = {
 			decorations: [],
