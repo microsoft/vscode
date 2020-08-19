@@ -269,22 +269,30 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 export class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
-	readonly #viewType: string;
+	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
 
+	readonly #viewType: string;
 	readonly #webview: ExtHostWebview;
 
 	#isDisposed = false;
+	#isVisible: boolean;
+	#title: string | undefined;
 
 	constructor(
 		handle: extHostProtocol.WebviewPanelHandle,
 		proxy: extHostProtocol.MainThreadWebviewsShape,
 		viewType: string,
-		webview: ExtHostWebview
+		webview: ExtHostWebview,
+		isVisible: boolean,
 	) {
 		super();
 
 		this.#viewType = viewType;
+		this.#handle = handle;
+		this.#proxy = proxy;
 		this.#webview = webview;
+		this.#isVisible = isVisible;
 	}
 
 	public dispose() {
@@ -304,9 +312,21 @@ export class ExtHostWebviewView extends Disposable implements vscode.WebviewView
 	readonly #onDidDispose = this._register(new Emitter<void>());
 	public readonly onDidDispose = this.#onDidDispose.event;
 
+	get title(): string | undefined {
+		this.assertNotDisposed();
+		return this.#title;
+	}
+
+	set title(value: string | undefined) {
+		this.assertNotDisposed();
+		if (this.#title !== value) {
+			this.#title = value;
+			this.#proxy.$setWebviewViewTitle(this.#handle, value);
+		}
+	}
+
 	get visible() {
-		// todo
-		return true;
+		return this.#isVisible;
 	}
 
 	get webview() {
@@ -315,6 +335,21 @@ export class ExtHostWebviewView extends Disposable implements vscode.WebviewView
 
 	get viewType(): string {
 		return this.#viewType;
+	}
+
+	_setVisible(visible: boolean) {
+		if (visible === this.#isVisible) {
+			return;
+		}
+
+		this.#isVisible = visible;
+		this.#onDidChangeVisibility.fire();
+	}
+
+	private assertNotDisposed() {
+		if (this.#isDisposed) {
+			throw new Error('Webview is disposed');
+		}
 	}
 }
 
@@ -469,6 +504,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	}>();
 
 	private readonly _editorProviders = new EditorProviderStore();
+	private readonly _webviewViews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewView>();
 
 	private readonly _documents = new CustomDocumentStore();
 
@@ -528,13 +564,16 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.WebviewViewProvider,
+		webviewOptions?: {
+			retainContextWhenHidden?: boolean
+		},
 	): vscode.Disposable {
 		if (this._viewProviders.has(viewType)) {
 			throw new Error(`View provider for '${viewType}' already registered`);
 		}
 
 		this._viewProviders.set(viewType, { provider, extension });
-		this._proxy.$registerWebviewViewProvider(viewType);
+		this._proxy.$registerWebviewViewProvider(viewType, webviewOptions);
 
 		return new extHostTypes.Disposable(() => {
 			this._viewProviders.delete(viewType);
@@ -671,8 +710,25 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		const { provider, extension } = entry;
 
 		const webview = new ExtHostWebview(webviewHandle, this._proxy, reviveOptions({ /* todo */ }), this.initData, this.workspace, extension, this._deprecationService);
-		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, webview);
+		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, webview, true);
+
+		this._webviewViews.set(webviewHandle, revivedView);
+
 		await provider.resolveWebviewView(revivedView, { state }, cancellation);
+	}
+
+	async $onDidChangeWebviewViewVisibility(
+		webviewHandle: string,
+		visible: boolean
+	) {
+		const webviewView = this.getWebviewView(webviewHandle);
+		webviewView._setVisible(visible);
+	}
+
+	async $disposeWebviewView(webviewHandle: string) {
+		const webviewView = this.getWebviewView(webviewHandle);
+		this._webviewViews.delete(webviewHandle);
+		webviewView.dispose();
 	}
 
 	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
@@ -836,6 +892,14 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 			throw new Error('Custom document is not editable');
 		}
 		return provider;
+	}
+
+	private getWebviewView(handle: string): ExtHostWebviewView {
+		const entry = this._webviewViews.get(handle);
+		if (!entry) {
+			throw new Error('Custom document is not editable');
+		}
+		return entry;
 	}
 
 	private supportEditing(

@@ -2067,6 +2067,13 @@ declare module 'vscode' {
 		readonly webview: Webview;
 
 		/**
+		 * View title displayed in the UI.
+		 *
+		 * The view title is initially taken from the extension `package.json` contribution.
+		 */
+		title?: string;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed of in a few cases:
@@ -2156,7 +2163,25 @@ declare module 'vscode' {
 			/**
 			 * Content settings for the webview created for this view.
 			 */
-			readonly webviewOptions?: WebviewPanelOptions;
+			readonly webviewOptions?: {
+				/**
+				 * Controls if the webview panel's content (iframe) is kept around even when the panel
+				 * is no longer visible.
+				 *
+				 * Normally the webview's html context is created when the panel becomes visible
+				 * and destroyed when it is hidden. Extensions that have complex state
+				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+				 * context around, even when the webview moves to a background tab. When a webview using
+				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
+				 * When the panel becomes visible again, the context is automatically restored
+				 * in the exact same state it was in originally. You cannot send messages to a
+				 * hidden webview, even with `retainContextWhenHidden` enabled.
+				 *
+				 * `retainContextWhenHidden` has a high memory overhead and should only be used if
+				 * your panel's context cannot be quickly saved and restored.
+				 */
+				readonly retainContextWhenHidden?: boolean;
+			};
 		}): Disposable;
 	}
 	//#endregion

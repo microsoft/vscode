@@ -4,15 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-
+import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 
 export const IWebviewViewService = createDecorator<IWebviewViewService>('webviewViewService');
 
+export interface WebviewView {
+	title?: string;
+
+	readonly webview: WebviewOverlay;
+
+	readonly onDidChangeVisibility: Event<boolean>;
+	readonly onDispose: Event<void>;
+}
+
 export interface IWebviewViewResolver {
-	resolve(webview: Webview, cancellation: CancellationToken): Promise<void>;
+	resolve(webviewView: WebviewView, cancellation: CancellationToken): Promise<void>;
 }
 
 export interface IWebviewViewService {
@@ -21,7 +30,7 @@ export interface IWebviewViewService {
 
 	register(type: string, resolver: IWebviewViewResolver): IDisposable;
 
-	resolve(viewType: string, webview: Webview, cancellation: CancellationToken): Promise<void>;
+	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void>;
 }
 
 export class WebviewViewService extends Disposable implements IWebviewViewService {
@@ -30,7 +39,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	private readonly _views = new Map<string, IWebviewViewResolver>();
 
-	private readonly _awaitingRevival = new Map<string, { webview: Webview, resolve: () => void }>();
+	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
 
 	constructor() {
 		super();
@@ -56,7 +65,7 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 		});
 	}
 
-	resolve(viewType: string, webview: Webview, cancellation: CancellationToken): Promise<void> {
+	resolve(viewType: string, webview: WebviewView, cancellation: CancellationToken): Promise<void> {
 		const resolver = this._views.get(viewType);
 		if (!resolver) {
 			if (this._awaitingRevival.has(viewType)) {

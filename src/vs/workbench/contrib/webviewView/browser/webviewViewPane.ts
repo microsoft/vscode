@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { setImmediate } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -55,6 +56,18 @@ export class WebviewViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this.updateTreeVisibility();
+	}
+
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
+
+	dispose() {
+		this._onDispose.fire();
+
+		super.dispose();
 	}
 
 	focus(): void {
@@ -119,7 +132,15 @@ export class WebviewViewPane extends ViewPane {
 
 			this.withProgress(async () => {
 				await this.extensionService.activateByEvent(`onView:${this.id}`);
-				await this.webviewViewService.resolve(this.id, webview, source.token);
+
+				let self = this;
+				await this.webviewViewService.resolve(this.id, {
+					webview,
+					onDidChangeVisibility: this.onDidChangeBodyVisibility,
+					onDispose: this.onDispose,
+					get title() { return self.title; },
+					set title(value: string) { self.updateTitle(value); }
+				}, source.token);
 			});
 		}
 	}
