@@ -386,7 +386,7 @@ export class GlobalStateInitializer extends AbstractInitializer {
 
 		if (Object.keys(storage).length) {
 			for (const key of Object.keys(storage)) {
-				this.storageService.store(key, storage[key].value, StorageScope.GLOBAL);
+				this.storageService.store(key, storage[key], StorageScope.GLOBAL);
 			}
 		}
 	}
