@@ -324,6 +324,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize ${this.syncResourceLogLabel} as there is a new local version available. Synchronizing again...`);
 						return this.performSync(remoteUserData, lastSyncUserData, apply);
 
+					case UserDataSyncErrorCode.Conflict:
 					case UserDataSyncErrorCode.PreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again...
 						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
