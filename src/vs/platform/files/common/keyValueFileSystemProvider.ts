@@ -7,9 +7,9 @@ import { URI } from 'vs/base/common/uri';
 import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { joinPath, extUri, dirname } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export abstract class KeyValueFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 
@@ -105,7 +105,12 @@ export abstract class KeyValueFileSystemProvider extends Disposable implements I
 			throw createFileSystemProviderError(localize('fileNotFound', "File not found"), FileSystemProviderErrorCode.FileNotFound);
 		}
 		const value = await this.getValue(resource.path);
-		return VSBuffer.fromString(value).buffer;
+		if (typeof value === 'string') {
+			// support items added before moving to native-Uint8Array storage
+			return VSBuffer.fromString(value).buffer;
+		} else {
+			return VSBuffer.wrap(value).buffer;
+		}
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
@@ -116,7 +121,7 @@ export abstract class KeyValueFileSystemProvider extends Disposable implements I
 				throw createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
 			}
 		}
-		await this.setValue(resource.path, VSBuffer.wrap(content).toString());
+		await this.setValue(resource.path, content);
 		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
 		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
 	}
@@ -146,7 +151,7 @@ export abstract class KeyValueFileSystemProvider extends Disposable implements I
 
 	protected abstract getAllKeys(): Promise<string[]>;
 	protected abstract hasKey(key: string): Promise<boolean>;
-	protected abstract getValue(key: string): Promise<string>;
-	protected abstract setValue(key: string, value: string): Promise<void>;
+	protected abstract getValue(key: string): Promise<Uint8Array>;
+	protected abstract setValue(key: string, value: Uint8Array): Promise<void>;
 	protected abstract deleteKey(key: string): Promise<void>;
 }

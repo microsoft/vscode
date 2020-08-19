@@ -91,7 +91,7 @@ class IndexedDBFileSystemProvider extends KeyValueFileSystemProvider {
 		});
 	}
 
-	protected getValue(key: string): Promise<string> {
+	protected getValue(key: string): Promise<Uint8Array> {
 		return new Promise(async (c, e) => {
 			const transaction = this.database.transaction([this.store]);
 			const objectStore = transaction.objectStore(this.store);
@@ -101,7 +101,7 @@ class IndexedDBFileSystemProvider extends KeyValueFileSystemProvider {
 		});
 	}
 
-	protected setValue(key: string, value: string): Promise<void> {
+	protected setValue(key: string, value: Uint8Array): Promise<void> {
 		return new Promise(async (c, e) => {
 			const transaction = this.database.transaction([this.store], 'readwrite');
 			const objectStore = transaction.objectStore(this.store);
