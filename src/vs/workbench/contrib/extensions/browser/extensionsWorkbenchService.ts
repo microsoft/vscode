@@ -28,7 +28,7 @@ import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/commo
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -1050,7 +1050,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			for (const extension of extensions) {
 				let dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
-					return Promise.reject(new Error(this.getDependentsErrorMessage(extension, allExtensions, dependents)));
+					return new Promise((resolve, reject) => {
+						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessage(extension, allExtensions, dependents), [
+							{
+								label: nls.localize('disable dep and dependents', 'Disable all related dependencies'),
+								run: async () => {
+									await this.checkAndSetEnablement(dependents, [extension], enablementState);
+									return resolve();
+								}
+							}
+						], {
+							onCancel: () => reject()
+						});
+					});
 				}
 			}
 		}
