@@ -95,16 +95,29 @@ export class NotebookDiffEditor extends BaseEditor {
 		await this._widget.setModel(model.modified.notebook, undefined);
 		await this._originalWidget.setModel(model.original.notebook, undefined);
 
+		let widgetScroll = false;
+		let originalWidgetScroll = false;
 		this._register(this._widget.onWillScroll(e => {
+			if (originalWidgetScroll) {
+				return;
+			}
+			widgetScroll = true;
 			if (this._originalWidget && this._originalWidget.scrollTop !== e.scrollTop) {
 				this._originalWidget.scrollTop = e.scrollTop;
 			}
+			widgetScroll = false;
 		}));
 
 		this._register(this._originalWidget.onWillScroll(e => {
+			if (widgetScroll) {
+				return;
+			}
+
+			originalWidgetScroll = true;
 			if (this._widget && this._widget.scrollTop !== e.scrollTop) {
 				this._widget.scrollTop = e.scrollTop;
 			}
+			originalWidgetScroll = false;
 		}));
 
 		this._register(this.fileService.watch(model.original.resource));
