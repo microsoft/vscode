@@ -333,7 +333,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private setTreeSelection(): void {
 		if (this.tree && this.tree.getSelection().length === 0) {
-			const firstMarker = this.markersWorkbenchService.markersModel.resourceMarkers[0].markers[0];
+			const firstMarker = this.markersWorkbenchService.markersModel.resourceMarkers[0]?.markers[0];
 			if (firstMarker) {
 				this.tree.setFocus([firstMarker]);
 				this.tree.setSelection([firstMarker]);
