@@ -11,12 +11,12 @@ import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto
 } from 'vs/workbench/api/common/extHost.protocol';
-import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation } from 'vs/workbench/api/common/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint, DebugAdapterServer, DebugAdapterExecutable, DataBreakpoint, DebugConsoleMode, DebugAdapterInlineImplementation, DebugAdapterNamedPipeServer } from 'vs/workbench/api/common/extHostTypes';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImpl } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebuggerContribution, IConfig, IDebugAdapter, IDebugAdapterServer, IDebugAdapterExecutable, IAdapterDescriptor, IDebugAdapterImpl, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
@@ -736,6 +736,11 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 				type: 'server',
 				port: x.port,
 				host: x.host
+			};
+		} else if (x instanceof DebugAdapterNamedPipeServer) {
+			return <IDebugAdapterNamedPipeServer>{
+				type: 'pipeServer',
+				path: x.path
 			};
 		} else if (x instanceof DebugAdapterInlineImplementation) {
 			return <IDebugAdapterImpl>{
