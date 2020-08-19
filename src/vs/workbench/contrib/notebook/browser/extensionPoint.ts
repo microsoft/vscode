@@ -34,7 +34,7 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.viewType]: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
-	readonly [NotebookRendererContribution.entrypoint]?: string;
+	readonly [NotebookRendererContribution.entrypoint]: string;
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -101,6 +101,7 @@ const notebookRendererContribution: IJSONSchema = {
 			NotebookRendererContribution.viewType,
 			NotebookRendererContribution.displayName,
 			NotebookRendererContribution.mimeTypes,
+			NotebookRendererContribution.entrypoint,
 		],
 		properties: {
 			[NotebookRendererContribution.viewType]: {
