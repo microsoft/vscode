@@ -77,8 +77,14 @@ export const viewsContainersContribution: IJSONSchema = {
 	}
 };
 
+enum ViewType {
+	Tree = 'tree',
+	Webview = 'webview'
+}
+
+
 interface IUserFriendlyViewDescriptor {
-	type?: 'tree' | 'webview';
+	type?: ViewType;
 
 	id: string;
 	name: string;
@@ -236,13 +242,8 @@ const viewsExtensionPoint: IExtensionPoint<ViewExtensionPointType> = ExtensionsR
 	jsonSchema: viewsContribution
 });
 
-export enum ViewType {
-	Tree = 'tree',
-	Webview = 'webview'
-}
-
 const TEST_VIEW_CONTAINER_ORDER = 6;
-export class ViewsExtensionHandler implements IWorkbenchContribution {
+class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private viewContainersRegistry: IViewContainersRegistry;
 	private viewsRegistry: IViewsRegistry;
