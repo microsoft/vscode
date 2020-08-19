@@ -9,12 +9,13 @@ import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceS
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { URI } from 'vs/base/common/uri';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITerminalBeforeHandleLinkEvent, ITerminalExternalLinkProvider, ITerminalLink } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalService, ITerminalInstance, ITerminalExternalLinkProvider, ITerminalLink } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalDataBufferer } from 'vs/workbench/contrib/terminal/common/terminalDataBuffering';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { ILogService } from 'vs/platform/log/common/log';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
 export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
@@ -24,7 +25,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
-	private _linkHandler: IDisposable | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
 	 * provider, this is registered with the terminal on the renderer side and all links are
@@ -40,6 +40,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._remoteAuthority = extHostContext.remoteAuthority;
@@ -93,7 +94,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public dispose(): void {
 		this._toDispose.dispose();
-		this._linkHandler?.dispose();
 		this._linkProvider?.dispose();
 
 		// TODO@Daniel: Should all the previously created terminals be disposed
@@ -154,6 +154,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._dataEventTracker = this._instantiationService.createInstance(TerminalDataEventTracker, (id, data) => {
 				this._onTerminalData(id, data);
 			});
+			// Send initial events if they exist
+			this._terminalService.terminalInstances.forEach(t => {
+				t.initialDataEvents?.forEach(d => this._onTerminalData(t.id, d));
+			});
 		}
 	}
 
@@ -164,16 +168,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $startHandlingLinks(): void {
-		this._linkHandler?.dispose();
-		this._linkHandler = this._terminalService.addLinkHandler(this._remoteAuthority || '', e => this._handleLink(e));
-	}
-
-	public $stopHandlingLinks(): void {
-		this._linkHandler?.dispose();
-		this._linkHandler = undefined;
-	}
-
 	public $startLinkProvider(): void {
 		this._linkProvider?.dispose();
 		this._linkProvider = this._terminalService.registerLinkProvider(new ExtensionTerminalLinkProvider(this._proxy));
@@ -182,13 +176,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $stopLinkProvider(): void {
 		this._linkProvider?.dispose();
 		this._linkProvider = undefined;
-	}
-
-	private async _handleLink(e: ITerminalBeforeHandleLinkEvent): Promise<boolean> {
-		if (!e.terminal) {
-			return false;
-		}
-		return this._proxy.$handleLink(e.terminal.id, e.link);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {
@@ -217,7 +204,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			executable: terminalInstance.shellLaunchConfig.executable,
 			args: terminalInstance.shellLaunchConfig.args,
 			cwd: terminalInstance.shellLaunchConfig.cwd,
-			env: terminalInstance.shellLaunchConfig.env
+			env: terminalInstance.shellLaunchConfig.env,
+			hideFromUser: terminalInstance.shellLaunchConfig.hideFromUser
 		};
 		if (terminalInstance.title) {
 			this._proxy.$acceptTerminalOpened(terminalInstance.id, terminalInstance.title, shellLaunchConfigDto);
@@ -259,6 +247,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			env: request.shellLaunchConfig.env
 		};
 
+		this._logService.trace('Spawning ext host process', { terminalId: proxy.terminalId, shellLaunchConfigDto, request });
 		this._proxy.$spawnExtHostProcess(
 			proxy.terminalId,
 			shellLaunchConfigDto,

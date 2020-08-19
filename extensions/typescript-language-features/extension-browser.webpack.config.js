@@ -22,19 +22,24 @@ module.exports = withBrowserDefaults({
 		new CopyPlugin({
 			patterns: [
 				{
-					from: 'node_modules/typescript-web-server',
-					to: 'typescript-web',
-					transform: (content, absoluteFrom) => {
-						if (absoluteFrom.endsWith('tsserver.js')) {
-							return Terser.minify(content.toString()).code;
-						}
-						return content;
+					from: 'node_modules/typescript-web-server/*.d.ts',
+					to: 'typescript-web/',
+					flatten: true
+				},
+			],
+		}),
+		// @ts-ignore
+		new CopyPlugin({
+			patterns: [
+				{
+					from: 'node_modules/typescript-web-server/tsserver.js',
+					to: 'typescript-web/tsserver.web.js',
+					transform: (content) => {
+						return Terser.minify(content.toString()).code;
+
 					},
 					transformPath: (targetPath) => {
-						if (targetPath.endsWith('tsserver.js')) {
-							return targetPath.replace('tsserver.js', 'tsserver.web.js');
-						}
-						return targetPath;
+						return targetPath.replace('tsserver.js', 'tsserver.web.js');
 					}
 				}
 			],

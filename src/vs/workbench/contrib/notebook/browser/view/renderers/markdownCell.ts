@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, IDimension, show, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
+import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { renderCodicons } from 'vs/base/common/codicons';
@@ -55,6 +55,10 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		}));
 
+		this._register(viewCell.model.onDidChangeMetadata(() => {
+			this.viewUpdate();
+		}));
+
 		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
 			if (viewCell.editState === CellEditState.Preview) {
 				this.viewCell.renderedMarkdownHeight = templateData.container.clientHeight;
@@ -66,7 +70,7 @@ export class StatefulMarkdownCell extends Disposable {
 				this.focusEditorIfNeeded();
 			}
 
-			toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 		};
 		this._register(viewCell.onDidChangeState((e) => {
 			if (!e.focusModeChanged) {
@@ -105,13 +109,13 @@ export class StatefulMarkdownCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					addClass(templateData.container, options.className);
+					DOM.addClass(templateData.container, options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					removeClass(templateData.container, options.className);
+					DOM.removeClass(templateData.container, options.className);
 				}
 			});
 		}));
@@ -120,7 +124,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				addClass(templateData.container, options.className);
+				DOM.addClass(templateData.container, options.className);
 			}
 		});
 
@@ -128,19 +132,32 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private viewUpdate(): void {
-		if (this.viewCell.editState === CellEditState.Editing) {
+		if (this.viewCell.metadata?.inputCollapsed) {
+			this.viewUpdateCollapsed();
+		} else if (this.viewCell.editState === CellEditState.Editing) {
 			this.viewUpdateEditing();
 		} else {
 			this.viewUpdatePreview();
 		}
 	}
 
+	private viewUpdateCollapsed(): void {
+		DOM.show(this.templateData.collapsedPart);
+		DOM.hide(this.editorPart);
+		DOM.hide(this.markdownContainer);
+		this.templateData.container.classList.toggle('collapsed', true);
+		this.viewCell.renderedMarkdownHeight = 0;
+	}
+
 	private viewUpdateEditing(): void {
 		// switch to editing mode
 		let editorHeight: number;
 
-		show(this.editorPart);
-		hide(this.markdownContainer);
+		DOM.show(this.editorPart);
+		DOM.hide(this.markdownContainer);
+		DOM.hide(this.templateData.collapsedPart);
+		this.templateData.container.classList.toggle('collapsed', false);
+
 		if (this.editor) {
 			editorHeight = this.editor!.getContentHeight();
 
@@ -160,7 +177,7 @@ export class StatefulMarkdownCell extends Disposable {
 			const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 			editorHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
-			this.templateData.editorContainer.innerHTML = '';
+			this.templateData.editorContainer.innerText = '';
 
 			// create a special context key service that set the inCompositeEditor-contextkey
 			const editorContextKeyService = this.contextKeyService.createScoped();
@@ -172,7 +189,8 @@ export class StatefulMarkdownCell extends Disposable {
 				dimension: {
 					width: width,
 					height: editorHeight
-				}
+				},
+				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {});
 			this.templateData.currentEditor = this.editor;
 
@@ -216,14 +234,17 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private viewUpdatePreview(): void {
 		this.viewCell.detachTextEditor();
-		hide(this.editorPart);
-		show(this.markdownContainer);
+		DOM.hide(this.editorPart);
+		DOM.hide(this.templateData.collapsedPart);
+		DOM.show(this.markdownContainer);
+		this.templateData.container.classList.toggle('collapsed', false);
+
 		this.renderedEditors.delete(this.viewCell);
 
-		this.markdownContainer.innerHTML = '';
+		this.markdownContainer.innerText = '';
 		this.viewCell.clearHTML();
-		let markdownRenderer = this.viewCell.getMarkdownRenderer();
-		let renderedHTML = this.viewCell.getHTML();
+		const markdownRenderer = this.viewCell.getMarkdownRenderer();
+		const renderedHTML = this.viewCell.getHTML();
 		if (renderedHTML) {
 			this.markdownContainer.appendChild(renderedHTML);
 		}
@@ -240,9 +261,9 @@ export class StatefulMarkdownCell extends Disposable {
 			}));
 
 			this.localDisposables.add(this.viewCell.textBuffer.onDidChangeContent(() => {
-				this.markdownContainer.innerHTML = '';
+				this.markdownContainer.innerText = '';
 				this.viewCell.clearHTML();
-				let renderedHTML = this.viewCell.getHTML();
+				const renderedHTML = this.viewCell.getHTML();
 				if (renderedHTML) {
 					this.markdownContainer.appendChild(renderedHTML);
 				}
@@ -259,7 +280,7 @@ export class StatefulMarkdownCell extends Disposable {
 		}
 	}
 
-	private layoutEditor(dimension: IDimension): void {
+	private layoutEditor(dimension: DOM.IDimension): void {
 		this.editor?.layout(dimension);
 		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
 	}
@@ -291,7 +312,7 @@ export class StatefulMarkdownCell extends Disposable {
 	setFoldingIndicator() {
 		switch (this.foldingState) {
 			case CellFoldingState.None:
-				this.templateData.foldingIndicator.innerHTML = '';
+				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
 				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
@@ -307,7 +328,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private bindEditorListeners() {
 		this.localDisposables.add(this.editor!.onDidContentSizeChange(e => {
-			let viewLayout = this.editor!.getLayoutInfo();
+			const viewLayout = this.editor!.getLayoutInfo();
 
 			if (e.contentHeightChanged) {
 				this.viewCell.editorHeight = e.contentHeight;

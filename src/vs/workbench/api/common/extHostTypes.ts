@@ -885,6 +885,12 @@ export class Diagnostic {
 	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+		if (!Range.isRange(range)) {
+			throw new TypeError('range must be set');
+		}
+		if (!message) {
+			throw new TypeError('message must be set');
+		}
 		this.range = range;
 		this.message = message;
 		this.severity = severity;
@@ -2781,6 +2787,17 @@ export enum ExtensionMode {
 	 * the extension host is running unit tests.
 	 */
 	Test = 3,
+}
+
+export enum ExtensionRuntime {
+	/**
+	 * The extension is running in a NodeJS extension host. Runtime access to NodeJS APIs is available.
+	 */
+	Node = 1,
+	/**
+	 * The extension is running in a Webworker extension host. Runtime access is limited to Webworker APIs.
+	 */
+	Webworker = 2
 }
 
 //#endregion ExtensionContext

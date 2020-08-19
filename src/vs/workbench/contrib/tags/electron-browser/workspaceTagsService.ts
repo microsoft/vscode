@@ -46,6 +46,8 @@ const ModulesToLookFor = [
 	// JS frameworks
 	'react',
 	'react-native',
+	'react-native-macos',
+	'react-native-windows',
 	'rnpm-plugin-windows',
 	'@angular/core',
 	'@ionic',
@@ -61,6 +63,7 @@ const ModulesToLookFor = [
 	'@google-cloud/common',
 	'heroku-cli',
 	//Office and Sharepoint packages
+	'@microsoft/teams-js',
 	'@microsoft/office-js',
 	'@microsoft/office-js-helpers',
 	'@types/office-js',
@@ -221,6 +224,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@google-cloud/common" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.firebase" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.heroku-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@microsoft/teams-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@microsoft/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@microsoft/office-js-helpers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@types/office-js" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -241,6 +245,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.playwright-chromium" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.playwright-firefox" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.playwright-webkit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.react-native-macos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.react-native-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -447,7 +453,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			const packageJsonPromises = getFilePromises('package.json', this.fileService, this.textFileService, content => {
 				try {
 					const packageJsonContents = JSON.parse(content.value);
-					let dependencies = Object.keys(packageJsonContents['dependencies']).concat(Object.keys(packageJsonContents['devDependencies']));
+					let dependencies = Object.keys(packageJsonContents['dependencies'] || {}).concat(Object.keys(packageJsonContents['devDependencies'] || {}));
 
 					for (let dependency of dependencies) {
 						if ('react-native' === dependency) {

@@ -41,7 +41,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		this._init();
 
 		this._disposables.add(extHostDocuments.onDidChangeDocument(e => {
-			let cellIdx = this._cellUris.get(e.document.uri);
+			const cellIdx = this._cellUris.get(e.document.uri);
 			if (cellIdx !== undefined) {
 				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
 				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
@@ -75,7 +75,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		this._cellUris = new ResourceMap();
 		const cellLengths: number[] = [];
 		const cellLineCounts: number[] = [];
-		for (let cell of this._notebook.cells) {
+		for (const cell of this._notebook.cells) {
 			if (cell.cellKind === CellKind.Code && (!this._selector || score(this._selector, cell.uri, cell.language, true))) {
 				this._cellUris.set(cell.uri, this._cells.length);
 				this._cells.push(<ExtHostCell>cell);
@@ -94,7 +94,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	getText(range?: vscode.Range): string {
 		if (!range) {
 			let result = '';
-			for (let cell of this._cells) {
+			for (const cell of this._cells) {
 				result += cell.document.getText() + '\n';
 			}
 			// remove last newline again
@@ -117,8 +117,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		} else if (startCell === endCell) {
 			return startCell.document.getText(new types.Range(start.range.start, end.range.end));
 		} else {
-			let a = startCell.document.getText(new types.Range(start.range.start, new types.Position(startCell.document.lineCount, 0)));
-			let b = endCell.document.getText(new types.Range(new types.Position(0, 0), end.range.end));
+			const a = startCell.document.getText(new types.Range(start.range.start, new types.Position(startCell.document.lineCount, 0)));
+			const b = endCell.document.getText(new types.Range(new types.Position(0, 0), end.range.end));
 			return a + '\n' + b;
 		}
 	}
@@ -139,7 +139,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 
 		const idx = this._cellUris.get(locationOrOffset.uri);
 		if (idx !== undefined) {
-			let line = this._cellLines.getAccumulatedValue(idx - 1);
+			const line = this._cellLines.getAccumulatedValue(idx - 1);
 			return new types.Position(line + locationOrOffset.range.start.line, locationOrOffset.range.start.character);
 		}
 		// do better?
@@ -158,9 +158,9 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 			endIdx = this._cellLines.getIndexOf(positionOrRange.end.line);
 		}
 
-		let startPos = new types.Position(startIdx.remainder, positionOrRange.start.character);
-		let endPos = new types.Position(endIdx.remainder, positionOrRange.end.character);
-		let range = new types.Range(startPos, endPos);
+		const startPos = new types.Position(startIdx.remainder, positionOrRange.start.character);
+		const endPos = new types.Position(endIdx.remainder, positionOrRange.end.character);
+		const range = new types.Range(startPos, endPos);
 
 		const startCell = this._cells[startIdx.index];
 		return new types.Location(startCell.uri, <types.Range>startCell.document.validateRange(range));

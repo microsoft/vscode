@@ -65,6 +65,10 @@ export class PaneComposite extends Composite implements IPaneComposite {
 		return this.viewPaneContainer;
 	}
 
+	getActionsContext(): unknown {
+		return this.getViewPaneContainer().getActionsContext();
+	}
+
 	getContextMenuActions(): ReadonlyArray<IAction> {
 		const result = [];
 		result.push(...this.menuActions.getContextMenuActions());

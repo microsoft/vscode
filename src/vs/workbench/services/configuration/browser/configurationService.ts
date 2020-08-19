@@ -99,7 +99,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
 		}
 		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
-		this._register(Registry.as<IConfigurationRegistry>(Extensions.Configuration).onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
+		this._register(configurationRegistry.onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
 	}
@@ -510,6 +510,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				const folderConfiguration = this.cachedFolderConfigs.get(this.workspace.folders[0].uri);
 				if (folderConfiguration) {
 					this._configuration.updateWorkspaceConfiguration(folderConfiguration.reprocess());
+					this._configuration.updateFolderConfiguration(this.workspace.folders[0].uri, folderConfiguration.reprocess());
 				}
 			} else {
 				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reprocessWorkspaceSettings());

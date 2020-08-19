@@ -373,7 +373,7 @@ class SuggestionDetails {
 			this.docs.textContent = documentation;
 		} else {
 			this.docs.classList.add('markdown-docs');
-			this.docs.innerHTML = '';
+			this.docs.innerText = '';
 			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
@@ -618,7 +618,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 							detail || '',
 							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, docs);
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
 					} else {
 						return textLabel;
 					}

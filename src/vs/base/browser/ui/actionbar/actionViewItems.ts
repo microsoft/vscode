@@ -137,17 +137,9 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 		this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
-			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
-			// > Writing to the clipboard
-			// > You can use the "cut" and "copy" commands without any special
-			// permission if you are using them in a short-lived event handler
-			// for a user action (for example, a click handler).
 
-			// => to get the Copy and Paste context menu actions working on Firefox,
-			// there should be no timeout here
-			if (this.options && this.options.isMenu) {
-				this.onClick(e);
-			} else {
+			// menus do not use the click event
+			if (!(this.options && this.options.isMenu)) {
 				platform.setImmediate(() => this.onClick(e));
 			}
 		}));

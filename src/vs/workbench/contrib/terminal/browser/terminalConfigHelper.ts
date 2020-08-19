@@ -35,13 +35,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
+	private _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 	public config!: ITerminalConfiguration;
 
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
-		private readonly _linuxDistro: LinuxDistro,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -60,6 +60,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// opt-in to syncing
 		storageKeysSyncRegistryService.registerStorageKey({ key: 'terminalConfigHelper/launchRecommendationsIgnore', version: 1 });
+	}
+
+	public setLinuxDistro(linuxDistro: LinuxDistro) {
+		this._linuxDistro = linuxDistro;
 	}
 
 	private _updateConfig(): void {

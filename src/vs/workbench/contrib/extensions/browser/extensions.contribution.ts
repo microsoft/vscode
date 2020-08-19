@@ -472,7 +472,7 @@ function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | u
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
 		if (editor instanceof ExtensionEditor) {
-			if (editor.activeWebview) {
+			if (editor.activeWebview?.isFocused) {
 				f(editor.activeWebview);
 				return true;
 			}

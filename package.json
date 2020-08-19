@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.48.0",
-  "distro": "a4dd690fc5b9555a6707734135e5e8ce0c35e5a5",
+  "version": "1.49.0",
+  "distro": "30ea358b7ad9b2e701d90077c2ff970e87a7a06b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -40,7 +40,7 @@
     "valid-layers-check": "node build/lib/layersChecker.js",
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
-    "web": "node resources/serverless/code-web.js",
+    "web": "node resources/web/code-web.js",
     "compile-web": "gulp compile-web --max_old_space_size=4095",
     "watch-web": "gulp watch-web --max_old_space_size=4095",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
@@ -62,6 +62,7 @@
     "semver-umd": "^5.5.7",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
+    "tas-client": "^0.0.950",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-nsfw": "1.2.8",
     "vscode-oniguruma": "1.3.1",
@@ -69,10 +70,10 @@
     "vscode-ripgrep": "^1.8.0",
     "vscode-sqlite3": "4.0.10",
     "vscode-textmate": "5.2.0",
-    "xterm": "4.8.1",
+    "xterm": "4.9.0-beta.8",
     "xterm-addon-search": "0.7.0",
     "xterm-addon-unicode11": "0.2.0",
-    "xterm-addon-webgl": "0.7.0",
+    "xterm-addon-webgl": "0.8.0",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
   },
@@ -108,7 +109,7 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "9.1.0",
+    "electron": "9.2.0",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",
@@ -163,7 +164,7 @@
     "source-map": "^0.4.4",
     "style-loader": "^1.0.0",
     "ts-loader": "^4.4.2",
-    "typescript": "^4.0.0-dev.20200722",
+    "typescript": "^4.0.1-rc",
     "typescript-formatter": "7.1.0",
     "underscore": "^1.8.2",
     "vinyl": "^2.0.0",

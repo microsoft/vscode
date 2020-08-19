@@ -5421,6 +5421,66 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Provides information on a line in a terminal in order to provide links for it.
+	 */
+	export interface TerminalLinkContext {
+		/**
+		 * This is the text from the unwrapped line in the terminal.
+		 */
+		line: string;
+
+		/**
+		 * The terminal the link belongs to.
+		 */
+		terminal: Terminal;
+	}
+
+	/**
+	 * A provider that enables detection and handling of links within terminals.
+	 */
+	export interface TerminalLinkProvider<T extends TerminalLink = TerminalLink> {
+		/**
+		 * Provide terminal links for the given context. Note that this can be called multiple times
+		 * even before previous calls resolve, make sure to not share global objects (eg. `RegExp`)
+		 * that could have problems when asynchronous usage may overlap.
+		 * @param context Information about what links are being provided for.
+		 * @param token A cancellation token.
+		 * @return A list of terminal links for the given line.
+		 */
+		provideTerminalLinks(context: TerminalLinkContext, token: CancellationToken): ProviderResult<T[]>
+
+		/**
+		 * Handle an activated terminal link.
+		 * @param link The link to handle.
+		 */
+		handleTerminalLink(link: T): ProviderResult<void>;
+	}
+
+	/**
+	 * A link on a terminal line.
+	 */
+	export interface TerminalLink {
+		/**
+		 * The start index of the link on [TerminalLinkContext.line](#TerminalLinkContext.line].
+		 */
+		startIndex: number;
+
+		/**
+		 * The length of the link on [TerminalLinkContext.line](#TerminalLinkContext.line]
+		 */
+		length: number;
+
+		/**
+		 * The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		tooltip?: string;
+	}
+
+	/**
 	 * In a remote window the extension kind describes if an extension
 	 * runs where the UI (window) runs or if an extension runs remotely.
 	 */
@@ -5570,14 +5630,42 @@ declare module 'vscode' {
 		asAbsolutePath(relativePath: string): string;
 
 		/**
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly storageUri: Uri | undefined;
+
+		/**
 		 * An absolute file path of a workspace specific directory in which the extension
 		 * can store private state. The directory might not exist on disk and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly globalStorageUri: Uri;
 
 		/**
 		 * An absolute file path in which the extension can store global state.
@@ -5585,13 +5673,27 @@ declare module 'vscode' {
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly logUri: Uri;
 
 		/**
 		 * An absolute file path of a directory in which the extension can create log files.
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
 		 */
 		readonly logPath: string;
 
@@ -8183,6 +8285,13 @@ declare module 'vscode' {
 			 */
 			readonly supportsMultipleEditorsPerDocument?: boolean;
 		}): Disposable;
+
+		/**
+		 * Register provider that enables the detection and handling of links within the terminal.
+		 * @param provider The provider that provides the terminal links.
+		 * @return Disposable that unregisters the provider.
+		 */
+		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
 		 * The currently active color theme as configured in the settings. The active
@@ -11164,6 +11273,12 @@ declare module 'vscode' {
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
 
 		/**
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
+		 */
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
+
+		/**
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
 		*/
@@ -11536,6 +11651,141 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	/**
+	 * Represents a session of a currently logged in user.
+	 */
+	export interface AuthenticationSession {
+		/**
+		 * The identifier of the authentication session.
+		 */
+		readonly id: string;
+
+		/**
+		 * The access token.
+		 */
+		readonly accessToken: string;
+
+		/**
+		 * The account associated with the session.
+		 */
+		readonly account: AuthenticationSessionAccountInformation;
+
+		/**
+		 * The permissions granted by the session's access token. Available scopes
+		 * are defined by the [AuthenticationProvider](#AuthenticationProvider).
+		 */
+		readonly scopes: ReadonlyArray<string>;
+	}
+
+	/**
+	 * The information of an account associated with an [AuthenticationSession](#AuthenticationSession).
+	 */
+	export interface AuthenticationSessionAccountInformation {
+		/**
+		 * The unique identifier of the account.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable name of the account.
+		 */
+		readonly label: string;
+	}
+
+
+	/**
+	 * Options to be used when getting an [AuthenticationSession](#AuthenticationSession) from an [AuthenticationProvider](#AuthenticationProvider).
+	 */
+	export interface AuthenticationGetSessionOptions {
+		/**
+		 * Whether login should be performed if there is no matching session.
+		 *
+		 * If true, a modal dialog will be shown asking the user to sign in. If false, a numbered badge will be shown
+		 * on the accounts activity bar icon. An entry for the extension will be added under the menu to sign in. This
+		 * allows quietly prompting the user to sign in.
+		 *
+		 * Defaults to false.
+		 */
+		createIfNone?: boolean;
+
+		/**
+		 * Whether the existing user session preference should be cleared.
+		 *
+		 * For authentication providers that support being signed into multiple accounts at once, the user will be
+		 * prompted to select an account to use when [getSession](#authentication.getSession) is called. This preference
+		 * is remembered until [getSession](#authentication.getSession) is called with this flag.
+		 *
+		 * Defaults to false.
+		 */
+		clearSessionPreference?: boolean;
+	}
+
+	/**
+	 * Basic information about an [authenticationProvider](#AuthenticationProvider)
+	 */
+	export interface AuthenticationProviderInformation {
+		/**
+		 * The unique identifier of the authentication provider.
+		 */
+		readonly id: string;
+
+		/**
+		 * The human-readable name of the authentication provider.
+		 */
+		readonly label: string;
+	}
+
+	/**
+	 * An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
+	 */
+	export interface AuthenticationSessionsChangeEvent {
+		/**
+		 * The [authenticationProvider](#AuthenticationProvider) that has had its sessions change.
+		 */
+		readonly provider: AuthenticationProviderInformation;
+	}
+
+	/**
+	 * Namespace for authentication.
+	 */
+	export namespace authentication {
+		/**
+		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
+		 * quickpick to select which account they would like to use.
+		 *
+		 * Currently, there are only two authentication providers that are contributed from built in extensions
+		 * to VS Code that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param options The [getSessionOptions](#GetSessionOptions) to use
+		 * @returns A thenable that resolves to an authentication session
+		 */
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
+
+		/**
+		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
+		 * quickpick to select which account they would like to use.
+		 *
+		 * Currently, there are only two authentication providers that are contributed from built in extensions
+		 * to VS Code that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param options The [getSessionOptions](#GetSessionOptions) to use
+		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
+		 */
+		export function getSession(providerId: string, scopes: string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+
+		/**
+		 * An [event](#Event) which fires when the authentication sessions of an authentication provider have
+		 * been added, removed, or changed.
+		 */
+		export const onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+	}
 }
 
 /**

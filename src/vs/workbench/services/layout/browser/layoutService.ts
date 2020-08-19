@@ -33,9 +33,8 @@ export function positionToString(position: Position): string {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		default: return 'bottom';
 	}
-
-	return 'bottom';
 }
 
 const positionsByString: { [key: string]: Position } = {

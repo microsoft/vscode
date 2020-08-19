@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -59,15 +58,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this._editState === CellEditState.Preview) {
 			this.focusMode = CellFocusMode.Container;
 		}
-	}
-
-	private _currentTokenSource: CancellationTokenSource | undefined;
-	public set currentTokenSource(v: CancellationTokenSource | undefined) {
-		this._currentTokenSource = v;
-	}
-
-	public get currentTokenSource(): CancellationTokenSource | undefined {
-		return this._currentTokenSource;
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -182,7 +172,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this.saveViewState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
-			let resolvedid = value.id;
+			const resolvedid = value.id;
 
 			if (resolvedid) {
 				this._textEditor?.deltaDecorations([resolvedid], []);

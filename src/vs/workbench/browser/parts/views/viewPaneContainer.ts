@@ -293,6 +293,7 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			renderDropdownAsChildElement: true
 		});
 
 		this._register(this.toolbar);
@@ -506,7 +507,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (!this.shouldShowWelcome()) {
 			removeClass(this.bodyContainer, 'welcome');
-			this.viewWelcomeContainer.innerHTML = '';
+			this.viewWelcomeContainer.innerText = '';
 			this.scrollableElement.scanDomNode();
 			return;
 		}
@@ -515,14 +516,14 @@ export abstract class ViewPane extends Pane implements IView {
 
 		if (contents.length === 0) {
 			removeClass(this.bodyContainer, 'welcome');
-			this.viewWelcomeContainer.innerHTML = '';
+			this.viewWelcomeContainer.innerText = '';
 			this.scrollableElement.scanDomNode();
 			return;
 		}
 
 		const disposables = new DisposableStore();
 		addClass(this.bodyContainer, 'welcome');
-		this.viewWelcomeContainer.innerHTML = '';
+		this.viewWelcomeContainer.innerText = '';
 
 		let buttonIndex = 0;
 
@@ -606,6 +607,8 @@ const enum DropDirection {
 	RIGHT
 }
 
+type BoundingRect = { top: number, left: number, bottom: number, right: number };
+
 class ViewPaneDropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
@@ -627,6 +630,7 @@ class ViewPaneDropOverlay extends Themable {
 	constructor(
 		private paneElement: HTMLElement,
 		private orientation: Orientation | undefined,
+		private bounds: BoundingRect | undefined,
 		protected location: ViewContainerLocation,
 		protected themeService: IThemeService,
 	) {
@@ -758,7 +762,22 @@ class ViewPaneDropOverlay extends Themable {
 				this.doPositionOverlay({ top: '0', right: '0', width: '50%', height: '100%' });
 				break;
 			default:
-				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+				// const top = this.bounds?.top || 0;
+				// const left = this.bounds?.bottom || 0;
+
+				let top = '0';
+				let left = '0';
+				let width = '100%';
+				let height = '100%';
+				if (this.bounds) {
+					const boundingRect = this.container.getBoundingClientRect();
+					top = `${this.bounds.top - boundingRect.top}px`;
+					left = `${this.bounds.left - boundingRect.left}px`;
+					height = `${this.bounds.bottom - this.bounds.top}px`;
+					width = `${this.bounds.right - this.bounds.left}px`;
+				}
+
+				this.doPositionOverlay({ top, left, width, height });
 		}
 
 		if ((this.orientation === Orientation.VERTICAL && paneHeight <= 25) ||
@@ -899,9 +918,35 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
 		let overlay: ViewPaneDropOverlay | undefined;
+		const getOverlayBounds: () => BoundingRect = () => {
+			const fullSize = parent.getBoundingClientRect();
+			const lastPane = this.panes[this.panes.length - 1].element.getBoundingClientRect();
+			const top = this.orientation === Orientation.VERTICAL ? lastPane.bottom : fullSize.top;
+			const left = this.orientation === Orientation.HORIZONTAL ? lastPane.right : fullSize.left;
+
+			return {
+				top,
+				bottom: fullSize.bottom,
+				left,
+				right: fullSize.right,
+			};
+		};
+
+		const inBounds = (bounds: BoundingRect, pos: { x: number, y: number }) => {
+			return pos.x >= bounds.left && pos.x <= bounds.right && pos.y >= bounds.top && pos.y <= bounds.bottom;
+		};
+
+
+		let bounds: BoundingRect;
+
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragEnter: (e) => {
-				if (!overlay && this.panes.length === 0) {
+				bounds = getOverlayBounds();
+				if (overlay && overlay.disposed) {
+					overlay = undefined;
+				}
+
+				if (!overlay && inBounds(bounds, e.eventData)) {
 					const dropData = e.dragAndDropData.getData();
 					if (dropData.type === 'view') {
 
@@ -912,7 +957,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							return;
 						}
 
-						overlay = new ViewPaneDropOverlay(parent, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+						overlay = new ViewPaneDropOverlay(parent, undefined, bounds, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 					}
 
 					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
@@ -920,14 +965,22 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
 						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
-							overlay = new ViewPaneDropOverlay(parent, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+							overlay = new ViewPaneDropOverlay(parent, undefined, bounds, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
-
 				}
 			},
 			onDragOver: (e) => {
-				if (this.panes.length === 0) {
+				if (overlay && overlay.disposed) {
+					overlay = undefined;
+				}
+
+				if (overlay && !inBounds(bounds, e.eventData)) {
+					overlay.dispose();
+					overlay = undefined;
+				}
+
+				if (inBounds(bounds, e.eventData)) {
 					toggleDropEffect(e.eventData.dataTransfer, 'move', overlay !== undefined);
 				}
 			},
@@ -954,8 +1007,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						}
 					}
 
+					const paneCount = this.panes.length;
+
 					if (viewsToMove.length > 0) {
 						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer);
+					}
+
+					if (paneCount > 0) {
+						for (const view of viewsToMove) {
+							const paneToMove = this.panes.find(p => p.id === view.id);
+							if (paneToMove) {
+								this.movePane(paneToMove, this.panes[this.panes.length - 1]);
+							}
+						}
 					}
 				}
 
@@ -1068,6 +1132,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 
 		return [];
+	}
+
+	getActionsContext(): unknown {
+		return undefined;
 	}
 
 	getViewsVisibilityActions(): IAction[] {
@@ -1362,7 +1430,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 							return;
 						}
 
-						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 					}
 
 					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id && !this.viewContainer.rejectAddedViews) {
@@ -1370,7 +1438,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
 
 						if (!viewsToMove.some(v => !v.canMoveView) && viewsToMove.length > 0) {
-							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, undefined, this.viewDescriptorService.getViewContainerLocation(this.viewContainer)!, this.themeService);
 						}
 					}
 				}

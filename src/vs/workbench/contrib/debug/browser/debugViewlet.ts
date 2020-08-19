@@ -30,6 +30,10 @@ import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform
 import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -39,6 +43,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	private paneListeners = new Map<string, IDisposable>();
 	private debugToolBarMenu: IMenu | undefined;
 	private disposeOnTitleUpdate: IDisposable | undefined;
+	private updateToolBarScheduler: RunOnceScheduler;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -59,8 +64,17 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
+		this.updateToolBarScheduler = this._register(new RunOnceScheduler(() => {
+			if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {
+				this.updateTitleArea();
+			}
+		}, 20));
+
+		// When there are potential updates to the docked debug toolbar we need to update it
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
-		this._register(this.debugService.onDidNewSession(() => this.updateToolBar()));
+		this._register(this.debugService.onDidNewSession(() => this.updateToolBarScheduler.schedule()));
+		this._register(this.debugService.getViewModel().onDidFocusSession(() => this.updateToolBarScheduler.schedule()));
+
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY]))) {
 				this.updateTitleArea();
@@ -120,6 +134,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			if (!this.debugToolBarMenu) {
 				this.debugToolBarMenu = this.menuService.createMenu(MenuId.DebugToolBar, this.contextKeyService);
 				this._register(this.debugToolBarMenu);
+				this._register(this.debugToolBarMenu.onDidChange(() => this.updateToolBarScheduler.schedule()));
 			}
 
 			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
@@ -187,13 +202,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			});
 		}
 
-		this.updateToolBar();
-	}
-
-	private updateToolBar(): void {
-		if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {
-			this.updateTitleArea();
-		}
+		this.updateToolBarScheduler.schedule();
 	}
 
 	addPanes(panes: { pane: ViewPane, size: number, index?: number }[]): void {
@@ -240,5 +249,20 @@ export class OpenDebugConsoleAction extends ToggleViewAction {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		super(id, label, REPL_VIEW_ID, viewsService, viewDescriptorService, contextKeyService, layoutService, 'codicon-debug-console');
+	}
+}
+
+export class OpenDebugViewletAction extends ShowViewletAction {
+	public static readonly ID = VIEWLET_ID;
+	public static readonly LABEL = nls.localize('toggleDebugViewlet', "Show Run and Debug");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewletService viewletService: IViewletService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
 	}
 }

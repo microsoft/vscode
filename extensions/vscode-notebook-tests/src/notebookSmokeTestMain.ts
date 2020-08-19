@@ -67,7 +67,7 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookSmokeTest', ['*.vsctestnb'], {
+	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookSmokeTest', ['*.smoke-nb'], {
 		label: 'notebookSmokeTest',
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			for (let i = 0; i < _document.cells.length; i++) {

@@ -55,7 +55,7 @@ export class InstallCountWidget extends ExtensionWidget {
 	}
 
 	render(): void {
-		this.container.innerHTML = '';
+		this.container.innerText = '';
 
 		if (!this.extension) {
 			return;
@@ -105,7 +105,7 @@ export class RatingsWidget extends ExtensionWidget {
 	}
 
 	render(): void {
-		this.container.innerHTML = '';
+		this.container.innerText = '';
 
 		if (!this.extension) {
 			return;

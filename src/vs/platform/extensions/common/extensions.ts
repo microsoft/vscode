@@ -272,8 +272,18 @@ export interface IScannedExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
 	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest
+	readonly packageJSON: IExtensionManifest;
+	readonly packageNLS?: any;
 	readonly packageNLSUrl?: URI;
+	readonly readmeUrl?: URI;
+	readonly changelogUrl?: URI;
+}
+
+export interface ITranslatedScannedExtension {
+	readonly identifier: IExtensionIdentifier;
+	readonly location: URI;
+	readonly type: ExtensionType;
+	readonly packageJSON: IExtensionManifest;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 }

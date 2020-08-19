@@ -58,11 +58,12 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountS
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/path/electron-browser/pathService';
+import 'vs/workbench/services/experiment/electron-browser/experimentService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/electron-browser/userDataAutoSyncService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
@@ -70,6 +71,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { TimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
+registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ITunnelService, TunnelService);
 registerSingleton(ITimerService, TimerService);
@@ -133,5 +135,6 @@ import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribu
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper.contribution';
+import { UserDataSyncStoreManagementService } from 'vs/workbench/contrib/userDataSync/electron-browser/userDataSyncStoreManagementService';
 
 //#endregion

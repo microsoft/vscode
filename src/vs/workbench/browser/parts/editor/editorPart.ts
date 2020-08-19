@@ -58,7 +58,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 
 	set gridWidget(grid: Grid<T> | undefined) {
-		this.element.innerHTML = '';
+		this.element.innerText = '';
 
 		if (grid) {
 			this.element.appendChild(grid.element);

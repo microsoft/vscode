@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -54,8 +53,6 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 // this delay is to allow the terminal instance to initialize correctly and have its ID set before
 // trying to create the corressponding object on the ext host.
 export const EXT_HOST_CREATION_DELAY = 100;
-
-export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -230,18 +227,17 @@ export interface IShellLaunchConfig {
 }
 
 /**
- * Provides access to native or electron APIs to other terminal services.
+ * Provides access to native Windows calls that can be injected into non-native layers.
  */
-export interface ITerminalNativeService {
-	readonly _serviceBrand: undefined;
-
-	readonly linuxDistro: LinuxDistro;
-
-	readonly onRequestFocusActiveInstance: Event<void>;
-	readonly onOsResume: Event<void>;
-
+export interface ITerminalNativeWindowsDelegate {
+	/**
+	 * Gets the Windows build number, eg. this would be `19041` for Windows 10 version 2004
+	 */
 	getWindowsBuildNumber(): number;
-	whenFileDeleted(path: URI): Promise<void>;
+	/**
+	 * Converts a regular Windows path into the WSL path equivalent, eg. `C:\` -> `/mnt/c`
+	 * @param path The Windows path.
+	 */
 	getWslPath(path: string): Promise<string>;
 }
 

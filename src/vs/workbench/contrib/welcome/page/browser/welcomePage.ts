@@ -162,7 +162,7 @@ interface ExtensionSuggestion {
 const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
 	{ name: localize('welcomePage.python', "Python"), id: 'ms-python.python' },
-	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
+	{ name: localize('welcomePage.java', "Java"), id: 'vscjava.vscode-java-pack' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
 	{ name: localize('welcomePage.docker', "Docker"), id: 'ms-azuretools.vscode-docker' },

@@ -5,7 +5,7 @@
 
 import { IServerChannel, IChannel, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService, IManualSyncTask, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncUtilService, IUserDataAutoSyncService, IManualSyncTask, IUserDataManifest, IUserDataSyncStoreManagementService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -26,6 +26,8 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'onDidChangeLocal': return this.service.onDidChangeLocal;
 			case 'onDidChangeLastSyncTime': return this.service.onDidChangeLastSyncTime;
 			case 'onSyncErrors': return this.service.onSyncErrors;
+			case 'onDidResetLocal': return this.service.onDidResetLocal;
+			case 'onDidResetRemote': return this.service.onDidResetRemote;
 		}
 		throw new Error(`Event not found: ${event}`);
 	}
@@ -46,7 +48,6 @@ export class UserDataSyncChannel implements IServerChannel {
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 
-			case 'pull': return this.service.pull();
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetRemote': return this.service.resetRemote();
@@ -63,11 +64,11 @@ export class UserDataSyncChannel implements IServerChannel {
 		throw new Error('Invalid call');
 	}
 
-	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null }> {
+	private async createManualSyncTask(): Promise<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }> {
 		const manualSyncTask = await this.service.createManualSyncTask();
 		const manualSyncTaskChannel = new ManualSyncTaskChannel(manualSyncTask, this.logService);
 		this.server.registerChannel(`manualSyncTask-${manualSyncTask.id}`, manualSyncTaskChannel);
-		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest };
+		return { id: manualSyncTask.id, manifest: manualSyncTask.manifest, status: manualSyncTask.status };
 	}
 }
 
@@ -101,10 +102,12 @@ class ManualSyncTaskChannel implements IServerChannel {
 			case 'accept': return this.manualSyncTask.accept(URI.revive(args[0]), args[1]);
 			case 'merge': return this.manualSyncTask.merge(URI.revive(args[0]));
 			case 'discard': return this.manualSyncTask.discard(URI.revive(args[0]));
+			case 'discardConflicts': return this.manualSyncTask.discardConflicts();
 			case 'apply': return this.manualSyncTask.apply();
 			case 'pull': return this.manualSyncTask.pull();
 			case 'push': return this.manualSyncTask.push();
 			case 'stop': return this.manualSyncTask.stop();
+			case '_getStatus': return this.manualSyncTask.status;
 			case 'dispose': return this.manualSyncTask.dispose();
 		}
 		throw new Error('Invalid call');
@@ -225,6 +228,9 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 	constructor(private readonly service: IUserDataSyncMachinesService) { }
 
 	listen(_: unknown, event: string): Event<any> {
+		switch (event) {
+			case 'onDidChange': return this.service.onDidChange;
+		}
 		throw new Error(`Event not found: ${event}`);
 	}
 
@@ -261,3 +267,18 @@ export class UserDataSyncAccountServiceChannel implements IServerChannel {
 	}
 }
 
+export class UserDataSyncStoreManagementServiceChannel implements IServerChannel {
+	constructor(private readonly service: IUserDataSyncStoreManagementService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'switch': return this.service.switch(args[0]);
+			case 'getPreviousUserDataSyncStore': return this.service.getPreviousUserDataSyncStore();
+		}
+		throw new Error('Invalid call');
+	}
+}

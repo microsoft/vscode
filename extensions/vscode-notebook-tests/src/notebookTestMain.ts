@@ -63,7 +63,7 @@ export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookKernelTest', ['*.vsctestnb'], {
 		label: 'Notebook Test Kernel',
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
-			let cell = _document.cells[0];
+			const cell = _document.cells[0];
 
 			cell.outputs = [{
 				outputKind: vscode.CellOutputKind.Rich,

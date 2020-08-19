@@ -38,6 +38,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private _onSyncErrors: Emitter<[SyncResource, UserDataSyncError][]> = this._register(new Emitter<[SyncResource, UserDataSyncError][]>());
 	readonly onSyncErrors: Event<[SyncResource, UserDataSyncError][]> = this._onSyncErrors.event;
 
+	get onDidResetLocal(): Event<void> { return this.channel.listen<void>('onDidResetLocal'); }
+	get onDidResetRemote(): Event<void> { return this.channel.listen<void>('onDidResetRemote'); }
+
 	constructor(
 		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService
 	) {
@@ -65,17 +68,13 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._register(this.channel.listen<[SyncResource, Error][]>('onSyncErrors')(errors => this._onSyncErrors.fire(errors.map(([source, error]) => ([source, UserDataSyncError.toUserDataSyncError(error)])))));
 	}
 
-	pull(): Promise<void> {
-		return this.channel.call('pull');
-	}
-
 	createSyncTask(): Promise<ISyncTask> {
 		throw new Error('not supported');
 	}
 
 	async createManualSyncTask(): Promise<IManualSyncTask> {
-		const { id, manifest } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null }>('createManualSyncTask');
-		return new ManualSyncTask(id, manifest, this.sharedProcessService);
+		const { id, manifest, status } = await this.channel.call<{ id: string, manifest: IUserDataManifest | null, status: SyncStatus }>('createManualSyncTask');
+		return new ManualSyncTask(id, manifest, status, this.sharedProcessService);
 	}
 
 	replace(uri: URI): Promise<void> {
@@ -120,8 +119,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
 	}
 
-	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
-		const result = await this.channel.call<{ resource: URI, comparableResource?: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
+	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
+		const result = await this.channel.call<{ resource: URI, comparableResource: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
 		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
 	}
 
@@ -164,16 +163,27 @@ class ManualSyncTask implements IManualSyncTask {
 
 	get onSynchronizeResources(): Event<[SyncResource, URI[]][]> { return this.channel.listen<[SyncResource, URI[]][]>('onSynchronizeResources'); }
 
+	private _status: SyncStatus;
+	get status(): SyncStatus { return this._status; }
+
 	constructor(
 		readonly id: string,
 		readonly manifest: IUserDataManifest | null,
+		status: SyncStatus,
 		sharedProcessService: ISharedProcessService,
 	) {
 		const manualSyncTaskChannel = sharedProcessService.getChannel(`manualSyncTask-${id}`);
+		this._status = status;
+		const that = this;
 		this.channel = {
-			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
-				return manualSyncTaskChannel.call(command, arg, cancellationToken)
-					.then(null, error => { throw UserDataSyncError.toUserDataSyncError(error); });
+			async call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
+				try {
+					const result = await manualSyncTaskChannel.call<T>(command, arg, cancellationToken);
+					that._status = await manualSyncTaskChannel.call<SyncStatus>('_getStatus');
+					return result;
+				} catch (error) {
+					throw UserDataSyncError.toUserDataSyncError(error);
+				}
 			},
 			listen<T>(event: string, arg?: any): Event<T> {
 				return manualSyncTaskChannel.listen(event, arg);
@@ -186,18 +196,23 @@ class ManualSyncTask implements IManualSyncTask {
 		return this.deserializePreviews(previews);
 	}
 
-	async accept(resource: URI, content: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async accept(resource: URI, content?: string | null): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('accept', [resource, content]);
 		return this.deserializePreviews(previews);
 	}
 
-	async merge(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
+	async merge(resource?: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('merge', [resource]);
 		return this.deserializePreviews(previews);
 	}
 
 	async discard(resource: URI): Promise<[SyncResource, ISyncResourcePreview][]> {
 		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discard', [resource]);
+		return this.deserializePreviews(previews);
+	}
+
+	async discardConflicts(): Promise<[SyncResource, ISyncResourcePreview][]> {
+		const previews = await this.channel.call<[SyncResource, ISyncResourcePreview][]>('discardConflicts');
 		return this.deserializePreviews(previews);
 	}
 

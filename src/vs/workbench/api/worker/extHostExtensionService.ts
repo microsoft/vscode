@@ -8,6 +8,8 @@ import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHost
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -30,6 +32,7 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 }
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
+	readonly extensionRuntime = ExtensionRuntime.Node;
 
 	private _fakeModules?: WorkerRequireInterceptor;
 
@@ -38,6 +41,10 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
 		this._fakeModules = this._instaService.createInstance(WorkerRequireInterceptor, apiFactory, this._registry);
 		await this._fakeModules.install();
+	}
+
+	protected _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined {
+		return extensionDescription.browser;
 	}
 
 	protected async _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {

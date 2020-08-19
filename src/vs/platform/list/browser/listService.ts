@@ -531,11 +531,6 @@ abstract class ResourceNavigator<T> extends Disposable {
 			browserEvent
 		});
 	}
-
-	// hack for References Widget: pressing Enter on already selected tree element
-	open(browserEvent?: UIEvent): void {
-		this._open((browserEvent as any)?.preserveFocus || false, true, false, browserEvent);
-	}
 }
 
 export class ListResourceNavigator<T> extends ResourceNavigator<number> {
@@ -608,10 +603,6 @@ export class WorkbenchObjectTree<T extends NonNullable<any>, TFilterData = void>
 		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
 	}
-
-	open(browserEvent?: UIEvent): void {
-		this.internals.open(browserEvent);
-	}
 }
 
 export interface IWorkbenchCompressibleObjectTreeOptionsUpdate extends ICompressibleObjectTreeOptionsUpdate {
@@ -655,10 +646,6 @@ export class WorkbenchCompressibleObjectTree<T extends NonNullable<any>, TFilter
 		if (options.overrideStyles) {
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
-	}
-
-	open(browserEvent?: UIEvent): void {
-		this.internals.open(browserEvent);
 	}
 }
 
@@ -705,10 +692,6 @@ export class WorkbenchDataTree<TInput, T, TFilterData = void> extends DataTree<T
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
 	}
-
-	open(browserEvent?: UIEvent): void {
-		this.internals.open(browserEvent);
-	}
 }
 
 export interface IWorkbenchAsyncDataTreeOptionsUpdate extends IAsyncDataTreeOptionsUpdate {
@@ -754,10 +737,6 @@ export class WorkbenchAsyncDataTree<TInput, T, TFilterData = void> extends Async
 			this.internals.updateStyleOverrides(options.overrideStyles);
 		}
 	}
-
-	open(browserEvent?: UIEvent): void {
-		this.internals.open(browserEvent);
-	}
 }
 
 export interface IWorkbenchCompressibleAsyncDataTreeOptions<T, TFilterData> extends ICompressibleAsyncDataTreeOptions<T, TFilterData>, IResourceNavigatorOptions {
@@ -792,10 +771,6 @@ export class WorkbenchCompressibleAsyncDataTree<TInput, T, TFilterData = void> e
 		this.disposables.add(disposable);
 		this.internals = new WorkbenchTreeInternals(this, options, getAutomaticKeyboardNavigation, options.overrideStyles, contextKeyService, listService, themeService, configurationService, accessibilityService);
 		this.disposables.add(this.internals);
-	}
-
-	open(browserEvent?: UIEvent): void {
-		this.internals.open(browserEvent);
 	}
 }
 
@@ -973,10 +948,6 @@ class WorkbenchTreeInternals<TInput, T, TFilterData> {
 	updateStyleOverrides(overrideStyles?: IColorMapping): void {
 		dispose(this.styler);
 		this.styler = overrideStyles ? attachListStyler(this.tree, this.themeService, overrideStyles) : Disposable.None;
-	}
-
-	open(browserEvent?: UIEvent): void {
-		this.navigator.open(browserEvent);
 	}
 
 	dispose(): void {

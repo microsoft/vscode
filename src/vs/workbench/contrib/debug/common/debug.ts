@@ -169,6 +169,7 @@ export interface IDebugSession extends ITreeElement {
 	readonly parentSession: IDebugSession | undefined;
 	readonly subId: string | undefined;
 	readonly compact: boolean;
+	readonly compoundRoot: DebugCompoundRoot | undefined;
 
 	setSubId(subId: string | undefined): void;
 
@@ -194,7 +195,7 @@ export interface IDebugSession extends ITreeElement {
 	logToRepl(sev: severity, args: any[], frame?: { uri: uri, line: number, column: number }): void;
 
 	// session events
-	readonly onDidEndAdapter: Event<AdapterEndEvent>;
+	readonly onDidEndAdapter: Event<AdapterEndEvent | undefined>;
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeReplElements: Event<void>;
 
@@ -223,8 +224,9 @@ export interface IDebugSession extends ITreeElement {
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
+	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
 
-	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse>;
+	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
 	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse>;
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
@@ -243,7 +245,7 @@ export interface IDebugSession extends ITreeElement {
 	terminateThreads(threadIds: number[]): Promise<void>;
 
 	stepInTargets(frameId: number): Promise<{ id: number, label: string }[]>;
-	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse>;
+	completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
 	getLoadedSources(): Promise<Source[]>;
@@ -286,6 +288,12 @@ export interface IThread extends ITreeElement {
 	 * adapter.
 	 */
 	getCallStack(): ReadonlyArray<IStackFrame>;
+
+
+	/**
+	 * Gets the top stack frame that is not hidden if the callstack has already been received from the debug adapter
+	 */
+	getTopStackFrame(): IStackFrame | undefined;
 
 	/**
 	 * Invalidates the callstack cache
@@ -654,6 +662,8 @@ export interface IConfigurationManager {
 	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): void;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
+
+	hasDebuggers(): boolean;
 
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 

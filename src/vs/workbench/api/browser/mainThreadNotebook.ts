@@ -21,6 +21,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Emitter } from 'vs/base/common/event';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -181,7 +182,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILogService private readonly logService: ILogService
 
 	) {
 		super();
@@ -201,7 +203,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	async removeNotebookTextModel(uri: URI): Promise<void> {
 		// TODO@rebornix, remove cell should use emitDelta as well to ensure document/editor events are sent together
-		await this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
+		this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
 		let textModelDisposableStore = this._editorEventListenersMapping.get(uri.toString());
 		textModelDisposableStore?.dispose();
 		this._editorEventListenersMapping.delete(URI.from(uri).toString());
@@ -303,6 +305,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		this._register(this._notebookService.onDidChangeNotebookActiveKernel(e => {
 			this._proxy.$acceptNotebookActiveKernelChange(e);
+		}));
+
+		this._register(this._notebookService.onNotebookDocumentSaved(e => {
+			this._proxy.$acceptModelSaved(e);
 		}));
 
 		const updateOrder = () => {
@@ -409,7 +415,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: UriComponents[]): Promise<void> {
-		const renderer = new MainThreadNotebookRenderer(this._proxy, type, extension.id, URI.revive(extension.location), selectors, preloads.map(uri => URI.revive(uri)));
+		const staticContribution = this._notebookService.getContributedNotebookOutputRenderers(type);
+
+		if (!staticContribution) {
+			throw new Error(`Notebook renderer for '${type}' is not statically registered.`);
+		}
+
+		const renderer = new MainThreadNotebookRenderer(this._proxy, type, staticContribution.displayName, extension.id, URI.revive(extension.location), selectors, preloads.map(uri => URI.revive(uri)));
 		this._notebookRenderers.set(type, renderer);
 		this._notebookService.registerNotebookRenderer(type, renderer);
 	}
@@ -468,10 +480,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
 			},
 			executeNotebookByAttachedKernel: async (viewType: string, uri: URI) => {
-				return this.executeNotebookByAttachedKernel(viewType, uri);
+				return this.executeNotebookByAttachedKernel(viewType, uri, undefined);
 			},
 			cancelNotebookByAttachedKernel: async (viewType: string, uri: URI) => {
-				return this.cancelNotebookByAttachedKernel(viewType, uri);
+				return this.cancelNotebookByAttachedKernel(viewType, uri, undefined);
 			},
 			onDidReceiveMessage: (editorId: string, rendererType: string | undefined, message: unknown) => {
 				this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
@@ -480,10 +492,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				return this.removeNotebookTextModel(uri);
 			},
 			executeNotebookCell: async (uri: URI, handle: number) => {
-				return this._proxy.$executeNotebookByAttachedKernel(_viewType, uri, handle);
+				return this.executeNotebookByAttachedKernel(_viewType, uri, handle);
 			},
 			cancelNotebookCell: async (uri: URI, handle: number) => {
-				return this._proxy.$cancelNotebookByAttachedKernel(_viewType, uri, handle);
+				return this.cancelNotebookByAttachedKernel(_viewType, uri, handle);
 			},
 			save: async (uri: URI, token: CancellationToken) => {
 				return this._proxy.$saveNotebook(_viewType, uri, token);
@@ -513,7 +525,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
-		const kernel = new MainThreadNotebookKernel(this._proxy, id, label, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)));
+		const kernel = new MainThreadNotebookKernel(this._proxy, id, label, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)), this.logService);
 		this._notebookKernels.set(id, kernel);
 		this._notebookService.registerNotebookKernel(kernel);
 		return;
@@ -546,8 +558,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				return that._proxy.$resolveNotebookKernel(handle, editorId, uri, kernelId, token);
 			},
 			executeNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
+				this.logService.debug('MainthreadNotebooks.registerNotebookKernelProvider#executeNotebook', uri.path, kernelId, cellHandle);
 				return that._proxy.$executeNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
-			}
+			},
+			cancelNotebook: (uri: URI, kernelId: string, cellHandle: number | undefined) => {
+				this.logService.debug('MainthreadNotebooks.registerNotebookKernelProvider#cancelNotebook', uri.path, kernelId, cellHandle);
+				return that._proxy.$cancelNotebookKernelFromProvider(handle, uri, kernelId, cellHandle);
+			},
 		});
 		this._notebookKernelProviders.set(handle, {
 			extension,
@@ -575,21 +592,25 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#updateNotebookLanguages', resource.path, languages);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateLanguages(languages);
 	}
 
 	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#updateNotebookMetadata', resource.path, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateNotebookMetadata(metadata);
 	}
 
 	async $updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#updateNotebookCellMetadata', resource.path, handle, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateNotebookCellMetadata(handle, metadata);
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void> {
+		this.logService.debug('MainThreadNotebooks#spliceNotebookCellOutputs', resource.path, cellHandle);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
@@ -598,12 +619,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async executeNotebookByAttachedKernel(viewType: string, uri: URI): Promise<void> {
-		return this._proxy.$executeNotebookByAttachedKernel(viewType, uri, undefined);
+	async executeNotebookByAttachedKernel(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
+		this.logService.debug('MainthreadNotebooks#executeNotebookByAttachedKernel', uri.path, handle);
+		return this._proxy.$executeNotebookByAttachedKernel(viewType, uri, handle);
 	}
 
-	async cancelNotebookByAttachedKernel(viewType: string, uri: URI): Promise<void> {
-		return this._proxy.$cancelNotebookByAttachedKernel(viewType, uri, undefined);
+	async cancelNotebookByAttachedKernel(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
+		this.logService.debug('MainthreadNotebooks#cancelNotebookByAttachedKernel', uri.path, handle);
+		return this._proxy.$cancelNotebookByAttachedKernel(viewType, uri, handle);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
@@ -642,11 +665,13 @@ export class MainThreadNotebookKernel implements INotebookKernelInfo {
 		readonly selectors: (string | IRelativePattern)[],
 		readonly extension: ExtensionIdentifier,
 		readonly extensionLocation: URI,
-		readonly preloads: URI[]
+		readonly preloads: URI[],
+		readonly logService: ILogService
 	) {
 	}
 
 	async executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
+		this.logService.debug('MainThreadNotebookKernel#executeNotebook', uri.path, handle);
 		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle);
 	}
 }
@@ -655,10 +680,11 @@ export class MainThreadNotebookRenderer implements INotebookRendererInfo {
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
 		readonly id: string,
+		public displayName: string,
 		readonly extensionId: ExtensionIdentifier,
 		readonly extensionLocation: URI,
 		readonly selectors: INotebookMimeTypeSelector,
-		readonly preloads: URI[]
+		readonly preloads: URI[],
 	) {
 
 	}

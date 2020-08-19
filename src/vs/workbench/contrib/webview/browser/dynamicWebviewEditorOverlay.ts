@@ -55,6 +55,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
 	}
 
+	public get isFocused() {
+		return !!this._webview.value?.isFocused;
+	}
+
 	private readonly _onDispose = this._register(new Emitter<void>());
 	public onDispose = this._onDispose.event;
 
