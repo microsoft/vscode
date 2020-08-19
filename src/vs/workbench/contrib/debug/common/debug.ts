@@ -573,6 +573,11 @@ export interface IDebugAdapterServer {
 	readonly host?: string;
 }
 
+export interface IDebugAdapterNamedPipeServer {
+	readonly type: 'pipeServer';
+	readonly path: string;
+}
+
 export interface IDebugAdapterInlineImpl extends IDisposable {
 	readonly onDidSendMessage: Event<DebugProtocol.Message>;
 	handleMessage(message: DebugProtocol.Message): void;
@@ -583,7 +588,7 @@ export interface IDebugAdapterImpl {
 	readonly implementation: IDebugAdapterInlineImpl;
 }
 
-export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImpl;
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;
