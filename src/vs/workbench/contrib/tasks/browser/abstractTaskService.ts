@@ -1528,7 +1528,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
 					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this.notificationService.prompt(Severity.Info, message,
+					this.notificationService.prompt(Severity.Warning, message,
 						[{
 							label: nls.localize('terminateTask', "Terminate Task"),
 							run: () => this.terminate(lastInstance)
