@@ -149,9 +149,9 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		// Check to see if this is the first time we are "opening" the application
 		const firstOpen = this.storage.getBoolean(IS_NEW_KEY);
 		if (firstOpen === undefined) {
-			await this.storage.set(IS_NEW_KEY, true);
+			this.storage.set(IS_NEW_KEY, true);
 		} else if (firstOpen) {
-			await this.storage.set(IS_NEW_KEY, false);
+			this.storage.set(IS_NEW_KEY, false);
 		}
 	}
 
