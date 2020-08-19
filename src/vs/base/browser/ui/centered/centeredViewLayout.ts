@@ -8,7 +8,6 @@ import { $ } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IView, IViewSize } from 'vs/base/browser/ui/grid/grid';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
 import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
 
 export interface CenteredViewState {
@@ -21,12 +20,9 @@ const GOLDEN_RATIO = {
 	rightMarginRatio: 0.1909
 };
 
-function createEmptyView(background: Color | undefined): ISplitViewView {
+function createEmptyView(): ISplitViewView {
 	const element = $('.centered-layout-margin');
 	element.style.height = '100%';
-	if (background) {
-		element.style.backgroundColor = background.toString();
-	}
 
 	return {
 		element,
@@ -47,9 +43,7 @@ function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
 	};
 }
 
-export interface ICenteredViewStyles extends ISplitViewStyles {
-	background: Color;
-}
+export type ICenteredViewStyles = ISplitViewStyles;
 
 export class CenteredViewLayout implements IDisposable {
 
@@ -116,8 +110,6 @@ export class CenteredViewLayout implements IDisposable {
 		this.style = style;
 		if (this.splitView && this.emptyViews) {
 			this.splitView.style(this.style);
-			this.emptyViews[0].element.style.backgroundColor = this.style.background.toString();
-			this.emptyViews[1].element.style.backgroundColor = this.style.background.toString();
 		}
 	}
 
@@ -150,8 +142,7 @@ export class CenteredViewLayout implements IDisposable {
 
 			this.splitView.layout(this.width);
 			this.splitView.addView(toSplitViewView(this.view, () => this.height), 0);
-			const backgroundColor = this.style ? this.style.background : undefined;
-			this.emptyViews = [createEmptyView(backgroundColor), createEmptyView(backgroundColor)];
+			this.emptyViews = [createEmptyView(), createEmptyView()];
 			this.splitView.addView(this.emptyViews[0], this.state.leftMarginRatio * this.width, 0);
 			this.splitView.addView(this.emptyViews[1], this.state.rightMarginRatio * this.width, 2);
 		} else {

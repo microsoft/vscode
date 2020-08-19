@@ -270,6 +270,12 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'description': nls.localize('settings.editor.desc', "Determines which settings editor to use by default."),
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
+			},
+			'workbench.background': {
+				'type': 'string',
+				'description': nls.localize('workbench.background.desc', 'Sets the CSS value of the background property of the workbench. Visible only with Center Layout.'),
+				'default': null,
+				'scope': ConfigurationScope.WINDOW
 			}
 		}
 	});

@@ -47,6 +47,7 @@ import { IViewDescriptorService, ViewContainerLocation, IViewsService } from 'vs
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { mark } from 'vs/base/common/performance';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -56,6 +57,8 @@ export enum Settings {
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 
 	ZEN_MODE_RESTORE = 'zenMode.restore',
+
+	BACKGROUND = 'workbench.background',
 }
 
 enum Storage {
@@ -239,7 +242,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			transitionDisposables: new DisposableStore(),
 			setNotificationsFilter: false,
 			editorWidgetSet: new Set<IEditor>()
-		}
+		},
+
+		background: '',
 	};
 
 	constructor(
@@ -408,6 +413,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Centered Layout
 		this.centerEditorLayout(this.state.editor.centered, skipLayout);
+
+		// Background
+		this.setBackgroundCSS(this.getBackgroundSetting());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -555,6 +563,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Zen mode enablement
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
+
+		// Background CSS
+		this.state.background = this.getBackgroundSetting();
 
 		this.state.hasFocus = this.hostService.hasFocus;
 
@@ -1741,6 +1752,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return undefined;
 	}
 
+	setBackgroundCSS(backgroundCSS: string) {
+		this.state.background = backgroundCSS;
+		const editorPart = this.getPart(Parts.EDITOR_PART);
+		editorPart.element.style.background = backgroundCSS || '';
+	}
+
+	private getBackgroundSetting(): string {
+		return this.configurationService.getValue<string | undefined>(Settings.BACKGROUND) ||
+			this.themeService.getColorTheme().getColor(editorBackground)?.toString() ||
+			'';
+	}
 
 	private arrangeEditorNodes(editorNode: ISerializedNode, panelNode: ISerializedNode, editorSectionWidth: number): ISerializedNode[] {
 		switch (this.state.panel.position) {
