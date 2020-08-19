@@ -16,8 +16,26 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { isString } from 'vs/base/common/types';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
+
+export async function getAuthenticationSession(credentialsProvider: ICredentialsProvider, productService: IProductService): Promise<{ id: string, accessToken: string, providerId: string } | undefined> {
+	const authenticationSessionValue = await credentialsProvider.getPassword(`${productService.urlProtocol}.login`, 'account');
+	if (authenticationSessionValue) {
+		const authenticationSession: { id: string, accessToken: string, providerId: string } = JSON.parse(authenticationSessionValue);
+		if (authenticationSession
+			&& isString(authenticationSession.id)
+			&& isString(authenticationSession.accessToken)
+			&& isString(authenticationSession.providerId)
+		) {
+			return authenticationSession;
+		}
+	}
+	return undefined;
+}
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
