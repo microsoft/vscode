@@ -31,7 +31,7 @@
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.node-debug",
-			"version": "1.44.9",
+			"version": "1.44.10",
 			"repo": "https://github.com/Microsoft/vscode-node-debug",
 			"metadata": {
 				"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
