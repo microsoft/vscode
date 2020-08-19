@@ -205,6 +205,11 @@ interface IWorkbenchConstructionOptions {
 	readonly connectionToken?: string;
 
 	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
 	 * to provide full security isolation from the workbench host.
 	 */
@@ -231,6 +236,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly tunnelProvider?: ITunnelProvider;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
@@ -246,11 +256,6 @@ interface IWorkbenchConstructionOptions {
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
-
-	/**
-	 * Session id of the current authenticated user
-	 */
-	readonly authenticationSessionId?: string;
 
 	/**
 	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
@@ -359,11 +364,6 @@ interface IWorkbenchConstructionOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly driver?: boolean;
-
-	/**
-	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
-	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
 
 	//#endregion
 }
