@@ -13,13 +13,14 @@ import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { ITextSnapshot } from 'vs/editor/common/model';
 
 export const enum WorkingCopyCapabilities {
+	None = 0,
 
 	/**
 	 * Signals that the working copy requires
 	 * additional input when saving, e.g. an
 	 * associated path to save to.
 	 */
-	Untitled = 1 << 1
+	Untitled = 2
 }
 
 /**
