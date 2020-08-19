@@ -414,8 +414,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Centered Layout
 		this.centerEditorLayout(this.state.editor.centered, skipLayout);
 
-		// Background
-		this.setBackgroundCSS(this.getBackgroundSetting());
+		// Background CSS
+		this.setBackgroundCSS(this.getBackgroundCSSSetting());
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -565,7 +565,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.state.zenMode.restore = this.storageService.getBoolean(Storage.ZEN_MODE_ENABLED, StorageScope.WORKSPACE, false) && this.configurationService.getValue(Settings.ZEN_MODE_RESTORE);
 
 		// Background CSS
-		this.state.backgroundCSS = this.getBackgroundSetting();
+		this.state.backgroundCSS = this.getBackgroundCSSSetting();
 
 		this.state.hasFocus = this.hostService.hasFocus;
 
@@ -1758,7 +1758,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		editorPart.element.style.background = backgroundCSS;
 	}
 
-	private getBackgroundSetting(): string {
+	private getBackgroundCSSSetting(): string {
 		return this.configurationService.getValue<string | undefined>(Settings.BACKGROUND_CSS) ||
 			this.themeService.getColorTheme().getColor(editorBackground)?.toString() ||
 			'';
