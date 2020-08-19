@@ -66,6 +66,11 @@ async function initialize(
 		return;
 	}
 
+	if (!storageService.isNew(StorageScope.GLOBAL)) {
+		logService.trace(`Skipping initializing ${userDataLabel} as application was opened before`);
+		return;
+	}
+
 	if (!storageService.isNew(StorageScope.WORKSPACE)) {
 		logService.trace(`Skipping initializing ${userDataLabel} as workspace was opened before`);
 		return;
