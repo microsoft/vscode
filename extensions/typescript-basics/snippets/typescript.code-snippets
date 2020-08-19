@@ -298,7 +298,7 @@
 		"description": "Async Function Statement"
 	},
 	"Async Function Expression": {
-		"prefix": "async function",
+		"prefix": "async arrow function",
 		"body": [
 			"async (${1:params}:${2:type}) => {",
 			"\t$0",
