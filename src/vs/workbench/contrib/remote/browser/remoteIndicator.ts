@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
@@ -38,6 +38,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private remoteAuthority = this.environmentService.configuration.remoteAuthority;
 	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
+	private connectionStateContextKey = RemoteConnectionState.bindTo(this.contextKeyService);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -48,7 +49,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IHostService private readonly hostService: IHostService
 	) {
@@ -57,31 +58,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.registerActions();
 
 		if (this.remoteAuthority) {
-
-			// Pending entry until extensions are ready
-			this.renderRemoteStatusIndicator('$(sync~spin) ' + nls.localize('host.open', "Opening Remote..."), undefined, RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
-			this.connectionState = 'initializing';
-			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
-
-			const connection = remoteAgentService.getConnection();
-			if (connection) {
-				this._register(connection.onDidStateChange((e) => {
-					switch (e.type) {
-						case PersistentConnectionEventType.ConnectionLost:
-						case PersistentConnectionEventType.ReconnectionPermanentFailure:
-						case PersistentConnectionEventType.ReconnectionRunning:
-						case PersistentConnectionEventType.ReconnectionWait:
-							this.setDisconnected(true);
-							break;
-						case PersistentConnectionEventType.ConnectionGain:
-							this.setDisconnected(false);
-							break;
-					}
-				}));
-			}
+			this.trackRemoteConnection();
 		}
 
 		this.updateWhenInstalledExtensionsRegistered();
+		this.updateRemoteStatusIndicator();
 	}
 
 	private registerActions(): void {
@@ -126,6 +107,31 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
+	private trackRemoteConnection(): void {
+
+		// Set initial connection state
+		this.connectionState = 'initializing';
+		this.connectionStateContextKey.set(this.connectionState);
+
+		// Listen to changes of the connection
+		const connection = this.remoteAgentService.getConnection();
+		if (connection) {
+			this._register(connection.onDidStateChange((e) => {
+				switch (e.type) {
+					case PersistentConnectionEventType.ConnectionLost:
+					case PersistentConnectionEventType.ReconnectionPermanentFailure:
+					case PersistentConnectionEventType.ReconnectionRunning:
+					case PersistentConnectionEventType.ReconnectionWait:
+						this.setDisconnected(true);
+						break;
+					case PersistentConnectionEventType.ConnectionGain:
+						this.setDisconnected(false);
+						break;
+				}
+			}));
+		}
+	}
+
 	private async updateWhenInstalledExtensionsRegistered(): Promise<void> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
@@ -156,7 +162,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		const newState = isDisconnected ? 'disconnected' : 'connected';
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
-			RemoteConnectionState.bindTo(this.contextKeyService).set(this.connectionState);
+			this.connectionStateContextKey.set(this.connectionState);
 
 			this.updateRemoteStatusIndicator();
 		}
@@ -172,29 +178,45 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	}
 
 	private updateRemoteStatusIndicator(): void {
-		const windowActionCommand = (this.remoteAuthority || this.remoteMenu.getActions().length) ? RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID : undefined;
+
+		// Remote Authority: show connection state
 		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
-			if (this.connectionState !== 'disconnected') {
-				this.renderRemoteStatusIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), windowActionCommand);
-			} else {
-				this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from")} ${hostLabel}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), windowActionCommand);
+			switch (this.connectionState) {
+				case 'initializing':
+					this.renderRemoteStatusIndicator(`$(sync~spin) ${nls.localize('host.open', "Opening Remote...")}`, nls.localize('host.open', "Opening Remote..."), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
+					break;
+				case 'disconnected':
+					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", hostLabel)}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
+					break;
+				default:
+					this.renderRemoteStatusIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
 			}
-		} else {
-			if (windowActionCommand) {
-				this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a remote window"), windowActionCommand);
-			} else if (this.remoteStatusEntry) {
-				this.remoteStatusEntry.dispose();
+		}
+
+		// No Remote Authority: advertise a remote connection if possible
+		else {
+
+			// Remote Extensions Installed: offer the indicator to show actions
+			if (this.remoteMenu.getActions().length > 0) {
+				this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
+			}
+
+			// No Remote Extensions: hide status indicator
+			else {
+				dispose(this.remoteStatusEntry);
 				this.remoteStatusEntry = undefined;
 			}
 		}
 	}
 
 	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string): void {
+		const name = nls.localize('remoteHost', "Remote Host");
+
 		const properties: IStatusbarEntry = {
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
-			ariaLabel: nls.localize('remote', "Remote"),
+			ariaLabel: name,
 			text,
 			tooltip,
 			command
@@ -203,7 +225,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		if (this.remoteStatusEntry) {
 			this.remoteStatusEntry.update(properties);
 		} else {
-			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', nls.localize('status.host', "Remote Host"), StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', name, StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
 	}
 
