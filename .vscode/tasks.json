@@ -59,7 +59,7 @@
 				"Build VS Code Core",
 				"Build VS Code Extensions"
 			],
-			"group": "build"
+			"group": "test"
 		},
 		{
 			"type": "npm",
