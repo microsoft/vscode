@@ -275,7 +275,9 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'string',
 				'description': nls.localize('workbench.background.desc', 'Sets the CSS value of the background property of the editors area. Visible only with Center Layout. E.g. "url(\'C:\\path\\to\\image.jpg\') center/cover no-repeat".'),
 				'default': null,
-				'scope': ConfigurationScope.WINDOW
+				// Prevent workspace settings from deciding from which arbitrary path the image shall be displayed,
+				// which could potentially be a security issue.
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
