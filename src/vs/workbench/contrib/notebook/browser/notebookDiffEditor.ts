@@ -91,6 +91,14 @@ export class NotebookDiffEditor extends BaseEditor {
 			return;
 		}
 
+		model.modified.notebook.metadata.cellEditable = false;
+		model.modified.notebook.metadata.cellRunnable = false;
+		model.modified.notebook.metadata.editable = false;
+		model.modified.notebook.metadata.runnable = false;
+		model.original.notebook.metadata.cellEditable = false;
+		model.original.notebook.metadata.cellRunnable = false;
+		model.original.notebook.metadata.editable = false;
+		model.original.notebook.metadata.runnable = false;
 		await this._widget.setModel(model.modified.notebook, undefined);
 		await this._originalWidget.setModel(model.original.notebook, undefined);
 
@@ -229,7 +237,7 @@ export class NotebookDiffEditor extends BaseEditor {
 				const modifiedCell = this._widget!.viewModel!.viewCells[modifiedIndex];
 
 				if (originalCell.getText() !== modifiedCell.getText()) {
-					console.log(`original cell ${originalIndex} content change`);
+					// console.log(`original cell ${originalIndex} content change`);
 					const originalLines = originalCell.textBuffer.getLinesContent();
 					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
 					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
@@ -257,7 +265,7 @@ export class NotebookDiffEditor extends BaseEditor {
 						}]);
 					});
 
-					console.log(lineDecorations);
+					// console.log(lineDecorations);
 
 				} else {
 					// console.log(`original cell ${originalIndex} metadata change`);
