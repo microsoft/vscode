@@ -59,10 +59,7 @@
 				"Build VS Code Core",
 				"Build VS Code Extensions"
 			],
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			}
+			"group": "build"
 		},
 		{
 			"type": "npm",
@@ -125,7 +122,7 @@
 			"label": "Kill Build Web Extensions",
 			"group": "build",
 			"presentation": {
-				"reveal": "never",
+				"reveal": "never"
 			},
 			"problemMatcher": "$tsc"
 		},
