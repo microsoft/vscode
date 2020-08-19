@@ -273,7 +273,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.background': {
 				'type': 'string',
-				'description': nls.localize('workbench.background.desc', 'Sets the CSS value of the background property of the workbench. Visible only with Center Layout.'),
+				'description': nls.localize('workbench.background.desc', 'Sets the CSS value of the background property of the editors area. Visible only with Center Layout. E.g. "url(\'C:\\path\\to\\image.jpg\') center/cover no-repeat".'),
 				'default': null,
 				'scope': ConfigurationScope.WINDOW
 			}
