@@ -692,18 +692,20 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		if (typeof autoReveal === 'boolean' && autoReveal) {
 			let currentActiveResource = this.getResourceForCurrentActiveResource();
 			if (currentActiveResource) {
-				if (this.tree.hasElement(currentActiveResource) && !this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
-					this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
-					if (focus) {
-						this.tree.setFocus(this.tree.getSelection());
-					}
-				} else {
-					this.tree.expand(currentActiveResource);
-					this.tree.reveal(currentActiveResource, 0);
+				if (this.tree.hasElement(currentActiveResource)) {
+					if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+						this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+						if (focus) {
+							this.tree.setFocus(this.tree.getSelection());
+						}
+					} else {
+						this.tree.expand(currentActiveResource);
+						this.tree.reveal(currentActiveResource, 0);
 
-					if (focus) {
-						this.tree.setFocus([currentActiveResource]);
-						this.tree.setSelection([currentActiveResource]);
+						if (focus) {
+							this.tree.setFocus([currentActiveResource]);
+							this.tree.setSelection([currentActiveResource]);
+						}
 					}
 				}
 			} else if (focus) {
