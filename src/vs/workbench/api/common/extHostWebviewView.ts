@@ -169,7 +169,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 	private getWebviewView(handle: string): ExtHostWebviewView {
 		const entry = this._webviewViews.get(handle);
 		if (!entry) {
-			throw new Error('Custom document is not editable');
+			throw new Error('No webview found');
 		}
 		return entry;
 	}

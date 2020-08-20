@@ -118,7 +118,9 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	]);
 
 	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
-	private readonly _viewsProxy: extHostProtocol.ExtHostWebviewViewsShape;
+	private readonly _proxyViews: extHostProtocol.ExtHostWebviewViewsShape;
+	private readonly _proxyCustomEditors: extHostProtocol.ExtHostCustomEditorsShape;
+
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 
@@ -147,7 +149,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
-		this._viewsProxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
+		this._proxyViews = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
+		this._proxyCustomEditors = context.getProxy(extHostProtocol.ExtHostContext.ExtHostCustomEditors);
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			const activeInput = this._editorService.activeEditor;
@@ -358,15 +361,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 
 				webviewView.onDidChangeVisibility(visible => {
-					this._viewsProxy.$onDidChangeWebviewViewVisibility(handle, visible);
+					this._proxyViews.$onDidChangeWebviewViewVisibility(handle, visible);
 				});
 
 				webviewView.onDispose(() => {
-					this._viewsProxy.$disposeWebviewView(handle);
+					this._proxyViews.$disposeWebviewView(handle);
 				});
 
 				try {
-					await this._viewsProxy.$resolveWebviewView(handle, viewType, state, cancellation);
+					await this._proxyViews.$resolveWebviewView(handle, viewType, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewView.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
@@ -459,13 +462,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 					webviewInput.onMove(async (newResource: URI) => {
 						const oldModel = modelRef;
 						modelRef = await this.getOrCreateCustomEditorModel(modelType, newResource, viewType, {}, CancellationToken.None);
-						this._proxy.$onMoveCustomEditor(handle, newResource, viewType);
+						this._proxyCustomEditors.$onMoveCustomEditor(handle, newResource, viewType);
 						oldModel.dispose();
 					});
 				}
 
 				try {
-					await this._proxy.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options, cancellation);
+					await this._proxyCustomEditors.$resolveWebviewEditor(resource, handle, viewType, webviewInput.getTitle(), editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
@@ -510,7 +513,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 			case ModelType.Custom:
 				{
-					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxy, viewType, resource, options, () => {
+					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, () => {
 						return Array.from(this._webviewInputs)
 							.filter(editor => editor instanceof CustomEditorInput && isEqual(editor.resource, resource)) as CustomEditorInput[];
 					}, cancellation, this._backupService);
@@ -721,7 +724,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	public static async create(
 		instantiationService: IInstantiationService,
-		proxy: extHostProtocol.ExtHostWebviewsShape,
+		proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		viewType: string,
 		resource: URI,
 		options: { backupId?: string },
@@ -734,7 +737,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	constructor(
-		private readonly _proxy: extHostProtocol.ExtHostWebviewsShape,
+		private readonly _proxy: extHostProtocol.ExtHostCustomEditorsShape,
 		private readonly _viewType: string,
 		private readonly _editorResource: URI,
 		fromBackup: boolean,

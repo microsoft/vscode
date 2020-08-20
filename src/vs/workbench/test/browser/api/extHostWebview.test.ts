@@ -3,33 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { mock } from 'vs/base/test/common/mock';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
-import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
-import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
-import { mock } from 'vs/base/test/common/mock';
-import { SingleProxyRPCProtocol } from './testRPCProtocol';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
+import type * as vscode from 'vscode';
+import { SingleProxyRPCProtocol } from './testRPCProtocol';
 
 suite('ExtHostWebview', () => {
 
 	let rpcProtocol: (IExtHostRpcService & IExtHostContext) | undefined;
-	let extHostDocuments: ExtHostDocuments | undefined;
 
 	setup(() => {
 		const shape = createNoopMainThreadWebviews();
 		rpcProtocol = SingleProxyRPCProtocol(shape);
-
-		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
-		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 	});
 
 	test('Cannot register multiple serializers for the same view type', async () => {
@@ -39,7 +33,7 @@ suite('ExtHostWebview', () => {
 			webviewCspSource: '',
 			webviewResourceRoot: '',
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService(), NullApiDeprecationService, extHostDocuments!);
+		}, undefined, new NullLogService(), NullApiDeprecationService);
 
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
@@ -76,7 +70,7 @@ suite('ExtHostWebview', () => {
 			webviewCspSource: '',
 			webviewResourceRoot: 'vscode-resource://{{resource}}',
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService(), NullApiDeprecationService, extHostDocuments!);
+		}, undefined, new NullLogService(), NullApiDeprecationService);
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
@@ -115,7 +109,7 @@ suite('ExtHostWebview', () => {
 			webviewCspSource: '',
 			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
 			isExtensionDevelopmentDebug: false,
-		}, undefined, new NullLogService(), NullApiDeprecationService, extHostDocuments!);
+		}, undefined, new NullLogService(), NullApiDeprecationService);
 		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		function stripEndpointUuid(input: string) {
