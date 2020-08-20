@@ -81,12 +81,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(listUser, container, delegate, renderers, {
-			...options,
-			rangeMapProvider: () => {
-				return rangeMap;
-			}
-		}, contextKeyService, listService, themeService, configurationService, keybindingService);
+		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
 		this._rangeMap = rangeMap;
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;

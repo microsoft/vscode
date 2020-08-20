@@ -83,13 +83,13 @@ const fixedEditorOptions: IEditorOptions = {
 };
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
-	private readonly lineHeight: number;
+	// private readonly lineHeight: number;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
+		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
 	getHeight(element: CellDiffViewModel): number {
