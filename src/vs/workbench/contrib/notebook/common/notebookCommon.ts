@@ -18,7 +18,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { basename } from 'vs/base/common/path';
-import { ISequence } from 'vs/base/common/diff/diff';
+import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 
 export enum CellKind {
 	Markdown = 1,
@@ -714,4 +714,9 @@ export class CellSequence implements ISequence {
 
 		return hashValue;
 	}
+}
+
+export interface INotebookDiffResult {
+	cellsDiff: IDiffResult,
+	linesDiff: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }

@@ -16,15 +16,13 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from './notebookDiffEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffResult, LcsDiff } from 'vs/base/common/diff/diff';
-import { CellSequence, INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookDiffEditorModel, INotebookDiffResult } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
 import { createDecoration, DECORATIONS, isChangeOrDelete, isChangeOrInsert } from 'vs/editor/browser/widget/diffEditorWidget';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
@@ -32,6 +30,7 @@ import { IModelDeltaDecoration, IReadonlyTextBuffer } from 'vs/editor/common/mod
 import { Range } from 'vs/editor/common/core/range';
 import { Constants } from 'vs/base/common/uint';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffRemoved } from 'vs/platform/theme/common/colorRegistry';
+import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 
 export class NotebookDiffEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebookDiffEditor';
@@ -52,6 +51,7 @@ export class NotebookDiffEditor extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
+		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService
 	) {
 		super(NotebookDiffEditor.ID, telemetryService, themeService, storageService);
 
@@ -149,10 +149,9 @@ export class NotebookDiffEditor extends BaseEditor {
 	}
 
 	private _update(model: INotebookDiffEditorModel) {
-		const diff = new LcsDiff(new CellSequence(model.original.notebook), new CellSequence(model.modified.notebook));
-		const diffResult = diff.ComputeDiff(false);
-
-		this._adjustHeight(diffResult);
+		this.notebookEditorWorkerService.computeDiff(model.original.notebook.uri, model.modified.notebook.uri).then(diffResult => {
+			this._adjustHeight(diffResult);
+		});
 	}
 
 	private _setStrategy(newStrategy: DiffEditorWidgetSideBySide): void {
@@ -162,13 +161,12 @@ export class NotebookDiffEditor extends BaseEditor {
 
 		this._strategy = newStrategy;
 		newStrategy.applyColors(this.themeService.getColorTheme());
-
-		// if (this._diffComputationResult) {
-		// 	this._updateDecorations();
-		// }
 	}
 
-	private _adjustHeight(diffResult: IDiffResult) {
+	private _adjustHeight(notebookDiffResult: INotebookDiffResult) {
+		const diffResult = notebookDiffResult.cellsDiff;
+		const linesDiffResult = notebookDiffResult.linesDiff;
+
 		if (!this._widget || !this._originalWidget) {
 			return;
 		}
@@ -211,67 +209,37 @@ export class NotebookDiffEditor extends BaseEditor {
 			};
 
 			viewLayoutUpdateDisposables.push(...[
-				...originalCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(e => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(e => update())),
-				...modifiedCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(e => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(e => update())),
+				...originalCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(() => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(() => update())),
+				...modifiedCells.map(cell => (cell instanceof CodeCellViewModel) ? cell.onDidChangeLayout(() => update()) : (cell as MarkdownCellViewModel).onDidChangeLayout(() => update())),
 			]);
+
+			update();
 		});
 
-		// console.log(diffResult);
 
-		diffResult.changes.forEach(change => {
-			if (change.modifiedLength === 0) {
-				// deletion ...
+		linesDiffResult.forEach(diff => {
+			const originalCell = this._originalWidget!.viewModel!.viewCells.find(cell => cell.handle === diff.originalCellhandle);
+			const modifiedCell = this._widget!.viewModel!.viewCells.find(cell => cell.handle === diff.modifiedCellhandle);
+
+			if (!originalCell || !modifiedCell) {
 				return;
 			}
 
-			if (change.originalLength === 0) {
-				// insertion
-				return;
-			}
+			const lineDecorations = this._strategy.getEditorsDiffDecorations(diff.lineChanges, false, false, originalCell.textBuffer, modifiedCell.textBuffer);
 
-			for (let i = 0, len = Math.min(change.modifiedLength, change.originalLength); i < len; i++) {
-				let originalIndex = change.originalStart + i;
-				let modifiedIndex = change.modifiedStart + i;
+			this._originalWidget?.changeModelDecorations(accessor => {
+				accessor.deltaDecorations([], [{
+					ownerId: diff.originalCellhandle,
+					decorations: lineDecorations.original.decorations
+				}]);
+			});
 
-				const originalCell = this._originalWidget!.viewModel!.viewCells[originalIndex];
-				const modifiedCell = this._widget!.viewModel!.viewCells[modifiedIndex];
-
-				if (originalCell.getText() !== modifiedCell.getText()) {
-					// console.log(`original cell ${originalIndex} content change`);
-					const originalLines = originalCell.textBuffer.getLinesContent();
-					const modifiedLines = modifiedCell.textBuffer.getLinesContent();
-					const diffComputer = new DiffComputer(originalLines, modifiedLines, {
-						shouldComputeCharChanges: true,
-						shouldPostProcessCharChanges: true,
-						shouldIgnoreTrimWhitespace: false,
-						shouldMakePrettyDiff: true,
-						maxComputationTime: 5000
-					});
-
-					const lineChanges = diffComputer.computeDiff().changes;
-					const lineDecorations = this._strategy.getEditorsDiffDecorations(lineChanges, false, false, originalCell.textBuffer, modifiedCell.textBuffer);
-
-					this._originalWidget?.changeModelDecorations(accessor => {
-						accessor.deltaDecorations([], [{
-							ownerId: originalCell.handle,
-							decorations: lineDecorations.original.decorations
-						}]);
-					});
-
-					this._widget?.changeModelDecorations(accessor => {
-						accessor.deltaDecorations([], [{
-							ownerId: modifiedCell.handle,
-							decorations: lineDecorations.modified.decorations
-						}]);
-					});
-
-					// console.log(lineDecorations);
-
-				} else {
-					// console.log(`original cell ${originalIndex} metadata change`);
-				}
-
-			}
+			this._widget?.changeModelDecorations(accessor => {
+				accessor.deltaDecorations([], [{
+					ownerId: diff.modifiedCellhandle,
+					decorations: lineDecorations.modified.decorations
+				}]);
+			});
 		});
 
 		this._originalCellDecorations = this._originalWidget.deltaCellDecorations(this._originalCellDecorations, originalDecorations);
@@ -362,15 +330,6 @@ export class DiffEditorWidgetSideBySide extends Disposable {
 	}
 
 	public getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalModel: IReadonlyTextBuffer, modifiedModel: IReadonlyTextBuffer): IEditorsDiffDecorationsWithZones {
-		// Get view zones
-		// modifiedWhitespaces = modifiedWhitespaces.sort((a, b) => {
-		// 	return a.afterLineNumber - b.afterLineNumber;
-		// });
-		// originalWhitespaces = originalWhitespaces.sort((a, b) => {
-		// 	return a.afterLineNumber - b.afterLineNumber;
-		// });
-		// let zones = this._getViewZones(lineChanges, originalWhitespaces, modifiedWhitespaces, originalEditor, modifiedEditor, renderIndicators);
-
 		// Get decorations & overview ruler zones
 		let originalDecorations = this._getOriginalEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, originalModel);
 		let modifiedDecorations = this._getModifiedEditorDecorations(lineChanges, ignoreTrimWhitespace, renderIndicators, modifiedModel);
@@ -378,13 +337,9 @@ export class DiffEditorWidgetSideBySide extends Disposable {
 		return {
 			original: {
 				decorations: originalDecorations.decorations,
-				// overviewZones: originalDecorations.overviewZones,
-				// zones: zones.original
 			},
 			modified: {
 				decorations: modifiedDecorations.decorations,
-				// overviewZones: modifiedDecorations.overviewZones,
-				// zones: zones.modified
 			}
 		};
 	}
