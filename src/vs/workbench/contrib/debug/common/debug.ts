@@ -224,6 +224,7 @@ export interface IDebugSession extends ITreeElement {
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
+	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
 
 	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
@@ -572,6 +573,11 @@ export interface IDebugAdapterServer {
 	readonly host?: string;
 }
 
+export interface IDebugAdapterNamedPipeServer {
+	readonly type: 'pipeServer';
+	readonly path: string;
+}
+
 export interface IDebugAdapterInlineImpl extends IDisposable {
 	readonly onDidSendMessage: Event<DebugProtocol.Message>;
 	handleMessage(message: DebugProtocol.Message): void;
@@ -582,7 +588,7 @@ export interface IDebugAdapterImpl {
 	readonly implementation: IDebugAdapterInlineImpl;
 }
 
-export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterImpl;
+export type IAdapterDescriptor = IDebugAdapterExecutable | IDebugAdapterServer | IDebugAdapterNamedPipeServer | IDebugAdapterImpl;
 
 export interface IPlatformSpecificAdapterContribution {
 	program?: string;
@@ -656,6 +662,8 @@ export interface IConfigurationManager {
 	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): void;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
+
+	hasDebuggers(): boolean;
 
 	getLaunch(workspaceUri: uri | undefined): ILaunch | undefined;
 

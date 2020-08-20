@@ -293,6 +293,9 @@ export class MockSession implements IDebugSession {
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined {
+		throw new Error('Method not implemented.');
+	}
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
 		throw new Error('Method not implemented.');
 	}

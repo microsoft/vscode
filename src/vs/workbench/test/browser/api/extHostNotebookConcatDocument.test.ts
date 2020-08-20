@@ -19,7 +19,8 @@ import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
 import { MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-
+import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
+import { generateUuid } from 'vs/base/common/uuid';
 
 suite('NotebookConcatDocument', function () {
 
@@ -44,7 +45,12 @@ suite('NotebookConcatDocument', function () {
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService());
+		const extHostStoragePaths = new class extends mock<IExtensionStoragePaths>() {
+			workspaceValue() {
+				return URI.from({ scheme: 'test', path: generateUuid() });
+			}
+		};
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' }, new NullLogService(), extHostStoragePaths);
 		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
 			// async openNotebook() { }
 		});

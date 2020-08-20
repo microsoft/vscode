@@ -1076,12 +1076,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const element = editStack.past.length ? editStack.past[editStack.past.length - 1] : undefined;
 
 		if (element && element instanceof SingleModelEditStackElement || element instanceof MultiModelEditStackElement) {
-			return await this.withElement(element, async () => {
+			await this.withElement(element, async () => {
 				await this._undoService.undo(this.uri);
 			});
+
+			return (element instanceof SingleModelEditStackElement) ? [element.resource] : element.resources;
 		}
 
 		await this._undoService.undo(this.uri);
+		return [];
 	}
 
 	async redo() {
@@ -1093,13 +1096,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const element = editStack.future[0];
 
 		if (element && element instanceof SingleModelEditStackElement || element instanceof MultiModelEditStackElement) {
-			return await this.withElement(element, async () => {
+			await this.withElement(element, async () => {
 				await this._undoService.redo(this.uri);
 			});
+
+			return (element instanceof SingleModelEditStackElement) ? [element.resource] : element.resources;
 		}
 
 		await this._undoService.redo(this.uri);
 
+		return [];
 	}
 
 	equal(notebook: NotebookTextModel) {

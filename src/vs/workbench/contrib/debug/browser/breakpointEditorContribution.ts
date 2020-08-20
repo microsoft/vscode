@@ -169,10 +169,16 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
-		debugAdapterRegisteredEmitter.event(() => {
+		const manager = this.debugService.getConfigurationManager();
+		if (manager.hasDebuggers()) {
 			this.registerListeners();
 			this.setDecorationsScheduler.schedule();
-		});
+		} else {
+			this.toDispose.push(debugAdapterRegisteredEmitter.event(() => {
+				this.registerListeners();
+				this.setDecorationsScheduler.schedule();
+			}));
+		}
 	}
 
 	private registerListeners(): void {

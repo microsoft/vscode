@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
 import { resolvePath } from 'vs/base/common/resources';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -171,25 +172,32 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const actionHandler = options.actionHandler;
 	if (actionHandler) {
-		actionHandler.disposeables.add(DOM.addStandardDisposableListener(element, 'click', event => {
-			let target: HTMLElement | null = event.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
+		[DOM.EventType.CLICK, DOM.EventType.AUXCLICK].forEach(event => {
+			actionHandler.disposeables.add(DOM.addDisposableListener(element, event, (e: MouseEvent) => {
+				const mouseEvent = new StandardMouseEvent(e);
+				if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 					return;
 				}
-			}
-			try {
-				const href = target.dataset['href'];
-				if (href) {
-					actionHandler.callback(href, event);
+
+				let target: HTMLElement | null = mouseEvent.target;
+				if (target.tagName !== 'A') {
+					target = target.parentElement;
+					if (!target || target.tagName !== 'A') {
+						return;
+					}
 				}
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
-				event.preventDefault();
-			}
-		}));
+				try {
+					const href = target.dataset['href'];
+					if (href) {
+						actionHandler.callback(href, mouseEvent);
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				} finally {
+					mouseEvent.preventDefault();
+				}
+			}));
+		});
 	}
 
 	// Use our own sanitizer so that we can let through only spans.

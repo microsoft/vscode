@@ -37,7 +37,7 @@ else
 fi
 if [ $IN_WSL = true ]; then
 
-	export WSLENV=ELECTRON_RUN_AS_NODE/w:$WSLENV
+	export WSLENV="ELECTRON_RUN_AS_NODE/w:$WSLENV"
 	CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")
 
 	# use the Remote WSL extension if installed

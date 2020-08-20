@@ -747,9 +747,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region replaceEditors()
 
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
+	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
 		const typedEditors: IEditorReplacement[] = [];
 
 		editors.forEach(replaceEditorArg => {
@@ -776,8 +776,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (targetGroup) {
 			return targetGroup.replaceEditors(typedEditors);
 		}
-
-		return Promise.resolve();
 	}
 
 	//#endregion

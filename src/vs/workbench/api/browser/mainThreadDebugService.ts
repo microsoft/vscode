@@ -264,6 +264,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.reject(new Error('debug session not found'));
 	}
 
+	public $getDebugProtocolBreakpoint(sessionId: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined> {
+		const session = this.debugService.getModel().getSession(sessionId, true);
+		if (session) {
+			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
+		}
+		return Promise.reject(new Error('debug session not found'));
+	}
+
 	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
 		if (sessionId) {
 			const session = this.debugService.getModel().getSession(sessionId, true);
