@@ -358,7 +358,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.customColorMap = {};
 		this.overwriteCustomColors(colors);
 
-		const themeSpecificColors = this.getThemeSpecificSettings(colors) as IColorCustomizations;
+		let themeSpecificColors = colors as IColorCustomizations;
+		themeSpecificColors = this.getThemeSpecificSettings(themeSpecificColors) as IColorCustomizations;
 		if (types.isObject(themeSpecificColors)) {
 			this.overwriteCustomColors(themeSpecificColors);
 		}
@@ -385,7 +386,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.addCustomTokenColors(customTokenColors);
 
 		// append theme specific settings. Last rules will win.
-		const themeSpecificTokenColors = this.getThemeSpecificSettings(customTokenColors) as ITokenColorCustomizations;
+		let themeSpecificTokenColors = customTokenColors as ITokenColorCustomizations;
+		themeSpecificTokenColors = this.getThemeSpecificSettings(customTokenColors) as ITokenColorCustomizations;
 		if (types.isObject(themeSpecificTokenColors)) {
 			this.addCustomTokenColors(themeSpecificTokenColors);
 		}
@@ -401,7 +403,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 		if (experimental) { // apply deprecated settings first
 			this.readSemanticTokenRules(experimental);
-			const themeSpecificColors = this.getThemeSpecificSettings(experimental) as IExperimentalSemanticTokenColorCustomizations;
+			let themeSpecificColors = experimental as IExperimentalSemanticTokenColorCustomizations;
+			themeSpecificColors = this.getThemeSpecificSettings(experimental) as IExperimentalSemanticTokenColorCustomizations;
 			if (types.isObject(themeSpecificColors)) {
 				this.readSemanticTokenRules(themeSpecificColors);
 			}
@@ -411,7 +414,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			if (semanticTokenColors.rules) {
 				this.readSemanticTokenRules(semanticTokenColors.rules);
 			}
-			const themeSpecificColors = this.getThemeSpecificSettings(semanticTokenColors) as ISemanticTokenColorCustomizations;
+			let themeSpecificColors = semanticTokenColors as ISemanticTokenColorCustomizations;
+			themeSpecificColors = this.getThemeSpecificSettings(semanticTokenColors) as ISemanticTokenColorCustomizations;
 			if (types.isObject(themeSpecificColors)) {
 				if (themeSpecificColors.enabled !== undefined) {
 					this.customSemanticHighlighting = themeSpecificColors.enabled;
@@ -426,7 +430,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.textMateThemingRules = undefined;
 	}
 
-	private getThemeSpecificSettings(settings: object) {
+	private getThemeSpecificSettings(settings: IColorCustomizations | ITokenColorCustomizations | IExperimentalSemanticTokenColorCustomizations | ISemanticTokenColorCustomizations) {
 		let themeSpecificSettings;
 		for (let key in settings) {
 			if (key.match(/^\[.*\]$/)) {
