@@ -649,7 +649,9 @@ export interface ExtHostWebviewsShape {
 	$onMissingCsp(handle: WebviewPanelHandle, extensionId: string): void;
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
+}
 
+export interface ExtHostWebviewSerializerShape {
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 }
 
@@ -1751,6 +1753,7 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostWebviewSerializer: createExtId<ExtHostWebviewSerializerShape>('ExtHostWebviewSerializer'),
 	ExtHostCustomEditors: createExtId<ExtHostCustomEditorsShape>('ExtHostCustomEditors'),
 	ExtHostWebviewViews: createExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
 	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),

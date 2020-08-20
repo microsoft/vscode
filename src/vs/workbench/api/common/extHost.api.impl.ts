@@ -78,6 +78,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { ExtHostWebviewViews } from 'vs/workbench/api/common/extHostWebviewView';
 import { ExtHostCustomEditors } from 'vs/workbench/api/common/extHostCustomEditors';
+import { ExtHostWebviewSerializer } from 'vs/workbench/api/common/extHostWebviewSerializer';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -144,6 +145,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostAuthentication = rpcProtocol.set(ExtHostContext.ExtHostAuthentication, new ExtHostAuthentication(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.environment, extHostWorkspace, extHostLogService, extHostApiDeprecation));
+	const extHostWebviewSerializers = rpcProtocol.set(ExtHostContext.ExtHostWebviewSerializer, new ExtHostWebviewSerializer(rpcProtocol, extHostWebviews));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
 
@@ -593,7 +595,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTreeViews.createTreeView(viewId, options, extension);
 			},
 			registerWebviewPanelSerializer: (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
-				return extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializer);
+				return extHostWebviewSerializers.registerWebviewPanelSerializer(extension, viewType, serializer);
 			},
 			registerCustomEditorProvider: (viewType: string, provider: vscode.CustomTextEditorProvider | vscode.CustomReadonlyEditorProvider, options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerDocument?: boolean } = {}) => {
 				return extHostCustomEditors.registerCustomEditorProvider(extension, viewType, provider, options);

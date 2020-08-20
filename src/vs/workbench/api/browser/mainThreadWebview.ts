@@ -118,6 +118,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	]);
 
 	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
+	private readonly _proxySerializer: extHostProtocol.ExtHostWebviewSerializerShape;
 	private readonly _proxyViews: extHostProtocol.ExtHostWebviewViewsShape;
 	private readonly _proxyCustomEditors: extHostProtocol.ExtHostCustomEditorsShape;
 
@@ -149,6 +150,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
+		this._proxySerializer = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewSerializer);
 		this._proxyViews = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 		this._proxyCustomEditors = context.getProxy(extHostProtocol.ExtHostContext.ExtHostCustomEditors);
 
@@ -316,7 +318,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 
 				try {
-					await this._proxy.$deserializeWebviewPanel(handle, viewType, webviewInput.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
+					await this._proxySerializer.$deserializeWebviewPanel(handle, viewType, webviewInput.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
