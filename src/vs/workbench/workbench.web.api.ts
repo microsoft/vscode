@@ -121,6 +121,32 @@ interface IHomeIndicator {
 	title: string;
 }
 
+interface IRemoteIndicator {
+
+	/**
+	 * Triggering this event will cause the remote indicator to update.
+	 */
+	onDidChange: Event<void>;
+
+	/**
+	 * Label of the remote indicator may include octicons
+	 * e.g. `$(remote) label`
+	 */
+	label: string;
+
+	/**
+	 * Tooltip of the remote indicator should not include
+	 * octicons and be descriptive.
+	 */
+	tooltip: string;
+
+	/**
+	 * If provided, overrides the default command that
+	 * is executed when clicking on the remote indicator.
+	 */
+	command?: string;
+}
+
 interface IDefaultSideBarLayout {
 	visible?: boolean;
 	containers?: ({
@@ -187,20 +213,6 @@ interface IProductQualityChangeHandler {
 	 * `insider` or `stable` product qualities.
 	 */
 	(newQuality: 'insider' | 'stable'): void;
-}
-
-interface IRemoteIndicator {
-
-	onDidChange: Event<void>;
-
-	label: string;
-	tooltip: string;
-
-	/**
-	 * If provided, overrides the default command that
-	 * is executed when clicking on the remote indicator.
-	 */
-	command?: string;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -523,16 +535,14 @@ export {
 	// Branding
 	IHomeIndicator,
 	IProductConfiguration,
+	IRemoteIndicator,
 
 	// Default layout
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
-
-	// Remote indicator
-	IRemoteIndicator
+	IDefaultSideBarLayout
 };
 
 //#endregion
