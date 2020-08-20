@@ -982,10 +982,10 @@ function getActions(instantiationService: IInstantiationService, element: IDebug
 }
 
 
-class StopAction extends Action {
+export class StopAction extends Action {
 
 	constructor(
-		private readonly session: IDebugSession,
+		private readonly session: IDebugSession | null,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super(`action.${STOP_ID}`, STOP_LABEL, 'debug-action codicon-debug-stop');
