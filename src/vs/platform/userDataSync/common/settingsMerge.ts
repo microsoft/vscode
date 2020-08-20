@@ -275,8 +275,11 @@ export function areSame(localContent: string, remoteContent: string, ignoredSett
 }
 
 export function isEmpty(content: string): boolean {
-	const nodes = parseSettings(content);
-	return nodes.length === 0;
+	if (content) {
+		const nodes = parseSettings(content);
+		return nodes.length === 0;
+	}
+	return true;
 }
 
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
