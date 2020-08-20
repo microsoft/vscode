@@ -21,17 +21,18 @@ import { isString } from 'vs/base/common/types';
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
-export async function getCurrentAuthenticationSessionInfo(environmentService: IWorkbenchEnvironmentService, productService: IProductService): Promise<{ id: string, accessToken: string, providerId: string } | undefined> {
+export type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string };
+export async function getCurrentAuthenticationSessionInfo(environmentService: IWorkbenchEnvironmentService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
 	if (environmentService.options?.credentialsProvider) {
 		const authenticationSessionValue = await environmentService.options.credentialsProvider.getPassword(`${productService.urlProtocol}.login`, 'account');
 		if (authenticationSessionValue) {
-			const authenticationSession: { id: string, accessToken: string, providerId: string } = JSON.parse(authenticationSessionValue);
-			if (authenticationSession
-				&& isString(authenticationSession.id)
-				&& isString(authenticationSession.accessToken)
-				&& isString(authenticationSession.providerId)
+			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
+			if (authenticationSessionInfo
+				&& isString(authenticationSessionInfo.id)
+				&& isString(authenticationSessionInfo.accessToken)
+				&& isString(authenticationSessionInfo.providerId)
 			) {
-				return authenticationSession;
+				return authenticationSessionInfo;
 			}
 		}
 	}
