@@ -612,6 +612,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeActiveColorTheme(listener, thisArg?, disposables?) {
 				return extHostTheming.onDidChangeActiveColorTheme(listener, thisArg, disposables);
+			},
+			registerWebviewViewProvider(viewId: string, provider: vscode.WebviewViewProvider, options?: {
+				webviewOptions?: {
+					retainContextWhenHidden?: boolean
+				}
+			}) {
+				checkProposedApiEnabled(extension);
+				return extHostWebviews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
 			}
 		};
 

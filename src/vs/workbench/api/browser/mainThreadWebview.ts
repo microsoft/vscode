@@ -33,9 +33,10 @@ import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/cus
 import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
-import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
+import { Webview, WebviewExtensionDescription, WebviewIcons, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -119,6 +120,10 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
+
+	private readonly _webviewViewProviders = new Map<string, IDisposable>();
+	private readonly _webviewViews = new Map<string, WebviewView>();
+
 	private readonly _editorProviders = new Map<string, IDisposable>();
 	private readonly _webviewFromDiffEditorHandles = new Set<string>();
 
@@ -136,6 +141,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBackupFileService private readonly _backupService: IBackupFileService,
+		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();
 
@@ -212,7 +218,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		const extension = reviveWebviewExtension(extensionData);
 		const webview = this._webviewWorkbenchService.createWebview(handle, webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), extension);
-		this.hookupWebviewEventDelegate(handle, webview);
+		this.hookupWebviewEventDelegate(handle, webview.webview);
 
 		this._webviewInputs.add(handle, webview);
 
@@ -234,14 +240,22 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		webview.setName(value);
 	}
 
+	public $setWebviewViewTitle(handle: extHostProtocol.WebviewPanelHandle, value: string | undefined): void {
+		const webviewView = this._webviewViews.get(handle);
+		if (!webviewView) {
+			throw new Error('unknown webview view');
+		}
+		webviewView.title = value;
+	}
+
 	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
 	}
 
 	public $setHtml(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
-		const webview = this.getWebviewInput(handle);
-		webview.webview.html = value;
+		const webview = this.getWebview(handle);
+		webview.html = value;
 	}
 
 	public $setOptions(handle: extHostProtocol.WebviewPanelHandle, options: modes.IWebviewOptions): void {
@@ -285,7 +299,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 				const handle = webviewInput.id;
 				this._webviewInputs.add(handle, webviewInput);
-				this.hookupWebviewEventDelegate(handle, webviewInput);
+				this.hookupWebviewEventDelegate(handle, webviewInput.webview);
 
 				let state = undefined;
 				if (webviewInput.webview.state) {
@@ -314,6 +328,49 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 
 		reviver.dispose();
 		this._revivers.delete(viewType);
+	}
+
+	public $registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void {
+		if (this._webviewViewProviders.has(viewType)) {
+			throw new Error(`View provider for ${viewType} already registered`);
+		}
+
+		this._webviewViewService.register(viewType, {
+			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
+				this._webviewViews.set(viewType, webviewView);
+
+				const handle = viewType;
+				this.hookupWebviewEventDelegate(handle, webviewView.webview);
+
+				let state = undefined;
+				if (webviewView.webview.state) {
+					try {
+						state = JSON.parse(webviewView.webview.state);
+					} catch (e) {
+						console.error('Could not load webview state', e, webviewView.webview.state);
+					}
+				}
+
+				if (options) {
+					webviewView.webview.options = options;
+				}
+
+				webviewView.onDidChangeVisibility(visible => {
+					this._proxy.$onDidChangeWebviewViewVisibility(handle, visible);
+				});
+
+				webviewView.onDispose(() => {
+					this._proxy.$disposeWebviewView(handle);
+				});
+
+				try {
+					await this._proxy.$resolveWebviewView(handle, viewType, state, cancellation);
+				} catch (error) {
+					onUnexpectedError(error);
+					webviewView.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+				}
+			}
+		});
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {
@@ -353,7 +410,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				const resource = webviewInput.resource;
 
 				this._webviewInputs.add(handle, webviewInput);
-				this.hookupWebviewEventDelegate(handle, webviewInput);
+				this.hookupWebviewEventDelegate(handle, webviewInput.webview);
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
@@ -460,14 +517,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		model.changeContent();
 	}
 
-	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
+	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, webview: WebviewOverlay) {
 		const disposables = new DisposableStore();
 
-		disposables.add(input.webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
-		disposables.add(input.webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
-		disposables.add(input.webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
+		disposables.add(webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
+		disposables.add(webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
+		disposables.add(webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
 
-		disposables.add(input.webview.onDispose(() => {
+		disposables.add(webview.onDispose(() => {
 			disposables.dispose();
 
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
@@ -552,6 +609,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			return true;
 		}
 		return !!webview.webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
+	}
+
+	private getWebview(handle: extHostProtocol.WebviewPanelHandle): Webview {
+		const webview = this.tryGetWebviewInput(handle)?.webview ?? this._webviewViews.get(handle)?.webview;
+		if (!webview) {
+			throw new Error(`Unknown webview handle:${handle}`);
+		}
+		return webview;
 	}
 
 	private getWebviewInput(handle: extHostProtocol.WebviewPanelHandle): WebviewInput {
