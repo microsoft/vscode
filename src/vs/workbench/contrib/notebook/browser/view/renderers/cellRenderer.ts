@@ -661,7 +661,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const runToolbar = disposables.add(this.createToolbar(runButtonContainer));
 
-		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
+		const executionOrderLabel = DOM.append(cellContainer, $('div.execution-count-label'));
 
 		// create a special context key service that set the inCompositeEditor-contextkey
 		const editorContextKeyService = disposables.add(this.contextKeyServiceProvider(container));
