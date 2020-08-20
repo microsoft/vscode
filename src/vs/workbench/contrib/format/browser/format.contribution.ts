@@ -5,4 +5,4 @@
 
 import './formatActionsMultiple';
 import './formatActionsNone';
-import './formatChanges';
+import './formatModified';

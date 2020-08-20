@@ -999,6 +999,22 @@ function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) =>
 	};
 }
 
+export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
+	const providers = scmService.repositories.map(r => r.provider);
+	const rootedProviders = providers.filter(p => !!p.rootUri);
+
+	rootedProviders.sort(createProviderComparer(uri));
+
+	const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+
+	if (result) {
+		return result;
+	}
+
+	const nonRootedProviders = providers.filter(p => !p.rootUri);
+	return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+}
+
 export class DirtyDiffModel extends Disposable {
 
 	private _originalModel: IResolvedTextFileEditorModel | null = null;
@@ -1155,19 +1171,7 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		const uri = this._model.resource;
-		const providers = this.scmService.repositories.map(r => r.provider);
-		const rootedProviders = providers.filter(p => !!p.rootUri);
-
-		rootedProviders.sort(createProviderComparer(uri));
-
-		const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
-
-		if (result) {
-			return result;
-		}
-
-		const nonRootedProviders = providers.filter(p => !p.rootUri);
-		return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+		return getOriginalResource(this.scmService, uri);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {
