@@ -1039,7 +1039,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ExtensionMode: extHostTypes.ExtensionMode,
 			ExtensionRuntime: extHostTypes.ExtensionRuntime,
 			CustomExecution: extHostTypes.CustomExecution,
-			CustomExecution2: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FileType: files.FileType,
