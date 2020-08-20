@@ -461,6 +461,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 					const type = this.getViewType(item.type);
 					if (!type) {
+						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
 						return null;
 					}
 
