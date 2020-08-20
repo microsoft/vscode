@@ -11,7 +11,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/edi
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
-import { getAuthenticationProviderActivationEvent, getAuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getAuthenticationProviderActivationEvent, getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -153,7 +153,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async initialize(): Promise<void> {
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getAuthenticationSession(this.environmentService.options?.credentialsProvider, this.productService) : undefined;
+		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
 		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && (authenticationSession?.id || this.environmentService.options?.authenticationSessionId)) {
 			this.currentSessionId = authenticationSession?.id || this.environmentService.options?.authenticationSessionId;
 			this.useWorkbenchSessionId = false;
