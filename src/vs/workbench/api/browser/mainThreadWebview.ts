@@ -118,6 +118,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	]);
 
 	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
+	private readonly _viewsProxy: extHostProtocol.ExtHostWebviewViewsShape;
 	private readonly _webviewInputs = new WebviewInputStore();
 	private readonly _revivers = new Map<string, IDisposable>();
 
@@ -146,6 +147,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
+		this._viewsProxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			const activeInput = this._editorService.activeEditor;
@@ -259,8 +261,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public $setOptions(handle: extHostProtocol.WebviewPanelHandle, options: modes.IWebviewOptions): void {
-		const webview = this.getWebviewInput(handle);
-		webview.webview.contentOptions = reviveWebviewOptions(options);
+		const webview = this.getWebview(handle);
+		webview.contentOptions = reviveWebviewOptions(options);
 	}
 
 	public $reveal(handle: extHostProtocol.WebviewPanelHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
@@ -276,8 +278,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public async $postMessage(handle: extHostProtocol.WebviewPanelHandle, message: any): Promise<boolean> {
-		const webview = this.getWebviewInput(handle);
-		webview.webview.postMessage(message);
+		const webview = this.getWebview(handle);
+		webview.postMessage(message);
 		return true;
 	}
 
@@ -356,21 +358,31 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				}
 
 				webviewView.onDidChangeVisibility(visible => {
-					this._proxy.$onDidChangeWebviewViewVisibility(handle, visible);
+					this._viewsProxy.$onDidChangeWebviewViewVisibility(handle, visible);
 				});
 
 				webviewView.onDispose(() => {
-					this._proxy.$disposeWebviewView(handle);
+					this._viewsProxy.$disposeWebviewView(handle);
 				});
 
 				try {
-					await this._proxy.$resolveWebviewView(handle, viewType, state, cancellation);
+					await this._viewsProxy.$resolveWebviewView(handle, viewType, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewView.webview.html = MainThreadWebviews.getWebviewResolvedFailedContent(viewType);
 				}
 			}
 		});
+	}
+
+	public $unregisterWebviewViewProvider(viewType: string): void {
+		const provider = this._webviewViewProviders.get(viewType);
+		if (!provider) {
+			throw new Error(`No view provider for ${viewType} registered`);
+		}
+
+		provider.dispose();
+		this._webviewViewProviders.delete(viewType);
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {

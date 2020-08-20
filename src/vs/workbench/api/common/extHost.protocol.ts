@@ -631,6 +631,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$onContentChange(resource: UriComponents, viewType: string): void;
 
 	$registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void;
+	$unregisterWebviewViewProvider(viewType: string): void;
 
 	$setWebviewViewTitle(handle: WebviewPanelHandle, value: string | undefined): void;
 }
@@ -666,9 +667,13 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string>;
 
 	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
+}
 
+export interface ExtHostWebviewViewsShape {
 	$resolveWebviewView(webviewHandle: WebviewPanelHandle, viewType: string, state: any, cancellation: CancellationToken): Promise<void>;
+
 	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewPanelHandle, visible: boolean): void;
+
 	$disposeWebviewView(webviewHandle: WebviewPanelHandle): void;
 }
 
@@ -1744,6 +1749,7 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostWebviewViews: createExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
 	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),

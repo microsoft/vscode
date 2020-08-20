@@ -64,7 +64,13 @@ export class ExtHostWebview implements vscode.Webview {
 	/* internal */ readonly _onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
+	readonly #onDidDisposeEmitter = new Emitter<void>();
+	/* internal */ readonly _onDidDispose: Event<void> = this.#onDidDisposeEmitter.event;
+
 	public dispose() {
+		this.#onDidDisposeEmitter.fire();
+
+		this.#onDidDisposeEmitter.dispose();
 		this._onMessageEmitter.dispose();
 	}
 
@@ -167,6 +173,7 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 
 		this.#isDisposed = true;
 		this.#onDidDispose.fire();
+
 		this.#proxy.$disposeWebview(this.#handle);
 		this.#webview.dispose();
 
@@ -258,92 +265,6 @@ export class ExtHostWebviewEditor extends Disposable implements vscode.WebviewPa
 			viewColumn: viewColumn ? typeConverters.ViewColumn.from(viewColumn) : undefined,
 			preserveFocus: !!preserveFocus
 		});
-	}
-
-	private assertNotDisposed() {
-		if (this.#isDisposed) {
-			throw new Error('Webview is disposed');
-		}
-	}
-}
-
-export class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
-
-	readonly #handle: extHostProtocol.WebviewPanelHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
-
-	readonly #viewType: string;
-	readonly #webview: ExtHostWebview;
-
-	#isDisposed = false;
-	#isVisible: boolean;
-	#title: string | undefined;
-
-	constructor(
-		handle: extHostProtocol.WebviewPanelHandle,
-		proxy: extHostProtocol.MainThreadWebviewsShape,
-		viewType: string,
-		webview: ExtHostWebview,
-		isVisible: boolean,
-	) {
-		super();
-
-		this.#viewType = viewType;
-		this.#handle = handle;
-		this.#proxy = proxy;
-		this.#webview = webview;
-		this.#isVisible = isVisible;
-	}
-
-	public dispose() {
-		if (this.#isDisposed) {
-			return;
-		}
-
-		this.#isDisposed = true;
-		this.#onDidDispose.fire();
-
-		super.dispose();
-	}
-
-	readonly #onDidChangeVisibility = this._register(new Emitter<void>());
-	public readonly onDidChangeVisibility = this.#onDidChangeVisibility.event;
-
-	readonly #onDidDispose = this._register(new Emitter<void>());
-	public readonly onDidDispose = this.#onDidDispose.event;
-
-	get title(): string | undefined {
-		this.assertNotDisposed();
-		return this.#title;
-	}
-
-	set title(value: string | undefined) {
-		this.assertNotDisposed();
-		if (this.#title !== value) {
-			this.#title = value;
-			this.#proxy.$setWebviewViewTitle(this.#handle, value);
-		}
-	}
-
-	get visible() {
-		return this.#isVisible;
-	}
-
-	get webview() {
-		return this.#webview;
-	}
-
-	get viewType(): string {
-		return this.#viewType;
-	}
-
-	_setVisible(visible: boolean) {
-		if (visible === this.#isVisible) {
-			return;
-		}
-
-		this.#isVisible = visible;
-		this.#onDidChangeVisibility.fire();
 	}
 
 	private assertNotDisposed() {
@@ -491,6 +412,8 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	}
 
 	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
+
+	private readonly _webviews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebview>();
 	private readonly _webviewPanels = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewEditor>();
 
 	private readonly _serializers = new Map<string, {
@@ -498,13 +421,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		readonly extension: IExtensionDescription;
 	}>();
 
-	private readonly _viewProviders = new Map<string, {
-		readonly provider: vscode.WebviewViewProvider;
-		readonly extension: IExtensionDescription;
-	}>();
-
 	private readonly _editorProviders = new EditorProviderStore();
-	private readonly _webviewViews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewView>();
 
 	private readonly _documents = new CustomDocumentStore();
 
@@ -536,7 +453,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		const handle = ExtHostWebviews.newHandle();
 		this._proxy.$createWebviewPanel(toExtensionData(extension), handle, viewType, title, webviewShowOptions, convertWebviewOptions(extension, this.workspace, options));
 
-		const webview = new ExtHostWebview(handle, this._proxy, options, this.initData, this.workspace, extension, this._deprecationService);
+		const webview = this.createNewWebview(handle, options, extension);
 		const panel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, viewColumn, options, webview);
 		this._webviewPanels.set(handle, panel);
 		return panel;
@@ -556,27 +473,6 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		return new extHostTypes.Disposable(() => {
 			this._serializers.delete(viewType);
-			this._proxy.$unregisterSerializer(viewType);
-		});
-	}
-
-	public registerWebviewViewProvider(
-		extension: IExtensionDescription,
-		viewType: string,
-		provider: vscode.WebviewViewProvider,
-		webviewOptions?: {
-			retainContextWhenHidden?: boolean
-		},
-	): vscode.Disposable {
-		if (this._viewProviders.has(viewType)) {
-			throw new Error(`View provider for '${viewType}' already registered`);
-		}
-
-		this._viewProviders.set(viewType, { provider, extension });
-		this._proxy.$registerWebviewViewProvider(viewType, webviewOptions);
-
-		return new extHostTypes.Disposable(() => {
-			this._viewProviders.delete(viewType);
 			this._proxy.$unregisterSerializer(viewType);
 		});
 	}
@@ -622,9 +518,9 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		handle: extHostProtocol.WebviewPanelHandle,
 		message: any
 	): void {
-		const panel = this.getWebviewPanel(handle);
-		if (panel) {
-			panel.webview._onMessageEmitter.fire(message);
+		const webview = this.getWebview(handle);
+		if (webview) {
+			webview._onMessageEmitter.fire(message);
 		}
 	}
 
@@ -670,10 +566,10 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 	async $onDidDisposeWebviewPanel(handle: extHostProtocol.WebviewPanelHandle): Promise<void> {
 		const panel = this.getWebviewPanel(handle);
-		if (panel) {
-			panel.dispose();
-			this._webviewPanels.delete(handle);
-		}
+		panel?.dispose();
+
+		this._webviewPanels.delete(handle);
+		this._webviews.delete(handle);
 	}
 
 	async $deserializeWebviewPanel(
@@ -690,45 +586,10 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		}
 		const { serializer, extension } = entry;
 
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
+		const webview = this.createNewWebview(webviewHandle, options, extension);
 		const revivedPanel = new ExtHostWebviewEditor(webviewHandle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		await serializer.deserializeWebviewPanel(revivedPanel, state);
-	}
-
-	async $resolveWebviewView(
-		webviewHandle: string,
-		viewType: string,
-		state: any,
-		cancellation: CancellationToken,
-	): Promise<void> {
-		const entry = this._viewProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No view provider found for '${viewType}'`);
-		}
-
-		const { provider, extension } = entry;
-
-		const webview = new ExtHostWebview(webviewHandle, this._proxy, reviveOptions({ /* todo */ }), this.initData, this.workspace, extension, this._deprecationService);
-		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, webview, true);
-
-		this._webviewViews.set(webviewHandle, revivedView);
-
-		await provider.resolveWebviewView(revivedView, { state }, cancellation);
-	}
-
-	async $onDidChangeWebviewViewVisibility(
-		webviewHandle: string,
-		visible: boolean
-	) {
-		const webviewView = this.getWebviewView(webviewHandle);
-		webviewView._setVisible(visible);
-	}
-
-	async $disposeWebviewView(webviewHandle: string) {
-		const webviewView = this.getWebviewView(webviewHandle);
-		this._webviewViews.delete(webviewHandle);
-		webviewView.dispose();
 	}
 
 	async $createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken) {
@@ -783,7 +644,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 			throw new Error(`No provider found for '${viewType}'`);
 		}
 
-		const webview = new ExtHostWebview(handle, this._proxy, reviveOptions(options), this.initData, this.workspace, entry.extension, this._deprecationService);
+		const webview = this.createNewWebview(handle, options, entry.extension);
 		const revivedPanel = new ExtHostWebviewEditor(handle, this._proxy, viewType, title, typeof position === 'number' && position >= 0 ? typeConverters.ViewColumn.to(position) : undefined, options, webview);
 		this._webviewPanels.set(handle, revivedPanel);
 
@@ -873,6 +734,19 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		return backup.id;
 	}
 
+	public createNewWebview(handle: string, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, extension: IExtensionDescription): ExtHostWebview {
+		const webview = new ExtHostWebview(handle, this._proxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
+		this._webviews.set(handle, webview);
+
+		webview._onDidDispose(() => { this._webviews.delete(handle); });
+
+		return webview;
+	}
+
+	private getWebview(handle: extHostProtocol.WebviewPanelHandle): ExtHostWebview | undefined {
+		return this._webviews.get(handle);
+	}
+
 	private getWebviewPanel(handle: extHostProtocol.WebviewPanelHandle): ExtHostWebviewEditor | undefined {
 		return this._webviewPanels.get(handle);
 	}
@@ -892,14 +766,6 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 			throw new Error('Custom document is not editable');
 		}
 		return provider;
-	}
-
-	private getWebviewView(handle: string): ExtHostWebviewView {
-		const entry = this._webviewViews.get(handle);
-		if (!entry) {
-			throw new Error('Custom document is not editable');
-		}
-		return entry;
 	}
 
 	private supportEditing(
