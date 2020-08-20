@@ -87,8 +87,7 @@ const enum CellToolbarOrder {
 	EditCell,
 	SplitCell,
 	SaveCell,
-	ClearCellOutput,
-	DeleteCell
+	ClearCellOutput
 }
 
 const enum CellOverflowToolbarGroups {
@@ -261,6 +260,23 @@ export class CancelCellAction extends MenuItemAction {
 	}
 }
 
+export class DeleteCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: DELETE_CELL_COMMAND_ID,
+				title: localize('notebookActions.deleteCell', "Delete Cell"),
+				icon: { id: 'codicon/trash' }
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -775,9 +791,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.DeleteCell,
-					when: NOTEBOOK_EDITOR_EDITABLE,
-					group: CELL_TITLE_CELL_GROUP_ID
+					when: NOTEBOOK_EDITOR_EDITABLE
 				},
 				keybinding: {
 					primary: KeyCode.Delete,
