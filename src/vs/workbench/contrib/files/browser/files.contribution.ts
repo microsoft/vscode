@@ -369,8 +369,8 @@ configurationRegistry.registerConfiguration({
 			],
 			'enumDescriptions': [
 				nls.localize('off', "Disable format on save."),
-				nls.localize('everything', "Format the whole file on save."),
-				nls.localize('modification', "Only format modifications (requires source control)."),
+				nls.localize('everything', "Format the whole."),
+				nls.localize('modification', "Format modifications (requires source control)."),
 			],
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
