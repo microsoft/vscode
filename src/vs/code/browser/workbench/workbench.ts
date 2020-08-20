@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteIndicator, ICommand, IHomeIndicator } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -407,12 +407,28 @@ class RemoteIndicator implements IRemoteIndicator {
 		commands.push(remoteIndicator.commandImpl);
 	}
 
+	// Product Quality Change Handler
+	const productQualityChangeHandler: IProductQualityChangeHandler = (quality) => {
+		let queryString = `quality=${quality}`;
+
+		// Save all other query params we might have
+		const query = new URL(document.location.href).searchParams;
+		query.forEach((value, key) => {
+			if (key !== 'quality') {
+				queryString += `&${key}=${value}`;
+			}
+		});
+
+		window.location.href = `${window.location.origin}?${queryString}`;
+	};
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
 		homeIndicator,
 		commands,
 		remoteIndicator,
+		productQualityChangeHandler,
 		workspaceProvider: new WorkspaceProvider(workspace, payload),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
