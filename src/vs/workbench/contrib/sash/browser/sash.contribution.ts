@@ -26,7 +26,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				'default': isIPad ? maxSize : minSize,
 				'minimum': minSize,
 				'maximum': maxSize,
-				'description': localize('sashSize', "Controls the size of the sash.")
+				'description': localize('sashSize', "Controls the feedback area size in pixels of the dragging area in between views/editors. Set it to a larger value if you feel it's hard to resize views using the mouse.")
 			},
 		}
 	});

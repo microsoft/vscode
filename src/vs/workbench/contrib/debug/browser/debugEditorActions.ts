@@ -9,14 +9,16 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -78,12 +80,12 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
-export const TOGGLE_LOG_POINT_ID = 'editor.debug.action.toggleLogPoint';
+export const ADD_LOG_POINT_ID = 'editor.debug.action.addLogPoint';
 class LogPointAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: TOGGLE_LOG_POINT_ID,
+			id: ADD_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
 			precondition: undefined
@@ -141,7 +143,15 @@ export class RunToCursorAction extends EditorAction {
 			const uri = editor.getModel().uri;
 			const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
 			if (!bpExists) {
-				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }], 'debugEditorActions.runToCursorAction');
+				let column = 0;
+				const focusedStackFrame = debugService.getViewModel().focusedStackFrame;
+				if (focusedStackFrame && focusedStackFrame.source.uri.toString() === uri.toString() && focusedStackFrame.range.startLineNumber === position.lineNumber) {
+					// If the cursor is on a line different than the one the debugger is currently paused on, then send the breakpoint at column 0 on the line
+					// otherwise set it at the precise column #102199
+					column = position.column;
+				}
+
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], 'debugEditorActions.runToCursorAction');
 				if (breakpoints && breakpoints.length) {
 					breakpointToRemove = breakpoints[0];
 				}
@@ -178,7 +188,7 @@ class SelectionToReplAction extends EditorAction {
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await viewsService.openView(REPL_VIEW_ID, true);
+		await viewsService.openView(REPL_VIEW_ID, false);
 	}
 }
 
@@ -199,13 +209,13 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
-		const viewletService = accessor.get(IViewletService);
+		const viewsService = accessor.get(IViewsService);
 		if (!editor.hasModel()) {
 			return;
 		}
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
-		await viewletService.openViewlet(VIEWLET_ID);
+		await viewsService.openView(WATCH_VIEW_ID);
 		debugService.addWatchExpression(text);
 	}
 }
@@ -238,6 +248,48 @@ class ShowDebugHoverAction extends EditorAction {
 
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, word.endColumn);
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).showHover(range, true);
+	}
+}
+
+class StepIntoTargetsAction extends EditorAction {
+
+	public static readonly ID = 'editor.debug.action.stepIntoTargets';
+	public static readonly LABEL = nls.localize({ key: 'stepIntoTargets', comment: ['Step Into Targets lets the user step into an exact function he or she is interested in.'] }, "Step Into Targets...");
+
+	constructor() {
+		super({
+			id: StepIntoTargetsAction.ID,
+			label: StepIntoTargetsAction.LABEL,
+			alias: 'Debug: Step Into Targets...',
+			precondition: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			contextMenuOpts: {
+				group: 'debug',
+				order: 1.5
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const contextMenuService = accessor.get(IContextMenuService);
+		const session = debugService.getViewModel().focusedSession;
+		const frame = debugService.getViewModel().focusedStackFrame;
+
+		if (session && frame && editor.hasModel() && editor.getModel().uri.toString() === frame.source.uri.toString()) {
+			const targets = await session.stepInTargets(frame.frameId);
+			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
+			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
+			const editorCoords = getDomNodePagePosition(editor.getDomNode());
+			const x = editorCoords.left + cursorCoords.left;
+			const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+			contextMenuService.showContextMenu({
+				getAnchor: () => ({ x, y }),
+				getActions: () => {
+					return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+				}
+			});
+		}
 	}
 }
 
@@ -303,12 +355,15 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 	}
 }
 
-registerEditorAction(ToggleBreakpointAction);
-registerEditorAction(ConditionalBreakpointAction);
-registerEditorAction(LogPointAction);
-registerEditorAction(RunToCursorAction);
-registerEditorAction(SelectionToReplAction);
-registerEditorAction(SelectionToWatchExpressionsAction);
-registerEditorAction(ShowDebugHoverAction);
-registerEditorAction(GoToNextBreakpointAction);
-registerEditorAction(GoToPreviousBreakpointAction);
+export function registerEditorActions(): void {
+	registerEditorAction(ToggleBreakpointAction);
+	registerEditorAction(ConditionalBreakpointAction);
+	registerEditorAction(LogPointAction);
+	registerEditorAction(RunToCursorAction);
+	registerEditorAction(StepIntoTargetsAction);
+	registerEditorAction(SelectionToReplAction);
+	registerEditorAction(SelectionToWatchExpressionsAction);
+	registerEditorAction(ShowDebugHoverAction);
+	registerEditorAction(GoToNextBreakpointAction);
+	registerEditorAction(GoToPreviousBreakpointAction);
+}

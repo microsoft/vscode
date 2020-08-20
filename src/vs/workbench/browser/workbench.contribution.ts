@@ -22,7 +22,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				enum: ['default', 'large'],
 				enumDescriptions: [
 					nls.localize('workbench.editor.titleScrollbarSizing.default', "The default size."),
-					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabed more easily with the mouse")
+					nls.localize('workbench.editor.titleScrollbarSizing.large', "Increases the size, so it can be grabbed more easily with the mouse")
 				],
 				description: nls.localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
@@ -231,6 +231,16 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': true,
 				'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 			},
+			'workbench.activityBar.iconClickBehavior': {
+				'type': 'string',
+				'enum': ['toggle', 'focus'],
+				'default': 'toggle',
+				'description': nls.localize('activityBarIconClickBehavior', "Controls the behavior of clicking an activity bar icon in the workbench."),
+				'enumDescriptions': [
+					nls.localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the side bar if the clicked item is already visible."),
+					nls.localize('workbench.activityBar.iconClickBehavior.focus', "Focus side bar if the clicked item is already visible.")
+				]
+			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,
@@ -402,7 +412,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			'zenMode.hideActivityBar': {
 				'type': 'boolean',
 				'default': true,
-				'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar at the left of the workbench.")
+				'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar either at the left or right of the workbench.")
 			},
 			'zenMode.hideLineNumbers': {
 				'type': 'boolean',

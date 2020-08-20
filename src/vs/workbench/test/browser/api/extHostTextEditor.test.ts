@@ -9,7 +9,7 @@ import { MainThreadTextEditorsShape, IResolvedTextEditorConfiguration, ITextEdit
 import { ExtHostTextEditorOptions, ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { URI } from 'vs/base/common/uri';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTextEditor', () => {
@@ -17,7 +17,7 @@ suite('ExtHostTextEditor', () => {
 	let editor: ExtHostTextEditor;
 	let doc = new ExtHostDocumentData(undefined!, URI.file(''), [
 		'aaaa bbbb+cccc abc'
-	], '\n', 'text', 1, false);
+	], '\n', 1, 'text', false);
 
 	setup(() => {
 		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);

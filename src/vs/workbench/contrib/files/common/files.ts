@@ -33,13 +33,8 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_ID = 'workbench.explorer.fileView';
 
-/**
- * Id of the default editor for open with.
- */
-export const DEFAULT_EDITOR_ID = 'default';
-
 export interface IExplorerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
@@ -51,7 +46,7 @@ export interface IExplorerService {
 	isEditable(stat: ExplorerItem | undefined): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): Promise<void>;
-	setToCopy(stats: ExplorerItem[], cut: boolean): void;
+	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
 
 	/**
@@ -269,6 +264,6 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	getResource(): URI | undefined {
-		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	}
 }

@@ -7,7 +7,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -19,6 +18,7 @@ import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -334,6 +334,18 @@ export interface IOverviewRuler {
 export interface IEditorAriaOptions {
 	activeDescendant: string | undefined;
 	role?: string;
+}
+
+export interface IEditorConstructionOptions extends IEditorOptions {
+	/**
+	 * The initial editor dimension (to avoid measuring the container).
+	 */
+	dimension?: editorCommon.IDimension;
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
 }
 
 /**
@@ -665,7 +677,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors | null;
+	_getViewModel(): IViewModel | null;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -858,7 +870,7 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	/**
 	 * @internal
 	 */
-	_getCursors(): ICursors;
+	_getViewModel(): IViewModel;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
@@ -1039,6 +1051,17 @@ export function getCodeEditor(thing: any): ICodeEditor | null {
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	return null;
+}
+
+/**
+ *@internal
+ */
+export function getIEditor(thing: any): editorCommon.IEditor | null {
+	if (isCodeEditor(thing) || isDiffEditor(thing)) {
+		return thing;
 	}
 
 	return null;

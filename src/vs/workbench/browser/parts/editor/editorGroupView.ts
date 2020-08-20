@@ -16,7 +16,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
@@ -275,9 +275,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// Close empty editor group via middle mouse click
-		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+		this._register(addDisposableListener(this.element, EventType.AUXCLICK, e => {
 			if (this.isEmpty && e.button === 1 /* Middle Button */) {
-				EventHelper.stop(e);
+				EventHelper.stop(e, true);
 
 				this.accessor.removeGroup(this);
 			}
@@ -525,17 +525,23 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editor = event.editor;
 		const editorsToClose = [editor];
 
-		// Include both sides of side by side editors when being closed and not opened multiple times
-		if (editor instanceof SideBySideEditorInput && !this.accessor.groups.some(groupView => groupView.group.contains(editor))) {
-			editorsToClose.push(editor.master, editor.details);
+		// Include both sides of side by side editors when being closed
+		if (editor instanceof SideBySideEditorInput) {
+			editorsToClose.push(editor.primary, editor.secondary);
 		}
 
-		// Dispose the editor when it is no longer open in any group including diff editors
-		editorsToClose.forEach(editorToClose => {
-			if (!this.accessor.groups.some(groupView => groupView.group.contains(editorToClose, true /* include side by side editor master & details */))) {
-				editorToClose.dispose();
+		// For each editor to close, we call dispose() to free up any resources.
+		// However, certain editors might be shared across multiple editor groups
+		// (including being visible in side by side / diff editors) and as such we
+		// only dispose when they are not opened elsewhere.
+		for (const editor of editorsToClose) {
+			if (!this.accessor.groups.some(groupView => groupView.group.contains(editor, {
+				strictEquals: true,		// only if this input is not shared across editor groups
+				supportSideBySide: true // include side by side editor primary & secondary
+			}))) {
+				editor.dispose();
 			}
-		});
+		}
 
 		/* __GDPR__
 			"editorClosed" : {
@@ -863,7 +869,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditor()
 
-	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | null> {
+	async openEditor(editor: EditorInput, options?: EditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null> {
 
 		// Guard against invalid inputs
 		if (!editor) {
@@ -871,7 +877,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Editor opening event allows for prevention
-		const event = new EditorOpeningEvent(this._group.id, editor, options);
+		const event = new EditorOpeningEvent(this._group.id, editor, options, context);
 		this._onWillOpenEditor.fire(event);
 		const prevented = event.isPrevented();
 		if (prevented) {
@@ -1125,7 +1131,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options);
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, false);
 		}
 	}
 
@@ -1162,16 +1168,17 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: IEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
 
-		// When moving an editor, try to preserve as much view state as possible by checking
-		// for the editor to be a text editor and creating the options accordingly if so
+		// When moving/copying an editor, try to preserve as much view state as possible
+		// by checking for the editor to be a text editor and creating the options accordingly
+		// if so
 		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create({
 			...moveOptions,
-			pinned: true, 							// always pin moved editor
-			sticky: this._group.isSticky(editor)	// preserve sticky state
+			pinned: true, 										// always pin moved editor
+			sticky: !keepCopy && this._group.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
 		}));
 
 		// A move to another group is an open first...
-		target.openEditor(editor, options);
+		target.openEditor(editor, options, keepCopy ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
@@ -1352,8 +1359,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor must be dirty and not saving
 		}
 
-		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.master)) {
-			return false; // master-side of editor is still opened somewhere else
+		if (editor instanceof SideBySideEditorInput && this._group.contains(editor.primary)) {
+			return false; // primary-side of editor is still opened somewhere else
 		}
 
 		// Note: we explicitly decide to ask for confirm if closing a normal editor even
@@ -1371,8 +1378,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				return true; // exact editor still opened
 			}
 
-			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.master)) {
-				return true; // master side of side by side editor still opened
+			if (editor instanceof SideBySideEditorInput && otherGroup.contains(editor.primary)) {
+				return true; // primary side of side by side editor still opened
 			}
 
 			return false;
@@ -1397,7 +1404,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			let name: string;
 			if (editor instanceof SideBySideEditorInput) {
-				name = editor.master.getName(); // prefer shorter names by using master's name in this case
+				name = editor.primary.getName(); // prefer shorter names by using primary's name in this case
 			} else {
 				name = editor.getName();
 			}
@@ -1509,7 +1516,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Forward to title control
-		this.titleAreaControl.closeEditors(editors);
+		if (editors.length) {
+			this.titleAreaControl.closeEditors(editors);
+		}
 	}
 
 	//#endregion
@@ -1557,7 +1566,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Forward to title control
-		this.titleAreaControl.closeEditors(editorsToClose);
+		if (editorsToClose.length) {
+			this.titleAreaControl.closeEditors(editorsToClose);
+		}
 	}
 
 	//#endregion
@@ -1717,7 +1728,8 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 	constructor(
 		private _group: GroupIdentifier,
 		private _editor: EditorInput,
-		private _options: EditorOptions | undefined
+		private _options: EditorOptions | undefined,
+		private _context: OpenEditorContext | undefined
 	) {
 	}
 
@@ -1731,6 +1743,10 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 
 	get options(): EditorOptions | undefined {
 		return this._options;
+	}
+
+	get context(): OpenEditorContext | undefined {
+		return this._context;
 	}
 
 	prevent(callback: () => Promise<IEditorPane | undefined>): void {

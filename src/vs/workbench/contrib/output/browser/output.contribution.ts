@@ -115,7 +115,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
-		accessor.get(IOutputService).showChannel(channelId);
+		if (typeof channelId === 'string') {
+			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
+			accessor.get(IOutputService).showChannel(channelId);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -243,7 +246,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const devCategory = { value: nls.localize('developer', "Developer"), original: 'Developer' };
+const devCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

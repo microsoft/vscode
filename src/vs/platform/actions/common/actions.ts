@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -47,6 +47,7 @@ export interface IMenuItem {
 export interface ISubmenuItem {
 	title: string | ILocalizedString;
 	submenu: MenuId;
+	icon?: Icon;
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
@@ -111,6 +112,7 @@ export class MenuId {
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
@@ -118,6 +120,9 @@ export class MenuId {
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
+	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
+	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
+	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
@@ -148,7 +153,7 @@ export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
 }
@@ -293,12 +298,35 @@ export class ExecuteCommandAction extends Action {
 	}
 }
 
-export class SubmenuItemAction extends Action {
+export class SubmenuItemAction extends SubmenuAction {
 
-	readonly item: ISubmenuItem;
-	constructor(item: ISubmenuItem) {
-		typeof item.title === 'string' ? super('', item.title, 'submenu') : super('', item.title.value, 'submenu');
-		this.item = item;
+	constructor(
+		readonly item: ISubmenuItem,
+		menuService: IMenuService,
+		contextKeyService: IContextKeyService,
+		options?: IMenuActionOptions
+	) {
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, () => {
+			const result: IAction[] = [];
+			const menu = menuService.createMenu(item.submenu, contextKeyService);
+			const groups = menu.getActions(options);
+			menu.dispose();
+
+			for (let group of groups) {
+				const [, actions] = group;
+
+				if (actions.length > 0) {
+					result.push(...actions);
+					result.push(new Separator());
+				}
+			}
+
+			if (result.length) {
+				result.pop(); // remove last separator
+			}
+
+			return result;
+		}, 'submenu');
 	}
 }
 
@@ -478,6 +506,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	}
 	if (f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));
+		disposables.add(MenuRegistry.addCommand(command));
 	}
 
 	// keybinding

@@ -7,7 +7,6 @@ import { IExtensionTipsService, IExtensionManagementService, ILocalExtension, IC
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -16,15 +15,19 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { distinct } from 'vs/base/common/arrays';
-import { values } from 'vs/base/common/map';
 
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
 	private importantTips: IConfigBasedExtensionTip[] = [];
 	private otherTips: IConfigBasedExtensionTip[] = [];
 
-	private _recommendations: ExtensionRecommendation[] = [];
-	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
+	private _otherRecommendations: ExtensionRecommendation[] = [];
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+
+	private _importantRecommendations: ExtensionRecommendation[] = [];
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+
+	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
@@ -61,9 +64,10 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 				}
 			}
 		}
-		this.importantTips = values(importantTips);
-		this.otherTips = values(otherTips).filter(tip => !importantTips.has(tip.extensionId));
-		this._recommendations = [...this.importantTips, ...this.otherTips].map(tip => this.toExtensionRecommendation(tip));
+		this.importantTips = [...importantTips.values()];
+		this.otherTips = [...otherTips.values()].filter(tip => !importantTips.has(tip.extensionId));
+		this._otherRecommendations = this.otherTips.map(tip => this.toExtensionRecommendation(tip));
+		this._importantRecommendations = this.importantTips.map(tip => this.toExtensionRecommendation(tip));
 	}
 
 	private async promptWorkspaceRecommendations(): Promise<void> {
@@ -75,7 +79,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const local = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const local = await this.extensionManagementService.getInstalled();
 		const { uninstalled } = this.groupByInstalled(distinct(this.importantTips.map(({ extensionId }) => extensionId)), local);
 		if (uninstalled.length === 0) {
 			return;
@@ -90,7 +94,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 			const tip = this.importantTips.filter(tip => tip.extensionId === extension)[0];
 			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended for this workspace.", tip.extensionName)
 				: localize('extensionRecommended', "The '{0}' extension is recommended for this workspace.", tip.extensionName);
-			this.promptImportantExtensionInstallNotification(extension, message);
+			this.promptImportantExtensionsInstallNotification([extension], message);
 		}
 	}
 

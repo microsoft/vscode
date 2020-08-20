@@ -14,7 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { EventType, $, removeNode } from 'vs/base/browser/dom';
+import { EventType, $, removeNode, isHTMLElement } from 'vs/base/browser/dom';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -50,6 +50,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
+		let shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,
@@ -65,6 +66,14 @@ export class ContextMenuHandler {
 				// Render invisible div to block mouse interaction in the rest of the UI
 				if (this.options.blockMouse) {
 					this.block = container.appendChild($('.context-view-block'));
+					this.block.style.position = 'fixed';
+					this.block.style.cursor = 'initial';
+					this.block.style.left = '0';
+					this.block.style.top = '0';
+					this.block.style.width = '100%';
+					this.block.style.height = '100%';
+					this.block.style.zIndex = '-1';
+					domEvent(this.block, EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation());
 				}
 
 				const menuDisposables = new DisposableStore();
@@ -131,7 +140,7 @@ export class ContextMenuHandler {
 					this.focusToReturn.focus();
 				}
 			}
-		});
+		}, shadowRootElement, !!shadowRootElement);
 	}
 
 	private onActionRun(e: IRunEvent): void {

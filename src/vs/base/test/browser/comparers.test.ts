@@ -38,6 +38,7 @@ suite('Comparers', () => {
 
 		// name plus extension comparisons
 		assert(compareFileNames('bbb.aaa', 'aaa.bbb') > 0, 'files with extensions are compared first by filename');
+		assert(compareFileNames('aggregate.go', 'aggregate_repo.go') > 0, 'compares the whole name all at once by locale');
 
 		// dotfile comparisons
 		assert(compareFileNames('.abc', '.abc') === 0, 'equal dotfile names should be equal');
@@ -73,9 +74,6 @@ suite('Comparers', () => {
 		assert.notDeepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNames), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases do not sort in locale order');
 		assert.notDeepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNames), ['email', 'Email', 'émail', 'Émail'].sort(compareLocale), 'the same base characters with different case or accents do not sort in locale order');
 
-		// name plus extension comparisons
-		assert(compareFileNames('aggregate.go', 'aggregate_repo.go') > 0, 'compares the whole name all at once by locale');
-
 		// numeric comparisons
 		assert(compareFileNames('abc02.txt', 'abc002.txt') > 0, 'filenames with equivalent numbers and leading zeros sort in unicode order');
 		assert(compareFileNames('abc.txt1', 'abc.txt01') > 0, 'same name plus extensions with equal numbers sort in unicode order');
@@ -104,8 +102,6 @@ suite('Comparers', () => {
 		assert(compareFileExtensions('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileExtensions('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileExtensions('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extensions even if filenames compare differently');
-		assert(compareFileExtensions('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
-		assert(compareFileExtensions('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
 		assert(compareFileExtensions('a.MD', 'b.md') < 0, 'when extensions are the same except for case, the files sort by name');
 
 		// dotfile comparisons
@@ -131,10 +127,6 @@ suite('Comparers', () => {
 		assert(compareFileExtensions('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, filenames should be compared');
 		assert.deepEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensions), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'filenames with number and case differences compare numerically');
 
-		// Same extension comparison that has the same result as compareFileExtensionsNumeric, but a different result than compareFileNames
-		// This is an edge case caused by compareFileNames comparing the whole name all at once instead of the name and then the extension.
-		assert(compareFileExtensions('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
-
 		//
 		// Comparisons with different results from compareFileExtensionsDefault
 		//
@@ -148,6 +140,7 @@ suite('Comparers', () => {
 		// name plus extension comparisons
 		assert(compareFileExtensions('a.MD', 'a.md') !== compareLocale('MD', 'md'), 'case differences in extensions do not sort by locale');
 		assert(compareFileExtensions('a.md', 'A.md') !== compareLocale('a', 'A'), 'case differences in names do not sort by locale');
+		assert(compareFileExtensions('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
 
 		// dotfile comparisons
 		assert(compareFileExtensions('.env', '.aaa.env') < 0, 'a dotfile with an extension is treated as a name plus an extension - equal extensions');
@@ -186,6 +179,7 @@ suite('Comparers', () => {
 		assert(compareFileNamesDefault('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileNamesDefault('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileNamesDefault('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
+		assert(compareFileNamesDefault('aggregate.go', 'aggregate_repo.go') > 0, 'compares the whole filename in locale order');
 
 		// dotfile comparisons
 		assert(compareFileNamesDefault('.abc', '.abc') === 0, 'equal dotfile names should be equal');
@@ -221,15 +215,11 @@ suite('Comparers', () => {
 		assert.deepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesDefault), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases sort in locale order');
 		assert.deepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesDefault), ['email', 'Email', 'émail', 'Émail'].sort(compareLocale), 'the same base characters with different case or accents sort in locale order');
 
-		// name plus extensions comparisons
-		assert(compareFileNamesDefault('aggregate.go', 'aggregate_repo.go') < 0, 'compares the name first, then the extension');
-
 		// numeric comparisons
 		assert(compareFileNamesDefault('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest number first');
 		assert(compareFileNamesDefault('abc.txt1', 'abc.txt01') < 0, 'same name plus extensions with equal numbers sort shortest number first');
 		assert(compareFileNamesDefault('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
 		assert(compareFileNamesDefault('a.ext1', 'a.Ext1') === compareLocale('ext1', 'Ext1'), 'if names are equal and extensions with numbers are equal except for case, filenames are sorted in extension locale order');
-
 	});
 
 	test('compareFileExtensionsDefault', () => {
@@ -251,8 +241,6 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsDefault('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileExtensionsDefault('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileExtensionsDefault('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsDefault('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
-		assert(compareFileExtensionsDefault('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
 		assert(compareFileExtensionsDefault('a.MD', 'b.md') < 0, 'when extensions are the same except for case, the files sort by name');
 
 		// dotfile comparisons
@@ -278,10 +266,6 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsDefault('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, filenames should be compared');
 		assert.deepEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsDefault), ['A2.txt', 'a10.txt', 'a20.txt', 'A100.txt'], 'filenames with number and case differences compare numerically');
 
-		// Same extension comparison that has the same result as compareFileExtensions, but a different result than compareFileNames
-		// This is an edge case caused by compareFileNames comparing the whole name all at once instead of the name and then the extension.
-		assert(compareFileExtensionsDefault('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
-
 		//
 		// Comparisons with different results than compareFileExtensions
 		//
@@ -295,6 +279,7 @@ suite('Comparers', () => {
 		// name plus extension comparisons
 		assert(compareFileExtensionsDefault('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
 		assert(compareFileExtensionsDefault('a.md', 'A.md') === compareLocale('a', 'A'), 'case differences in names sort by locale');
+		assert(compareFileExtensionsDefault('aggregate.go', 'aggregate_repo.go') > 0, 'names with the same extension sort in full filename locale order');
 
 		// dotfile comparisons
 		assert(compareFileExtensionsDefault('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
@@ -332,7 +317,7 @@ suite('Comparers', () => {
 		assert(compareFileNamesUpper('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileNamesUpper('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileNamesUpper('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
-		assert(compareFileNamesUpper('aggregate.go', 'aggregate_repo.go') < 0, 'compares the name first, then the extension');
+		assert(compareFileNamesUpper('aggregate.go', 'aggregate_repo.go') > 0, 'compares the full filename in locale order');
 
 		// dotfile comparisons
 		assert(compareFileNamesUpper('.abc', '.abc') === 0, 'equal dotfile names should be equal');
@@ -395,11 +380,9 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsUpper('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileExtensionsUpper('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileExtensionsUpper('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsUpper('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
-		assert(compareFileExtensionsUpper('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
 		assert(compareFileExtensionsUpper('a.MD', 'b.md') < 0, 'when extensions are the same except for case, the files sort by name');
 		assert(compareFileExtensionsUpper('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
-		assert(compareFileExtensionsUpper('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
+		assert(compareFileExtensionsUpper('aggregate.go', 'aggregate_repo.go') > 0, 'when extensions are equal, compares the full filename');
 
 		// dotfile comparisons
 		assert(compareFileExtensionsUpper('.abc', '.abc') === 0, 'equal dotfiles should be equal');
@@ -463,13 +446,12 @@ suite('Comparers', () => {
 		assert(compareFileNamesLower('abc', 'abc') === 0, 'equal names should be equal');
 		assert(compareFileNamesLower('Z', 'a') > 0, 'Z comes after a');
 
-
 		// name plus extension comparisons
 		assert(compareFileNamesLower('file.ext', 'file.ext') === 0, 'equal full names should be equal');
 		assert(compareFileNamesLower('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileNamesLower('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileNamesLower('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
-		assert(compareFileNamesLower('aggregate.go', 'aggregate_repo.go') < 0, 'compares the name first, then the extension');
+		assert(compareFileNamesLower('aggregate.go', 'aggregate_repo.go') > 0, 'compares full filenames');
 
 		// dotfile comparisons
 		assert(compareFileNamesLower('.abc', '.abc') === 0, 'equal dotfile names should be equal');
@@ -532,11 +514,8 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsLower('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileExtensionsLower('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileExtensionsLower('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsLower('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
-		assert(compareFileExtensionsLower('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
 		assert(compareFileExtensionsLower('a.MD', 'b.md') < 0, 'when extensions are the same except for case, the files sort by name');
 		assert(compareFileExtensionsLower('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
-		assert(compareFileExtensionsLower('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
 
 		// dotfile comparisons
 		assert(compareFileExtensionsLower('.abc', '.abc') === 0, 'equal dotfiles should be equal');
@@ -584,6 +563,7 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsLower('a.md', 'A.md') < 0, 'case differences in names sort lowercase first');
 		assert(compareFileExtensionsLower('art01', 'Art01') < 0, 'a numerically equivalent word of a different case sorts lowercase first');
 		assert.deepEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsLower), ['a10.txt', 'a20.txt', 'A2.txt', 'A100.txt'], 'filenames with number and case differences group by case then sort by number');
+		assert(compareFileExtensionsLower('aggregate.go', 'aggregate_repo.go') > 0, 'when extensions are equal, compares full filenames');
 
 	});
 
@@ -605,7 +585,6 @@ suite('Comparers', () => {
 		assert(compareFileNamesUnicode('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileNamesUnicode('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileNamesUnicode('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
-		assert(compareFileNamesUnicode('aggregate.go', 'aggregate_repo.go') < 0, 'compares the whole name in unicode order, but dot comes before underscore');
 
 		// dotfile comparisons
 		assert(compareFileNamesUnicode('.abc', '.abc') === 0, 'equal dotfile names should be equal');
@@ -637,6 +616,9 @@ suite('Comparers', () => {
 		assert(compareFileNamesUnicode('â', 'Â') > 0, 'the same accented letter sorts uppercase first');
 		assert.deepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesUnicode), ['Art', 'Artichoke', 'art', 'artichoke'], 'names with the same root and different cases sort uppercase first');
 		assert.deepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesUnicode), ['Email', 'email', 'Émail', 'émail'], 'the same base characters with different case or accents sort in unicode order');
+
+		// name plus extension comparisons
+		assert(compareFileNamesUnicode('aggregate.go', 'aggregate_repo.go') < 0, 'compares the whole name in unicode order, but dot comes before underscore');
 
 		// dotfile comparisons
 		assert(compareFileNamesUnicode('.aaa_env', '.aaa.env') > 0, 'an underscore in a dotfile name will sort after a dot');
@@ -670,9 +652,6 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsUnicode('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
 		assert(compareFileExtensionsUnicode('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
 		assert(compareFileExtensionsUnicode('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsUnicode('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
-		assert(compareFileExtensionsUnicode('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
-		assert(compareFileExtensionsUnicode('aggregate.go', 'aggregate_repo.go') < 0, 'compares the extensions then the names so the shorter name comes first');
 
 		// dotfile comparisons
 		assert(compareFileExtensionsUnicode('.abc', '.abc') === 0, 'equal dotfiles should be equal');
@@ -712,6 +691,7 @@ suite('Comparers', () => {
 		assert(compareFileExtensionsUnicode('a.md', 'A.md') > 0, 'case differences in names sort uppercase first');
 		assert(compareFileExtensionsUnicode('art01', 'Art01') > 0, 'a numerically equivalent name of a different case sorts uppercase first');
 		assert.deepEqual(['a10.txt', 'A2.txt', 'A100.txt', 'a20.txt'].sort(compareFileExtensionsUnicode), ['A100.txt', 'A2.txt', 'a10.txt', 'a20.txt'], 'filenames with number and case differences sort in unicode order');
+		assert(compareFileExtensionsUnicode('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, compares full filenames in unicode order');
 
 		// numeric comparisons
 		assert(compareFileExtensionsUnicode('abc2.txt', 'abc10.txt') > 0, 'filenames with numbers should be in unicode order');

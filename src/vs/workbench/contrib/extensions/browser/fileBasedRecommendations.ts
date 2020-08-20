@@ -3,16 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ExtensionRecommendationSource, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionRecommendationSource, ExtensionRecommendationReason, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -76,9 +74,16 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		return recommendations;
 	}
 
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> {
+		return this.recommendations.filter(e => this.importantExtensionTips[e.extensionId]);
+	}
+
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> {
+		return this.recommendations.filter(e => !this.importantExtensionTips[e.extensionId]);
+	}
+
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -161,7 +166,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			if (match(pattern, uri.toString())) {
 				for (const extensionId of extensionIds) {
 					// Add to recommendation to prompt if it is an important tip
-					if (this.importantExtensionTips[extensionId]) {
+					// Only prompt if the pattern matches the extensionImportantTips pattern
+					// Otherwise, assume pattern is from extensionTips, which means it should be a file based "passive" recommendation
+					if (this.importantExtensionTips[extensionId]?.pattern === pattern) {
 						recommendationsToPrompt.push(extensionId);
 					}
 					// Update file based recommendations
@@ -181,7 +188,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return;
 		}
 
-		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const installed = await this.extensionsWorkbenchService.queryLocal();
 		if (await this.promptRecommendedExtensionForFileType(recommendationsToPrompt, installed)) {
 			return;
 		}
@@ -202,7 +209,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.promptRecommendedExtensionForFileExtension(fileExtension, installed);
 	}
 
-	private async promptRecommendedExtensionForFileType(recommendations: string[], installed: ILocalExtension[]): Promise<boolean> {
+	private async promptRecommendedExtensionForFileType(recommendations: string[], installed: IExtension[]): Promise<boolean> {
 
 		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
@@ -225,11 +232,11 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", extensionName);
 		}
 
-		this.promptImportantExtensionInstallNotification(extensionId, message);
+		this.promptImportantExtensionsInstallNotification([extensionId], message);
 		return true;
 	}
 
-	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: ILocalExtension[]): Promise<void> {
+	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: IExtension[]): Promise<void> {
 		const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
 		if (fileExtensionSuggestionIgnoreList.indexOf(fileExtension) > -1) {
 			return;
@@ -281,8 +288,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		);
 	}
 
-	private filterInstalled(recommendationsToSuggest: string[], installed: ILocalExtension[]): string[] {
-		const installedExtensionsIds = installed.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
+	private filterInstalled(recommendationsToSuggest: string[], installed: IExtension[]): string[] {
+		const installedExtensionsIds = installed.reduce((result, i) => {
+			if (i.enablementState !== EnablementState.DisabledByExtensionKind) {
+				result.add(i.identifier.id.toLowerCase());
+			}
+			return result;
+		}, new Set<string>());
 		return recommendationsToSuggest.filter(id => !installedExtensionsIds.has(id.toLowerCase()));
 	}
 

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Event } from 'vs/base/common/event';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
@@ -448,6 +449,8 @@ suite('EditorGroupsService', () => {
 		assert.equal(editorCloseCounter1, 1);
 		assert.equal(editorWillCloseCounter, 1);
 
+		assert.ok(inputInactive.gotDisposed);
+
 		assert.equal(group.activeEditor, input);
 
 		assert.equal(editorStickyCounter, 0);
@@ -481,8 +484,34 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.getEditorByIndex(1), inputInactive);
 
 		await group.closeEditors([input, inputInactive]);
+
+		assert.ok(input.gotDisposed);
+		assert.ok(inputInactive.gotDisposed);
+
 		assert.equal(group.isEmpty, true);
 		part.dispose();
+	});
+
+	test('closeEditors (one, opened in multiple groups)', async () => {
+		const [part] = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		await rightGroup.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+
+		await rightGroup.closeEditor(input);
+
+		assert.ok(!input.gotDisposed);
+
+		await group.closeEditor(input);
+
+		assert.ok(input.gotDisposed);
 	});
 
 	test('closeEditors (except one)', async () => {
@@ -1029,6 +1058,51 @@ suite('EditorGroupsService', () => {
 		assert.equal(group.getIndexOfEditor(input), 2);
 
 		editorGroupChangeListener.dispose();
+		part.dispose();
+	});
+
+	test('moveEditor with context (across groups)', async () => {
+		const [part] = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		let firstOpenEditorContext: OpenEditorContext | undefined;
+		Event.once(group.onWillOpenEditor)(e => {
+			firstOpenEditorContext = e.context;
+		});
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		assert.equal(firstOpenEditorContext, undefined);
+
+		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(c => {
+			Event.once(rightGroup.onWillOpenEditor)(e => c(e.context));
+		});
+
+		group.moveEditor(inputInactive, rightGroup, { index: 0 });
+		const context = await waitForEditorWillOpen;
+		assert.equal(context, OpenEditorContext.MOVE_EDITOR);
+		part.dispose();
+	});
+
+	test('copyEditor with context (across groups)', async () => {
+		const [part] = createPart();
+		const group = part.activeGroup;
+		assert.equal(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
+		await group.openEditors([{ editor: input, options: { pinned: true } }, { editor: inputInactive }]);
+		const waitForEditorWillOpen = new Promise<OpenEditorContext | undefined>(c => {
+			Event.once(rightGroup.onWillOpenEditor)(e => c(e.context));
+		});
+
+		group.copyEditor(inputInactive, rightGroup, { index: 0 });
+		const context = await waitForEditorWillOpen;
+		assert.equal(context, OpenEditorContext.COPY_EDITOR);
 		part.dispose();
 	});
 });

@@ -268,7 +268,7 @@ export class WalkThroughPart extends BaseEditor {
 		}
 
 		this.contentDisposables = dispose(this.contentDisposables);
-		this.content.innerHTML = '';
+		this.content.innerText = '';
 
 		return super.setInput(input, options, token)
 			.then(() => {
@@ -309,7 +309,7 @@ export class WalkThroughPart extends BaseEditor {
 				model.snippets.forEach((snippet, i) => {
 					const model = snippet.textEditorModel;
 					const id = `snippet-${model.uri.fragment}`;
-					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
+					const div = innerContent.querySelector(`#${id.replace(/[\\.]/g, '\\$&')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
 					const telemetryData = {

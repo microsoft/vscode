@@ -42,6 +42,7 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -120,9 +121,10 @@ export class SuggestController implements IEditorContribution {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
+		@IClipboardService clipboardService: IClipboardService,
 	) {
 		this.editor = editor;
-		this.model = new SuggestModel(this.editor, editorWorker);
+		this.model = new SuggestModel(this.editor, editorWorker, clipboardService);
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
@@ -358,7 +360,8 @@ export class SuggestController implements IEditorContribution {
 			overwriteAfter: info.overwriteAfter,
 			undoStopBefore: false,
 			undoStopAfter: false,
-			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
+			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
+			clipboardText: event.model.clipboardText
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {

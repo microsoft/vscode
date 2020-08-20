@@ -9,8 +9,12 @@ const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
-// const MochaJUnitReporter = require('mocha-junit-reporter');
+const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
+
+// Disable render process reuse, we still have
+// non-context aware native modules in the renderer.
+app.allowRendererProcessReuse = false;
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
@@ -59,7 +63,8 @@ function deserializeRunnable(runnable) {
 		async: runnable.async,
 		slow: () => runnable.slow,
 		speed: runnable.speed,
-		duration: runnable.duration
+		duration: runnable.duration,
+		currentRetry: () => runnable.currentRetry
 	};
 }
 
@@ -112,9 +117,11 @@ app.on('ready', () => {
 		width: 800,
 		show: false,
 		webPreferences: {
-			backgroundThrottling: false,
+			preload: path.join(__dirname, '..', '..', '..', 'src', 'vs', 'base', 'parts', 'sandbox', 'electron-browser', 'preload.js'), // ensure similar environment as VSCode as tests may depend on this
 			nodeIntegration: true,
-			webSecurity: false,
+			enableWebSQL: false,
+			enableRemoteModule: false,
+			nativeWindowOpen: true,
 			webviewTag: true
 		}
 	});
@@ -133,13 +140,12 @@ app.on('ready', () => {
 
 	if (argv.tfs) {
 		new mocha.reporters.Spec(runner);
-		// TODO@deepak the mocha Junit reporter seems to cause a hang when running with Electron 6 inside docker container
-		// new MochaJUnitReporter(runner, {
-		// 	reporterOptions: {
-		// 		testsuitesTitle: `${argv.tfs} ${process.platform}`,
-		// 		mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
-		// 	}
-		// });
+		new MochaJUnitReporter(runner, {
+			reporterOptions: {
+				testsuitesTitle: `${argv.tfs} ${process.platform}`,
+				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+			}
+		});
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 		let Reporter;

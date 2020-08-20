@@ -8,10 +8,10 @@ import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -27,8 +27,13 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
-import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSession } from 'vs/editor/common/modes';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -37,6 +42,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 	private readonly viewletService: IViewletService;
 	private readonly layoutService: IWorkbenchLayoutService;
 	private readonly telemetryService: ITelemetryService;
+	private readonly configurationService: IConfigurationService;
 
 	private lastRun: number;
 
@@ -44,7 +50,8 @@ export class ViewContainerActivityAction extends ActivityAction {
 		activity: IActivity,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(activity);
 
@@ -52,6 +59,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.viewletService = viewletService;
 		this.layoutService = layoutService;
 		this.telemetryService = telemetryService;
+		this.configurationService = configurationService;
 	}
 
 	updateActivity(activity: IActivity): void {
@@ -72,11 +80,22 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
 		const activeViewlet = this.viewletService.getActiveViewlet();
+		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
-		// Hide sidebar if selected viewlet already visible
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
-			this.logAction('hide');
-			this.layoutService.setSideBarHidden(true);
+			switch (focusBehavior) {
+				case 'focus':
+					this.logAction('refocus');
+					this.viewletService.openViewlet(this.activity.id, true);
+					break;
+				case 'toggle':
+				default:
+					// Hide sidebar if selected viewlet already visible
+					this.logAction('hide');
+					this.layoutService.setSideBarHidden(true);
+					break;
+			}
+
 			return;
 		}
 
@@ -94,6 +113,8 @@ export class ViewContainerActivityAction extends ActivityAction {
 	}
 }
 
+export const ACCOUNTS_VISIBILITY_PREFERENCE_KEY = 'workbench.activity.showAccounts';
+
 export class AccountsActionViewItem extends ActivityActionViewItem {
 	constructor(
 		action: ActivityAction,
@@ -102,6 +123,9 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IMenuService protected menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -131,16 +155,82 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		}));
 	}
 
-	private showContextMenu(): void {
+	private async getActions(accountsMenu: IMenu) {
+		const otherCommands = accountsMenu.getActions();
+		const providers = this.authenticationService.getProviderIds();
+		const allSessions = providers.map(async id => {
+			const sessions = await this.authenticationService.getSessions(id);
+
+			const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+			sessions.forEach(session => {
+				if (groupedSessions[session.account.label]) {
+					groupedSessions[session.account.label].push(session);
+				} else {
+					groupedSessions[session.account.label] = [session];
+				}
+			});
+
+			return {
+				providerId: id,
+				sessions: groupedSessions
+			};
+		});
+
+		const result = await Promise.all(allSessions);
+		let menus: IAction[] = [];
+		result.forEach(sessionInfo => {
+			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
+			Object.keys(sessionInfo.sessions).forEach(accountName => {
+				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === this.environmentService.options?.authenticationSessionId);
+				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
+					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+				});
+				const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
+					return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+				});
+
+				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+
+				const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
+				menus.push(menu);
+			});
+		});
+
+		if (menus.length && otherCommands.length) {
+			menus.push(new Separator());
+		}
+
+		otherCommands.forEach((group, i) => {
+			const actions = group[1];
+			menus = menus.concat(actions);
+			if (i !== otherCommands.length - 1) {
+				menus.push(new Separator());
+			}
+		});
+
+		if (menus.length) {
+			menus.push(new Separator());
+		}
+
+		menus.push(new Action('hide', nls.localize('hide', "Hide"), undefined, true, _ => {
+			this.storageService.store(ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.GLOBAL);
+			return Promise.resolve();
+		}));
+
+		return menus;
+	}
+
+	private async showContextMenu(): Promise<void> {
 		const accountsActions: IAction[] = [];
 		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
 		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container);
 		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		const actions = await this.getActions(accountsMenu);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => location,
-			getActions: () => accountsActions,
+			getActions: () => actions,
 			onHide: () => {
 				accountsMenu.dispose();
 				dispose(actionsDisposable);
