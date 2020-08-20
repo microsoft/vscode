@@ -43,7 +43,7 @@ import { INotebookEditorModelResolverService, NotebookModelResolverService } fro
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
-import { NotebookDiffEditor } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditor';
+import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
@@ -79,8 +79,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
-		NotebookDiffEditor,
-		NotebookDiffEditor.ID,
+		NotebookTextDiffEditor,
+		NotebookTextDiffEditor.ID,
 		'Notebook Diff Editor'
 	),
 	[

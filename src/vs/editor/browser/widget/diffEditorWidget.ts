@@ -175,6 +175,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private readonly _onDidUpdateDiff: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
 
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
+
 	private readonly id: number;
 	private _state: editorBrowser.DiffEditorState;
 	private _updatingDiffProgress: IProgressRunner | null;
@@ -421,6 +424,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._renderIndicators;
 	}
 
+	public getContentHeight(): number {
+		return this.modifiedEditor.getContentHeight();
+	}
+
 	private _setState(newState: editorBrowser.DiffEditorState): void {
 		if (this._state === newState) {
 			return;
@@ -553,6 +560,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (e.tabSize) {
 				this._updateDecorationsRunner.schedule();
 			}
+		}));
+
+		this._register(editor.onDidContentSizeChange(e => {
+			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth();
+			const height = this.modifiedEditor.getContentHeight();
+
+			this._onDidContentSizeChange.fire({
+				contentHeight: height,
+				contentWidth: width,
+				contentHeightChanged: e.contentHeightChanged,
+				contentWidthChanged: e.contentWidthChanged
+			});
 		}));
 
 		return editor;

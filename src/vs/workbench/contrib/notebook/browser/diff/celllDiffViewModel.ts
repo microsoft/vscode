@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.notebook-diff-editor {
-	display: flex;
-	flex-direction: row;
-	height: 100%;
-	width: 100%;
-}
-.notebook-diff-editor-modified,
-.notebook-diff-editor-original {
-	display: flex;
-	height: 100%;
-	width: 50%;
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+
+export class CellDiffViewModel {
+	constructor(
+		readonly original: NotebookCellTextModel | undefined,
+		readonly modified: NotebookCellTextModel | undefined,
+		readonly type: 'unchanged' | 'insert' | 'delete' | 'modified'
+	) {
+	}
 }

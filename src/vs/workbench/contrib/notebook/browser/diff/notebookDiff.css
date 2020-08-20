@@ -1,0 +1,73 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* .notebook-diff-editor {
+	display: flex;
+	flex-direction: row;
+	height: 100%;
+	width: 100%;
+}
+.notebook-diff-editor-modified,
+.notebook-diff-editor-original {
+	display: flex;
+	height: 100%;
+	width: 50%;
+} */
+
+.notebook-text-diff-editor .cell-diff-editor-container {
+	margin: 8px;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-container {
+	display: flex;
+	height: 24px;
+	align-items: center;
+	cursor: default;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-container .metadata-folding-indicator .codicon {
+	visibility: visible;
+	padding: 4px 0 0 10px;
+	cursor: pointer;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-container .metadata-status {
+	font-size: 12px;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-container .metadata-status span {
+	margin: 0 8px;
+	line-height: 21px;
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container.delete .editor-container {
+	display: inline-block;
+	width: calc(50% - 18px);
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container.delete .diagonal-fill {
+	display: inline-block;
+	width: calc(50% + 18px);
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container.insert .editor-container {
+	display: inline-block;
+	width: calc(50% + 18px);
+}
+
+.notebook-text-diff-editor .cell-diff-editor-container.insert .diagonal-fill {
+	display: inline-block;
+	width: calc(50% - 18px);
+}
+
+.notebook-text-diff-editor {
+	overflow: hidden;
+}
+
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row,
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover,
+.monaco-workbench .notebook-text-diff-editor > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused {
+	outline: none !important;
+}
