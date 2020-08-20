@@ -435,7 +435,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.downloadNow',
-				title: nls.localize('download update', "Download Update")
+				title: nls.localize('download update_1', "Download Update (1)")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
 		});
@@ -456,7 +456,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update...")
+				title: nls.localize('installUpdate...', "Install Update... (1)")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
 		});
