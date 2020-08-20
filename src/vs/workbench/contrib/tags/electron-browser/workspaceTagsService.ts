@@ -62,7 +62,7 @@ const ModulesToLookFor = [
 	'firebase',
 	'@google-cloud/common',
 	'heroku-cli',
-	//Office and Sharepoint packages
+	// Office and Sharepoint packages
 	'@microsoft/teams-js',
 	'@microsoft/office-js',
 	'@microsoft/office-js-helpers',
@@ -118,7 +118,8 @@ const PyModulesToLookFor = [
 	'pydocumentdb',
 	'botbuilder-core',
 	'botbuilder-schema',
-	'botframework-connector'
+	'botframework-connector',
+	'playwright'
 ];
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
