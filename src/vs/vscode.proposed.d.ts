@@ -2144,9 +2144,9 @@ declare module 'vscode' {
 		 * @param context Additional metadata about the view being resolved.
 		 * @param token Cancellation token indicating that the view being provided is no longer needed.
 		 *
-		 * @return Optional promise indicating that the view has been fully resolved.
+		 * @return Optional thenable indicating that the view has been fully resolved.
 		 */
-		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Promise<void> | void;
+		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Thenable<void> | void;
 	}
 
 	namespace window {
