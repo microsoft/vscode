@@ -55,11 +55,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this.registerActions();
-
+		// Set initial connection state
 		if (this.remoteAuthority) {
-			this.trackRemoteConnection();
+			this.connectionState = 'initializing';
+			this.connectionStateContextKey.set(this.connectionState);
 		}
+
+		this.registerActions();
+		this.registerListeners();
 
 		this.updateWhenInstalledExtensionsRegistered();
 		this.updateRemoteStatusIndicator();
@@ -107,28 +110,38 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private trackRemoteConnection(): void {
+	private registerListeners(): void {
 
-		// Set initial connection state
-		this.connectionState = 'initializing';
-		this.connectionStateContextKey.set(this.connectionState);
+		// Menu changes
+		this._register(this.remoteMenu.onDidChange(() => this.updateRemoteActions()));
+
+		// Update indicator when formatter changes as it may have an impact on the remote label
+		this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
+
+		// Update based on remote transition indicator changes
+		const remoteTransitionIndicator = this.environmentService.options?.remoteTransitionHandler?.indicator;
+		if (remoteTransitionIndicator) {
+			this._register(remoteTransitionIndicator.onDidChange(() => this.updateRemoteStatusIndicator()));
+		}
 
 		// Listen to changes of the connection
-		const connection = this.remoteAgentService.getConnection();
-		if (connection) {
-			this._register(connection.onDidStateChange((e) => {
-				switch (e.type) {
-					case PersistentConnectionEventType.ConnectionLost:
-					case PersistentConnectionEventType.ReconnectionPermanentFailure:
-					case PersistentConnectionEventType.ReconnectionRunning:
-					case PersistentConnectionEventType.ReconnectionWait:
-						this.setDisconnected(true);
-						break;
-					case PersistentConnectionEventType.ConnectionGain:
-						this.setDisconnected(false);
-						break;
-				}
-			}));
+		if (this.remoteAuthority) {
+			const connection = this.remoteAgentService.getConnection();
+			if (connection) {
+				this._register(connection.onDidStateChange((e) => {
+					switch (e.type) {
+						case PersistentConnectionEventType.ConnectionLost:
+						case PersistentConnectionEventType.ReconnectionPermanentFailure:
+						case PersistentConnectionEventType.ReconnectionRunning:
+						case PersistentConnectionEventType.ReconnectionWait:
+							this.setDisconnected(true);
+							break;
+						case PersistentConnectionEventType.ConnectionGain:
+							this.setDisconnected(false);
+							break;
+					}
+				}));
+			}
 		}
 	}
 
@@ -137,9 +150,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 		const remoteAuthority = this.remoteAuthority;
 		if (remoteAuthority) {
-
-			// Update indicator when formatter changes as it may have an impact on the remote label
-			this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
 
 			// Try to resolve the authority to figure out connection state
 			(async () => {
@@ -152,8 +162,6 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			})();
 		}
-
-		this._register(this.remoteMenu.onDidChange(() => this.updateRemoteActions()));
 
 		this.updateRemoteStatusIndicator();
 	}
@@ -197,12 +205,18 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// No Remote Authority: advertise a remote connection if possible
 		else {
 
+			// Remote Transition Handler: show if provided
+			const remoteTransitionIndicator = this.environmentService.options?.remoteTransitionHandler?.indicator;
+			if (remoteTransitionIndicator) {
+				this.renderRemoteStatusIndicator(remoteTransitionIndicator.label, remoteTransitionIndicator.tooltip, remoteTransitionIndicator.command);
+			}
+
 			// Remote Extensions Installed: offer the indicator to show actions
-			if (this.remoteMenu.getActions().length > 0) {
+			else if (this.remoteMenu.getActions().length > 0) {
 				this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
 			}
 
-			// No Remote Extensions: hide status indicator
+			// No Remote Extensions or transition indicator: hide status indicator
 			else {
 				dispose(this.remoteStatusEntry);
 				this.remoteStatusEntry = undefined;

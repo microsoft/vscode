@@ -189,6 +189,23 @@ interface IProductQualityChangeHandler {
 	(newQuality: 'insider' | 'stable'): void;
 }
 
+interface IRemoteTransitionIndicator {
+
+	onDidChange: Event<void>;
+
+	label: string;
+	tooltip: string;
+	command: string;
+}
+
+interface IRemoteTransitionHandler {
+
+	/**
+	 * [EXPERIMENTAL] Indicator for the user to trigger the transition into a remote.
+	 */
+	indicator?: IRemoteTransitionIndicator;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -319,6 +336,11 @@ interface IWorkbenchConstructionOptions {
 	 * Optional configuration default overrides contributed to the workbench.
 	 */
 	readonly configurationDefaults?: Record<string, any>;
+
+	/**
+	 * [EXPERIMENTAL]: A handler for transitioning in and out of remotes.
+	 */
+	readonly remoteTransitionHandler?: IRemoteTransitionHandler;
 
 	//#endregion
 
@@ -510,7 +532,11 @@ export {
 	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
-	IDefaultSideBarLayout
+	IDefaultSideBarLayout,
+
+	// [EXPERIMENTAL] Remote Transition
+	IRemoteTransitionHandler,
+	IRemoteTransitionIndicator
 };
 
 //#endregion

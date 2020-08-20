@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, URI, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteTransitionHandler, IRemoteTransitionIndicator, ICommand, IHomeIndicator } from 'vs/workbench/workbench.web.api';
+import product from 'vs/platform/product/common/product';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
@@ -276,6 +279,65 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
+class RemoteTransitionIndicator implements IRemoteTransitionIndicator {
+	onDidChange = Event.None;
+
+	readonly label: string;
+	readonly tooltip: string;
+	readonly command: string;
+
+	readonly transitionCommand: ICommand | undefined = undefined;
+
+	constructor(workspace: IWorkspace) {
+		let repositoryOwner: string | undefined = undefined;
+		let repositoryName: string | undefined = undefined;
+
+		if (workspace) {
+			let uri: URI | undefined = undefined;
+			if (isFolderToOpen(workspace)) {
+				uri = workspace.folderUri;
+			} else if (isWorkspaceToOpen(workspace)) {
+				uri = workspace.workspaceUri;
+			}
+
+			if (uri?.scheme === 'github' || uri?.scheme === 'codespace') {
+				[repositoryOwner, repositoryName] = uri.authority.split('+');
+			}
+		}
+
+		if (repositoryName && repositoryOwner) {
+			this.label = localize('openInDesktopLabel', "$(github) Open in Desktop");
+			this.tooltip = localize('openInDesktopTooltip', "Open in Desktop");
+			this.command = '_web.openInDesktop';
+			this.transitionCommand = {
+				id: this.command,
+				handler: () => {
+					const protocol = product.quality === 'stable' ? 'vscode' : 'vscode-insiders';
+					window.open(`${protocol}://vscode.git/clone?url=${encodeURIComponent(`https://github.com/${repositoryOwner}/${repositoryName}.git`)}`);
+				}
+			};
+		} else {
+			this.label = localize('playgroundLabel', "Web Playground");
+			this.tooltip = this.label;
+			this.command = '';
+		}
+	}
+}
+
+class RemoteTransitionHandler implements IRemoteTransitionHandler {
+
+	private _indicator: RemoteTransitionIndicator | undefined = undefined;
+	get indicator(): RemoteTransitionIndicator {
+		if (!this._indicator) {
+			this._indicator = new RemoteTransitionIndicator(this.workspace);
+		}
+
+		return this._indicator;
+	}
+
+	constructor(private readonly workspace: IWorkspace) { }
+}
+
 (function () {
 
 	// Find config by checking for DOM
@@ -343,14 +405,29 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 	}
 
+	// Home Indicator
+	const homeIndicator: IHomeIndicator = {
+		href: 'https://github.com/Microsoft/vscode',
+		icon: 'code',
+		title: localize('home', "Home")
+	};
+
+	// Commands
+	const commands: ICommand[] = [];
+
+	// Remote transition handler
+	const remoteTransitionHandler = new RemoteTransitionHandler(workspace);
+	const remoteTransitionHandlerCommand = remoteTransitionHandler.indicator.transitionCommand;
+	if (remoteTransitionHandlerCommand) {
+		commands.push(remoteTransitionHandlerCommand);
+	}
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
-		homeIndicator: {
-			href: 'https://github.com/Microsoft/vscode',
-			icon: 'code',
-			title: localize('home', "Home")
-		},
+		homeIndicator,
+		commands,
+		remoteTransitionHandler,
 		workspaceProvider: new WorkspaceProvider(workspace, payload),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
