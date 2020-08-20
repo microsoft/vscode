@@ -116,21 +116,28 @@ class ToggleScreencastModeAction extends Action2 {
 		const disposables = new DisposableStore();
 
 		const container = layoutService.container;
-		const mouseMarker = append(container, $('.screencast-mouse'));
+		const roundSize = configurationService.getValue<number>("screencastMode.roundSize") || 20;
+		const roundOffsetSize = roundSize / 2;
+		const roundColor = configurationService.getValue<string>("screencastMode.roundColor") || "red";
+		const mouseElement = $('.screencast-mouse');
+		mouseElement.style.width = `${ roundSize }px`;
+		mouseElement.style.height = `${ roundSize }px`;
+		mouseElement.style.borderRadius = "50%";
+		mouseElement.style.borderColor = `${ roundColor } !important`;
+		const mouseMarker = append(container, mouseElement);
 		disposables.add(toDisposable(() => mouseMarker.remove()));
 
 		const onMouseDown = domEvent(container, 'mousedown', true);
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
-
 		disposables.add(onMouseDown(e => {
-			mouseMarker.style.top = `${e.clientY - 10}px`;
-			mouseMarker.style.left = `${e.clientX - 10}px`;
+			mouseMarker.style.top = `${e.clientY - roundOffsetSize}px`;
+			mouseMarker.style.left = `${e.clientX - roundOffsetSize}px`;
 			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove(e => {
-				mouseMarker.style.top = `${e.clientY - 10}px`;
-				mouseMarker.style.left = `${e.clientX - 10}px`;
+				mouseMarker.style.top = `${e.clientY - roundOffsetSize}px`;
+				mouseMarker.style.left = `${e.clientX - roundOffsetSize}px`;
 			});
 
 			Event.once(onMouseUp)(() => {
@@ -278,6 +285,18 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
 			default: false
-		}
+		},
+		'screencastMode.roundSize': {
+			type: 'number',
+			default: 20,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.roundSize', "Screencast mode round size (in pixels)")
+		},
+		'screencastMode.roundColor': {
+			type: 'string',
+			default: "red",
+			description: nls.localize('screencastMode.roundColor', "Screencast mode round color (support Hex color)")
+		},
 	}
 });
