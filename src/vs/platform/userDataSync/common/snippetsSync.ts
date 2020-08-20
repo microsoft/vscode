@@ -10,7 +10,7 @@ import {
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService, FileChangesEvent, IFileStat, IFileContent, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { URI } from 'vs/base/common/uri';
@@ -498,4 +498,50 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 		return snippets;
 	}
+}
+
+export class SnippetsInitializer extends AbstractInitializer {
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	) {
+		super(SyncResource.Snippets, environmentService, logService, fileService);
+	}
+
+	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+		if (!remoteSnippets) {
+			this.logService.info('Skipping initializing snippets because remote snippets does not exist.');
+			return;
+		}
+
+		const isEmpty = await this.isEmpty();
+		if (!isEmpty) {
+			this.logService.info('Skipping initializing snippets because local snippets exist.');
+			return;
+		}
+
+		for (const key of Object.keys(remoteSnippets)) {
+			const content = remoteSnippets[key];
+			if (content) {
+				const resource = joinPath(this.environmentService.snippetsHome, key);
+				await this.fileService.createFile(resource, VSBuffer.fromString(content));
+				this.logService.info('Created snippet', basename(resource));
+			}
+		}
+
+		await this.updateLastSyncUserData(remoteUserData);
+	}
+
+	private async isEmpty(): Promise<boolean> {
+		try {
+			const stat = await this.fileService.resolve(this.environmentService.snippetsHome);
+			return !stat.children?.length;
+		} catch (error) {
+			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+		}
+	}
+
 }

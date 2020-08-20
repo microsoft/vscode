@@ -48,15 +48,8 @@ export interface Tunnel {
 	closeable?: boolean;
 }
 
-function ToLocalHost(host: string): string {
-	if (host === '127.0.0.1') {
-		host = 'localhost';
-	}
-	return host;
-}
-
 export function MakeAddress(host: string, port: number): string {
-	return ToLocalHost(host) + ':' + port;
+	return host + ':' + port;
 }
 
 export class TunnelModel extends Disposable {
@@ -218,7 +211,7 @@ export class TunnelModel extends Disposable {
 				const nullIndex = value.detail.indexOf('\0');
 				const detail = value.detail.substr(0, nullIndex > 0 ? nullIndex : value.detail.length).trim();
 				return {
-					host: ToLocalHost(value.host),
+					host: value.host,
 					port: value.port,
 					detail
 				};

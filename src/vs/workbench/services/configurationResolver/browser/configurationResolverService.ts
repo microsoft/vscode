@@ -264,7 +264,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description };
+					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true };
 					if (info.default) {
 						inputOptions.value = info.default;
 					}
@@ -310,7 +310,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 							picks.push(item);
 						}
 					});
-					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true };
+					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
 					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
 						if (resolvedInput) {
 							return resolvedInput.value;

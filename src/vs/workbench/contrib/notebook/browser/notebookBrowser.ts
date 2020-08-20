@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellLanguageStatusBarItem, RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -27,6 +27,10 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
+import { EditorOptions } from 'vs/workbench/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -169,6 +173,33 @@ export interface INotebookDeltaDecoration {
 	options: INotebookCellDecorationOptions;
 }
 
+export class NotebookEditorOptions extends EditorOptions {
+
+	readonly cellOptions?: IResourceEditorInput;
+
+	constructor(options: Partial<NotebookEditorOptions>) {
+		super();
+		this.overwrite(options);
+		this.cellOptions = options.cellOptions;
+	}
+
+	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
+		return new NotebookEditorOptions({ ...this, ...options });
+	}
+}
+
+export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
+
+export interface INotebookEditorContributionDescription {
+	id: string;
+	ctor: INotebookEditorContributionCtor;
+}
+
+export interface INotebookEditorWidgetOptions {
+
+	contributions?: INotebookEditorContributionDescription[];
+}
+
 export interface INotebookEditor extends IEditor {
 
 	cursorNavigationMode: boolean;
@@ -208,6 +239,7 @@ export interface INotebookEditor extends IEditor {
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
+	setOptions(options: NotebookEditorOptions | undefined): Promise<void>;
 
 	/**
 	 * Select & focus cell

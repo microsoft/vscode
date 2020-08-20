@@ -985,6 +985,31 @@ suite('Fuzzy Scorer', () => {
 		}
 	});
 
+	test('compareFilesByScore - prefer strict case prefix', function () {
+		const resourceA = URI.file('app/constants/color.js');
+		const resourceB = URI.file('app/components/model/input/Color.js');
+
+		let query = 'Color';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		query = 'color';
+
+		res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');

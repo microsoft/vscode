@@ -285,6 +285,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 				index++;
 			}
 		});
+		if (this.focusedItem) {
+			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
+			this.focus(this.focusedItem);
+		}
 	}
 
 	getWidth(index: number): number {

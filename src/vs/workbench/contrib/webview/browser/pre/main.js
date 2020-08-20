@@ -514,7 +514,7 @@
 					}, 0);
 				}
 
-				if (host.fakeLoad) {
+				if (host.fakeLoad && false) {
 					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
 					// Use polling instead.
 					const interval = setInterval(() => {

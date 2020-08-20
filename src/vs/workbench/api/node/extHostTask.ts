@@ -11,7 +11,6 @@ import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import type * as vscode from 'vscode';
 import * as tasks from '../common/shared/tasks';
-import * as Objects from 'vs/base/common/objects';
 import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
@@ -121,32 +120,6 @@ export class ExtHostTask extends ExtHostTaskBase {
 			this._variableResolver = new ExtHostVariableResolverService(workspaceFolders, this._editorService, configProvider, process.env as IProcessEnvironment);
 		}
 		return this._variableResolver;
-	}
-
-	protected async resolveDefinition(uri: number | UriComponents | undefined, definition: vscode.TaskDefinition | undefined): Promise<vscode.TaskDefinition | undefined> {
-		if (!uri || (typeof uri === 'number') || !definition) {
-			return definition;
-		}
-		const workspaceFolder = await this._workspaceProvider.resolveWorkspaceFolder(URI.revive(uri));
-		const workspaceFolders = await this._workspaceProvider.getWorkspaceFolders2();
-		if (!workspaceFolders || !workspaceFolder) {
-			return definition;
-		}
-		const resolver = await this.getVariableResolver(workspaceFolders);
-		const ws: IWorkspaceFolder = {
-			uri: workspaceFolder.uri,
-			name: workspaceFolder.name,
-			index: workspaceFolder.index,
-			toResource: () => {
-				throw new Error('Not implemented');
-			}
-		};
-		const resolvedDefinition = Objects.deepClone(definition);
-		for (const key in resolvedDefinition) {
-			resolvedDefinition[key] = resolver.resolve(ws, resolvedDefinition[key]);
-		}
-
-		return resolvedDefinition;
 	}
 
 	public async $resolveVariables(uriComponents: UriComponents, toResolve: { process?: { name: string; cwd?: string; path?: string }, variables: string[] }): Promise<{ process?: string, variables: { [key: string]: string; } }> {

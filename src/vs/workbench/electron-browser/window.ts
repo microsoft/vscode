@@ -451,10 +451,10 @@ export class NativeWindow extends Disposable {
 								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
 							}
 						} : undefined;
-						const tunnel = await this.tunnelService.openTunnel(addressProvider, undefined, portMappingRequest.port);
+						const tunnel = await this.tunnelService.openTunnel(addressProvider, portMappingRequest.address, portMappingRequest.port);
 						if (tunnel) {
 							return {
-								resolved: uri.with({ authority: `127.0.0.1:${tunnel.tunnelLocalPort}` }),
+								resolved: uri.with({ authority: tunnel.localAddress }),
 								dispose: () => tunnel.dispose(),
 							};
 						}

@@ -414,10 +414,18 @@ export class MainThreadTask implements MainThreadTaskShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange((event: TaskEvent) => {
+		this._taskService.onDidStateChange(async (event: TaskEvent) => {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId!);
+				const execution = TaskExecutionDTO.from(task.getTaskExecution());
+				let resolvedDefinition: TaskDefinitionDTO = execution.task!.definition;
+				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
+					const dictionary: IStringDictionary<string> = {};
+					Array.from(event.resolvedVariables.entries()).forEach(entry => dictionary[entry[0]] = entry[1]);
+					resolvedDefinition = await this._configurationResolverService.resolveAny(task.getWorkspaceFolder(),
+						execution.task.definition, dictionary);
+				}
+				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
