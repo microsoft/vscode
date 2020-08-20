@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebookDiff';
-import { getZoomLevel } from 'vs/base/browser/browser';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -86,9 +84,9 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<Ce
 	// private readonly lineHeight: number;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService readonly configurationService: IConfigurationService
 	) {
-		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		// const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		// this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel()).lineHeight;
 	}
 
