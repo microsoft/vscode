@@ -118,10 +118,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		// Update indicator when formatter changes as it may have an impact on the remote label
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
 
-		// Update based on remote transition indicator changes
-		const remoteTransitionIndicator = this.environmentService.options?.remoteTransitionHandler?.indicator;
-		if (remoteTransitionIndicator) {
-			this._register(remoteTransitionIndicator.onDidChange(() => this.updateRemoteStatusIndicator()));
+		// Update based on remote indicator changes if any
+		const remoteIndicator = this.environmentService.options?.remoteIndicator;
+		if (remoteIndicator) {
+			this._register(remoteIndicator.onDidChange(() => this.updateRemoteStatusIndicator()));
 		}
 
 		// Listen to changes of the connection
@@ -187,45 +187,44 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private updateRemoteStatusIndicator(): void {
 
+		// Remote indicator: show if provided via options
+		const remoteIndicator = this.environmentService.options?.remoteIndicator;
+		if (remoteIndicator) {
+			this.renderRemoteStatusIndicator(remoteIndicator.label, remoteIndicator.tooltip, remoteIndicator.command);
+		}
+
 		// Remote Authority: show connection state
-		if (this.remoteAuthority) {
+		else if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
-					this.renderRemoteStatusIndicator(`$(sync~spin) ${nls.localize('host.open', "Opening Remote...")}`, nls.localize('host.open', "Opening Remote..."), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
+					this.renderRemoteStatusIndicator(`$(sync~spin) ${nls.localize('host.open', "Opening Remote...")}`, nls.localize('host.open', "Opening Remote..."));
 					break;
 				case 'disconnected':
-					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", hostLabel)}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
+					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", hostLabel)}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
 					break;
 				default:
-					this.renderRemoteStatusIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
+					this.renderRemoteStatusIndicator(`$(remote) ${hostLabel}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
 			}
 		}
 
-		// No Remote Authority: advertise a remote connection if possible
+		// Remote Extensions Installed: offer the indicator to show actions
+		else if (this.remoteMenu.getActions().length > 0) {
+			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+		}
+
+		// No Remote Extensions: hide status indicator
 		else {
-
-			// Remote Transition Handler: show if provided
-			const remoteTransitionIndicator = this.environmentService.options?.remoteTransitionHandler?.indicator;
-			if (remoteTransitionIndicator) {
-				this.renderRemoteStatusIndicator(remoteTransitionIndicator.label, remoteTransitionIndicator.tooltip, remoteTransitionIndicator.command);
-			}
-
-			// Remote Extensions Installed: offer the indicator to show actions
-			else if (this.remoteMenu.getActions().length > 0) {
-				this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"), RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID);
-			}
-
-			// No Remote Extensions or transition indicator: hide status indicator
-			else {
-				dispose(this.remoteStatusEntry);
-				this.remoteStatusEntry = undefined;
-			}
+			dispose(this.remoteStatusEntry);
+			this.remoteStatusEntry = undefined;
 		}
 	}
 
 	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string): void {
 		const name = nls.localize('remoteHost', "Remote Host");
+		if (typeof command !== 'string' && this.remoteMenu.getActions().length > 0) {
+			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
+		}
 
 		const properties: IStatusbarEntry = {
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteTransitionHandler, IRemoteTransitionIndicator, ICommand, IHomeIndicator } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteIndicator, ICommand, IHomeIndicator } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -279,14 +279,15 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-class RemoteTransitionIndicator implements IRemoteTransitionIndicator {
-	onDidChange = Event.None;
+class RemoteIndicator implements IRemoteIndicator {
+
+	readonly onDidChange = Event.None;
 
 	readonly label: string;
 	readonly tooltip: string;
-	readonly command: string;
+	readonly command: string | undefined;
 
-	readonly transitionCommand: ICommand | undefined = undefined;
+	readonly commandImpl: ICommand | undefined = undefined;
 
 	constructor(workspace: IWorkspace) {
 		let repositoryOwner: string | undefined = undefined;
@@ -306,10 +307,10 @@ class RemoteTransitionIndicator implements IRemoteTransitionIndicator {
 		}
 
 		if (repositoryName && repositoryOwner) {
-			this.label = localize('openInDesktopLabel', "$(github) Open in Desktop");
+			this.label = localize('openInDesktopLabel', "$(remote) Open in Desktop");
 			this.tooltip = localize('openInDesktopTooltip', "Open in Desktop");
 			this.command = '_web.openInDesktop';
-			this.transitionCommand = {
+			this.commandImpl = {
 				id: this.command,
 				handler: () => {
 					const protocol = product.quality === 'stable' ? 'vscode' : 'vscode-insiders';
@@ -319,23 +320,8 @@ class RemoteTransitionIndicator implements IRemoteTransitionIndicator {
 		} else {
 			this.label = localize('playgroundLabel', "Web Playground");
 			this.tooltip = this.label;
-			this.command = '';
 		}
 	}
-}
-
-class RemoteTransitionHandler implements IRemoteTransitionHandler {
-
-	private _indicator: RemoteTransitionIndicator | undefined = undefined;
-	get indicator(): RemoteTransitionIndicator {
-		if (!this._indicator) {
-			this._indicator = new RemoteTransitionIndicator(this.workspace);
-		}
-
-		return this._indicator;
-	}
-
-	constructor(private readonly workspace: IWorkspace) { }
 }
 
 (function () {
@@ -415,11 +401,10 @@ class RemoteTransitionHandler implements IRemoteTransitionHandler {
 	// Commands
 	const commands: ICommand[] = [];
 
-	// Remote transition handler
-	const remoteTransitionHandler = new RemoteTransitionHandler(workspace);
-	const remoteTransitionHandlerCommand = remoteTransitionHandler.indicator.transitionCommand;
-	if (remoteTransitionHandlerCommand) {
-		commands.push(remoteTransitionHandlerCommand);
+	// Remote indicator
+	const remoteIndicator = new RemoteIndicator(workspace);
+	if (remoteIndicator.commandImpl) {
+		commands.push(remoteIndicator.commandImpl);
 	}
 
 	// Finally create workbench
@@ -427,7 +412,7 @@ class RemoteTransitionHandler implements IRemoteTransitionHandler {
 		...config,
 		homeIndicator,
 		commands,
-		remoteTransitionHandler,
+		remoteIndicator,
 		workspaceProvider: new WorkspaceProvider(workspace, payload),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
