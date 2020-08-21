@@ -715,3 +715,6 @@ export interface INotebookKernelProvider {
 	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }
+
+export const DisplayOrderKey = 'notebook.displayOrder';
+export const CellToolbarLocKey = 'notebook.cellToolbarLocation';

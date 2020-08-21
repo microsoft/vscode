@@ -36,7 +36,7 @@ import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate, ListT
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2, NotebookRunState, NotebookCellRunState, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2, NotebookRunState, NotebookCellRunState, IInsetRenderOutput, CellToolbarLocKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -229,6 +229,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					this.layout(this._dimension);
 				}
 			}
+
+			if (e.affectsConfiguration(CellToolbarLocKey)) {
+				this._updateForNotebookConfiguration();
+			}
 		});
 
 		this.notebookService.addNotebookEditor(this);
@@ -265,6 +269,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	public get isNotebookEditor() {
 		return true;
+	}
+
+	private _updateForNotebookConfiguration() {
+		if (!this._overlayContainer) {
+			return;
+		}
+
+		const cellToolbarLocation = this.configurationService.getValue<string>(CellToolbarLocKey);
+		this._overlayContainer.classList.remove('cell-title-toolbar-left');
+		this._overlayContainer.classList.remove('cell-title-toolbar-right');
+		this._overlayContainer.classList.remove('cell-title-toolbar-hidden');
+
+		if (cellToolbarLocation === 'left' || cellToolbarLocation === 'right' || cellToolbarLocation === 'hidden') {
+			this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
+		}
 	}
 
 	updateEditorFocus() {
@@ -355,6 +374,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				onUnexpectedError(err);
 			}
 		}
+
+		this._updateForNotebookConfiguration();
 	}
 
 	private _generateFontInfo(): void {
