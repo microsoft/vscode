@@ -29,6 +29,7 @@ import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebo
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
@@ -40,6 +41,7 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 
 	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>());
 	public readonly onMouseUp = this._onMouseUp.event;
+	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -129,6 +131,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 			return;
 		}
 
+		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(model.original.resource, model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
 
@@ -146,7 +150,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 				return new CellDiffViewModel(
 					cell,
 					undefined,
-					'unchanged'
+					'unchanged',
+					this._eventDispatcher!
 				);
 			}));
 
@@ -157,7 +162,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 				cellDiffViewModels.push(new CellDiffViewModel(
 					originalModel.cells[change.originalStart + j],
 					modifiedModel.cells[change.modifiedStart + j],
-					'modified'
+					'modified',
+					this._eventDispatcher!
 				));
 			}
 
@@ -166,7 +172,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 				cellDiffViewModels.push(new CellDiffViewModel(
 					originalModel.cells[change.originalStart + j],
 					undefined,
-					'delete'
+					'delete',
+					this._eventDispatcher!
 				));
 			}
 
@@ -175,7 +182,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 				cellDiffViewModels.push(new CellDiffViewModel(
 					undefined,
 					modifiedModel.cells[change.modifiedStart + j],
-					'insert'
+					'insert',
+					this._eventDispatcher!
 				));
 			}
 
@@ -187,7 +195,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 			cellDiffViewModels.push(new CellDiffViewModel(
 				originalModel.cells[i],
 				undefined,
-				'delete'
+				'delete',
+				this._eventDispatcher!
 			));
 		}
 
@@ -195,7 +204,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 			cellDiffViewModels.push(new CellDiffViewModel(
 				undefined,
 				modifiedModel.cells[i],
-				'insert'
+				'insert',
+				this._eventDispatcher!
 			));
 		}
 
@@ -271,6 +281,7 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 		this._rootElement.style.height = `${dimension.height}px`;
 
 		this._list?.layout(this._dimension.height, this._dimension.width);
+		this._eventDispatcher?.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 }
 

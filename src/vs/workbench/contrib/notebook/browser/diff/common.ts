@@ -6,9 +6,20 @@
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { Event } from 'vs/base/common/event';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 
 export interface INotebookTextDiffEditor {
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>;
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: CellDiffViewModel, height: number): void;
+}
+
+export interface CellDiffRenderTemplate {
+	readonly container: HTMLElement;
+
+}
+
+export interface CellDiffViewModelLayoutChangeEvent {
+	font?: BareFontInfo;
+	outerWidth?: number;
 }
