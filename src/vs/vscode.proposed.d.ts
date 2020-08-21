@@ -1371,7 +1371,7 @@ declare module 'vscode' {
 		/**
 		 * The column in which this editor shows.
 		 */
-		viewColumn?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Whether the panel is active (focused by the user).
