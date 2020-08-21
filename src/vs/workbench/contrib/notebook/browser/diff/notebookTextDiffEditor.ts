@@ -278,6 +278,7 @@ registerThemingParticipant((theme, collector) => {
 	const cellBorderColor = theme.getColor(notebookCellBorder);
 	if (cellBorderColor) {
 		collector.addRule(`.notebook-text-diff-editor .editor-container { border: 1px solid ${cellBorderColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .metadata-editor-container { border: 1px solid ${cellBorderColor};}`);
 	}
 
 	const diffDiagonalFillColor = theme.getColor(diffDiagonalFill);

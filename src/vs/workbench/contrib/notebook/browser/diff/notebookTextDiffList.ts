@@ -24,6 +24,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { renderCodicons } from 'vs/base/common/codicons';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
 
 export interface CellDiffRenderTemplate {
 	readonly container: HTMLElement;
@@ -308,7 +310,10 @@ class UnchangedCell extends Disposable {
 				}, {});
 
 				const mode = this.modeService.create('json');
-				const metadataModel = this.modelService.createModel(JSON.stringify(this.cell.original!.metadata), mode, undefined, true);
+				const content = JSON.stringify(this.cell.original!.metadata);
+				const edits = format(content, undefined, {});
+				const metadataSource = applyEdits(content, edits);
+				const metadataModel = this.modelService.createModel(metadataSource, mode, undefined, true);
 				this._metadataEditor.setModel(metadataModel);
 
 				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
