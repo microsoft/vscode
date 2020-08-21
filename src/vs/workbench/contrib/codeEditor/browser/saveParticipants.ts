@@ -239,19 +239,23 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 				)
 			});
 		});
+
+		const enabled = this.configurationService.getValue<boolean>('editor.formatOnSave', overrides);
+		if (!enabled) {
+			return undefined;
+		}
+
 		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
-		const config = this.configurationService.getValue<boolean | string>('editor.formatOnSave', overrides);
-
-		if (config === true || config === 'file') {
-			// format the whole file
-			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
-
-		} else if (config === 'modifications') {
+		const mode = this.configurationService.getValue<'file' | 'modifications'>('editor.formatOnSaveMode', overrides);
+		if (mode === 'modifications') {
 			// format modifications
 			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
 			if (ranges) {
 				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
 			}
+		} else {
+			// format the whole file
+			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
 		}
 	}
 }
