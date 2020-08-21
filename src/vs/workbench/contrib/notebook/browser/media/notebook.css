@@ -727,16 +727,21 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
+	height: 20px;
+	width: 20px;
+
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 100%;
+	top: 6px;
+	left: 8px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 26;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
-	padding: 8px 0 0 10px;
+	height: 16px;
 }
 
 /** Theming */
