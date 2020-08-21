@@ -121,28 +121,28 @@ interface IHomeIndicator {
 	title: string;
 }
 
-interface IRemoteIndicator {
+interface IWindowIndicator {
 
 	/**
-	 * Triggering this event will cause the remote indicator to update.
+	 * Triggering this event will cause the window indicator to update.
 	 */
 	onDidChange: Event<void>;
 
 	/**
-	 * Label of the remote indicator may include octicons
+	 * Label of the window indicator may include octicons
 	 * e.g. `$(remote) label`
 	 */
 	label: string;
 
 	/**
-	 * Tooltip of the remote indicator should not include
+	 * Tooltip of the window indicator should not include
 	 * octicons and be descriptive.
 	 */
 	tooltip: string;
 
 	/**
 	 * If provided, overrides the default command that
-	 * is executed when clicking on the remote indicator.
+	 * is executed when clicking on the window indicator.
 	 */
 	command?: string;
 }
@@ -377,9 +377,9 @@ interface IWorkbenchConstructionOptions {
 	readonly productConfiguration?: Partial<IProductConfiguration>;
 
 	/**
-	 * Optional override for properties of the remote window indicator in the status bar.
+	 * Optional override for properties of the window indicator in the status bar.
 	 */
-	readonly remoteIndicator?: IRemoteIndicator;
+	readonly windowIndicator?: IWindowIndicator;
 
 	//#endregion
 
@@ -535,7 +535,7 @@ export {
 	// Branding
 	IHomeIndicator,
 	IProductConfiguration,
-	IRemoteIndicator,
+	IWindowIndicator,
 
 	// Default layout
 	IDefaultView,

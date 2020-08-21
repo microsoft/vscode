@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -279,7 +279,7 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-class RemoteIndicator implements IRemoteIndicator {
+class WindowIndicator implements IWindowIndicator {
 
 	readonly onDidChange = Event.None;
 
@@ -401,10 +401,10 @@ class RemoteIndicator implements IRemoteIndicator {
 	// Commands
 	const commands: ICommand[] = [];
 
-	// Remote indicator
-	const remoteIndicator = new RemoteIndicator(workspace);
-	if (remoteIndicator.commandImpl) {
-		commands.push(remoteIndicator.commandImpl);
+	// Window indicator
+	const windowIndicator = new WindowIndicator(workspace);
+	if (windowIndicator.commandImpl) {
+		commands.push(windowIndicator.commandImpl);
 	}
 
 	// Product Quality Change Handler
@@ -427,7 +427,7 @@ class RemoteIndicator implements IRemoteIndicator {
 		...config,
 		homeIndicator,
 		commands,
-		remoteIndicator,
+		windowIndicator,
 		productQualityChangeHandler,
 		workspaceProvider: new WorkspaceProvider(workspace, payload),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
