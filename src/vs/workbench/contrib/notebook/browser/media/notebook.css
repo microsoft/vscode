@@ -61,6 +61,10 @@
 	z-index: 1000;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .execution-count-label {
+	display: none;
+}
+
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-container > div {
 	padding: 12px 16px;
 }
@@ -291,7 +295,7 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
 	visibility: hidden;
-	display: inline-block;
+	display: inline-flex;
 	position: absolute;
 	height: 26px;
 	right: 44px;
@@ -336,6 +340,7 @@
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
 	padding-right: 12px;
+	z-index: 26;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker {
@@ -401,24 +406,19 @@
 	visibility: visible;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .execution-count-label {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .execution-count-label {
 	position: absolute;
-	top: -2px;
 	font-size: 10px;
 	font-family: var(--monaco-monospace-font);
-	visibility: visible;
 	white-space: pre;
-	width: 100%;
-	text-align: center;
-	padding-right: 8px;
 	box-sizing: border-box;
 	opacity: .6;
-}
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell .run-button-container .execution-count-label,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-output-hover .cell .run-button-container .execution-count-label,
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell .run-button-container .execution-count-label {
-	visibility: hidden;
+	/* Sizing hacks */
+	left: 26px;
+	width: 35px;
+	bottom: 0px;
+	text-align: center;
 }
 
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
@@ -523,6 +523,7 @@
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
 	position: absolute;
 	display: flex;
+	align-items: center;
 	justify-content: center;
 	z-index: 25; /* over the focus outline on the editor, below the title toolbar */
 	width: 100%;

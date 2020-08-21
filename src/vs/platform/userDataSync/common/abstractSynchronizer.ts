@@ -53,6 +53,10 @@ function isSyncData(thing: any): thing is ISyncData {
 	return false;
 }
 
+function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService): URI {
+	return joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
+}
+
 export interface IResourcePreview {
 
 	readonly remoteResource: URI;
@@ -133,7 +137,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, resource);
 		this.syncPreviewFolder = joinPath(this.syncFolder, PREVIEW_DIR_NAME);
-		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${this.resource}.json`);
+		this.lastSyncResource = getLastSyncResourceUri(resource, environmentService);
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 
@@ -324,6 +328,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize ${this.syncResourceLogLabel} as there is a new local version available. Synchronizing again...`);
 						return this.performSync(remoteUserData, lastSyncUserData, apply);
 
+					case UserDataSyncErrorCode.Conflict:
 					case UserDataSyncErrorCode.PreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again...
 						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
@@ -794,5 +799,64 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		}
 		return this._formattingOptions;
 	}
+
+}
+
+export abstract class AbstractInitializer {
+
+	private readonly lastSyncResource: URI;
+
+	constructor(
+		readonly resource: SyncResource,
+		@IEnvironmentService protected readonly environmentService: IEnvironmentService,
+		@IUserDataSyncLogService protected readonly logService: IUserDataSyncLogService,
+		@IFileService protected readonly fileService: IFileService,
+	) {
+		this.lastSyncResource = getLastSyncResourceUri(this.resource, environmentService);
+	}
+
+	async initialize({ ref, content }: IUserData): Promise<void> {
+		if (!content) {
+			this.logService.info('Remote content does not exist.', this.resource);
+			return;
+		}
+
+		const syncData = this.parseSyncData(content);
+		if (!syncData) {
+			return;
+		}
+
+		const isPreviouslySynced = await this.fileService.exists(this.lastSyncResource);
+		if (isPreviouslySynced) {
+			this.logService.info('Remote content does not exist.', this.resource);
+			return;
+		}
+
+		try {
+			await this.doInitialize({ ref, syncData });
+		} catch (error) {
+			this.logService.error(error);
+		}
+	}
+
+	private parseSyncData(content: string): ISyncData | undefined {
+		try {
+			const syncData: ISyncData = JSON.parse(content);
+			if (isSyncData(syncData)) {
+				return syncData;
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
+		this.logService.info('Cannot parse sync data as it is not compatible with the current version.', this.resource);
+		return undefined;
+	}
+
+	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
+		const lastSyncUserData: IUserData = { ref: lastSyncRemoteUserData.ref, content: lastSyncRemoteUserData.syncData ? JSON.stringify(lastSyncRemoteUserData.syncData) : null, ...additionalProps };
+		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
+	}
+
+	protected abstract doInitialize(remoteUserData: IRemoteUserData): Promise<void>;
 
 }

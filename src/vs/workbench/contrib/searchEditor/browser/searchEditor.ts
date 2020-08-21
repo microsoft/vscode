@@ -280,6 +280,14 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
+	setQuery(query: string) {
+		this.queryEditorWidget.searchInput.setValue(query);
+	}
+
+	selectQuery() {
+		this.queryEditorWidget.searchInput.select();
+	}
+
 	toggleWholeWords() {
 		this.queryEditorWidget.searchInput.setWholeWords(!this.queryEditorWidget.searchInput.getWholeWords());
 		this.triggerSearch({ resetCursor: false });

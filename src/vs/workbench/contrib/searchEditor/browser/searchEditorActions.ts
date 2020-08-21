@@ -148,7 +148,8 @@ export const openNewSearchEditor =
 		if (existing && args.location === 'reuse') {
 			const input = existing.editor as SearchEditorInput;
 			editor = assertIsDefined(await assertIsDefined(editorGroupsService.getGroup(existing.groupId)).openEditor(input)) as SearchEditor;
-			editor.focusSearchInput();
+			if (selected) { editor.setQuery(selected); }
+			else { editor.selectQuery(); }
 		} else {
 			const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: args, text: '' });
 			editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
@@ -161,6 +162,8 @@ export const openNewSearchEditor =
 		) {
 			editor.triggerSearch({ focusResults: args.focusResults !== false });
 		}
+
+		if (args.focusResults === false) { editor.focusSearchInput(); }
 	};
 
 export const createEditorFromSearchResult =
