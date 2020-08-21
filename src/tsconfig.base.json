@@ -5,6 +5,7 @@
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
 		"noUnusedLocals": true,
+		"allowUnreachableCode": false,
 		"strict": true,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",

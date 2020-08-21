@@ -308,7 +308,8 @@ export class SearchWidget extends Widget {
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
 			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
 			history: options.searchHistory,
-			flexibleHeight: true
+			flexibleHeight: true,
+			flexibleMaxHeight: 134
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));

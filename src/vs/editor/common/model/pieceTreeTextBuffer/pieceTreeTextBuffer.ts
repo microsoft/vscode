@@ -214,8 +214,9 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 				return '\r\n';
 			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
+			default:
+				throw new Error('Unknown EOL preference');
 		}
-		throw new Error('Unknown EOL preference');
 	}
 
 	public setEOL(newEOL: '\r\n' | '\n'): void {

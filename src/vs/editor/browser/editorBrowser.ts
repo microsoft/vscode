@@ -583,6 +583,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
+	getOverflowWidgetsDomNode(): HTMLElement | undefined;
+
+	/**
+	 * @internal
+	 */
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
 
 	/**
@@ -1051,6 +1056,17 @@ export function getCodeEditor(thing: any): ICodeEditor | null {
 
 	if (isDiffEditor(thing)) {
 		return thing.getModifiedEditor();
+	}
+
+	return null;
+}
+
+/**
+ *@internal
+ */
+export function getIEditor(thing: any): editorCommon.IEditor | null {
+	if (isCodeEditor(thing) || isDiffEditor(thing)) {
+		return thing;
 	}
 
 	return null;

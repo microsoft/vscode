@@ -203,7 +203,8 @@ suite('ExtHostTreeView', function () {
 					assert.deepEqual(actuals, ['1/a', '1/b']);
 					return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', '1/b'))
-						.then(() => { assert.fail('Should fail with duplicate id'); done(); }, () => done());
+						.then(() => assert.fail('Should fail with duplicate id'))
+						.finally(done);
 				});
 		});
 		onDidChangeTreeNode.fire(undefined);

@@ -159,6 +159,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean): void;
 	$unregisterAuthenticationProvider(id: string): void;
+	$ensureProvider(id: string): Promise<void>;
 	$getProviderIds(): Promise<string[]>;
 	$sendDidChangeSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent): void;
 	$getSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: { createIfNone?: boolean, clearSessionPreference?: boolean }): Promise<modes.AuthenticationSession | undefined>;
@@ -447,8 +448,6 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$startSendingDataEvents(): void;
 	$stopSendingDataEvents(): void;
-	$startHandlingLinks(): void;
-	$stopHandlingLinks(): void;
 	$startLinkProvider(): void;
 	$stopLinkProvider(): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
@@ -630,6 +629,11 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
+
+	$registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void;
+	$unregisterWebviewViewProvider(viewType: string): void;
+
+	$setWebviewViewTitle(handle: WebviewPanelHandle, value: string | undefined): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -645,9 +649,13 @@ export interface ExtHostWebviewsShape {
 	$onMissingCsp(handle: WebviewPanelHandle, extensionId: string): void;
 	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
+}
 
+export interface ExtHostWebviewSerializerShape {
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
+}
 
+export interface ExtHostCustomEditorsShape {
 	$resolveWebviewEditor(resource: UriComponents, newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, cancellation: CancellationToken): Promise<void>;
 	$createCustomDocument(resource: UriComponents, viewType: string, backupId: string | undefined, cancellation: CancellationToken): Promise<{ editable: boolean }>;
 	$disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void>;
@@ -663,6 +671,14 @@ export interface ExtHostWebviewsShape {
 	$backup(resource: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string>;
 
 	$onMoveCustomEditor(handle: WebviewPanelHandle, newResource: UriComponents, viewType: string): Promise<void>;
+}
+
+export interface ExtHostWebviewViewsShape {
+	$resolveWebviewView(webviewHandle: WebviewPanelHandle, viewType: string, state: any, cancellation: CancellationToken): Promise<void>;
+
+	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewPanelHandle, visible: boolean): void;
+
+	$disposeWebviewView(webviewHandle: WebviewPanelHandle): void;
 }
 
 export enum CellKind {
@@ -817,7 +833,8 @@ export type SCMRawResource = [
 	UriComponents[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+	string /*context value*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -836,7 +853,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
 	$unregisterSourceControl(handle: number): void;
 
-	$registerGroup(sourceControlHandle: number, handle: number, id: string, label: string): void;
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void;
 	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
 	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
 	$unregisterGroup(sourceControlHandle: number, handle: number): void;
@@ -879,6 +896,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void>;
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
+	$getDebugProtocolBreakpoint(id: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined>;
 	$appendDebugConsole(value: string): void;
 	$startBreakpointEvents(): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;
@@ -1332,7 +1350,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.Hover | undefined>;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined>;
-	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined>;
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: IRegExpDto; } | undefined>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<ILocationDto[] | undefined>;
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
 	$releaseCodeActions(handle: number, cacheId: number): void;
@@ -1383,6 +1401,7 @@ export interface IShellLaunchConfigDto {
 	args?: string[] | string;
 	cwd?: string | UriComponents;
 	env?: { [key: string]: string | null; };
+	hideFromUser?: boolean;
 }
 
 export interface IShellDefinitionDto {
@@ -1431,7 +1450,6 @@ export interface ExtHostTerminalServiceShape {
 	$acceptWorkspacePermissionsChanged(isAllowed: boolean): void;
 	$getAvailableShells(): Promise<IShellDefinitionDto[]>;
 	$getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto>;
-	$handleLink(id: number, link: string): Promise<boolean>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
@@ -1448,7 +1466,7 @@ export interface ExtHostSCMShape {
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean; }): Thenable<tasks.TaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.TaskDTO): Thenable<tasks.TaskDTO | undefined>;
-	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number): void;
+	$onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): void;
 	$onDidStartTaskProcess(value: tasks.TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: tasks.TaskExecutionDTO): void;
@@ -1620,6 +1638,7 @@ export interface ExtHostNotebookShape {
 	$executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
 	$cancelNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
 	$executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void>;
+	$cancelNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void>;
 	$executeNotebook2(kernelId: string, viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
@@ -1630,8 +1649,9 @@ export interface ExtHostNotebookShape {
 	$renderOutputs2<T>(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
 	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
+	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
-	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;
+	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
 	$undoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void>;
 	$redoNotebook(viewType: string, uri: UriComponents, editId: number, isDirty: boolean): Promise<void>;
 
@@ -1733,6 +1753,9 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
+	ExtHostWebviewSerializer: createExtId<ExtHostWebviewSerializerShape>('ExtHostWebviewSerializer'),
+	ExtHostCustomEditors: createExtId<ExtHostCustomEditorsShape>('ExtHostCustomEditors'),
+	ExtHostWebviewViews: createExtId<ExtHostWebviewViewsShape>('ExtHostWebviewViews'),
 	ExtHostEditorInsets: createExtId<ExtHostEditorInsetsShape>('ExtHostEditorInsets'),
 	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
 	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),

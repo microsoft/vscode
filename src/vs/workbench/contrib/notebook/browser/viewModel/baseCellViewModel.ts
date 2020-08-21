@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions, CellCollapseState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
@@ -58,26 +58,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this._editState === CellEditState.Preview) {
 			this.focusMode = CellFocusMode.Container;
 		}
-	}
-
-	private _collapseState: CellCollapseState = CellCollapseState.Normal;
-	public get collapseState(): CellCollapseState {
-		return this._collapseState;
-	}
-
-	public set collapseState(v: CellCollapseState) {
-		this._collapseState = v;
-		this._onDidChangeState.fire({ collapseStateChanged: true });
-	}
-
-	private _outputCollapseState: CellCollapseState = CellCollapseState.Normal;
-	public get outputCollapseState(): CellCollapseState {
-		return this._outputCollapseState;
-	}
-
-	public set outputCollapseState(v: CellCollapseState) {
-		this._collapseState = v;
-		this._onDidChangeState.fire({ collapseStateChanged: true });
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -192,7 +172,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this.saveViewState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
-			let resolvedid = value.id;
+			const resolvedid = value.id;
 
 			if (resolvedid) {
 				this._textEditor?.deltaDecorations([resolvedid], []);

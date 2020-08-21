@@ -72,6 +72,7 @@ export class ContextMenuHandler {
 					this.block.style.top = '0';
 					this.block.style.width = '100%';
 					this.block.style.height = '100%';
+					this.block.style.zIndex = '-1';
 					domEvent(this.block, EventType.MOUSE_DOWN)((e: MouseEvent) => e.stopPropagation());
 				}
 

@@ -4,18 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, SyncResource, UserDataSyncErrorCode, UserDataSyncStoreError, IUserDataSyncStoreManagementService, IUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
-import { RequestsSession, UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { RequestsSession, UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { newWriteableBufferStream } from 'vs/base/common/buffer';
+import { newWriteableBufferStream, VSBuffer } from 'vs/base/common/buffer';
 import { timeout } from 'vs/base/common/async';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Event } from 'vs/base/common/event';
+import product from 'vs/platform/product/common/product';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
+
+suite('UserDataSyncStoreManagementService', () => {
+	const disposableStore = new DisposableStore();
+
+	teardown(() => disposableStore.clear());
+
+	test('test sync store is read from settings', async () => {
+		const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer()));
+		await client.setUp();
+
+		client.instantiationService.stub(IProductService, {
+			_serviceBrand: undefined, ...product, ...{
+				'configurationSync.store': undefined
+			}
+		});
+
+		const configuredStore: ConfigurationSyncStore = {
+			url: 'http://configureHost:3000',
+			authenticationProviders: { 'configuredAuthProvider': { scopes: [] } }
+		};
+		await client.instantiationService.get(IFileService).writeFile(client.instantiationService.get(IEnvironmentService).settingsResource, VSBuffer.fromString(JSON.stringify({
+			'configurationSync.store': configuredStore
+		})));
+		await client.instantiationService.get(IConfigurationService).reloadConfiguration();
+
+		const expected: IUserDataSyncStore = {
+			url: URI.parse('http://configureHost:3000'),
+			defaultUrl: URI.parse('http://configureHost:3000'),
+			stableUrl: undefined,
+			insidersUrl: undefined,
+			authenticationProviders: [{ id: 'configuredAuthProvider', scopes: [] }]
+		};
+
+		const testObject: IUserDataSyncStoreManagementService = client.instantiationService.createInstance(UserDataSyncStoreManagementService);
+
+		assert.equal(testObject.userDataSyncStore?.url.toString(), expected.url.toString());
+		assert.equal(testObject.userDataSyncStore?.defaultUrl.toString(), expected.defaultUrl.toString());
+		assert.deepEqual(testObject.userDataSyncStore?.authenticationProviders, expected.authenticationProviders);
+	});
+
+});
 
 suite('UserDataSyncStoreService', () => {
 
@@ -386,6 +432,20 @@ suite('UserDataSyncStoreService', () => {
 		await timeout(300);
 		const target = client.instantiationService.createInstance(UserDataSyncStoreService);
 		assert.ok(!target.donotMakeRequestsUntil);
+	});
+
+	test('test read resource request handles 304', async () => {
+		// Setup the client
+		const target = new UserDataSyncTestServer();
+		const client = disposableStore.add(new UserDataSyncClient(target));
+		await client.setUp();
+		await client.sync();
+
+		const testObject = client.instantiationService.get(IUserDataSyncStoreService);
+		const expected = await testObject.read(SyncResource.Settings, null);
+		const actual = await testObject.read(SyncResource.Settings, expected);
+
+		assert.equal(actual, expected);
 	});
 
 });

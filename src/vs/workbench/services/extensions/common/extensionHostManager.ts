@@ -27,7 +27,6 @@ import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtens
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostManager extends Disposable {
 
@@ -38,9 +37,9 @@ export class ExtensionHostManager extends Disposable {
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	/**
-	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
+	 * A map of already requested activation events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private readonly _finishedActivateEvents: { [activationEvent: string]: boolean; };
+	private readonly _cachedActivationEvents: Map<string, Promise<void>>;
 	private _rpcProtocol: RPCProtocol | null;
 	private readonly _customers: IDisposable[];
 	private readonly _extensionHost: IExtensionHost;
@@ -57,7 +56,7 @@ export class ExtensionHostManager extends Disposable {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this._finishedActivateEvents = Object.create(null);
+		this._cachedActivationEvents = new Map<string, Promise<void>>();
 		this._rpcProtocol = null;
 		this._customers = [];
 
@@ -219,19 +218,23 @@ export class ExtensionHostManager extends Disposable {
 	}
 
 	public activateByEvent(activationEvent: string): Promise<void> {
-		if (this._finishedActivateEvents[activationEvent] || !this._proxy) {
-			return NO_OP_VOID_PROMISE;
+		if (!this._cachedActivationEvents.has(activationEvent)) {
+			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent));
 		}
-		return this._proxy.then((proxy) => {
-			if (!proxy) {
-				// this case is already covered above and logged.
-				// i.e. the extension host could not be started
-				return NO_OP_VOID_PROMISE;
-			}
-			return proxy.value.$activateByEvent(activationEvent);
-		}).then(() => {
-			this._finishedActivateEvents[activationEvent] = true;
-		});
+		return this._cachedActivationEvents.get(activationEvent)!;
+	}
+
+	private async _activateByEvent(activationEvent: string): Promise<void> {
+		if (!this._proxy) {
+			return;
+		}
+		const proxy = await this._proxy;
+		if (!proxy) {
+			// this case is already covered above and logged.
+			// i.e. the extension host could not be started
+			return;
+		}
+		return proxy.value.$activateByEvent(activationEvent);
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {

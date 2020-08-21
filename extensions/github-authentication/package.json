@@ -15,6 +15,11 @@
     "*",
     "onAuthenticationRequest:github"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace",
+    "web"
+  ],
   "contributes": {
     "commands": [
       {

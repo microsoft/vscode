@@ -7,7 +7,7 @@ import { Terminal as XTermTerminal } from 'xterm';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
 import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -137,14 +137,6 @@ export interface ITerminalService {
 	findPrevious(): void;
 
 	/**
-	 * Link handlers can be registered here to allow intercepting links clicked in the terminal.
-	 * When a link is clicked, the link will be considered handled when the first interceptor
-	 * resolves with true. It will be considered not handled when _all_ link handlers resolve with
-	 * false, or 3 seconds have elapsed.
-	 */
-	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
-
-	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
 	 * for links at that position. This lets the terminal know all links at a given area and also
@@ -156,6 +148,12 @@ export interface ITerminalService {
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
+
+	/**
+	 * Injects native Windows functionality into the service.
+	 */
+	setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void;
+	setLinuxDistro(linuxDistro: LinuxDistro): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
@@ -215,8 +213,6 @@ export enum WindowsShellType {
 }
 export type TerminalShellType = WindowsShellType | undefined;
 
-export const LINK_INTERCEPT_THRESHOLD = 3000;
-
 export interface ITerminalBeforeHandleLinkEvent {
 	terminal?: ITerminalInstance;
 	/** The text of the link */
@@ -224,8 +220,6 @@ export interface ITerminalBeforeHandleLinkEvent {
 	/** Call with whether the link was handled by the interceptor */
 	resolve(wasHandled: boolean): void;
 }
-
-export type TerminalLinkHandlerCallback = (e: ITerminalBeforeHandleLinkEvent) => Promise<boolean>;
 
 export interface ITerminalInstance {
 	/**
@@ -289,14 +283,17 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number | undefined>;
 
-	/**
-	 * Attach a listener to intercept and handle link clicks in the terminal.
-	 */
-	onBeforeHandleLink: Event<ITerminalBeforeHandleLinkEvent>;
-
 	readonly exitCode: number | undefined;
 
 	readonly areLinksReady: boolean;
+
+	/**
+	 * Returns an array of data events that have fired within the first 10 seconds. If this is
+	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
+	 * when objects that depend on the data events have delayed initialization, like extension
+	 * hosts.
+	 */
+	readonly initialDataEvents: string[] | undefined;
 
 	/** A promise that resolves when the terminal's pty/process have been created. */
 	processReady: Promise<void>;

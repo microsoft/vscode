@@ -268,7 +268,7 @@ export class WalkThroughPart extends BaseEditor {
 		}
 
 		this.contentDisposables = dispose(this.contentDisposables);
-		this.content.innerHTML = '';
+		this.content.innerText = '';
 
 		return super.setInput(input, options, token)
 			.then(() => {

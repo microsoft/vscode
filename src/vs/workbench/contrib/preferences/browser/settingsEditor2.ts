@@ -32,20 +32,19 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { getUserDataSyncStore, IUserDataAutoSyncService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorMemento, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from 'vs/workbench/contrib/preferences/browser/settingsTree';
+import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickEvent, resolveExtensionsSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers, updateSettingTreeTabOrder } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
@@ -54,6 +53,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
@@ -150,6 +150,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private editorMemento: IEditorMemento<ISettingsEditor2State>;
 
 	private tocFocusedElement: SettingsTreeGroupElement | null = null;
+	private treeFocusedElement: SettingsTreeElement | null = null;
 	private settingsTreeScrollTop = 0;
 	private dimension!: DOM.Dimension;
 
@@ -167,7 +168,7 @@ export class SettingsEditor2 extends BaseEditor {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IProductService private readonly productService: IProductService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
@@ -347,7 +348,8 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 	}
 
-	focusSettings(): void {
+	focusSettings(focusSettingInput = false): void {
+		// TODO@roblourens is this in the right place?
 		// Update ARIA global labels
 		const labelElement = this.settingsAriaExtraLabelsContainer.querySelector('#settings_aria_more_actions_shortcut_label');
 		if (labelElement) {
@@ -357,9 +359,18 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 		}
 
-		const firstFocusable = this.settingsTree.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-		if (firstFocusable) {
-			(<HTMLElement>firstFocusable).focus();
+		const focused = this.settingsTree.getFocus();
+		if (!focused.length) {
+			this.settingsTree.focusFirst();
+		}
+
+		this.settingsTree.domFocus();
+
+		if (focusSettingInput) {
+			const controlInFocusedRow = this.settingsTree.getHTMLElement().querySelector(`.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
+			if (controlInFocusedRow) {
+				(<HTMLElement>controlInFocusedRow).focus();
+			}
 		}
 	}
 
@@ -472,7 +483,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
-		if (syncAllowed(this.productService, this.configurationService) && this.userDataAutoSyncService.canToggleEnablement()) {
+		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncService.canToggleEnablement()) {
 			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
 		}
@@ -508,6 +519,11 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.settingsTree.reveal(elements[0], sourceTop);
+
+			// We need to shift focus from the setting that contains the link to the setting that's
+			//  linked. Clicking on the link sets focus on the setting that contains the link,
+			//  which is why we need the setTimeout
+			setTimeout(() => this.settingsTree.setFocus([elements[0]]), 50);
 
 			const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
 			if (domElements && domElements[0]) {
@@ -569,48 +585,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 
 		this.createTOC(bodyContainer);
-
-		this.createFocusSink(
-			bodyContainer,
-			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-					if (this.settingsTree.scrollTop > 0) {
-						const firstElement = this.settingsTree.firstVisibleElement;
-
-						if (typeof firstElement !== 'undefined') {
-							this.settingsTree.reveal(firstElement, 0.1);
-						}
-
-						return true;
-					}
-				} else {
-					const firstControl = this.settingsTree.getHTMLElement().querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
-					if (firstControl) {
-						(<HTMLElement>firstControl).focus();
-					}
-				}
-
-				return false;
-			},
-			'settings list focus helper');
-
 		this.createSettingsTree(bodyContainer);
-
-		this.createFocusSink(
-			bodyContainer,
-			e => {
-				if (DOM.findParentWithClass(e.relatedTarget, 'settings-editor-tree')) {
-					if (this.settingsTree.scrollTop < this.settingsTree.scrollHeight) {
-						const lastElement = this.settingsTree.lastVisibleElement;
-						this.settingsTree.reveal(lastElement, 0.9);
-						return true;
-					}
-				}
-
-				return false;
-			},
-			'settings list focus helper'
-		);
 	}
 
 	private addCtrlAInterceptor(container: HTMLElement): void {
@@ -626,19 +601,6 @@ export class SettingsEditor2 extends BaseEditor {
 				e.browserEvent.preventDefault();
 			}
 		}));
-	}
-
-	private createFocusSink(container: HTMLElement, callback: (e: any) => boolean, label: string): HTMLElement {
-		const listFocusSink = DOM.append(container, $('.settings-tree-focus-sink'));
-		listFocusSink.setAttribute('aria-label', label);
-		listFocusSink.tabIndex = 0;
-		this._register(DOM.addDisposableListener(listFocusSink, 'focus', (e: any) => {
-			if (e.relatedTarget && callback(e)) {
-				e.relatedTarget.focus();
-			}
-		}));
-
-		return listFocusSink;
 	}
 
 	private createTOC(parent: HTMLElement): void {
@@ -668,6 +630,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
 				this.settingsTree.reveal(element, 0);
+				this.settingsTree.setFocus([element]);
 			}
 		}));
 
@@ -717,7 +680,6 @@ export class SettingsEditor2 extends BaseEditor {
 			this.settingsTreeContainer,
 			this.viewState,
 			this.settingRenderers.allRenderers));
-		this.settingsTree.getHTMLElement().attributes.removeNamedItem('tabindex');
 
 		this._register(this.settingsTree.onDidScroll(() => {
 			if (this.settingsTree.scrollTop === this.settingsTreeScrollTop) {
@@ -725,12 +687,27 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.settingsTreeScrollTop = this.settingsTree.scrollTop;
+			updateSettingTreeTabOrder(this.settingsTreeContainer);
 
 			// setTimeout because calling setChildren on the settingsTree can trigger onDidScroll, so it fires when
 			// setChildren has called on the settings tree but not the toc tree yet, so their rendered elements are out of sync
 			setTimeout(() => {
 				this.updateTreeScrollSync();
 			}, 0);
+		}));
+
+		// There is no different select state in the settings tree
+		this._register(this.settingsTree.onDidChangeFocus(e => {
+			const element = e.elements[0];
+			if (this.treeFocusedElement === element) {
+				return;
+			}
+
+			this.treeFocusedElement = element;
+			this.settingsTree.setSelection(element ? [element] : []);
+
+			// Wait for rendering to complete
+			setTimeout(() => updateSettingTreeTabOrder(this.settingsTreeContainer), 0);
 		}));
 	}
 
@@ -966,7 +943,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
+		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
 		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
 		const resolvedSettingsRoot = settingsResult.tree;
 
@@ -1421,7 +1398,7 @@ class SyncControls extends Disposable {
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;
-		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Preferences Sync");
+		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Settings Sync");
 		DOM.hide(this.turnOnSyncButton.element);
 
 		this._register(this.turnOnSyncButton.onDidClick(async () => {
@@ -1465,7 +1442,7 @@ class SyncControls extends Disposable {
 			return;
 		}
 
-		if (this.userDataAutoSyncService.isEnabled()) {
+		if (this.userDataAutoSyncService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
 			DOM.show(this.lastSyncedLabel);
 			DOM.hide(this.turnOnSyncButton.element);
 		} else {
@@ -1478,8 +1455,4 @@ class SyncControls extends Disposable {
 interface ISettingsEditor2State {
 	searchQuery: string;
 	target: SettingsTarget;
-}
-
-function syncAllowed(productService: IProductService, configService: IConfigurationService): boolean {
-	return !!getUserDataSyncStore(productService, configService);
 }

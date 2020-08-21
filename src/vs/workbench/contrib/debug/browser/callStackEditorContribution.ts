@@ -48,8 +48,8 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStack
 
 	// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focused stack frame,
 	// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-	const callStack = stackFrame.thread.getCallStack();
-	if (callStack && callStack.length && stackFrame === callStack[0]) {
+	const topStackFrame = stackFrame.thread.getTopStackFrame();
+	if (stackFrame.getId() === topStackFrame?.getId()) {
 		result.push({
 			options: TOP_STACK_FRAME_MARGIN,
 			range

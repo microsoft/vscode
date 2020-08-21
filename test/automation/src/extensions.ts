@@ -34,10 +34,9 @@ export class Extensions extends Viewlet {
 		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
 	}
 
-	async installExtension(id: string, name: string): Promise<void> {
+	async installExtension(id: string): Promise<void> {
 		await this.searchForExtension(id);
-		const ariaLabel = `${name}. Press enter for extension details.`;
-		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[aria-label="${ariaLabel}"] .extension-list-item li[class='action-item'] .extension-action.install`);
+		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item li[class='action-item'] .extension-action.install`);
 		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
 	}
 }

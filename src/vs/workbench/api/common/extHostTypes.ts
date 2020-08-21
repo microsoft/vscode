@@ -885,6 +885,12 @@ export class Diagnostic {
 	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+		if (!Range.isRange(range)) {
+			throw new TypeError('range must be set');
+		}
+		if (!message) {
+			throw new TypeError('message must be set');
+		}
 		this.range = range;
 		this.message = message;
 		this.severity = severity;
@@ -1825,20 +1831,20 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class CustomExecution implements vscode.CustomExecution2 {
-	private _callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+export class CustomExecution implements vscode.CustomExecution {
+	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
@@ -2285,6 +2291,12 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	constructor(port: number, host?: string) {
 		this.port = port;
 		this.host = host;
+	}
+}
+
+@es5ClassCompat
+export class DebugAdapterNamedPipeServer implements vscode.DebugAdapterNamedPipeServer {
+	constructor(public readonly path: string) {
 	}
 }
 
@@ -2775,6 +2787,17 @@ export enum ExtensionMode {
 	 * the extension host is running unit tests.
 	 */
 	Test = 3,
+}
+
+export enum ExtensionRuntime {
+	/**
+	 * The extension is running in a NodeJS extension host. Runtime access to NodeJS APIs is available.
+	 */
+	Node = 1,
+	/**
+	 * The extension is running in a Webworker extension host. Runtime access is limited to Webworker APIs.
+	 */
+	Webworker = 2
 }
 
 //#endregion ExtensionContext

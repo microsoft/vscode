@@ -54,7 +54,7 @@ export class NotebookEventDispatcher {
 
 	emit(events: NotebookViewEvent[]) {
 		for (let i = 0, len = events.length; i < len; i++) {
-			let e = events[i];
+			const e = events[i];
 
 			switch (e.type) {
 				case NotebookViewEventType.LayoutChanged:

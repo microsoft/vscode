@@ -8,7 +8,7 @@ import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
 import { Node, HtmlNode, CssToken, Property, Rule, Stylesheet } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
-import * as EmmetHelper from 'vscode-emmet-helper2';
+import * as EmmetHelper from 'vscode-emmet-helper';
 import { TextDocument as LSTextDocument } from 'vscode-html-languageservice';
 
 let _emmetHelper: typeof EmmetHelper;
@@ -26,7 +26,7 @@ export function getEmmetHelper() {
 	// Lazy load vscode-emmet-helper instead of importing it
 	// directly to reduce the start-up time of the extension
 	if (!_emmetHelper) {
-		_emmetHelper = require('vscode-emmet-helper2');
+		_emmetHelper = require('vscode-emmet-helper');
 	}
 	updateEmmetExtensionsPath();
 	return _emmetHelper;

@@ -126,6 +126,8 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 		return vscode.Uri.file(pathUtils.join(process.env.HOME!, path.slice(2)));
 	}
 
+	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
+		folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
 
 	if (vscode.workspace.workspaceFolders) {
 		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);
@@ -133,17 +135,18 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 			const [, workspaceName, workspacePath] = multiRootFormattedPath;
 			const folder = vscode.workspace.workspaceFolders.filter(wf => wf.name === workspaceName)[0];
 			if (folder) {
-				return vscode.Uri.file(pathUtils.join(folder.uri.fsPath, workspacePath));
+				return uriFromFolderWithPath(folder, workspacePath);
 			}
 		}
-
 		else if (vscode.workspace.workspaceFolders.length === 1) {
-			return vscode.Uri.file(pathUtils.join(vscode.workspace.workspaceFolders[0].uri.fsPath, path));
+			return uriFromFolderWithPath(vscode.workspace.workspaceFolders[0], path);
 		} else if (resultsUri.scheme !== 'untitled') {
 			// We're in a multi-root workspace, but the path is not multi-root formatted
 			// Possibly a saved search from a single root session. Try checking if the search result document's URI is in a current workspace folder.
 			const prefixMatch = vscode.workspace.workspaceFolders.filter(wf => resultsUri.toString().startsWith(wf.uri.toString()))[0];
-			if (prefixMatch) { return vscode.Uri.file(pathUtils.join(prefixMatch.uri.fsPath, path)); }
+			if (prefixMatch) {
+				return uriFromFolderWithPath(prefixMatch, path);
+			}
 		}
 	}
 

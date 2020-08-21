@@ -19,7 +19,7 @@ export class PureNotebookOutputRenderer implements INotebookRendererInfo {
 	public readonly preloads: URI[];
 
 
-	constructor(public readonly id: string, extension: IExtensionDescription, entrypoint: string) {
+	constructor(public readonly id: string, public readonly displayName: string, extension: IExtensionDescription, entrypoint: string) {
 		this.extensionId = extension.identifier;
 		this.extensionLocation = extension.extensionLocation;
 		this.preloads = [joinPath(extension.extensionLocation, entrypoint)];

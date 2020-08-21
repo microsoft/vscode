@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, AuthenticationProviderInformation } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -18,9 +18,28 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 // eslint-disable-next-line code-import-patterns
 import { encrypt, decrypt } from 'vscode-encrypt';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { isString } from 'vs/base/common/types';
 
-export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest${id}`; }
+export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
+export type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string };
+export async function getCurrentAuthenticationSessionInfo(environmentService: IWorkbenchEnvironmentService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
+	if (environmentService.options?.credentialsProvider) {
+		const authenticationSessionValue = await environmentService.options.credentialsProvider.getPassword(`${productService.urlProtocol}.login`, 'account');
+		if (authenticationSessionValue) {
+			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);
+			if (authenticationSessionInfo
+				&& isString(authenticationSessionInfo.id)
+				&& isString(authenticationSessionInfo.accessToken)
+				&& isString(authenticationSessionInfo.providerId)
+			) {
+				return authenticationSessionInfo;
+			}
+		}
+	}
+	return undefined;
+}
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {
@@ -83,7 +102,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	private _placeholderMenuItem: IDisposable | undefined;
 	private _noAccountsMenuItem: IDisposable | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
-	private _badgeDisposable: IDisposable | undefined;
+	private _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();
 
@@ -220,10 +239,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		});
 
 		if (changed) {
-			if (this._signInRequestItems.size === 0) {
-				this._badgeDisposable?.dispose();
-				this._badgeDisposable = undefined;
-			} else {
+			this._accountBadgeDisposable.clear();
+
+			if (this._signInRequestItems.size > 0) {
 				let numberOfRequests = 0;
 				this._signInRequestItems.forEach(providerRequests => {
 					Object.keys(providerRequests).forEach(request => {
@@ -232,13 +250,27 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				});
 
 				const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
-				this._badgeDisposable = this.activityService.showAccountsActivity({ badge });
+				this._accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 			}
 		}
 	}
 
-	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): void {
-		const provider = this._authenticationProviders.get(providerId);
+	async requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void> {
+		let provider = this._authenticationProviders.get(providerId);
+		if (!provider) {
+			// Activate has already been called for the authentication provider, but it cannot block on registering itself
+			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
+			// provider is now in the map.
+			await new Promise((resolve, _) => {
+				this.onDidRegisterAuthenticationProvider(e => {
+					if (e.id === providerId) {
+						provider = this._authenticationProviders.get(providerId);
+						resolve();
+					}
+				});
+			});
+		}
+
 		if (provider) {
 			const providerRequests = this._signInRequestItems.get(providerId);
 			const scopesList = scopes.sort().join('');
@@ -301,6 +333,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				});
 			}
 
+			this._accountBadgeDisposable.clear();
+
 			let numberOfRequests = 0;
 			this._signInRequestItems.forEach(providerRequests => {
 				Object.keys(providerRequests).forEach(request => {
@@ -309,7 +343,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			});
 
 			const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
-			this._badgeDisposable = this.activityService.showAccountsActivity({ badge });
+			this._accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 		}
 	}
 	getLabel(id: string): string {

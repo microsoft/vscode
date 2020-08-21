@@ -289,7 +289,8 @@ class CodeMain {
 
 			// Process Info
 			if (args.status) {
-				return instantiationService.invokeFunction(async accessor => {
+				return instantiationService.invokeFunction(async () => {
+
 					// Create a diagnostic service connected to the existing shared process
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
 					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
@@ -357,7 +358,10 @@ class CodeMain {
 	}
 
 	private showStartupWarningDialog(message: string, detail: string): void {
-		dialog.showMessageBox({
+		// use sync variant here because we likely exit after this method
+		// due to startup issues and otherwise the dialog seems to disappear
+		// https://github.com/microsoft/vscode/issues/104493
+		dialog.showMessageBoxSync({
 			title: product.nameLong,
 			type: 'warning',
 			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, matchesCamelCase, isUpper, fuzzyScore, createMatches as createFuzzyMatches, matchesStrictPrefix } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, isUpper, fuzzyScore, createMatches as createFuzzyMatches, matchesStrictPrefix } from 'vs/base/common/filters';
 import { sep } from 'vs/base/common/path';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
@@ -168,7 +168,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	score += 1;
 
 	// if (DEBUG) {
-	// 	console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLower[queryIndex]} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
+	// console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLowerCharAtIndex} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
 	// }
 
 	// Consecutive match bonus
@@ -176,7 +176,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		score += (matchesSequenceLength * 5);
 
 		// if (DEBUG) {
-		// 	console.log('Consecutive match bonus: ' + (matchesSequenceLength * 5));
+		// console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
 		// }
 	}
 
@@ -206,16 +206,16 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// 	console.log('After separtor bonus: +4');
+			// console.log(`After separtor bonus: +${separatorBonus}`);
 			// }
 		}
 
 		// Inside word upper case bonus (camel case)
 		else if (isUpper(target.charCodeAt(targetIndex))) {
-			score += 1;
+			score += 2;
 
 			// if (DEBUG) {
-			// 	console.log('Inside word upper case bonus: +1');
+			// 	console.log('Inside word upper case bonus: +2');
 			// }
 		}
 	}
@@ -371,8 +371,7 @@ export interface IItemAccessor<T> {
 const PATH_IDENTITY_SCORE = 1 << 18;
 const LABEL_PREFIX_SCORE_MATCHCASE = 1 << 17;
 const LABEL_PREFIX_SCORE_IGNORECASE = 1 << 16;
-const LABEL_CAMELCASE_SCORE = 1 << 15;
-const LABEL_SCORE_THRESHOLD = 1 << 14;
+const LABEL_SCORE_THRESHOLD = 1 << 15;
 
 export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
 	if (!item || !query.normalized) {
@@ -386,11 +385,17 @@ export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean
 
 	const description = accessor.getItemDescription(item);
 
+	// in order to speed up scoring, we cache the score with a unique hash based on:
+	// - label
+	// - description (if provided)
+	// - query (normalized)
+	// - number of query pieces (i.e. 'hello world' and 'helloworld' are different)
+	// - wether fuzzy matching is enabled or not
 	let cacheHash: string;
 	if (description) {
-		cacheHash = `${label}${description}${query.normalized}${fuzzy}`;
+		cacheHash = `${label}${description}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
 	} else {
-		cacheHash = `${label}${query.normalized}${fuzzy}`;
+		cacheHash = `${label}${query.normalized}${Array.isArray(query.values) ? query.values.length : ''}${fuzzy}`;
 	}
 
 	const cached = cache[cacheHash];
@@ -465,13 +470,7 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			return { score: prefixLabelMatchStrictCase ? LABEL_PREFIX_SCORE_MATCHCASE : LABEL_PREFIX_SCORE_IGNORECASE, labelMatch: prefixLabelMatchStrictCase || prefixLabelMatchIgnoreCase };
 		}
 
-		// Treat camelcase matches on the label second highest
-		const camelcaseLabelMatch = matchesCamelCase(query.normalized, label);
-		if (camelcaseLabelMatch) {
-			return { score: LABEL_CAMELCASE_SCORE, labelMatch: camelcaseLabelMatch };
-		}
-
-		// Prefer scores on the label if any
+		// Second, score fuzzy
 		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelScore) {
 			return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
@@ -594,7 +593,7 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 	const scoreA = itemScoreA.score;
 	const scoreB = itemScoreB.score;
 
-	// 1.) prefer identity matches
+	// 1.) identity matches have highest score
 	if (scoreA === PATH_IDENTITY_SCORE || scoreB === PATH_IDENTITY_SCORE) {
 		if (scoreA !== scoreB) {
 			return scoreA === PATH_IDENTITY_SCORE ? -1 : 1;
@@ -631,44 +630,32 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 		}
 	}
 
-	// 4.) prefer camelcase matches
-	if (scoreA === LABEL_CAMELCASE_SCORE || scoreB === LABEL_CAMELCASE_SCORE) {
+	// 4.) matches on label are considered higher compared to label+description matches
+	if (scoreA > LABEL_SCORE_THRESHOLD || scoreB > LABEL_SCORE_THRESHOLD) {
 		if (scoreA !== scoreB) {
-			return scoreA === LABEL_CAMELCASE_SCORE ? -1 : 1;
+			return scoreA > scoreB ? -1 : 1;
 		}
 
-		const labelA = accessor.getItemLabel(itemA) || '';
-		const labelB = accessor.getItemLabel(itemB) || '';
-
-		// prefer more compact camel case matches over longer
+		// prefer more compact matches over longer in label
 		const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
 		if (comparedByMatchLength !== 0) {
 			return comparedByMatchLength;
 		}
 
-		// prefer shorter names when both match on label camelcase
+		// prefer shorter labels over longer labels
+		const labelA = accessor.getItemLabel(itemA) || '';
+		const labelB = accessor.getItemLabel(itemB) || '';
 		if (labelA.length !== labelB.length) {
 			return labelA.length - labelB.length;
 		}
 	}
 
-	// 5.) prefer label scores
-	if (scoreA > LABEL_SCORE_THRESHOLD || scoreB > LABEL_SCORE_THRESHOLD) {
-		if (scoreB < LABEL_SCORE_THRESHOLD) {
-			return -1;
-		}
-
-		if (scoreA < LABEL_SCORE_THRESHOLD) {
-			return 1;
-		}
-	}
-
-	// 6.) compare by score
+	// 5.) compare by score in label+description
 	if (scoreA !== scoreB) {
 		return scoreA > scoreB ? -1 : 1;
 	}
 
-	// 7.) prefer matches in label over non-label matches
+	// 6.) scores are identical: prefer matches in label over non-label matches
 	const itemAHasLabelMatches = Array.isArray(itemScoreA.labelMatch) && itemScoreA.labelMatch.length > 0;
 	const itemBHasLabelMatches = Array.isArray(itemScoreB.labelMatch) && itemScoreB.labelMatch.length > 0;
 	if (itemAHasLabelMatches && !itemBHasLabelMatches) {
@@ -677,15 +664,14 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 		return 1;
 	}
 
-	// 8.) scores are identical, prefer more compact matches (label and description)
+	// 7.) scores are identical: prefer more compact matches (label and description)
 	const itemAMatchDistance = computeLabelAndDescriptionMatchDistance(itemA, itemScoreA, accessor);
 	const itemBMatchDistance = computeLabelAndDescriptionMatchDistance(itemB, itemScoreB, accessor);
 	if (itemAMatchDistance && itemBMatchDistance && itemAMatchDistance !== itemBMatchDistance) {
 		return itemBMatchDistance > itemAMatchDistance ? -1 : 1;
 	}
 
-	// 9.) at this point, scores are identical and match compactness as well
-	// for both items so we start to use the fallback compare
+	// 8.) scores are identical: start to use the fallback compare
 	return fallbackCompare(itemA, itemB, query, accessor);
 }
 

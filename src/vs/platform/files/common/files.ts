@@ -29,7 +29,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes it's capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 

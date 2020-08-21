@@ -66,7 +66,7 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 	for (const folder of treeInput) {
 		if (tree.hasNode(folder) && !tree.isCollapsed(folder)) {
 			for (const [, child] of folder.children.entries()) {
-				if (tree.hasNode(child) && !tree.isCollapsed(child)) {
+				if (tree.hasNode(child) && tree.isCollapsible(child) && !tree.isCollapsed(child)) {
 					return true;
 				}
 			}
