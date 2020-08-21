@@ -85,12 +85,20 @@ abstract class AbstractCellRenderer extends Disposable {
 		metadataStatusHeight: number;
 		metadataHeight: number;
 	};
+	protected _foldingIndicator!: HTMLElement;
+	protected _foldingState!: MetadataFoldingState;
+	protected _metadataEditorContainer?: HTMLElement;
+	protected _metadataEditorDisposeStore!: DisposableStore;
+	protected _metadataEditor?: CodeEditorWidget;
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
 		readonly templateData: CellDiffRenderTemplate,
 		protected readonly instantiationService: IInstantiationService,
+		protected readonly modeService: IModeService,
+		protected readonly modelService: IModelService,
+
 	) {
 		super();
 		// init
@@ -100,6 +108,8 @@ abstract class AbstractCellRenderer extends Disposable {
 			metadataHeight: 0,
 			metadataStatusHeight: 24
 		};
+		this._metadataEditorDisposeStore = new DisposableStore();
+		this._foldingState = MetadataFoldingState.Collapsed;
 		this.initData();
 		this.buildBody(templateData.container);
 		this._register(cell.onDidLayoutChange(e => this.onDidLayoutChange(e)));
@@ -116,75 +126,6 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
 		this.buildMetadataHeader(this._metadataHeaderContainer);
 		this.buildMetadataBody(this._metadataInfoContainer);
-	}
-
-	abstract initData(): void;
-	abstract styleContainer(container: HTMLElement): void;
-	abstract buildSourceEditor(sourceContainer: HTMLElement): void;
-	abstract buildMetadataHeader(metadataHeaderContainer: HTMLElement): void;
-	abstract buildMetadataBody(metadataBodyContainer: HTMLElement): void;
-
-	abstract onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void;
-}
-
-export class UnchangedCell extends AbstractCellRenderer {
-	private _editor!: CodeEditorWidget;
-	private _metadataEditor?: CodeEditorWidget;
-	private _foldingState!: MetadataFoldingState;
-	private _metadataEditorContainer?: HTMLElement;
-	private _foldingIndicator!: HTMLElement;
-	private _metadataEditorDisposeStore!: DisposableStore;
-
-	constructor(
-		readonly notebookEditor: INotebookTextDiffEditor,
-		readonly cell: CellDiffViewModel,
-		readonly templateData: CellDiffRenderTemplate,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService protected modelService: IModelService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
-	) {
-		super(notebookEditor, cell, templateData, instantiationService);
-	}
-
-	initData() {
-		this._foldingState = MetadataFoldingState.Collapsed;
-		this._metadataEditorDisposeStore = new DisposableStore();
-	}
-
-	styleContainer(container: HTMLElement) {
-	}
-
-	buildSourceEditor(sourceContainer: HTMLElement) {
-		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
-		const originalCell = this.cell.original!;
-		const lineCount = originalCell.textBuffer.getLineCount();
-		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
-		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
-
-		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
-			...fixedEditorOptions,
-			dimension: {
-				width: this.notebookEditor.getLayoutInfo().width - 20,
-				height: editorHeight
-			}
-		}, {});
-
-		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
-				this._layoutInfo.editorHeight = e.contentHeight;
-				this.layout({ editorHeight: true });
-			}
-		}));
-
-		originalCell.resolveTextModelRef().then(ref => {
-			this._register(ref);
-
-			const textModel = ref.object.textEditorModel;
-			this._editor.setModel(textModel);
-
-			this._layoutInfo.editorHeight = this._editor.getContentHeight();
-			this.layout({ editorHeight: true });
-		});
 	}
 
 	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
@@ -222,44 +163,6 @@ export class UnchangedCell extends AbstractCellRenderer {
 		}));
 
 		this.updateMetadataRendering();
-	}
-	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
-
-	}
-
-	onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void {
-		if (event.outerWidth !== undefined) {
-			this.layout({ outerWidth: true });
-		}
-	}
-
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editor.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
-				height: this._layoutInfo.editorHeight
-			});
-		}
-
-		if (state.metadataEditor || state.outerWidth) {
-			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
-				height: this._layoutInfo.metadataHeight
-			});
-		}
-		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
-	}
-
-	private _updateFoldingIcon() {
-		if (this._foldingState === MetadataFoldingState.Collapsed) {
-			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
-		} else {
-			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
-		}
-	}
-
-	buildMetadata(diffEditorContainer: HTMLElement) {
 	}
 
 	updateMetadataRendering() {
@@ -310,6 +213,105 @@ export class UnchangedCell extends AbstractCellRenderer {
 		this._updateFoldingIcon();
 
 	}
+
+	private _updateFoldingIcon() {
+		if (this._foldingState === MetadataFoldingState.Collapsed) {
+			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
+		} else {
+			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+		}
+	}
+
+	abstract initData(): void;
+	abstract styleContainer(container: HTMLElement): void;
+	abstract buildSourceEditor(sourceContainer: HTMLElement): void;
+	abstract buildMetadataBody(metadataBodyContainer: HTMLElement): void;
+
+	abstract onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void;
+	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }): void;
+}
+
+export class UnchangedCell extends AbstractCellRenderer {
+	private _editor!: CodeEditorWidget;
+
+	constructor(
+		readonly notebookEditor: INotebookTextDiffEditor,
+		readonly cell: CellDiffViewModel,
+		readonly templateData: CellDiffRenderTemplate,
+		@IModeService readonly modeService: IModeService,
+		@IModelService protected modelService: IModelService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+	) {
+		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
+	}
+
+	initData() {
+	}
+
+	styleContainer(container: HTMLElement) {
+	}
+
+	buildSourceEditor(sourceContainer: HTMLElement) {
+		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
+		const originalCell = this.cell.original!;
+		const lineCount = originalCell.textBuffer.getLineCount();
+		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
+		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+
+		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
+			...fixedEditorOptions,
+			dimension: {
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: editorHeight
+			}
+		}, {});
+
+		this._register(this._editor.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged) {
+				this._layoutInfo.editorHeight = e.contentHeight;
+				this.layout({ editorHeight: true });
+			}
+		}));
+
+		originalCell.resolveTextModelRef().then(ref => {
+			this._register(ref);
+
+			const textModel = ref.object.textEditorModel;
+			this._editor.setModel(textModel);
+
+			this._layoutInfo.editorHeight = this._editor.getContentHeight();
+			this.layout({ editorHeight: true });
+		});
+	}
+
+	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
+
+	}
+
+	onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void {
+		if (event.outerWidth !== undefined) {
+			this.layout({ outerWidth: true });
+		}
+	}
+
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
+		if (state.editorHeight || state.outerWidth) {
+			this._editor.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.editorHeight
+			});
+		}
+
+		if (state.metadataEditor || state.outerWidth) {
+			this._metadataEditor?.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.metadataHeight
+			});
+		}
+
+		this.notebookEditor.layoutNotebookCell(this.cell,
+			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
+	}
 }
 
 export class DeletedCell extends AbstractCellRenderer {
@@ -319,9 +321,11 @@ export class DeletedCell extends AbstractCellRenderer {
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
 		readonly templateData: CellDiffRenderTemplate,
+		@IModeService readonly modeService: IModeService,
+		@IModelService readonly modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService);
+		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
 	}
 
 	initData(): void {
@@ -367,8 +371,6 @@ export class DeletedCell extends AbstractCellRenderer {
 		});
 
 	}
-	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
-	}
 
 	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
 	}
@@ -383,6 +385,13 @@ export class DeletedCell extends AbstractCellRenderer {
 			this._editor.layout({
 				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
 				height: this._layoutInfo.editorHeight
+			});
+		}
+
+		if (state.metadataEditor || state.outerWidth) {
+			this._metadataEditor?.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.metadataHeight
 			});
 		}
 
@@ -401,8 +410,10 @@ export class InsertCell extends AbstractCellRenderer {
 		readonly cell: CellDiffViewModel,
 		readonly templateData: CellDiffRenderTemplate,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IModeService readonly modeService: IModeService,
+		@IModelService readonly modelService: IModelService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService);
+		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
 	}
 
 	initData(): void {
@@ -447,9 +458,6 @@ export class InsertCell extends AbstractCellRenderer {
 		});
 	}
 
-	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
-	}
-
 	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
 	}
 
@@ -464,6 +472,13 @@ export class InsertCell extends AbstractCellRenderer {
 			this._editor.layout({
 				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
 				height: this._layoutInfo.editorHeight
+			});
+		}
+
+		if (state.metadataEditor || state.outerWidth) {
+			this._metadataEditor?.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.metadataHeight
 			});
 		}
 
@@ -482,8 +497,10 @@ export class ModifiedCell extends AbstractCellRenderer {
 		readonly cell: CellDiffViewModel,
 		readonly templateData: CellDiffRenderTemplate,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IModeService readonly modeService: IModeService,
+		@IModelService readonly modelService: IModelService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService);
+		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
 	}
 
 	initData(): void {
@@ -542,9 +559,6 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 	}
 
-	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
-	}
-
 	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
 	}
 
@@ -558,6 +572,13 @@ export class ModifiedCell extends AbstractCellRenderer {
 		if (state.editorHeight || state.outerWidth) {
 			this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
 			this._editor!.layout();
+		}
+
+		if (state.metadataEditor || state.outerWidth) {
+			this._metadataEditor?.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.metadataHeight
+			});
 		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
