@@ -59,8 +59,7 @@ import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { TreeFilterPanelActionViewItem, TreeFilterState } from 'vs/workbench/contrib/treeFilter/browser/treeFilterView';
-import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { ReplFilter, TreeFilterState, TreeFilterPanelActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
 
 const $ = dom.$;
 
