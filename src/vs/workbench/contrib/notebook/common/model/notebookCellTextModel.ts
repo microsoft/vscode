@@ -13,7 +13,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { hash } from 'vs/base/common/hash';
 
-
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;

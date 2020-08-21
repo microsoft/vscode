@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -24,8 +24,6 @@ import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/
 import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { RangeMapWithWhitespace } from 'vs/workbench/contrib/notebook/browser/view/rangeMapWithWhitespace';
 
 export interface IFocusNextPreviousDelegate {
 	onFocusNext(applyFocusNext: () => void): void;
@@ -64,8 +62,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
-	private _rangeMap: RangeMapWithWhitespace;
-
 	constructor(
 		private listUser: string,
 		parentContainer: HTMLElement,
@@ -74,15 +70,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
 		contextKeyService: IContextKeyService,
 		options: INotebookCellListOptions,
-		rangeMap: RangeMapWithWhitespace,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
-		this._rangeMap = rangeMap;
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
 		this._focusNextPreviousDelegate = options.focusNextPreviousDelegate;
 		this._previousFocusedElements = this.getFocusedElements();
@@ -383,6 +376,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		super.splice(start, deleteCount, elements);
+
 		const selectionsLeft = [];
 		this._viewModel!.selectionHandles.forEach(handle => {
 			if (this._viewModel!.hasCell(handle)) {
@@ -572,15 +566,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.triggerScrollFromMouseWheelEvent(browserEvent);
 	}
 
-	insertWhitespace(index: number, height: number) {
-		this._rangeMap.insertWhitespace(index, height);
-		this.view.rerender();
-	}
-
-	updateWhitespace(index: number, newHeight: number) {
-		this._rangeMap.updateWhitespace(index, newHeight);
-		this.view.rerender();
-	}
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
 		const index = this._getViewIndexUpperBound(element);
@@ -826,14 +811,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		} else {
 			getEditorAttachedPromise(element).then(() => { element.setSelection(range); });
 		}
-	}
-
-	updateOptions(options: IListOptions<ICellViewModel>) {
-		super.updateOptions(options);
-	}
-
-	layout(height?: number, width?: number): void {
-		super.layout(height, width);
 	}
 
 

@@ -218,7 +218,6 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	readonly isNotebookEditor: boolean;
-	readonly creationOptions: INotebookEditorCreationOptions;
 	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
@@ -457,7 +456,7 @@ export interface INotebookEditor extends IEditor {
 }
 
 export interface INotebookCellList {
-	isDisposed: boolean
+	isDisposed: boolean;
 	readonly contextKeyService: IContextKeyService;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
@@ -508,8 +507,6 @@ export interface INotebookCellList {
 	getFocus(): number[];
 	setFocus(indexes: number[]): void;
 	setSelection(indexes: number[]): void;
-	insertWhitespace(index: number, height: number): void;
-	updateWhitespace(index: number, newHeight: number): void;
 }
 
 export interface BaseCellRenderTemplate {
