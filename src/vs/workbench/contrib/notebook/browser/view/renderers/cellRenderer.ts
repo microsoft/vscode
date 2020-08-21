@@ -416,6 +416,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			disposables,
 			elementDisposables: new DisposableStore(),
 			toolbar,
+			deleteToolbar,
 			betweenCellToolbar,
 			bottomCellContainer,
 			statusBarContainer: statusBar.statusBarContainer,
@@ -480,6 +481,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			$mid: 12
 		};
 		templateData.toolbar.context = toolbarContext;
+		templateData.deleteToolbar.context = toolbarContext;
 
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
@@ -719,6 +721,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			focusIndicatorRight,
 			focusIndicatorBottom,
 			toolbar,
+			deleteToolbar,
 			betweenCellToolbar,
 			focusSinkElement,
 			runToolbar,
@@ -870,6 +873,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 		templateData.toolbar.context = toolbarContext;
 		templateData.runToolbar.context = toolbarContext;
+		templateData.deleteToolbar.context = toolbarContext;
 
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
