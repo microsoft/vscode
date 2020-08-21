@@ -27,6 +27,8 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { Emitter } from 'vs/base/common/event';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
@@ -35,6 +37,9 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 	private _dimension: DOM.Dimension | null = null;
 	private _list!: WorkbenchList<CellDiffViewModel>;
 	private _fontInfo: BareFontInfo | undefined;
+
+	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>());
+	public readonly onMouseUp = this._onMouseUp.event;
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -106,6 +111,12 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 				// }
 			}
 		);
+
+		this._register(this._list.onMouseUp(e => {
+			if (e.element) {
+				this._onMouseUp.fire({ event: e.browserEvent, target: e.element });
+			}
+		}));
 	}
 
 	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -191,11 +202,34 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 		this._list.splice(0, this._list.length, cellDiffViewModels);
 	}
 
+	private pendingLayouts = new WeakMap<CellDiffViewModel, IDisposable>();
+
+
 	layoutNotebookCell(cell: CellDiffViewModel, height: number) {
-		const index = this._list!.indexOf(cell);
-		if (index >= 0) {
-			this._list!.updateElementHeight(index, height);
+		const relayout = (cell: CellDiffViewModel, height: number) => {
+			const viewIndex = this._list!.indexOf(cell);
+
+			this._list?.updateElementHeight(viewIndex, height);
+		};
+
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
 		}
+
+		let r: () => void;
+		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			this.pendingLayouts.delete(cell);
+
+			relayout(cell, height);
+			r();
+		});
+
+		this.pendingLayouts.set(cell, toDisposable(() => {
+			layoutDisposable.dispose();
+			r();
+		}));
+
+		return new Promise(resolve => { r = resolve; });
 	}
 
 	getDomNode() {

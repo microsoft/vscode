@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/notebookDiff';
+import 'vs/css!./notebookDiff';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,6 +22,8 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { isMacintosh } from 'vs/base/common/platform';
 import { renderCodicons } from 'vs/base/common/codicons';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export interface CellDiffRenderTemplate {
 	readonly container: HTMLElement;
@@ -145,15 +147,48 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 	}
 }
 
+enum MetadataFoldingState {
+	Expanded,
+	Collapsed
+}
+
 class UnchangedCell extends Disposable {
 	private _editor!: CodeEditorWidget;
+	private _metadataEditor?: CodeEditorWidget;
+	private _layoutInfo!: {
+		editorHeight: number;
+		editorMargin: number;
+		metadataStatusHeight: number;
+		metadataHeight: number;
+	};
+
+	private _foldingState: MetadataFoldingState;
+	private _metadataHeaderContainer!: HTMLElement;
+	private _metadataInfoContainer!: HTMLElement;
+	private _metadataEditorContainer?: HTMLElement;
+	private _foldingIndicator!: HTMLElement;
+	private _metadataEditorDisposeStore = new DisposableStore();
+
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
 		readonly templateData: CellDiffRenderTemplate,
+		@IModeService private readonly modeService: IModeService,
+		@IModelService protected modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		// init
+		this._layoutInfo = {
+			editorHeight: 0,
+			editorMargin: 32,
+			metadataHeight: 0,
+			metadataStatusHeight: 24
+		};
+
+		this._foldingState = MetadataFoldingState.Collapsed;
+
 		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
 		DOM.append(templateData.container, diffEditorContainer);
 
@@ -162,8 +197,9 @@ class UnchangedCell extends Disposable {
 		const lineHeight = notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 		const editorContainer = DOM.append(diffEditorContainer, DOM.$('.editor-container'));
-		const metadataContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-container'));
-		this.buildMetadata(metadataContainer);
+		this._metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-container'));
+		this._metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+		this.buildMetadata();
 
 		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
@@ -175,11 +211,8 @@ class UnchangedCell extends Disposable {
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
-				this._editor.layout({
-					width: notebookEditor.getLayoutInfo().width - 20,
-					height: e.contentHeight
-				});
-				this.notebookEditor.layoutNotebookCell(this.cell, e.contentHeight + 32 + 24);
+				this._layoutInfo.editorHeight = e.contentHeight;
+				this.layout({ editorHeight: true });
 			}
 		}));
 
@@ -189,20 +222,118 @@ class UnchangedCell extends Disposable {
 			const textModel = ref.object.textEditorModel;
 			this._editor.setModel(textModel);
 
-			this._editor.layout({
-				width: notebookEditor.getLayoutInfo().width - 20,
-				height: this._editor.getContentHeight()
-			});
-			this.notebookEditor.layoutNotebookCell(this.cell, this._editor.getContentHeight() + 32 + 24);
+			this._layoutInfo.editorHeight = this._editor.getContentHeight();
+			this.layout({ editorHeight: true });
 		});
 	}
 
-	buildMetadata(metadataContainer: HTMLElement) {
-		const foldingIndicator = DOM.append(metadataContainer, DOM.$('.metadata-folding-indicator'));
-		foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
-		const metadataStatus = DOM.append(metadataContainer, DOM.$('div.metadata-status'));
+	layout(state: { editorHeight?: boolean, metadataEditor?: boolean }) {
+		if (state.editorHeight) {
+			this._editor.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.editorHeight
+			});
+		}
+
+		if (state.metadataEditor) {
+			this._metadataEditor?.layout({
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: this._layoutInfo.metadataHeight
+			});
+		}
+		this.notebookEditor.layoutNotebookCell(this.cell,
+			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
+	}
+
+	private _updateFoldingIcon() {
+		if (this._foldingState === MetadataFoldingState.Collapsed) {
+			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
+		} else {
+			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+		}
+	}
+
+	buildMetadata() {
+		this._foldingIndicator = DOM.append(this._metadataHeaderContainer, DOM.$('.metadata-folding-indicator'));
+		this._updateFoldingIcon();
+		const metadataStatus = DOM.append(this._metadataHeaderContainer, DOM.$('div.metadata-status'));
 		const metadataStatusSpan = DOM.append(metadataStatus, DOM.$('span'));
 		metadataStatusSpan.textContent = 'Metadata unchanged';
+
+		this._register(this.notebookEditor.onMouseUp(e => {
+			if (!e.event.target) {
+				return;
+			}
+
+			const target = e.event.target as HTMLElement;
+
+			if (DOM.hasClass(target, 'codicon-chevron-down') || DOM.hasClass(target, 'codicon-chevron-right')) {
+				const parent = target.parentElement as HTMLElement;
+
+				if (parent && !DOM.hasClass(parent, 'metadata-folding-indicator')) {
+					return;
+				}
+
+				// folding icon
+
+				const cellViewModel = e.target;
+
+				if (cellViewModel === this.cell) {
+					this._foldingState = this._foldingState === MetadataFoldingState.Expanded ? MetadataFoldingState.Collapsed : MetadataFoldingState.Expanded;
+					this.updateMetadataRendering();
+				}
+			}
+
+			return;
+		}));
+
+		this.updateMetadataRendering();
+	}
+
+	updateMetadataRendering() {
+		if (this._foldingState === MetadataFoldingState.Expanded) {
+			// we should expand the metadata editor
+			this._metadataInfoContainer.style.display = 'block';
+
+			if (!this._metadataEditorContainer || !this._metadataEditor) {
+				// create editor
+				this._metadataEditorContainer = DOM.append(this._metadataInfoContainer, DOM.$('.metadata-editor-container'));
+
+				this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer, {
+					...fixedEditorOptions,
+					dimension: {
+						width: this.notebookEditor.getLayoutInfo().width - 20,
+						height: 0
+					}
+				}, {});
+
+				const mode = this.modeService.create('json');
+				const metadataModel = this.modelService.createModel(JSON.stringify(this.cell.original!.metadata), mode, undefined, true);
+				this._metadataEditor.setModel(metadataModel);
+
+				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
+				console.log(this._layoutInfo.metadataHeight);
+				this.layout({ metadataEditor: true });
+
+				this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+					if (e.contentHeightChanged && this._foldingState === MetadataFoldingState.Expanded) {
+						this._layoutInfo.metadataHeight = e.contentHeight;
+						this.layout({ metadataEditor: true });
+					}
+				}));
+			} else {
+				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
+				this.layout({ metadataEditor: true });
+			}
+		} else {
+			// we should collapse the metadata editor
+			this._metadataInfoContainer.style.display = 'none';
+			this._metadataEditorDisposeStore.clear();
+			this._layoutInfo.metadataHeight = 0;
+			this.layout({});
+		}
+
+		this._updateFoldingIcon();
 
 	}
 }
