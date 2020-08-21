@@ -293,8 +293,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						continue;
 					}
 
+					const id = notebookContribution.id ?? notebookContribution.viewType;
+					if (!id) {
+						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
+						continue;
+					}
+
 					this.notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
-						id: notebookContribution.viewType,
+						id,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
 						displayName: notebookContribution.displayName,
@@ -302,8 +308,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					}));
 				}
 			}
-
-			// console.log(this.notebookRenderersInfoStore);
 		});
 
 		this._editorService.registerCustomEditorViewTypesHandler('Notebook', this);
