@@ -324,7 +324,8 @@ export class CodeCell extends Disposable {
 			if (renderedOutput) {
 				if (renderedOutput.renderResult.type !== RenderOutputType.None) {
 					// Show inset in webview, or render output that isn't rendered
-					this.renderOutput(currOutput, index, undefined);
+					// TODO@roblou skipHeightInit flag is a hack - the webview only sends the real height once. Don't wipe it out here.
+					this.renderOutput(currOutput, index, undefined, true);
 				} else {
 					// Anything else, just update the height
 					this.viewCell.updateOutputHeight(index, renderedOutput.element.clientHeight);
@@ -429,7 +430,7 @@ export class CodeCell extends Disposable {
 		);
 	}
 
-	private renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {
+	private renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement, skipHeightInit = false) {
 		if (!this.outputResizeListeners.has(currOutput)) {
 			this.outputResizeListeners.set(currOutput, new DisposableStore());
 		}
@@ -509,40 +510,42 @@ export class CodeCell extends Disposable {
 			outputItemDiv.style.position = 'absolute';
 		}
 
-		if (outputHasDynamicHeight(result)) {
-			this.viewCell.selfSizeMonitoring = true;
+		if (!skipHeightInit) {
+			if (outputHasDynamicHeight(result)) {
+				this.viewCell.selfSizeMonitoring = true;
 
-			const clientHeight = outputItemDiv.clientHeight;
-			const dimension = {
-				width: this.viewCell.layoutInfo.editorWidth,
-				height: clientHeight
-			};
-			const elementSizeObserver = getResizesObserver(outputItemDiv, dimension, () => {
-				if (this.templateData.outputContainer && document.body.contains(this.templateData.outputContainer!)) {
-					const height = Math.ceil(elementSizeObserver.getHeight());
+				const clientHeight = outputItemDiv.clientHeight;
+				const dimension = {
+					width: this.viewCell.layoutInfo.editorWidth,
+					height: clientHeight
+				};
+				const elementSizeObserver = getResizesObserver(outputItemDiv, dimension, () => {
+					if (this.templateData.outputContainer && document.body.contains(this.templateData.outputContainer!)) {
+						const height = Math.ceil(elementSizeObserver.getHeight());
 
-					if (clientHeight === height) {
-						return;
+						if (clientHeight === height) {
+							return;
+						}
+
+						const currIndex = this.viewCell.outputs.indexOf(currOutput);
+						if (currIndex < 0) {
+							return;
+						}
+
+						this.viewCell.updateOutputHeight(currIndex, height);
+						this.relayoutCell();
 					}
+				});
+				elementSizeObserver.startObserving();
+				this.outputResizeListeners.get(currOutput)!.add(elementSizeObserver);
+				this.viewCell.updateOutputHeight(index, clientHeight);
+			} else if (result.type !== RenderOutputType.None) { // no-op if it's a webview
+				const clientHeight = Math.ceil(outputItemDiv.clientHeight);
+				this.viewCell.updateOutputHeight(index, clientHeight);
 
-					const currIndex = this.viewCell.outputs.indexOf(currOutput);
-					if (currIndex < 0) {
-						return;
-					}
-
-					this.viewCell.updateOutputHeight(currIndex, height);
-					this.relayoutCell();
-				}
-			});
-			elementSizeObserver.startObserving();
-			this.outputResizeListeners.get(currOutput)!.add(elementSizeObserver);
-			this.viewCell.updateOutputHeight(index, clientHeight);
-		} else if (result.type !== RenderOutputType.None) { // no-op if it's a webview
-			const clientHeight = Math.ceil(outputItemDiv.clientHeight);
-			this.viewCell.updateOutputHeight(index, clientHeight);
-
-			const top = this.viewCell.getOutputOffsetInContainer(index);
-			outputItemDiv.style.top = `${top}px`;
+				const top = this.viewCell.getOutputOffsetInContainer(index);
+				outputItemDiv.style.top = `${top}px`;
+			}
 		}
 	}
 
