@@ -6,13 +6,19 @@
 const path = require('path');
 const testRunner = require('vscode/lib/testrunner');
 
-const suite = 'Integration Single Folder Tests';
-
 const options: any = {
 	ui: 'tdd',
 	useColors: (!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY && process.platform !== 'win32'),
 	timeout: 60000
 };
+
+let suite = 'Integration Single Folder Tests';
+
+if (process.env.VSCODE_BROWSER) {
+	suite = `${process.env.VSCODE_BROWSER} Browser Integration Single Folder Tests`;
+} else if (process.env.REMOTE_VSCODE) {
+	suite = 'Remote Integration Single Folder Tests';
+}
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	options.reporter = 'mocha-multi-reporters';
