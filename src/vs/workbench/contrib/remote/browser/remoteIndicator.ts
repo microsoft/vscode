@@ -119,7 +119,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
 
 		// Update based on remote indicator changes if any
-		const remoteIndicator = this.environmentService.options?.remoteIndicator;
+		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this._register(remoteIndicator.onDidChange(() => this.updateRemoteStatusIndicator()));
 		}
@@ -188,7 +188,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private updateRemoteStatusIndicator(): void {
 
 		// Remote indicator: show if provided via options
-		const remoteIndicator = this.environmentService.options?.remoteIndicator;
+		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(remoteIndicator.label, remoteIndicator.tooltip, remoteIndicator.command);
 		}

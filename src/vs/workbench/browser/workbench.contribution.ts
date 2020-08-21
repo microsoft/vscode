@@ -309,7 +309,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 
 					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
 					if (isWeb) {
-						return base + '${separator}${remoteName}'; // Web: always show remote indicator
+						return base + '${separator}${remoteName}'; // Web: always show remote name
 					}
 
 					return base;

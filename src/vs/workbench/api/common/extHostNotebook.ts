@@ -27,7 +27,6 @@ import * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ResourceMap } from 'vs/base/common/map';
 
-
 interface IObservable<T> {
 	proxy: T;
 	onDidChange: Event<void>;
@@ -86,6 +85,8 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	readonly uri: URI;
 	readonly cellKind: CellKind;
 
+	private _document: vscode.TextDocument | undefined;
+
 	constructor(
 		private _proxy: MainThreadNotebookShape,
 		readonly notebook: ExtHostNotebookDocument,
@@ -112,7 +113,10 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	get document(): vscode.TextDocument {
-		return this._extHostDocument.getDocument(this.uri)!.document;
+		if (!this._document) {
+			this._document = this._extHostDocument.getDocument(this.uri)?.document;
+		}
+		return this._document!;
 	}
 
 	get language(): string {
@@ -365,6 +369,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 		const contentChangeEvents: vscode.NotebookCellsChangeData[] = [];
 		const addedCellDocuments: IExtHostModelAddedData[] = [];
+		const removedCellDocuments: URI[] = [];
 
 		splices.reverse().forEach(splice => {
 			const cellDtos = splice[2];
@@ -402,11 +407,16 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 				deletedItems,
 				items: newCells
 			});
+
+			for (let cell of deletedItems) {
+				removedCellDocuments.push(cell.uri);
+			}
 		});
 
-		if (addedCellDocuments) {
-			this._documentsAndEditors.acceptDocumentsAndEditorsDelta({ addedDocuments: addedCellDocuments });
-		}
+		this._documentsAndEditors.acceptDocumentsAndEditorsDelta({
+			addedDocuments: addedCellDocuments,
+			removedDocuments: removedCellDocuments
+		});
 
 		if (!initialization) {
 			this._emitter.emitModelChange({
@@ -482,11 +492,11 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		});
 	}
 
-	getCell(cellHandle: number) {
+	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this.cells.find(cell => cell.handle === cellHandle);
 	}
 
-	getCell2(cellUri: UriComponents) {
+	getCell2(cellUri: UriComponents): ExtHostCell | undefined {
 		return this.cells.find(cell => cell.uri.fragment === cellUri.fragment);
 	}
 }
