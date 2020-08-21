@@ -18,7 +18,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCellMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCellMetadata, INotebookKernelInfo, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { NotImplementedError } from 'vs/base/common/errors';
@@ -259,7 +259,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	createInset(cell: CellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): Promise<void> {
+	createInset(cell: CellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
 		return Promise.resolve();
 	}
 	removeInset(output: IProcessedOutput): void {

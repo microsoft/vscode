@@ -9,7 +9,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, IEditor, INotebookRendererInfo, IOutputRenderRequest, IOutputRenderResponse, INotebookDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, IEditor, INotebookDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -171,7 +171,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
 	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<void>, provider: IDisposable }>();
-	private readonly _notebookRenderers = new Map<string, MainThreadNotebookRenderer>();
 	private readonly _proxy: ExtHostNotebookShape;
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
@@ -191,10 +190,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this.registerListeners();
 	}
 
-	async $tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean> {
+	async $tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (textModel) {
-			await this._notebookService.transformEditsOutputs(textModel, edits);
+			this._notebookService.transformEditsOutputs(textModel, edits);
 			return textModel.$applyEdit(modelVersionId, edits, true);
 		}
 
@@ -414,22 +413,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: UriComponents[]): Promise<void> {
-		const staticContribution = this._notebookService.getContributedNotebookOutputRenderers(type);
-
-		if (!staticContribution) {
-			throw new Error(`Notebook renderer for '${type}' is not statically registered.`);
-		}
-
-		const renderer = new MainThreadNotebookRenderer(this._proxy, type, staticContribution.displayName, extension.id, URI.revive(extension.location), selectors, preloads.map(uri => URI.revive(uri)));
-		this._notebookRenderers.set(type, renderer);
-		this._notebookService.registerNotebookRenderer(type, renderer);
-	}
-
-	async $unregisterNotebookRenderer(id: string): Promise<void> {
-		this._notebookService.unregisterNotebookRenderer(id);
-	}
-
 	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined): Promise<void> {
 		const controller: IMainNotebookController = {
 			kernel: _kernel,
@@ -448,7 +431,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
 				];
 
-				await this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
+				this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
 				await new Promise(resolve => {
 					DOM.scheduleAtNextAnimationFrame(() => {
 						const ret = mainthreadTextModel!.$applyEdit(mainthreadTextModel!.versionId, edits, true);
@@ -609,12 +592,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		textModel?.updateNotebookCellMetadata(handle, metadata);
 	}
 
-	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void> {
+	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {
 		this.logService.debug('MainThreadNotebooks#spliceNotebookCellOutputs', resource.path, cellHandle);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
-			await this._notebookService.transformSpliceOutputs(textModel, splices);
+			this._notebookService.transformSpliceOutputs(textModel, splices);
 			textModel.$spliceNotebookCellOutputs(cellHandle, splices);
 		}
 	}
@@ -673,27 +656,5 @@ export class MainThreadNotebookKernel implements INotebookKernelInfo {
 	async executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
 		this.logService.debug('MainThreadNotebookKernel#executeNotebook', uri.path, handle);
 		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle);
-	}
-}
-
-export class MainThreadNotebookRenderer implements INotebookRendererInfo {
-	constructor(
-		private readonly _proxy: ExtHostNotebookShape,
-		readonly id: string,
-		public displayName: string,
-		readonly extensionId: ExtensionIdentifier,
-		readonly extensionLocation: URI,
-		readonly selectors: INotebookMimeTypeSelector,
-		readonly preloads: URI[],
-	) {
-
-	}
-
-	render(uri: URI, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined> {
-		return this._proxy.$renderOutputs(uri, this.id, request);
-	}
-
-	render2<T>(uri: URI, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined> {
-		return this._proxy.$renderOutputs2(uri, this.id, request);
 	}
 }

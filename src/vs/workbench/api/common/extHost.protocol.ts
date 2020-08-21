@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { INotebookMimeTypeSelector, IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent, NotebookDataDto, INotebookKernelInfoDto, IMainCellDto, IOutputRenderRequest, IOutputRenderResponse, INotebookDocumentFilter, INotebookKernelInfoDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent, NotebookDataDto, INotebookKernelInfoDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -718,8 +718,6 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, kernelInfoDto: INotebookKernelInfoDto | undefined): Promise<void>;
 	$onNotebookChange(viewType: string, resource: UriComponents): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
-	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: UriComponents[]): Promise<void>;
-	$unregisterNotebookRenderer(id: string): Promise<void>;
 	$registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void>;
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
 	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
@@ -729,7 +727,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
 	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
-	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void>;
+	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
@@ -1645,8 +1643,6 @@ export interface ExtHostNotebookShape {
 	$backup(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string | undefined>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined }): void;
-	$renderOutputs(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
-	$renderOutputs2<T>(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
 	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;

@@ -36,7 +36,7 @@ import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate, ListT
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2, NotebookRunState, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto, INotebookKernelInfo2, NotebookRunState, NotebookCellRunState, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -845,10 +845,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}));
 
-			if (this.viewModel && this.viewModel!.renderers.size) {
-				this._webview?.updateRendererPreloads(this.viewModel!.renderers);
-			}
-
 			this._webviewResolved = true;
 
 			resolve(this._webview!);
@@ -892,11 +888,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					contribution.restoreViewState(contributionsState[id]);
 				}
 			}
-		}
-
-		if (this.viewModel.renderers.size) {
-			await this._resolveWebview();
-			this._webview?.updateRendererPreloads(this.viewModel.renderers);
 		}
 
 		this._localStore.add(this._list!.onWillScroll(e => {
@@ -1571,23 +1562,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	async createInset(cell: CodeCellViewModel, output: IProcessedOutput, shadowContent: string, offset: number) {
+	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number) {
 		if (!this._webview) {
 			return;
 		}
 
 		await this._resolveWebview();
 
-		const preloads = this._notebookViewModel!.renderers;
-
-		if (!this._webview!.insetMapping.has(output)) {
+		if (!this._webview!.insetMapping.has(output.source)) {
 			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
-			await this._webview!.createInset(cell, output, cellTop, offset, shadowContent, preloads);
+			await this._webview!.createInset(cell, output, cellTop, offset);
 		} else {
 			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
 			const scrollTop = this._list?.scrollTop || 0;
 
-			this._webview!.updateViewScrollTop(-scrollTop, true, [{ cell: cell, output: output, cellTop: cellTop }]);
+			this._webview!.updateViewScrollTop(-scrollTop, true, [{ cell, output: output.source, cellTop }]);
 		}
 	}
 

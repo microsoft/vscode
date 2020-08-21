@@ -1424,31 +1424,6 @@ declare module 'vscode' {
 		outputId: string;
 	}
 
-	export interface NotebookOutputRenderer {
-		/**
-		 *
-		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
-		 *
-		 */
-		render(document: NotebookDocument, request: NotebookRenderRequest): string;
-
-		/**
-		 * Call before HTML from the renderer is executed, and will be called for
-		 * every editor associated with notebook documents where the renderer
-		 * is or was used.
-		 *
-		 * The communication object will only send and receive messages to the
-		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
-		 * this specific renderer's ID.
-		 *
-		 * If you need to keep an association between the communication object
-		 * and the document for use in the `render()` method, you can use a WeakMap.
-		 */
-		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
-
-		readonly preloads?: Uri[];
-	}
-
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
@@ -1665,12 +1640,6 @@ declare module 'vscode' {
 			id: string,
 			selectors: GlobPattern[],
 			kernel: NotebookKernel
-		): Disposable;
-
-		export function registerNotebookOutputRenderer(
-			id: string,
-			outputSelector: NotebookOutputSelector,
-			renderer: NotebookOutputRenderer
 		): Disposable;
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
