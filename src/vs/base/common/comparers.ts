@@ -109,6 +109,7 @@ export function noIntlCompareFileNames(one: string | null, other: string | null,
 	return oneExtension < otherExtension ? -1 : 1;
 }
 
+/** Compares filenames by extension, then by name. Disambiguates by unicode comparison. */
 export function compareFileExtensions(one: string | null, other: string | null): number {
 	const [oneName, oneExtension] = extractNameAndExtension(one);
 	const [otherName, otherExtension] = extractNameAndExtension(other);
@@ -146,7 +147,6 @@ export function compareFileExtensionsDefault(one: string | null, other: string |
 		compareAndDisambiguateByLength(collatorNumeric, one, other);
 }
 
-
 /** Compares filenames by extension, then case, then full filename. Groups uppercase names before lowercase. */
 export function compareFileExtensionsUpper(one: string | null, other: string | null): number {
 	one = one || '';
@@ -175,19 +175,19 @@ export function compareFileExtensionsLower(one: string | null, other: string | n
 		compareAndDisambiguateByLength(collatorNumeric, one, other);
 }
 
-/** Compares filenames by extension unicode value, then by full filename unicode value. */
+/** Compares filenames by case-insensitive extension unicode value, then by full filename unicode value. */
 export function compareFileExtensionsUnicode(one: string | null, other: string | null) {
 	one = one || '';
 	other = other || '';
-	const oneExtension = extractExtension(one);
-	const otherExtension = extractExtension(other);
+	const oneExtension = extractExtension(one).toLowerCase();
+	const otherExtension = extractExtension(other).toLowerCase();
 
 	// Check for extension differences
 	if (oneExtension !== otherExtension) {
 		return oneExtension < otherExtension ? -1 : 1;
 	}
 
-	// Check for name differences.
+	// Check for full filename differences.
 	if (one !== other) {
 		return one < other ? -1 : 1;
 	}
