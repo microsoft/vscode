@@ -338,7 +338,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container {
-	height: 21px;
+	height: 22px;
 	font-size: 12px;
 	display: flex;
 	position: relative;
@@ -355,6 +355,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker {
+	height: 21px; /* Editor outline is -1px in, don't overlap */
 	padding: 0px 6px;
 	cursor: pointer;
 }
