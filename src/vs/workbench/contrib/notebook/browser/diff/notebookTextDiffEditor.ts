@@ -294,7 +294,7 @@ registerThemingParticipant((theme, collector) => {
 			border-right: 1px solid ${cellBorderColor};
 			border-bottom: 1px solid ${cellBorderColor};
 		}`);
-		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-container {
+		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 			border-left: 1px solid ${cellBorderColor};
 			border-right: 1px solid ${cellBorderColor};
 			border-bottom: 1px solid ${cellBorderColor};
@@ -317,7 +317,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const containerBackground = theme.getColor(notebookOutputContainerColor);
 	if (containerBackground) {
-		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-container { background-color: ${containerBackground}; }`);
+		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container { background-color: ${containerBackground}; }`);
 	}
 
 });

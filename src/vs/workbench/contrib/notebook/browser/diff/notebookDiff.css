@@ -20,24 +20,24 @@
 	margin: 8px;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-container {
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 	display: flex;
 	height: 24px;
 	align-items: center;
 	cursor: default;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-container .metadata-folding-indicator .codicon {
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .metadata-folding-indicator .codicon {
 	visibility: visible;
 	padding: 4px 0 0 10px;
 	cursor: pointer;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-container .metadata-status {
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .metadata-status {
 	font-size: 12px;
 }
 
-.notebook-text-diff-editor .cell-diff-editor-container .metadata-container .metadata-status span {
+.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container .metadata-status span {
 	margin: 0 8px;
 	line-height: 21px;
 }
