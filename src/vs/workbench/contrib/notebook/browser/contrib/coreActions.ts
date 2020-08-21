@@ -1291,6 +1291,14 @@ registerAction2(class extends NotebookCellAction {
 		}
 
 		editor.viewModel.notebookDocument.clearCellOutput(context.cell.handle);
+		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
+			context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, {
+				runState: NotebookCellRunState.Idle,
+				runStartTime: undefined,
+				lastRunDuration: undefined,
+				statusMessage: undefined
+			});
+		}
 	}
 });
 
