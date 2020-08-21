@@ -268,6 +268,7 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 		this._rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
 		this._rootElement.classList.toggle('narrow-width', dimension.width < 600);
 		this._dimension = dimension;
+		this._rootElement.style.height = `${dimension.height}px`;
 
 		this._list?.layout(this._dimension.height, this._dimension.width);
 	}
