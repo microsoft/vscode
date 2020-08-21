@@ -361,10 +361,23 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'editor.formatOnSave': {
 			'type': 'boolean',
-			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),
-			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
-		}
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
+		},
+		'editor.formatOnSaveMode': {
+			'type': 'string',
+			'default': 'file',
+			'enum': [
+				'file',
+				'modifications'
+			],
+			'enumDescriptions': [
+				nls.localize('everything', "Format the whole file."),
+				nls.localize('modification', "Format modifications (requires source control)."),
+			],
+			'markdownDescription': nls.localize('formatOnSaveMode', "Controls if format on save formats the whole file or only modifications. Only applies when `#editor.formatOnSave#` is `true`."),
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE,
+		},
 	}
 });
 
