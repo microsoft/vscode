@@ -492,11 +492,11 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		});
 	}
 
-	getCell(cellHandle: number) {
+	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this.cells.find(cell => cell.handle === cellHandle);
 	}
 
-	getCell2(cellUri: UriComponents) {
+	getCell2(cellUri: UriComponents): ExtHostCell | undefined {
 		return this.cells.find(cell => cell.uri.fragment === cellUri.fragment);
 	}
 }
