@@ -45,7 +45,7 @@ export class MainThreadWebviewsViews extends Disposable {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
 				this._webviewViews.set(viewType, webviewView);
 
-				const handle = viewType;
+				const handle = webviewView.webview.id;
 				this.mainThreadWebviews.addWebview(handle, webviewView.webview);
 
 				let state = undefined;
