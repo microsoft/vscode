@@ -1112,7 +1112,7 @@ declare module 'vscode' {
 		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
-		viewColumn?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Perform an edit on the document associated with this text editor.
