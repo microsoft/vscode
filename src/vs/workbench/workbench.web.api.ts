@@ -121,6 +121,32 @@ interface IHomeIndicator {
 	title: string;
 }
 
+interface IWindowIndicator {
+
+	/**
+	 * Triggering this event will cause the window indicator to update.
+	 */
+	onDidChange: Event<void>;
+
+	/**
+	 * Label of the window indicator may include octicons
+	 * e.g. `$(remote) label`
+	 */
+	label: string;
+
+	/**
+	 * Tooltip of the window indicator should not include
+	 * octicons and be descriptive.
+	 */
+	tooltip: string;
+
+	/**
+	 * If provided, overrides the default command that
+	 * is executed when clicking on the window indicator.
+	 */
+	command?: string;
+}
+
 interface IDefaultSideBarLayout {
 	visible?: boolean;
 	containers?: ({
@@ -205,6 +231,11 @@ interface IWorkbenchConstructionOptions {
 	readonly connectionToken?: string;
 
 	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
 	 * An endpoint to serve iframe content ("webview") from. This is required
 	 * to provide full security isolation from the workbench host.
 	 */
@@ -231,6 +262,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly tunnelProvider?: ITunnelProvider;
 
+	/**
+	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
+	 */
+	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
+
 	//#endregion
 
 
@@ -246,11 +282,6 @@ interface IWorkbenchConstructionOptions {
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
-
-	/**
-	 * Session id of the current authenticated user
-	 */
-	readonly authenticationSessionId?: string;
 
 	/**
 	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
@@ -345,6 +376,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly productConfiguration?: Partial<IProductConfiguration>;
 
+	/**
+	 * Optional override for properties of the window indicator in the status bar.
+	 */
+	readonly windowIndicator?: IWindowIndicator;
+
 	//#endregion
 
 
@@ -359,11 +395,6 @@ interface IWorkbenchConstructionOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly driver?: boolean;
-
-	/**
-	 * Endpoints to be used for proxying authentication code exchange calls in the browser.
-	 */
-	readonly codeExchangeProxyEndpoints?: { [providerId: string]: string }
 
 	//#endregion
 }
@@ -504,6 +535,7 @@ export {
 	// Branding
 	IHomeIndicator,
 	IProductConfiguration,
+	IWindowIndicator,
 
 	// Default layout
 	IDefaultView,

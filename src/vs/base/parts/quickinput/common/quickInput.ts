@@ -199,7 +199,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 */
 	filterValue: (value: string) => string;
 
-	ariaLabel: string;
+	ariaLabel: string | undefined;
 
 	placeholder: string | undefined;
 

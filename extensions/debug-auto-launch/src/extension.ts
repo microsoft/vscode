@@ -17,6 +17,7 @@ const JS_DEBUG_USEPREVIEWAA = 'usePreviewAutoAttach';
 const JS_DEBUG_IPC_KEY = 'jsDebugIpcState';
 const NODE_DEBUG_SETTINGS = 'debug.node';
 const AUTO_ATTACH_SETTING = 'autoAttach';
+const LAST_STATE_STORAGE_KEY = 'lastState';
 
 type AUTO_ATTACH_VALUES = 'disabled' | 'on' | 'off';
 
@@ -28,10 +29,14 @@ const enum State {
 }
 
 // on activation this feature is always disabled...
-let currentState = Promise.resolve({ state: State.Disabled, transitionData: null as unknown });
+let currentState: Promise<{ context: vscode.ExtensionContext, state: State; transitionData: unknown }>;
 let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item
 
 export function activate(context: vscode.ExtensionContext): void {
+	const previousState = context.workspaceState.get<State>(LAST_STATE_STORAGE_KEY, State.Disabled);
+	currentState = Promise.resolve(transitions[previousState].onActivate?.(context, readCurrentState()))
+		.then(() => ({ context, state: State.Disabled, transitionData: null }));
+
 	context.subscriptions.push(vscode.commands.registerCommand(TOGGLE_COMMAND, toggleAutoAttachSetting));
 
 	// settings that can result in the "state" being changed--on/off/disable or useV3 toggles
@@ -43,17 +48,17 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (effectualConfigurationSettings.some(setting => e.affectsConfiguration(setting))) {
-				updateAutoAttach(context);
+				updateAutoAttach();
 			}
 		})
 	);
 
-	updateAutoAttach(context);
+	updateAutoAttach();
 }
 
 export async function deactivate(): Promise<void> {
-	const { state, transitionData } = await currentState;
-	await transitions[state].exit?.(transitionData);
+	const { context, state, transitionData } = await currentState;
+	await transitions[state].exit?.(context, transitionData);
 }
 
 function toggleAutoAttachSetting() {
@@ -136,30 +141,33 @@ interface CachedIpcState {
 }
 
 interface StateTransition<StateData> {
-	exit?(stateData: StateData): Promise<void> | void;
+	onActivate?(context: vscode.ExtensionContext, currentState: State): Promise<void>;
+	exit?(context: vscode.ExtensionContext, stateData: StateData): Promise<void> | void;
 	enter?(context: vscode.ExtensionContext): Promise<StateData> | StateData;
 }
+
+const makeTransition = <T>(tsn: StateTransition<T>) => tsn; // helper to apply generic type
 
 /**
  * Map of logic that happens when auto attach states are entered and exited.
  * All state transitions are queued and run in order; promises are awaited.
  */
 const transitions: { [S in State]: StateTransition<unknown> } = {
-	[State.Disabled]: {
+	[State.Disabled]: makeTransition({
 		async enter(context) {
 			statusItem?.hide();
 			await clearJsDebugAttachState(context);
 		},
-	},
+	}),
 
-	[State.Off]: {
+	[State.Off]: makeTransition({
 		enter(context) {
 			const statusItem = ensureStatusBarExists(context);
 			statusItem.text = OFF_TEXT;
 		},
-	},
+	}),
 
-	[State.OnWithNodeDebug]: {
+	[State.OnWithNodeDebug]: makeTransition({
 		async enter(context) {
 			const statusItem = ensureStatusBarExists(context);
 			const vscode_pid = process.env['VSCODE_PID'];
@@ -171,16 +179,16 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 		async exit() {
 			await vscode.commands.executeCommand('extension.node-debug.stopAutoAttach');
 		},
-	},
+	}),
 
-	[State.OnWithJsDebug]: {
+	[State.OnWithJsDebug]: makeTransition<Server | null>({
 		async enter(context) {
 			const ipcAddress = await getIpcAddress(context);
 			if (!ipcAddress) {
-				return { context };
+				return null;
 			}
 
-			const server = await new Promise((resolve, reject) => {
+			const server = await new Promise<Server>((resolve, reject) => {
 				const s = createServer((socket) => {
 					let data: Buffer[] = [];
 					socket.on('data', (chunk) => data.push(chunk));
@@ -201,10 +209,10 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 
 			const statusItem = ensureStatusBarExists(context);
 			statusItem.text = ON_TEXT;
-			return { server, context };
+			return server || null;
 		},
 
-		async exit({ server, context }: { server?: Server, context: vscode.ExtensionContext }) {
+		async exit(context, server) {
 			// we don't need to clear the environment variables--the bootloader will
 			// no-op if the debug server is closed. This prevents having to reload
 			// terminals if users want to turn it back on.
@@ -217,24 +225,31 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 				await clearJsDebugAttachState(context);
 			}
 		},
-	},
+
+		async onActivate(context, currentState) {
+			if (currentState === State.OnWithNodeDebug || currentState === State.Disabled) {
+				await clearJsDebugAttachState(context);
+			}
+		}
+	}),
 };
 
 /**
  * Updates the auto attach feature based on the user or workspace setting
  */
-function updateAutoAttach(context: vscode.ExtensionContext) {
+function updateAutoAttach() {
 	const newState = readCurrentState();
 
-	currentState = currentState.then(async ({ state: oldState, transitionData }) => {
+	currentState = currentState.then(async ({ context, state: oldState, transitionData }) => {
 		if (newState === oldState) {
-			return { state: oldState, transitionData };
+			return { context, state: oldState, transitionData };
 		}
 
-		await transitions[oldState].exit?.(transitionData);
+		await transitions[oldState].exit?.(context, transitionData);
 		const newData = await transitions[newState].enter?.(context);
+		await context.workspaceState.update(LAST_STATE_STORAGE_KEY, newState);
 
-		return { state: newState, transitionData: newData };
+		return { context, state: newState, transitionData: newData };
 	});
 }
 

@@ -1067,6 +1067,7 @@ export interface TaskEvent {
 	exitCode?: number;
 	terminalId?: number;
 	__task?: Task;
+	resolvedVariables?: Map<string, string>;
 }
 
 export const enum TaskRunSource {
@@ -1078,10 +1079,10 @@ export const enum TaskRunSource {
 
 export namespace TaskEvent {
 	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): TaskEvent;
-	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent;
 	export function create(kind: TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
 	export function create(kind: TaskEventKind.Changed): TaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number): TaskEvent {
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent {
 		if (task) {
 			let result: TaskEvent = {
 				kind: kind,
@@ -1096,6 +1097,7 @@ export namespace TaskEvent {
 			};
 			if (kind === TaskEventKind.Start) {
 				result.terminalId = processIdOrExitCodeOrTerminalId;
+				result.resolvedVariables = resolvedVariables;
 			} else if (kind === TaskEventKind.ProcessStarted) {
 				result.processId = processIdOrExitCodeOrTerminalId;
 			} else if (kind === TaskEventKind.ProcessEnded) {

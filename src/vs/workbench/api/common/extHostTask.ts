@@ -475,7 +475,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return this._onDidExecuteTask.event;
 	}
 
-	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition?: tasks.TaskDefinitionDTO): Promise<void> {
+	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): Promise<void> {
 		const customExecution: types.CustomExecution | undefined = this._providedCustomExecutions2.get(execution.id);
 		if (customExecution) {
 			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
