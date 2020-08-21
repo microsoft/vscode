@@ -97,7 +97,6 @@ export class MainThreadCustomEditors extends Disposable {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
-
 		const disposables = new DisposableStore();
 
 		disposables.add(this._customEditorService.registerCustomEditorCapabilities(viewType, {
