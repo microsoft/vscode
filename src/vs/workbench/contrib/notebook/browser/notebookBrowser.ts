@@ -513,6 +513,7 @@ export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;
+	deleteToolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
 	focusIndicatorLeft: HTMLElement;
 	disposables: DisposableStore;

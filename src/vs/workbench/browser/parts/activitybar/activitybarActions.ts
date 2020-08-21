@@ -28,7 +28,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh } from 'vs/base/common/platform';
-import { getAuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
@@ -180,7 +180,7 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 
 		const result = await Promise.all(allSessions);
 		let menus: IAction[] = [];
-		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getAuthenticationSession(this.environmentService.options?.credentialsProvider, this.productService) : undefined;
+		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
 			Object.keys(sessionInfo.sessions).forEach(accountName => {

@@ -34,6 +34,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { StopAction } from 'vs/workbench/contrib/debug/browser/callStackView';
 
 export class DebugViewPaneContainer extends ViewPaneContainer {
 
@@ -65,9 +66,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.updateToolBarScheduler = this._register(new RunOnceScheduler(() => {
-			if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {
-				this.updateTitleArea();
-			}
+			this.updateTitleArea();
 		}, 20));
 
 		// When there are potential updates to the docked debug toolbar we need to update it
@@ -120,6 +119,11 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 	}
 
 	@memoize
+	private get stopAction(): StopAction {
+		return this._register(this.instantiationService.createInstance(StopAction, null));
+	}
+
+	@memoize
 	private get selectAndStartAction(): SelectAndStartAction {
 		return this._register(this.instantiationService.createInstance(SelectAndStartAction, SelectAndStartAction.ID, nls.localize('startAdditionalSession', "Start Additional Session")));
 	}
@@ -150,12 +154,13 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			return [this.toggleReplAction];
 		}
 
-		return [this.startAction, this.configureAction, this.toggleReplAction];
+		const firstAction = this.debugService.state === State.Initializing ? this.stopAction : this.startAction;
+		return [firstAction, this.configureAction, this.toggleReplAction];
 	}
 
 	get showInitialDebugActions(): boolean {
 		const state = this.debugService.state;
-		return state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation !== 'docked';
+		return state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation !== 'docked';
 	}
 
 	getSecondaryActions(): IAction[] {

@@ -16,7 +16,7 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedS
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { OnTypeRenameProviderRegistry } from 'vs/editor/common/modes';
-import { first, createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
+import { first, createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -50,13 +50,16 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
 
+	private _rangeUpdateTriggerPromise: Promise<any> | null;
+	private _rangeSyncTriggerPromise: Promise<any> | null;
+
 	private _currentRequest: CancelablePromise<any> | null;
 	private _currentRequestPosition: Position | null;
+	private _currentRequestModelVersion: number | null;
 
 	private _currentDecorations: string[]; // The one at index 0 is the reference one
 	private _stopPattern: RegExp;
 	private _ignoreChangeEvent: boolean;
-	private readonly _updateMirrors: RunOnceScheduler;
 
 	private readonly _localToDispose = this._register(new DisposableStore());
 
@@ -68,13 +71,18 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		this._editor = editor;
 		this._enabled = false;
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
-		this._currentRequest = null;
-		this._currentRequestPosition = null;
+
 		this._currentDecorations = [];
 		this._stopPattern = /\s/;
 		this._ignoreChangeEvent = false;
 		this._localToDispose = this._register(new DisposableStore());
-		this._updateMirrors = this._register(new RunOnceScheduler(() => this._doUpdateMirrors(), 0));
+
+		this._rangeUpdateTriggerPromise = null;
+		this._rangeSyncTriggerPromise = null;
+
+		this._currentRequest = null;
+		this._currentRequestPosition = null;
+		this._currentRequestModelVersion = null;
 
 		this._register(this._editor.onDidChangeModel(() => this.reinitialize()));
 
@@ -98,81 +106,67 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 		this._enabled = isEnabled;
 
-		this.clearLinkedUI();
+		this.clearRanges();
 		this._localToDispose.clear();
 
 		if (!isEnabled || model === null) {
 			return;
 		}
 
+		const rangeUpdateScheduler = new Delayer(200);
+		const triggerRangeUpdate = () => {
+			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges());
+		};
+		const rangeSyncScheduler = new Delayer(0);
+		const triggerRangeSync = (decorations: string[]) => {
+			this._rangeSyncTriggerPromise = rangeSyncScheduler.trigger(() => this._syncRanges(decorations));
+		};
 		this._localToDispose.add(this._editor.onDidChangeCursorPosition((e) => {
-			if (e.secondaryPositions.length > 0) {
-				this.clearLinkedUI(); // multi-cursor, don't run
-				return;
-			}
-			// no regions, run
-			if (this._currentDecorations.length === 0) {
-				this.updateLinkedUI(e.position);
-				return;
-			}
-
-			// has cached regions
-			const primaryRange = model.getDecorationRange(this._currentDecorations[0]);
-
-			// just moving cursor around, don't run again
-			if (primaryRange && Range.containsPosition(primaryRange, e.position)) {
-				return;
-			}
-
-			this._updateMirrors.cancel();
-
-			// moving cursor out of primary region, run
-			this.updateLinkedUI(e.position);
+			triggerRangeUpdate();
 		}));
 		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
-			if (this._ignoreChangeEvent) {
-				return;
-			}
-			if (this._currentDecorations.length === 0) {
-				// nothing to do
-				return;
-			}
-			if (e.isUndoing || e.isRedoing) {
-				return;
-			}
-			for (const change of e.changes) {
-				if (this._stopPattern.test(change.text)) {
-					this.clearLinkedUI();
-					return;
+			if (!this._ignoreChangeEvent) {
+				if (this._currentDecorations.length > 0) {
+					const referenceRange = model.getDecorationRange(this._currentDecorations[0]);
+					if (referenceRange && e.changes.every(c => referenceRange.intersectRanges(c.range))) {
+						triggerRangeSync(this._currentDecorations);
+						return;
+					}
 				}
 			}
-			this._updateMirrors.schedule();
+			triggerRangeUpdate();
 		}));
-		this.updateLinkedUI();
+		this._localToDispose.add({
+			dispose: () => {
+				rangeUpdateScheduler.cancel();
+				rangeSyncScheduler.cancel();
+			}
+		});
+		this.updateRanges();
 	}
 
-	private _doUpdateMirrors(): void {
+	private _syncRanges(decorations: string[]): void {
 		// dalayed invocation, make sure we're still on
-		if (!this._editor.hasModel() || this._currentDecorations.length === 0) {
+		if (!this._editor.hasModel() || decorations !== this._currentDecorations || decorations.length === 0) {
 			// nothing to do
 			return;
 		}
 
 		const model = this._editor.getModel();
-		const referenceRange = model.getDecorationRange(this._currentDecorations[0]);
+		const referenceRange = model.getDecorationRange(decorations[0]);
 
 		if (!referenceRange || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
-			return this.clearLinkedUI();
+			return this.clearRanges();
 		}
 
 		const referenceValue = model.getValueInRange(referenceRange);
 		if (this._stopPattern.test(referenceValue)) {
-			return this.clearLinkedUI();
+			return this.clearRanges();
 		}
 
 		let edits: IIdentifiedSingleEditOperation[] = [];
-		for (let i = 1, len = this._currentDecorations.length; i < len; i++) {
-			const mirrorRange = model.getDecorationRange(this._currentDecorations[i]);
+		for (let i = 1, len = decorations.length; i < len; i++) {
+			const mirrorRange = model.getDecorationRange(decorations[i]);
 			if (!mirrorRange) {
 				continue;
 			}
@@ -221,11 +215,11 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 	}
 
 	public dispose(): void {
-		this.clearLinkedUI();
+		this.clearRanges();
 		super.dispose();
 	}
 
-	public clearLinkedUI(): void {
+	public clearRanges(): void {
 		this._visibleContextKey.set(false);
 		this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, []);
 		if (this._currentRequest) {
@@ -233,23 +227,45 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 			this._currentRequest = null;
 			this._currentRequestPosition = null;
 		}
-		this._updateMirrors.cancel();
 	}
 
-	public get currentRequest(): Promise<any> {
-		return this._currentRequest || Promise.resolve();
+	public get currentUpdateTriggerPromise(): Promise<any> {
+		return this._rangeUpdateTriggerPromise || Promise.resolve();
 	}
 
-	public async updateLinkedUI(position: Position | null = this._editor.getPosition(), force = false): Promise<void> {
+	public get currentSyncTriggerPromise(): Promise<any> {
+		return this._rangeSyncTriggerPromise || Promise.resolve();
+	}
+
+	public async updateRanges(force = false): Promise<void> {
+		if (!this._editor.hasModel()) {
+			this.clearRanges();
+			return;
+		}
+
+		const position = this._editor.getPosition();
+		if (!this._enabled && !force || this._editor.getSelections().length > 1) {
+			// disabled or multicursor
+			this.clearRanges();
+			return;
+		}
+
 		const model = this._editor.getModel();
-		if (!this._enabled && !force || !model || !position) {
-			this.clearLinkedUI();
-			return;
+		const modelVersionId = model.getVersionId();
+		if (this._currentRequestPosition && this._currentRequestModelVersion === modelVersionId) {
+			if (position.equals(this._currentRequestPosition)) {
+				return; // same position
+			}
+			if (this._currentDecorations && this._currentDecorations.length > 0) {
+				const range = model.getDecorationRange(this._currentDecorations[0]);
+				if (range && range.containsPosition(position)) {
+					return; // just moving inside the existing primary range
+				}
+			}
 		}
-		if (this._currentRequestPosition && (this._currentRequestPosition.equals(position))) {
-			return;
-		}
+
 		this._currentRequestPosition = position;
+		this._currentRequestModelVersion = modelVersionId;
 		const request = createCancelablePromise(async token => {
 			try {
 				const response = await getOnTypeRenameRanges(model, position, token);
@@ -257,6 +273,9 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 					return;
 				}
 				this._currentRequest = null;
+				if (modelVersionId !== model.getVersionId()) {
+					return;
+				}
 
 				let ranges: IRange[] = [];
 				if (response?.ranges) {
@@ -281,7 +300,7 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 
 				if (!foundReferenceRange) {
 					// Cannot do on type rename if the ranges are not where the cursor is...
-					this.clearLinkedUI();
+					this.clearRanges();
 					return;
 				}
 
@@ -294,12 +313,34 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 				}
 				if (this._currentRequest === request || !this._currentRequest) {
 					// stop if we are still the latest request
-					this.clearLinkedUI();
+					this.clearRanges();
 				}
 			}
 		});
 		this._currentRequest = request;
+		return request;
 	}
+
+	// private printDecorators(model: ITextModel) {
+	// 	return this._currentDecorations.map(d => {
+	// 		const range = model.getDecorationRange(d);
+	// 		if (range) {
+	// 			return this.printRange(range);
+	// 		}
+	// 		return 'invalid';
+	// 	}).join(',');
+	// }
+
+	// private printChanges(changes: IModelContentChange[]) {
+	// 	return changes.map(c => {
+	// 		return `${this.printRange(c.range)} - ${c.text}`;
+	// 	}
+	// 	).join(',');
+	// }
+
+	// private printRange(range: IRange) {
+	// 	return `${range.startLineNumber},${range.startColumn}/${range.endLineNumber},${range.endColumn}`;
+	// }
 }
 
 export class OnTypeRenameAction extends EditorAction {
@@ -337,10 +378,10 @@ export class OnTypeRenameAction extends EditorAction {
 		return super.runCommand(accessor, args);
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = OnTypeRenameContribution.get(editor);
 		if (controller) {
-			return Promise.resolve(controller.updateLinkedUI(editor.getPosition(), true));
+			return Promise.resolve(controller.updateRanges(true));
 		}
 		return Promise.resolve();
 	}
@@ -350,7 +391,7 @@ const OnTypeRenameCommand = EditorCommand.bindToContribution<OnTypeRenameContrib
 registerEditorCommand(new OnTypeRenameCommand({
 	id: 'cancelOnTypeRenameInput',
 	precondition: CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE,
-	handler: x => x.clearLinkedUI(),
+	handler: x => x.clearRanges(),
 	kbOpts: {
 		kbExpr: EditorContextKeys.editorTextFocus,
 		weight: KeybindingWeight.EditorContrib + 99,
