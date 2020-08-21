@@ -12,12 +12,16 @@ const options: any = {
 	timeout: 60000
 };
 
-let suite = 'Integration Single Folder Tests';
-
+// These integration tests is being run in multiple environments (electron, web, remote)
+// so we need to set the suite name based on the environment as the suite name is used
+// for the test results file name
+let suite = '';
 if (process.env.VSCODE_BROWSER) {
 	suite = `${process.env.VSCODE_BROWSER} Browser Integration Single Folder Tests`;
 } else if (process.env.REMOTE_VSCODE) {
 	suite = 'Remote Integration Single Folder Tests';
+} else {
+	suite = 'Integration Single Folder Tests';
 }
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
