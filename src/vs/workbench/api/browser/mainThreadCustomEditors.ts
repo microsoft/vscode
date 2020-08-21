@@ -512,10 +512,9 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 
 		const remoteAuthority = this._environmentService.configuration.remoteAuthority;
-		const localResrouce = toLocalResource(this._editorResource, remoteAuthority);
+		const localResource = toLocalResource(this._editorResource, remoteAuthority);
 
-
-		return this._fileDialogService.pickFileToSave(localResrouce, options?.availableFileSystems);
+		return this._fileDialogService.pickFileToSave(localResource, options?.availableFileSystems);
 	}
 
 	public async saveCustomEditorAs(resource: URI, targetResource: URI, _options?: ISaveOptions): Promise<boolean> {
