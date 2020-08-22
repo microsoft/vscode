@@ -190,7 +190,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, key);
 			}
 
-			const promise = timeout(800);
+			const promise = timeout(configurationService.getValue<number>('screencastMode.overlayTimeout'));
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
@@ -278,6 +278,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
 			default: false
+		},
+		'screencastMode.overlayTimeout': {
+			type: 'number',
+			default: 800,
+			minimum: 500,
+			maximum: 6000,
+			description: nls.localize('screencastMode.overlayTimeout', "Controls how long (in milliseconds) the screencast mode overlay is shown.")
 		}
 	}
 });
