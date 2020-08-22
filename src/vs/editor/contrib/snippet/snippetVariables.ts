@@ -71,7 +71,8 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		private readonly _overtypeIdx: number
 	) {
 		//
 	}
@@ -82,14 +83,25 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
+
+			// If there is no selected text, try to get overtyped text
+			let overtyped = false;
+			if (!value) {
+				const maxTypos = 10; // Allows the user to make 10 typos (delete+insert) when typing the snippet prefix
+				const maxEditSize = 50; // Limits the searching by edit size less than 50 symbols
+				value = this._model.getOvertypedText(this._overtypeIdx, 1 + 2 * maxTypos, maxEditSize);
+				if (value) {
+					overtyped = true;
+				}
+			}
+
+			if (value && (overtyped || (this._selection.startLineNumber !== this._selection.endLineNumber)) && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
 				// extra indentation to the value
 
-				const line = this._model.getLineContent(this._selection.startLineNumber);
-				const lineLeadingWhitespace = getLeadingWhitespace(line, 0, this._selection.startColumn - 1);
+				const lineLeadingWhitespace = overtyped ? '' : getLeadingWhitespace(this._model.getLineContent(this._selection.startLineNumber), 0, this._selection.startColumn - 1);
 
 				let varLeadingWhitespace = lineLeadingWhitespace;
 				variable.snippet.walk(marker => {
