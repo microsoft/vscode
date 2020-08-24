@@ -175,10 +175,9 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}
 
 		const extension = reviveWebviewExtension(extensionData);
-		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), extension);
-		this.hookupWebviewEventDelegate(handle, webview.webview);
 
-		this._webviewInputs.add(handle, webview);
+		const webview = this._webviewWorkbenchService.createWebview(handle, this.webviewPanelViewType.fromExternal(viewType), title, mainThreadShowOptions, reviveWebviewOptions(options), extension);
+		this.addWebviewInput(handle, webview);
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
