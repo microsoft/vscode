@@ -51,23 +51,19 @@ import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/de
 import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { debugAdapterRegisteredEmitter } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 
 const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
+const debugCategory = nls.localize('debugCategory', "Debug");
+const runCategroy = nls.localize('runCategory', "Run");
 // register service
-debugAdapterRegisteredEmitter.event(() => {
-	// Register these contributions lazily only once a debug adapter extension has been registered
-	registerWorkbenchContributions();
-	registerColors();
-	registerCommandsAndActions();
-	registerDebugMenu();
-});
+registerWorkbenchContributions();
+registerColors();
+registerCommandsAndActions();
+registerDebugMenu();
 registerEditorActions();
 registerCommands();
 registerDebugPanel();
-const debugCategory = nls.localize('debugCategory', "Debug");
-const runCategroy = nls.localize('runCategory', "Run");
 registry.registerWorkbenchAction(SyncActionDescriptor.from(StartAction, { primary: KeyCode.F5 }, CONTEXT_IN_DEBUG_MODE.toNegated()), 'Debug: Start Debugging', debugCategory);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(RunAction, { primary: KeyMod.CtrlCmd | KeyCode.F5, mac: { primary: KeyMod.WinCtrl | KeyCode.F5 } }), 'Run: Start Without Debugging', runCategroy);
 
