@@ -18,6 +18,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { basename } from 'vs/base/common/path';
+import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 
 export enum CellKind {
 	Markdown = 1,
@@ -564,7 +565,7 @@ interface IMutableSplice<T> extends ISplice<T> {
 	deleteCount: number;
 }
 
-export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): ISplice<T>[] {
+export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean, equal: (a: T, b: T) => boolean = (a: T, b: T) => a === b): ISplice<T>[] {
 	const result: IMutableSplice<T>[] = [];
 
 	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
@@ -599,7 +600,7 @@ export function diff<T>(before: T[], after: T[], contains: (a: T) => boolean): I
 		const beforeElement = before[beforeIdx];
 		const afterElement = after[afterIdx];
 
-		if (beforeElement === afterElement) {
+		if (equal(beforeElement, afterElement)) {
 			// equal
 			beforeIdx += 1;
 			afterIdx += 1;
@@ -637,6 +638,12 @@ export interface INotebookEditorModel extends IEditorModel {
 	save(): Promise<boolean>;
 	saveAs(target: URI): Promise<boolean>;
 	revert(options?: IRevertOptions | undefined): Promise<void>;
+}
+
+export interface INotebookDiffEditorModel extends IEditorModel {
+	original: INotebookEditorModel;
+	modified: INotebookEditorModel;
+	resolveOriginalFromDisk(): Promise<void>;
 }
 
 export interface INotebookTextModelBackup {
@@ -730,5 +737,25 @@ export interface INotebookKernelProvider {
 	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }
 
+
+export class CellSequence implements ISequence {
+
+	constructor(readonly textModel: NotebookTextModel) {
+	}
+
+	getElements(): string[] | number[] | Int32Array {
+		const hashValue = new Int32Array(this.textModel.cells.length);
+		for (let i = 0; i < this.textModel.cells.length; i++) {
+			hashValue[i] = this.textModel.cells[i].getHashValue();
+		}
+
+		return hashValue;
+	}
+}
+
+export interface INotebookDiffResult {
+	cellsDiff: IDiffResult,
+	linesDiff: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
+}
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';

@@ -70,7 +70,7 @@ interface IEditorsZones {
 	modified: IMyViewZone[];
 }
 
-interface IDiffEditorWidgetStyle {
+export interface IDiffEditorWidgetStyle {
 	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
 	setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	applyColors(theme: IColorTheme): boolean;
@@ -174,6 +174,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private readonly _onDidUpdateDiff: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
+
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
 
 	private readonly id: number;
 	private _state: editorBrowser.DiffEditorState;
@@ -421,6 +424,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return this._renderIndicators;
 	}
 
+	public getContentHeight(): number {
+		return this.modifiedEditor.getContentHeight();
+	}
+
 	private _setState(newState: editorBrowser.DiffEditorState): void {
 		if (this._state === newState) {
 			return;
@@ -553,6 +560,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (e.tabSize) {
 				this._updateDecorationsRunner.schedule();
 			}
+		}));
+
+		this._register(editor.onDidContentSizeChange(e => {
+			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth();
+			const height = this.modifiedEditor.getContentHeight();
+
+			this._onDidContentSizeChange.fire({
+				contentHeight: height,
+				contentWidth: width,
+				contentHeightChanged: e.contentHeightChanged,
+				contentWidthChanged: e.contentWidthChanged
+			});
 		}));
 
 		return editor;
@@ -1610,14 +1629,14 @@ abstract class ViewZonesComputer {
 	protected abstract _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null;
 }
 
-function createDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, options: ModelDecorationOptions) {
+export function createDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, options: ModelDecorationOptions) {
 	return {
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		options: options
 	};
 }
 
-const DECORATIONS = {
+export const DECORATIONS = {
 
 	charDelete: ModelDecorationOptions.register({
 		className: 'char-delete'
@@ -1665,7 +1684,7 @@ const DECORATIONS = {
 
 };
 
-class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
+export class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
 
 	static readonly MINIMUM_EDITOR_WIDTH = 100;
 
@@ -2193,11 +2212,11 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 }
 
-function isChangeOrInsert(lineChange: editorCommon.IChange): boolean {
+export function isChangeOrInsert(lineChange: editorCommon.IChange): boolean {
 	return lineChange.modifiedEndLineNumber > 0;
 }
 
-function isChangeOrDelete(lineChange: editorCommon.IChange): boolean {
+export function isChangeOrDelete(lineChange: editorCommon.IChange): boolean {
 	return lineChange.originalEndLineNumber > 0;
 }
 

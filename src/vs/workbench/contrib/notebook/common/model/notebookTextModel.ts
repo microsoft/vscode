@@ -205,6 +205,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._mapping.set(mainCells[i].handle, mainCells[i]);
 			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
 				this.setDirty(true);
+				this._increaseVersionId();
 				this._onDidChangeContent.fire();
 			});
 
@@ -361,6 +362,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const dirtyStateListener = cell.onDidChangeContent(() => {
 			this._isUntitled = false;
 			this.setDirty(true);
+			this._increaseVersionId();
 			this._onDidChangeContent.fire();
 		});
 
@@ -397,6 +399,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._mapping.set(cells[i].handle, cells[i]);
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this.setDirty(true);
+				this._increaseVersionId();
 				this._onDidChangeContent.fire();
 			});
 

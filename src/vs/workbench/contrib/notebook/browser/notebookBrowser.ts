@@ -165,6 +165,7 @@ export interface INotebookEditorContribution {
 
 export interface INotebookCellDecorationOptions {
 	className?: string;
+	gutterClassName?: string;
 	outputClassName?: string;
 }
 
@@ -195,12 +196,13 @@ export interface INotebookEditorContributionDescription {
 	ctor: INotebookEditorContributionCtor;
 }
 
-export interface INotebookEditorWidgetOptions {
-
-	contributions?: INotebookEditorContributionDescription[];
+export interface INotebookEditorCreationOptions {
+	readonly isEmbedded?: boolean;
+	readonly contributions?: INotebookEditorContributionDescription[];
 }
 
 export interface INotebookEditor extends IEditor {
+	isEmbedded: boolean;
 
 	cursorNavigationMode: boolean;
 
@@ -215,7 +217,7 @@ export interface INotebookEditor extends IEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	isNotebookEditor: boolean;
+	readonly isNotebookEditor: boolean;
 	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
@@ -425,6 +427,8 @@ export interface INotebookEditor extends IEditor {
 
 	setCellSelection(cell: ICellViewModel, selection: Range): void;
 
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
+
 	/**
 	 * Change the decorations on cells.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
@@ -452,7 +456,7 @@ export interface INotebookEditor extends IEditor {
 }
 
 export interface INotebookCellList {
-	isDisposed: boolean
+	isDisposed: boolean;
 	readonly contextKeyService: IContextKeyService;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
