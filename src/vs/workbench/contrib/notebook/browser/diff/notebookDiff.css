@@ -16,10 +16,6 @@
 	width: 50%;
 } */
 
-/* .notebook-text-diff-editor {
-	margin: 8px;
-} */
-
 .notebook-text-diff-editor .cell-body {
 	display: flex;
 	flex-direction: row;

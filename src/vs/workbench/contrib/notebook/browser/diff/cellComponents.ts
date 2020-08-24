@@ -17,6 +17,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { hash } from 'vs/base/common/hash';
 
 
 const fixedDiffEditorOptions: IEditorOptions = {
@@ -74,6 +76,7 @@ const fixedEditorOptions: IEditorOptions = {
 abstract class AbstractCellRenderer extends Disposable {
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataInfoContainer!: HTMLElement;
+	protected _metadataStatusSpan!: HTMLElement;
 	protected _diffEditorContainer!: HTMLElement;
 	protected _diagonalFill?: HTMLElement;
 	protected _layoutInfo!: {
@@ -86,7 +89,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
 	protected _metadataEditorContainer?: HTMLElement;
 	protected _metadataEditorDisposeStore!: DisposableStore;
-	protected _metadataEditor?: CodeEditorWidget;
+	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -143,11 +146,22 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
+		let metadataChanged = this.cell.type === 'modified' && hash(this.cell.original?.metadata ?? {}) !== hash(this.cell.modified?.metadata ?? {});
 		this._foldingIndicator = DOM.append(metadataHeaderContainer, DOM.$('.metadata-folding-indicator'));
+
+		if (metadataChanged) {
+			this.cell.foldingState = MetadataFoldingState.Expanded;
+		}
+
 		this._updateFoldingIcon();
 		const metadataStatus = DOM.append(metadataHeaderContainer, DOM.$('div.metadata-status'));
-		const metadataStatusSpan = DOM.append(metadataStatus, DOM.$('span'));
-		metadataStatusSpan.textContent = 'Metadata unchanged';
+		this._metadataStatusSpan = DOM.append(metadataStatus, DOM.$('span'));
+
+		if (metadataChanged) {
+			this._metadataStatusSpan.textContent = 'Metadata changed';
+		} else {
+			this._metadataStatusSpan.textContent = 'Metadata unchanged';
+		}
 
 		this._register(this.notebookEditor.onMouseUp(e => {
 			if (!e.event.target) {
@@ -187,31 +201,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			if (!this._metadataEditorContainer || !this._metadataEditor) {
 				// create editor
 				this._metadataEditorContainer = DOM.append(this._metadataInfoContainer, DOM.$('.metadata-editor-container'));
-
-				this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer, {
-					...fixedEditorOptions,
-					dimension: {
-						width: this.notebookEditor.getLayoutInfo().width - 20,
-						height: 0
-					}
-				}, {});
-
-				const mode = this.modeService.create('json');
-				const content = JSON.stringify(this.cell.original!.metadata);
-				const edits = format(content, undefined, {});
-				const metadataSource = applyEdits(content, edits);
-				const metadataModel = this.modelService.createModel(metadataSource, mode, undefined, true);
-				this._metadataEditor.setModel(metadataModel);
-
-				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
-				this.layout({ metadataEditor: true });
-
-				this._register(this._metadataEditor.onDidContentSizeChange((e) => {
-					if (e.contentHeightChanged && this.cell.foldingState === MetadataFoldingState.Expanded) {
-						this._layoutInfo.metadataHeight = e.contentHeight;
-						this.layout({ metadataEditor: true });
-					}
-				}));
+				this._buildMetadataEditor();
 			} else {
 				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
 				this.layout({ metadataEditor: true });
@@ -225,7 +215,69 @@ abstract class AbstractCellRenderer extends Disposable {
 		}
 
 		this._updateFoldingIcon();
+	}
 
+	private _getFormatedJSON(metadata: NotebookCellMetadata) {
+		const content = JSON.stringify(metadata);
+		const edits = format(content, undefined, {});
+		const metadataSource = applyEdits(content, edits);
+
+		return metadataSource;
+	}
+
+	private _buildMetadataEditor() {
+		if (this.cell.type === 'modified') {
+			const originalMetadataSource = this._getFormatedJSON(this.cell.original!.metadata || {});
+			const modifiedMetadataSource = this._getFormatedJSON(this.cell.modified?.metadata || {});
+			if (originalMetadataSource !== modifiedMetadataSource) {
+				this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
+					...fixedDiffEditorOptions
+				});
+
+				const mode = this.modeService.create('json');
+				const originalMetadataModel = this.modelService.createModel(originalMetadataSource, mode, undefined, true);
+				const modifiedMetadataModel = this.modelService.createModel(modifiedMetadataSource, mode, undefined, true);
+				this._metadataEditor.setModel({
+					original: originalMetadataModel,
+					modified: modifiedMetadataModel
+				});
+
+				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
+				this.layout({ metadataEditor: true });
+
+				this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+					if (e.contentHeightChanged && this.cell.foldingState === MetadataFoldingState.Expanded) {
+						this._layoutInfo.metadataHeight = e.contentHeight;
+						this.layout({ metadataEditor: true });
+					}
+				}));
+
+				return;
+			}
+		}
+
+		this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
+			...fixedEditorOptions,
+			dimension: {
+				width: this.notebookEditor.getLayoutInfo().width - 20,
+				height: 0
+			}
+		}, {});
+
+		const mode = this.modeService.create('json');
+		const originalMetadataSource = this._getFormatedJSON(this.cell.original!.metadata || {});
+		const metadataModel = this.modelService.createModel(originalMetadataSource, mode, undefined, true);
+		this._metadataEditor.setModel(metadataModel);
+
+		this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
+		this.layout({ metadataEditor: true });
+
+		this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged && this.cell.foldingState === MetadataFoldingState.Expanded) {
+				this._layoutInfo.metadataHeight = e.contentHeight;
+				this.layout({ metadataEditor: true });
+			}
+		}));
 	}
 
 	private _updateFoldingIcon() {
@@ -580,6 +632,10 @@ export class ModifiedCell extends AbstractCellRenderer {
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
+			if (this._metadataEditorContainer) {
+				this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
+			}
+
 			this._metadataEditor?.layout({
 				width: this.notebookEditor.getLayoutInfo().width - 20,
 				height: this._layoutInfo.metadataHeight
