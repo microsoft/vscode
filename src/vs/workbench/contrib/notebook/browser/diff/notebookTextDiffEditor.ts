@@ -8,8 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { notebookCellBorder, NotebookEditorWidget, notebookOutputContainerColor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
@@ -30,8 +29,9 @@ import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/d
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 
-export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextDiffEditor {
+export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
 
 	private _rootElement!: HTMLElement;
@@ -121,10 +121,8 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 		}));
 	}
 
-	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		// const group = this.group!;
-
-		await super.setInput(input, options, token);
+	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
 		if (model === null) {

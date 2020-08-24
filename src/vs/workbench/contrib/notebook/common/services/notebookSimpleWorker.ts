@@ -114,7 +114,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 	public acceptNewModel(uri: string, data: NotebookDataDto): void {
 		this._models[uri] = new MirrorNotebookDocument(URI.parse(uri), data.cells.map(dto => new MirrorCell(
-			(dto as IMainCellDto).handle,
+			(dto as unknown as IMainCellDto).handle,
 			dto.source,
 			dto.language,
 			dto.cellKind,

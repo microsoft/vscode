@@ -99,7 +99,7 @@ export class NotebookEditorModelManager extends Disposable {
 				cells: model.cells.map(cell => ({
 					handle: cell.handle,
 					uri: cell.uri,
-					source: cell.textBuffer.getLinesContent(),
+					source: cell.getValue(),
 					eol: cell.textBuffer.getEOL(),
 					language: cell.language,
 					cellKind: cell.cellKind,
