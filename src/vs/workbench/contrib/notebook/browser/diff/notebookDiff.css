@@ -22,6 +22,10 @@
 	margin: 8px;
 }
 
+.notebook-text-diff-editor .cell-body.right {
+	flex-direction: row-reverse;
+}
+
 .notebook-text-diff-editor .cell-body .diagonal-fill {
 	display: none;
 	width: 50%;

@@ -5,7 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffViewModel, MetadataFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
@@ -21,7 +21,7 @@ import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/noteb
 import { hash } from 'vs/base/common/hash';
 
 
-const fixedDiffEditorOptions: IEditorOptions = {
+const fixedDiffEditorOptions: IDiffEditorOptions = {
 	padding: {
 		top: 12,
 		bottom: 12
@@ -44,7 +44,9 @@ const fixedDiffEditorOptions: IEditorOptions = {
 	glyphMargin: true,
 	fixedOverflowWidgets: true,
 	minimap: { enabled: false },
-	renderValidationDecorations: 'on'
+	renderValidationDecorations: 'on',
+	enableSplitViewResizing: false,
+	renderIndicators: false
 };
 
 const fixedEditorOptions: IEditorOptions = {
@@ -111,6 +113,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			bodyMargin: 16
 		};
 		this._metadataEditorDisposeStore = new DisposableStore();
+		this._register(this._metadataEditorDisposeStore);
 		this.initData();
 		this.buildBody(templateData.container);
 		this._register(cell.onDidLayoutChange(e => this.onDidLayoutChange(e)));
@@ -227,7 +230,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 	private _buildMetadataEditor() {
 		if (this.cell.type === 'modified') {
-			const originalMetadataSource = this._getFormatedJSON(this.cell.original!.metadata || {});
+			const originalMetadataSource = this._getFormatedJSON(this.cell.original?.metadata || {});
 			const modifiedMetadataSource = this._getFormatedJSON(this.cell.modified?.metadata || {});
 			if (originalMetadataSource !== modifiedMetadataSource) {
 				this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
@@ -265,7 +268,10 @@ abstract class AbstractCellRenderer extends Disposable {
 		}, {});
 
 		const mode = this.modeService.create('json');
-		const originalMetadataSource = this._getFormatedJSON(this.cell.original!.metadata || {});
+		const originalMetadataSource = this._getFormatedJSON(
+			this.cell.type === 'insert'
+				? this.cell.modified!.metadata || {}
+				: this.cell.original!.metadata || {});
 		const metadataModel = this.modelService.createModel(originalMetadataSource, mode, undefined, true);
 		this._metadataEditor.setModel(metadataModel);
 
@@ -409,11 +415,7 @@ export class DeletedCell extends AbstractCellRenderer {
 				height: editorHeight
 			}
 		}, {});
-
-		if (this._diagonalFill) {
-			this._layoutInfo.editorHeight = editorHeight;
-			// this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
-		}
+		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
@@ -451,10 +453,6 @@ export class DeletedCell extends AbstractCellRenderer {
 				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
 				height: this._layoutInfo.metadataHeight
 			});
-		}
-
-		if (this._diagonalFill) {
-			// this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
 		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
@@ -498,10 +496,6 @@ export class InsertCell extends AbstractCellRenderer {
 
 		this._layoutInfo.editorHeight = editorHeight;
 
-		if (this._diagonalFill) {
-			this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
-		}
-
 		this._register(this._editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				this._layoutInfo.editorHeight = e.contentHeight;
@@ -534,14 +528,14 @@ export class InsertCell extends AbstractCellRenderer {
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
+			if (this._metadataEditorContainer) {
+				this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
+			}
+
 			this._metadataEditor?.layout({
 				width: this.notebookEditor.getLayoutInfo().width - 20,
 				height: this._layoutInfo.metadataHeight
 			});
-		}
-
-		if (this._diagonalFill) {
-			this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
 		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
