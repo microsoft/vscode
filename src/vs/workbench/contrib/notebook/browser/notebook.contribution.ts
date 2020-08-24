@@ -242,7 +242,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof DiffEditorInput) {
+		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue('notebook.diff.enablePreview')) {
 			return this._handleDiffEditorInput(originalInput, options, group);
 		}
 
