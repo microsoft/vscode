@@ -7,7 +7,7 @@ import 'vs/css!./notebookDiff';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import * as DOM from 'vs/base/browser/dom';
 import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -55,7 +55,8 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 
 	renderTemplate(container: HTMLElement): CellDiffRenderTemplate {
 		return {
-			container
+			container,
+			elementDisposables: new DisposableStore()
 		};
 	}
 
@@ -63,16 +64,16 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 		templateData.container.innerText = '';
 		switch (element.type) {
 			case 'unchanged':
-				this.instantiationService.createInstance(UnchangedCell, this.notebookEditor, element, templateData);
+				templateData.elementDisposables.add(this.instantiationService.createInstance(UnchangedCell, this.notebookEditor, element, templateData));
 				return;
 			case 'delete':
-				this.instantiationService.createInstance(DeletedCell, this.notebookEditor, element, templateData);
+				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedCell, this.notebookEditor, element, templateData));
 				return;
 			case 'insert':
-				this.instantiationService.createInstance(InsertCell, this.notebookEditor, element, templateData);
+				templateData.elementDisposables.add(this.instantiationService.createInstance(InsertCell, this.notebookEditor, element, templateData));
 				return;
 			case 'modified':
-				this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData);
+				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
 				return;
 			default:
 				break;
@@ -81,6 +82,10 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 
 	disposeTemplate(templateData: CellDiffRenderTemplate): void {
 		templateData.container.innerText = '';
+	}
+
+	disposeElement(element: CellDiffViewModel, index: number, templateData: CellDiffRenderTemplate): void {
+		templateData.elementDisposables.clear();
 	}
 }
 

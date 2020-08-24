@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { CellDiffViewModel, MetadataFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -71,11 +71,6 @@ const fixedEditorOptions: IEditorOptions = {
 	renderValidationDecorations: 'on'
 };
 
-enum MetadataFoldingState {
-	Expanded,
-	Collapsed
-}
-
 abstract class AbstractCellRenderer extends Disposable {
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataInfoContainer!: HTMLElement;
@@ -89,7 +84,6 @@ abstract class AbstractCellRenderer extends Disposable {
 		bodyMargin: number;
 	};
 	protected _foldingIndicator!: HTMLElement;
-	protected _foldingState!: MetadataFoldingState;
 	protected _metadataEditorContainer?: HTMLElement;
 	protected _metadataEditorDisposeStore!: DisposableStore;
 	protected _metadataEditor?: CodeEditorWidget;
@@ -114,7 +108,6 @@ abstract class AbstractCellRenderer extends Disposable {
 			bodyMargin: 16
 		};
 		this._metadataEditorDisposeStore = new DisposableStore();
-		this._foldingState = MetadataFoldingState.Collapsed;
 		this.initData();
 		this.buildBody(templateData.container);
 		this._register(cell.onDidLayoutChange(e => this.onDidLayoutChange(e)));
@@ -175,7 +168,7 @@ abstract class AbstractCellRenderer extends Disposable {
 				const cellViewModel = e.target;
 
 				if (cellViewModel === this.cell) {
-					this._foldingState = this._foldingState === MetadataFoldingState.Expanded ? MetadataFoldingState.Collapsed : MetadataFoldingState.Expanded;
+					this.cell.foldingState = this.cell.foldingState === MetadataFoldingState.Expanded ? MetadataFoldingState.Collapsed : MetadataFoldingState.Expanded;
 					this.updateMetadataRendering();
 				}
 			}
@@ -187,7 +180,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	updateMetadataRendering() {
-		if (this._foldingState === MetadataFoldingState.Expanded) {
+		if (this.cell.foldingState === MetadataFoldingState.Expanded) {
 			// we should expand the metadata editor
 			this._metadataInfoContainer.style.display = 'block';
 
@@ -214,7 +207,7 @@ abstract class AbstractCellRenderer extends Disposable {
 				this.layout({ metadataEditor: true });
 
 				this._register(this._metadataEditor.onDidContentSizeChange((e) => {
-					if (e.contentHeightChanged && this._foldingState === MetadataFoldingState.Expanded) {
+					if (e.contentHeightChanged && this.cell.foldingState === MetadataFoldingState.Expanded) {
 						this._layoutInfo.metadataHeight = e.contentHeight;
 						this.layout({ metadataEditor: true });
 					}
@@ -236,7 +229,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	private _updateFoldingIcon() {
-		if (this._foldingState === MetadataFoldingState.Collapsed) {
+		if (this.cell.foldingState === MetadataFoldingState.Collapsed) {
 			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
 		} else {
 			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');

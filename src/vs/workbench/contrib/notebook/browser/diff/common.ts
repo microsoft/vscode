@@ -7,6 +7,7 @@ import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebo
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface INotebookTextDiffEditor {
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>;
@@ -16,7 +17,7 @@ export interface INotebookTextDiffEditor {
 
 export interface CellDiffRenderTemplate {
 	readonly container: HTMLElement;
-
+	readonly elementDisposables: DisposableStore;
 }
 
 export interface CellDiffViewModelLayoutChangeEvent {
