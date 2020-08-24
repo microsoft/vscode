@@ -18,47 +18,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export class MainThreadNotebookDocument extends Disposable {
-	private _textModel: NotebookTextModel;
-
-	get textModel() {
-		return this._textModel;
-	}
-
-	constructor(
-		private readonly _proxy: ExtHostNotebookShape,
-		public handle: number,
-		public viewType: string,
-		public supportBackup: boolean,
-		public uri: URI,
-		@INotebookService readonly notebookService: INotebookService,
-		@IUndoRedoService readonly undoRedoService: IUndoRedoService,
-		@ITextModelService modelService: ITextModelService
-
-	) {
-		super();
-
-		this._textModel = new NotebookTextModel(handle, viewType, supportBackup, uri, undoRedoService, modelService);
-		this._register(this._textModel.onDidModelChangeProxy(e => {
-			this._proxy.$acceptModelChanged(this.uri, e);
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
-		}));
-		this._register(this._textModel.onDidSelectionChange(e => {
-			const selectionsChange = e ? { selections: e } : null;
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange, metadata: null });
-		}));
-	}
-
-	dispose() {
-		// this._textModel.dispose();
-		super.dispose();
-	}
-}
 
 class DocumentAndEditorState {
 	static ofSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
