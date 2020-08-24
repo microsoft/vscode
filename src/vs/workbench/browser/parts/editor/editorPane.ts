@@ -41,7 +41,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseEditor extends Composite implements IEditorPane {
+export abstract class EditorPane extends Composite implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
@@ -148,10 +148,10 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 
-		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
+		let editorMemento = EditorPane.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
 			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
-			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
+			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
 		return editorMemento;
@@ -160,7 +160,7 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected saveState(): void {
 
 		// Save all editor memento for this editor type
-		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => {
+		EditorPane.EDITOR_MEMENTOS.forEach(editorMemento => {
 			if (editorMemento.id === this.getId()) {
 				editorMemento.saveState();
 			}

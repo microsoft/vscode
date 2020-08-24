@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditorPane, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -19,7 +19,7 @@ import { Event, Relay, Emitter } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined } from 'vs/base/common/types';
 
-export class SideBySideEditor extends BaseEditor {
+export class SideBySideEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.sidebysideEditor';
 
@@ -33,7 +33,7 @@ export class SideBySideEditor extends BaseEditor {
 	private get minimumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.minimumHeight : 0; }
 	private get maximumSecondaryHeight() { return this.secondaryEditorPane ? this.secondaryEditorPane.maximumHeight : Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /* noop */ }
 	set maximumWidth(value: number) { /* noop */ }
 	set minimumHeight(value: number) { /* noop */ }
@@ -44,8 +44,8 @@ export class SideBySideEditor extends BaseEditor {
 	get minimumHeight() { return this.minimumPrimaryHeight + this.minimumSecondaryHeight; }
 	get maximumHeight() { return this.maximumPrimaryHeight + this.maximumSecondaryHeight; }
 
-	protected primaryEditorPane?: BaseEditor;
-	protected secondaryEditorPane?: BaseEditor;
+	protected primaryEditorPane?: EditorPane;
+	protected secondaryEditorPane?: EditorPane;
 
 	private primaryEditorContainer: HTMLElement | undefined;
 	private secondaryEditorContainer: HTMLElement | undefined;
@@ -188,7 +188,7 @@ export class SideBySideEditor extends BaseEditor {
 		return this.onEditorsCreated(secondaryEditor, primaryEditor, newInput.secondary, newInput.primary, options, context, token);
 	}
 
-	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
+	private doCreateEditor(editorInput: EditorInput, container: HTMLElement): EditorPane {
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editorInput);
 		if (!descriptor) {
 			throw new Error('No descriptor for editor found');
@@ -201,7 +201,7 @@ export class SideBySideEditor extends BaseEditor {
 		return editor;
 	}
 
-	private async onEditorsCreated(secondary: BaseEditor, primary: BaseEditor, secondaryInput: EditorInput, primaryInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	private async onEditorsCreated(secondary: EditorPane, primary: EditorPane, secondaryInput: EditorInput, primaryInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.secondaryEditorPane = secondary;
 		this.primaryEditorPane = primary;
 

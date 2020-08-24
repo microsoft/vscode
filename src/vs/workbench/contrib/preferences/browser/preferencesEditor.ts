@@ -40,7 +40,7 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorInput, EditorOptions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
@@ -53,7 +53,7 @@ import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISe
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
-export class PreferencesEditor extends BaseEditor {
+export class PreferencesEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.preferencesEditor';
 
@@ -75,7 +75,7 @@ export class PreferencesEditor extends BaseEditor {
 	get minimumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.minimumWidth : 0; }
 	get maximumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.maximumWidth : Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
@@ -762,7 +762,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private defaultPreferencesHeader: HTMLElement;
 	private defaultPreferencesEditor: DefaultPreferencesEditor;
-	private editablePreferencesEditor: BaseEditor | null = null;
+	private editablePreferencesEditor: EditorPane | null = null;
 	private defaultPreferencesEditorContainer: HTMLElement;
 	private editablePreferencesEditorContainer: HTMLElement;
 
@@ -906,7 +906,7 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): BaseEditor {
+	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): EditorPane {
 		if (this.editablePreferencesEditor) {
 			return this.editablePreferencesEditor;
 		}
@@ -920,7 +920,7 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
+	private updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
 		return editor.setInput(input, options, context, token)
 			.then<any>(() => {
 				if (token.isCancellationRequested) {

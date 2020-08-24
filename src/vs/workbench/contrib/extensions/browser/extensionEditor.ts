@@ -15,7 +15,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -164,7 +164,7 @@ interface IExtensionEditorTemplate {
 	header: HTMLElement;
 }
 
-export class ExtensionEditor extends BaseEditor {
+export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 

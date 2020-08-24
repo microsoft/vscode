@@ -91,7 +91,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
@@ -1068,7 +1068,7 @@ export class TestEditorInput extends EditorInput {
 }
 
 export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInput>[], factoryInputId?: string): IDisposable {
-	class TestEditorControl extends BaseEditor {
+	class TestEditor extends EditorPane {
 
 		constructor() { super(id, NullTelemetryService, new TestThemeService(), new TestStorageService()); }
 
@@ -1085,7 +1085,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 
 	const disposables = new DisposableStore();
 
-	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditorControl, id, 'Test Editor Control'), inputs));
+	disposables.add(Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(EditorDescriptor.create(TestEditor, id, 'Test Editor Control'), inputs));
 
 	if (factoryInputId) {
 

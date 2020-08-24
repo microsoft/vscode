@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent, listFocusBackground, listInactiveSelectionBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, scrollbarSliderActiveBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, SCROLLABLE_ELEMENT_PADDING_TOP, BOTTOM_CELL_TOOLBAR_GAP, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED, INotebookDeltaDecoration, NotebookEditorOptions, INotebookEditorWidgetOptions, INotebookEditorContributionDescription } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';

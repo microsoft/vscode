@@ -11,7 +11,7 @@ import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/b
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel, IEditorOpenContext, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,7 +35,7 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPane {
+export abstract class BaseTextEditor extends EditorPane implements ITextEditorPane {
 
 	static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 

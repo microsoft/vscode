@@ -14,7 +14,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -58,7 +58,7 @@ interface ColumnItem {
 
 const oddRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
 
-export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorPane {
+export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorPane {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
 

@@ -1138,7 +1138,7 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 }
 
 /**
- * Context passed into `BaseEditor#setInput` to give additional
+ * Context passed into `EditorPane#setInput` to give additional
  * context information around why the editor was opened.
  */
 export interface IEditorOpenContext {

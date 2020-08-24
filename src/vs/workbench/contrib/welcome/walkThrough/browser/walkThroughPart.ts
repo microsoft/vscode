@@ -11,7 +11,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorOptions, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -55,7 +55,7 @@ interface IWalkThroughEditorViewState {
 	viewState: IViewState;
 }
 
-export class WalkThroughPart extends BaseEditor {
+export class WalkThroughPart extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.walkThroughPart';
 

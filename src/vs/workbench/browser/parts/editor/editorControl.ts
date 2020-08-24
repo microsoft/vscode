@@ -9,7 +9,7 @@ import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
@@ -17,7 +17,7 @@ import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 
 export interface IOpenEditorResult {
-	readonly editorPane: BaseEditor;
+	readonly editorPane: EditorPane;
 	readonly editorChanged: boolean;
 }
 
@@ -34,10 +34,10 @@ export class EditorControl extends Disposable {
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; } | undefined>());
 	readonly onDidSizeConstraintsChange = this._onDidSizeConstraintsChange.event;
 
-	private _activeEditorPane: BaseEditor | null = null;
+	private _activeEditorPane: EditorPane | null = null;
 	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
 
-	private readonly editorPanes: BaseEditor[] = [];
+	private readonly editorPanes: EditorPane[] = [];
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
 	private dimension: Dimension | undefined;
@@ -67,7 +67,7 @@ export class EditorControl extends Disposable {
 		return { editorPane, editorChanged };
 	}
 
-	private doShowEditorPane(descriptor: IEditorDescriptor): BaseEditor {
+	private doShowEditorPane(descriptor: IEditorDescriptor): EditorPane {
 
 		// Return early if the currently active editor pane can handle the input
 		if (this._activeEditorPane && descriptor.describes(this._activeEditorPane)) {
@@ -99,7 +99,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doCreateEditorPane(descriptor: IEditorDescriptor): BaseEditor {
+	private doCreateEditorPane(descriptor: IEditorDescriptor): EditorPane {
 
 		// Instantiate editor
 		const editorPane = this.doInstantiateEditorPane(descriptor);
@@ -116,7 +116,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doInstantiateEditorPane(descriptor: IEditorDescriptor): BaseEditor {
+	private doInstantiateEditorPane(descriptor: IEditorDescriptor): EditorPane {
 
 		// Return early if already instantiated
 		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
@@ -131,7 +131,7 @@ export class EditorControl extends Disposable {
 		return editorPane;
 	}
 
-	private doSetActiveEditorPane(editorPane: BaseEditor | null) {
+	private doSetActiveEditorPane(editorPane: EditorPane | null) {
 		this._activeEditorPane = editorPane;
 
 		// Clear out previous active editor pane listeners
@@ -147,7 +147,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: BaseEditor, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same

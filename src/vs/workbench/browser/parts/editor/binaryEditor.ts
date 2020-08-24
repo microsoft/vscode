@@ -7,7 +7,7 @@ import 'vs/css!./media/binaryeditor';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -30,7 +30,7 @@ export interface IOpenCallbacks {
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends BaseEditor {
+export abstract class BaseBinaryResourceEditor extends EditorPane {
 
 	private readonly _onMetadataChanged = this._register(new Emitter<void>());
 	readonly onMetadataChanged = this._onMetadataChanged.event;
