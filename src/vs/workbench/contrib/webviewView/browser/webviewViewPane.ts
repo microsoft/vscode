@@ -7,7 +7,6 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { setImmediate } from 'vs/base/common/platform';
-import { generateUuid } from 'vs/base/common/uuid';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -16,17 +15,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewViewService } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
-
 declare const ResizeObserver: any;
+
+const webviewStateKey = 'webviewState';
 
 export class WebviewViewPane extends ViewPane {
 
@@ -35,6 +37,9 @@ export class WebviewViewPane extends ViewPane {
 
 	private _container?: HTMLElement;
 	private _resizeObserver?: any;
+
+	private readonly memento: Memento;
+	private readonly viewState: MementoObject;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -47,12 +52,16 @@ export class WebviewViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+
+		this.memento = new Memento(`webviewView.${this.id}`, storageService);
+		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE);
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this.updateTreeVisibility();
@@ -96,6 +105,15 @@ export class WebviewViewPane extends ViewPane {
 		}
 	}
 
+	public saveState() {
+		if (this._webview) {
+			this.viewState[webviewStateKey] = this._webview.state;
+		}
+
+		this.memento.saveMemento();
+		super.saveState();
+	}
+
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
@@ -121,11 +139,17 @@ export class WebviewViewPane extends ViewPane {
 		if (!this._activated) {
 			this._activated = true;
 
-			const webview = this.webviewService.createWebviewOverlay(generateUuid(), {}, {}, undefined);
+			const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
+			const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
+			webview.state = this.viewState['webviewState'];
 			this._webview = webview;
 
 			this._register(toDisposable(() => {
 				this._webview?.release(this);
+			}));
+
+			this._register(webview.onDidUpdateState(() => {
+				this.viewState[webviewStateKey] = webview.state;
 			}));
 
 			const source = this._register(new CancellationTokenSource());
@@ -149,5 +173,3 @@ export class WebviewViewPane extends ViewPane {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 }
-
-
