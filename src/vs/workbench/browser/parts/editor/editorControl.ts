@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorInput, EditorOptions, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
@@ -53,7 +53,7 @@ export class EditorControl extends Disposable {
 		super();
 	}
 
-	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<IOpenEditorResult> {
 
 		// Editor pane
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(editor);
@@ -63,7 +63,7 @@ export class EditorControl extends Disposable {
 		const editorPane = this.doShowEditorPane(descriptor);
 
 		// Set input
-		const editorChanged = await this.doSetInput(editorPane, editor, options);
+		const editorChanged = await this.doSetInput(editorPane, editor, options, context);
 		return { editorPane, editorChanged };
 	}
 
@@ -147,7 +147,7 @@ export class EditorControl extends Disposable {
 		this._onDidSizeConstraintsChange.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: BaseEditor, editor: EditorInput, options: EditorOptions | undefined): Promise<boolean> {
+	private async doSetInput(editorPane: BaseEditor, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same
@@ -174,7 +174,7 @@ export class EditorControl extends Disposable {
 		// Call into editor pane
 		const editorWillChange = !inputMatches;
 		try {
-			await editorPane.setInput(editor, options, operation.token);
+			await editorPane.setInput(editor, options, context, operation.token);
 
 			// Focus (unless prevented or another operation is running)
 			if (operation.isCurrent()) {

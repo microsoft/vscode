@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Composite } from 'vs/workbench/browser/composite';
-import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -91,10 +91,12 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	 * to be different from the previous input that was set using the `input.matches()`
 	 * method.
 	 *
+	 * The provided context gives more information around how the editor was opened.
+	 *
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 	}

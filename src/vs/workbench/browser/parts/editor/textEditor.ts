@@ -10,7 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, computeEditorAriaLabel, IEditorOpenContext, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -47,9 +47,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 
 	private readonly groupListener = this._register(new MutableDisposable());
 
-	private _shouldRestoreViewState: boolean | undefined;
-	protected get shouldRestoreViewState(): boolean | undefined { return this._shouldRestoreViewState; }
-
 	private _instantiationService: IInstantiationService;
 	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
 	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
@@ -69,7 +66,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
-		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(e => {
+		this._register(this.textResourceConfigurationService.onDidChangeConfiguration(() => {
 			const resource = this.getActiveResource();
 			const value = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
 
@@ -84,22 +81,14 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 			this.editorContainer?.setAttribute('aria-label', ariaLabel);
 			this.editorControl?.updateOptions({ ariaLabel });
 		}));
-
-		this.updateRestoreViewStateConfiguration();
 	}
 
 	protected handleConfigurationChangeEvent(configuration?: IEditorConfiguration): void {
-		this.updateRestoreViewStateConfiguration();
-
 		if (this.isVisible()) {
 			this.updateEditorConfiguration(configuration);
 		} else {
 			this.hasPendingConfigurationChange = true;
 		}
-	}
-
-	private updateRestoreViewStateConfiguration(): void {
-		this._shouldRestoreViewState = this.textResourceConfigurationService.getValue(undefined, 'workbench.editor.restoreViewState') ?? true /* default */;
 	}
 
 	private consumePendingConfigurationChangeEvent(): void {
@@ -163,8 +152,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, token);
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
 
 		// Update editor options after having set the input. We do this because there can be
 		// editor input specific options (e.g. an ARIA label depending on the input showing)
@@ -236,6 +225,17 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 		}
 
 		this.editorMemento.saveEditorState(this.group, resource, editorViewState);
+	}
+
+	protected shouldRestoreTextEditorViewState(editor: IEditorInput, context?: IEditorOpenContext): boolean {
+
+		// new editor: check with workbench.editor.restoreViewState setting
+		if (context?.newInGroup) {
+			return this.textResourceConfigurationService.getValue<boolean>(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), 'workbench.editor.restoreViewState') === false ? false : true /* restore by default */;
+		}
+
+		// existing editor: always restore viewstate
+		return true;
 	}
 
 	getViewState(): IEditorViewState | undefined {
