@@ -220,8 +220,12 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._updateFoldingIcon();
 	}
 
-	private _getFormatedJSON(metadata: NotebookCellMetadata) {
-		const content = JSON.stringify(metadata);
+	private _getFormatedJSON(metadata: NotebookCellMetadata, language?: string) {
+		const content = JSON.stringify({
+			language,
+			...metadata
+		});
+
 		const edits = format(content, undefined, {});
 		const metadataSource = applyEdits(content, edits);
 
@@ -230,8 +234,8 @@ abstract class AbstractCellRenderer extends Disposable {
 
 	private _buildMetadataEditor() {
 		if (this.cell.type === 'modified') {
-			const originalMetadataSource = this._getFormatedJSON(this.cell.original?.metadata || {});
-			const modifiedMetadataSource = this._getFormatedJSON(this.cell.modified?.metadata || {});
+			const originalMetadataSource = this._getFormatedJSON(this.cell.original?.metadata || {}, this.cell.original?.language);
+			const modifiedMetadataSource = this._getFormatedJSON(this.cell.modified?.metadata || {}, this.cell.modified?.language);
 			if (originalMetadataSource !== modifiedMetadataSource) {
 				this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
 					...fixedDiffEditorOptions
