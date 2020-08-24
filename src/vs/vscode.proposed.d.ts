@@ -1357,6 +1357,8 @@ declare module 'vscode' {
 
 		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;
 
+		replaceOutputs(index: number, outputs: CellOutput[]): void;
+
 		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		/** @deprecated */

@@ -733,6 +733,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						}
 					});
 				});
+			} else if (edit.editType === CellEditType.Output) {
+				edit.outputs.map((output) => {
+					if (output.outputKind === CellOutputKind.Rich) {
+						const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
+						const orderedMimeTypes = ret.orderedMimeTypes!;
+						const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
+						output.pickedMimeTypeIndex = pickedMimeTypeIndex;
+						output.orderedMimeTypes = orderedMimeTypes;
+					}
+				});
 			}
 		});
 	}

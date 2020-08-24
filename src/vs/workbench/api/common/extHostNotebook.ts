@@ -511,6 +511,15 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		}
 	}
 
+	replaceOutputs(index: number, outputs: vscode.CellOutput[]): void {
+		this._throwIfFinalized();
+		this._collectedEdits.push({
+			editType: CellEditType.Output,
+			index,
+			outputs: outputs.map(output => addIdToOutput(output))
+		});
+	}
+
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
 
