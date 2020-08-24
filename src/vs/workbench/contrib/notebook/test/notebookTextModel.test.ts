@@ -29,7 +29,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.$applyEdit(textModel.versionId, [
+				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Insert, index: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Insert, index: 3, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true);
@@ -54,7 +54,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.$applyEdit(textModel.versionId, [
+				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Insert, index: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Insert, index: 1, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true);
@@ -79,7 +79,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.$applyEdit(textModel.versionId, [
+				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Delete, index: 1, count: 1 },
 					{ editType: CellEditType.Delete, index: 3, count: 1 },
 				], true);
@@ -102,7 +102,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.$applyEdit(textModel.versionId, [
+				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Delete, index: 1, count: 1 },
 					{ editType: CellEditType.Insert, index: 3, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true);
@@ -127,7 +127,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.$applyEdit(textModel.versionId, [
+				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Delete, index: 1, count: 1 },
 					{ editType: CellEditType.Insert, index: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true);

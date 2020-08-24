@@ -194,7 +194,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (textModel) {
 			this._notebookService.transformEditsOutputs(textModel, edits);
-			return textModel.$applyEdit(modelVersionId, edits, true);
+			return textModel.applyEdit(modelVersionId, edits, true);
 		}
 
 		return false;
@@ -434,7 +434,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
 				await new Promise(resolve => {
 					DOM.scheduleAtNextAnimationFrame(() => {
-						const ret = mainthreadTextModel!.$applyEdit(mainthreadTextModel!.versionId, edits, true);
+						const ret = mainthreadTextModel!.applyEdit(mainthreadTextModel!.versionId, edits, true);
 						resolve(ret);
 					});
 				});
@@ -626,7 +626,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
-			textModel.$handleEdit(label, () => {
+			textModel.handleEdit(label, () => {
 				return this._proxy.$undoNotebook(textModel.viewType, textModel.uri, editId, textModel.isDirty);
 			}, () => {
 				return this._proxy.$redoNotebook(textModel.viewType, textModel.uri, editId, textModel.isDirty);
