@@ -8,19 +8,11 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2, IMainCellDto, ICellOutputEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-
-function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
-	if (a[1] === b[1]) {
-		return a[1] - b[1];
-
-	}
-	return a[1] - b[1];
-}
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
 	// private readonly _pieces: Ce[] = [];
@@ -235,54 +227,36 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const oldViewCells = this.cells.slice(0);
 		const oldMap = new Map(this._mapping);
 
-		let operations: ({ sortIndex: number; start: number; end: number; } & ICellEditOperation)[] = [];
-		for (let i = 0; i < rawEdits.length; i++) {
-			if (rawEdits[i].editType === CellEditType.Insert) {
-				const edit = rawEdits[i] as ICellInsertEdit;
-				operations.push({
-					sortIndex: i,
-					start: edit.index,
-					end: edit.index,
-					...edit
-				});
-			} else {
-				const edit = rawEdits[i] as ICellDeleteEdit;
-				operations.push({
-					sortIndex: i,
-					start: edit.index,
-					end: edit.index + edit.count,
-					...edit
-				});
-			}
-		}
-
-		// const edits
-		operations = operations.sort((a, b) => {
-			const r = compareRangesUsingEnds([a.start, a.end], [b.start, b.end]);
-			if (r === 0) {
-				return b.sortIndex - a.sortIndex;
-			}
-			return -r;
+		const edits = rawEdits.map((edit, index) => {
+			return {
+				edit,
+				end: edit.editType === CellEditType.Delete ? edit.index + edit.count : edit.index,
+				originalIndex: index,
+			};
+		}).sort((a, b) => {
+			return b.end - a.end || b.originalIndex - a.originalIndex;
 		});
 
-		for (let i = 0; i < operations.length; i++) {
-			switch (operations[i].editType) {
+		for (const { edit } of edits) {
+			switch (edit.editType) {
 				case CellEditType.Insert:
-					const insertEdit = operations[i] as ICellInsertEdit;
-					const mainCells = insertEdit.cells.map(cell => {
+					const mainCells = edit.cells.map(cell => {
 						const cellHandle = this._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
 						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this._modelService);
 					});
-					this.insertNewCell(insertEdit.index, mainCells, false);
+					this.insertNewCell(edit.index, mainCells, false);
 					break;
 				case CellEditType.Delete:
-					this.removeCell(operations[i].index, operations[i].end - operations[i].start, false);
+					this.removeCell(edit.index, edit.count, false);
 					break;
 				case CellEditType.Output:
 					//TODO@joh,@rebornix no event, no undo stop (?)
-					const cell = this.cells[operations[i].index];
-					this.spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, (<ICellOutputEdit>operations[i]).outputs]]);
+					const cell = this.cells[edit.index];
+					this.spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]]);
+					break;
+				case CellEditType.Metadata:
+					this.changeCellMetadata(this.cells[edit.index].handle, edit.metadata);
 					break;
 			}
 		}

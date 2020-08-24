@@ -511,6 +511,15 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		}
 	}
 
+	replaceMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
+		this._throwIfFinalized();
+		this._collectedEdits.push({
+			editType: CellEditType.Metadata,
+			index,
+			metadata
+		});
+	}
+
 	replaceOutputs(index: number, outputs: vscode.CellOutput[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({

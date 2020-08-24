@@ -403,6 +403,7 @@ export const enum CellEditType {
 	Insert = 1,
 	Delete = 2,
 	Output = 3,
+	Metadata = 4,
 }
 
 export interface ICellDto2 {
@@ -427,11 +428,17 @@ export interface ICellDeleteEdit {
 
 export interface ICellOutputEdit {
 	editType: CellEditType.Output;
-	index: number,
-	outputs: IProcessedOutput[]
+	index: number;
+	outputs: IProcessedOutput[];
 }
 
-export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit | ICellOutputEdit;
+export interface ICellMetadataEdit {
+	editType: CellEditType.Metadata;
+	index: number;
+	metadata: NotebookCellMetadata;
+}
+
+export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit | ICellOutputEdit | ICellMetadataEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;

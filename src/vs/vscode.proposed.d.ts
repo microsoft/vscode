@@ -1356,8 +1356,8 @@ declare module 'vscode' {
 	export interface NotebookEditorCellEdit {
 
 		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;
-
 		replaceOutputs(index: number, outputs: CellOutput[]): void;
+		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 
 		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
