@@ -163,7 +163,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		if (metadataChanged) {
 			this._metadataStatusSpan.textContent = 'Metadata changed';
 		} else {
-			this._metadataStatusSpan.textContent = 'Metadata unchanged';
+			this._metadataStatusSpan.textContent = 'Metadata';
 		}
 
 		this._register(this.notebookEditor.onMouseUp(e => {
