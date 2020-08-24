@@ -39,7 +39,7 @@ export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
 		handle: number,
-		public source: string[],
+		public source: string,
 		language: string,
 		cellKind: CellKind,
 		outputs: IProcessedOutput[],
@@ -375,7 +375,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
+export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const textModelService = instantiationService.get(ITextModelService);
 
 	const viewType = 'notebook';

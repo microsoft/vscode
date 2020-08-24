@@ -452,7 +452,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				if (data.cells.length) {
 					textModel.initialize(data!.cells);
 				} else {
-					const mainCell = textModel.createCellTextModel([''], textModel.languages.length ? textModel.languages[0] : '', CellKind.Code, [], undefined);
+					const mainCell = textModel.createCellTextModel('', textModel.languages.length ? textModel.languages[0] : '', CellKind.Code, [], undefined);
 					textModel.insertTemplateCell(mainCell);
 				}
 

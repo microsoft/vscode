@@ -22,7 +22,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellOutputKind, diff, ICellDeleteEdit, ICellEditOperation, ICellInsertEdit, IMainCellDto, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, IRawOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellOutputKind, diff, ICellDeleteEdit, ICellDto2, ICellEditOperation, ICellInsertEdit, IMainCellDto, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, IRawOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ResourceMap } from 'vs/base/common/map';
@@ -488,15 +488,13 @@ export class ExtHostNotebookDocument extends Disposable {
 }
 
 export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellEdit {
-	private _finalized: boolean = false;
-	private readonly _documentVersionId: number;
-	private _collectedEdits: ICellEditOperation[] = [];
-	private _renderers = new Set<number>();
 
-	constructor(
-		readonly editor: ExtHostNotebookEditor
-	) {
-		this._documentVersionId = editor.notebookData.notebookDocument.version;
+	private readonly _documentVersionId: number;
+	private readonly _collectedEdits: ICellEditOperation[] = [];
+	private _finalized: boolean = false;
+
+	constructor(documentVersionId: number) {
+		this._documentVersionId = documentVersionId;
 	}
 
 	finalize(): INotebookEditData {
@@ -504,7 +502,6 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		return {
 			documentVersionId: this._documentVersionId,
 			edits: this._collectedEdits,
-			renderers: Array.from(this._renderers)
 		};
 	}
 
@@ -514,33 +511,48 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		}
 	}
 
-	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
+	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
 
-		const sourceArr = Array.isArray(content) ? content : content.split(/\r|\n|\r\n/g);
-		const cell = {
-			source: sourceArr,
-			language,
-			cellKind: type,
-			outputs: outputs.map(o => addIdToOutput(o)),
-			metadata,
-		};
+		// deletion
+		if (to > from) {
+			this._collectedEdits.push({
+				editType: CellEditType.Delete,
+				index: from,
+				count: to - from
+			});
+		}
+		// insert
+		if (cells.length > 0) {
+			this._collectedEdits.push({
+				editType: CellEditType.Insert,
+				index: from,
+				cells: cells.map(data => {
+					return <ICellDto2>{
+						cellKind: data.cellKind,
+						language: data.language,
+						outputs: data.outputs.map(output => addIdToOutput(output)),
+						source: data.source
+					};
+				})
+			});
+		}
+	}
 
-		this._collectedEdits.push({
-			editType: CellEditType.Insert,
-			index,
-			cells: [cell]
-		});
+	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
+		this._throwIfFinalized();
+		this.replaceCells(index, index, [{
+			language,
+			outputs,
+			metadata,
+			cellKind: type,
+			source: Array.isArray(content) ? content.join('\n') : content,
+		}]);
 	}
 
 	delete(index: number): void {
 		this._throwIfFinalized();
-
-		this._collectedEdits.push({
-			editType: CellEditType.Delete,
-			index,
-			count: 1
-		});
+		this.replaceCells(index, 1, []);
 	}
 }
 
@@ -654,13 +666,12 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	}
 
 	edit(callback: (editBuilder: NotebookEditorCellEditBuilder) => void): Thenable<boolean> {
-		const edit = new NotebookEditorCellEditBuilder(this);
+		const edit = new NotebookEditorCellEditBuilder(this.document.version);
 		callback(edit);
-		return this._applyEdit(edit);
+		return this._applyEdit(edit.finalize());
 	}
 
-	private _applyEdit(editBuilder: NotebookEditorCellEditBuilder): Promise<boolean> {
-		const editData = editBuilder.finalize();
+	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
 
 		// return when there is nothing to do
 		if (editData.edits.length === 0) {
@@ -698,7 +709,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			compressedEditsIndex++;
 		}
 
-		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits, editData.renderers);
+		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits);
 	}
 
 	get viewColumn(): vscode.ViewColumn | undefined {

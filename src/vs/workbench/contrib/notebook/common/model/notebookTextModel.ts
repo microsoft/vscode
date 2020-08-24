@@ -186,7 +186,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	createCellTextModel(
-		source: string | string[],
+		source: string,
 		language: string,
 		cellKind: CellKind,
 		outputs: IProcessedOutput[],
@@ -559,7 +559,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._emitSelections.fire(selections);
 	}
 
-	createCell2(index: number, source: string | string[], language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
+	createCell2(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.createCellTextModel(source, language, type, [], metadata);
 
 		if (pushUndoStop) {

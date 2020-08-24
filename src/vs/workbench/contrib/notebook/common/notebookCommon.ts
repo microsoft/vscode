@@ -404,7 +404,7 @@ export enum CellEditType {
 }
 
 export interface ICellDto2 {
-	source: string | string[];
+	source: string;
 	language: string;
 	cellKind: CellKind;
 	outputs: IProcessedOutput[];
@@ -428,7 +428,6 @@ export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit;
 export interface INotebookEditData {
 	documentVersionId: number;
 	edits: ICellEditOperation[];
-	renderers: number[];
 }
 
 export interface NotebookDataDto {

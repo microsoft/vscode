@@ -59,7 +59,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		const builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(Array.isArray(this._source) ? this._source.join('\n') : this._source);
+		builder.acceptChunk(this._source);
 		const bufferFactory = builder.finish(true);
 		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF);
 
@@ -74,7 +74,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	constructor(
 		readonly uri: URI,
 		public handle: number,
-		private _source: string | string[],
+		private _source: string,
 		private _language: string,
 		public cellKind: CellKind,
 		outputs: IProcessedOutput[],
