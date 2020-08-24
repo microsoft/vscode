@@ -33,8 +33,8 @@ const bootstrapWindow = (() => {
 	return window.MonacoBootstrapWindow;
 })();
 
-// Setup shell environment
-process['lazyEnv'] = getLazyEnv();
+// Load environment in parallel to workbench loading to avoid waterfall
+const whenEnvResolved = bootstrapWindow.globals().process.whenEnvResolved;
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -45,23 +45,26 @@ bootstrapWindow.load([
 	'vs/nls!vs/workbench/workbench.desktop.main',
 	'vs/css!vs/workbench/workbench.desktop.main'
 ],
-	function (workbench, configuration) {
+	async function (workbench, configuration) {
 
 		// Mark start of workbench
 		perf.mark('didLoadWorkbenchMain');
 		performance.mark('workbench-start');
 
-		return process['lazyEnv'].then(function () {
-			perf.mark('main/startup');
+		// Wait for process environment being fully resolved
+		await whenEnvResolved;
 
-			// @ts-ignore
-			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
-		});
+		perf.mark('main/startup');
+
+		// @ts-ignore
+		return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 	},
 	{
 		removeDeveloperKeybindingsAfterLoad: true,
 		canModifyDOM: function (windowConfig) {
-			showPartsSplash(windowConfig);
+			if (!bootstrapWindow.globals().context.sandbox) {
+				showPartsSplash(windowConfig); // TODO@sandbox non-sandboxed only
+			}
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
 			loaderConfig.recordStats = true;
@@ -170,27 +173,4 @@ function showPartsSplash(configuration) {
 	}
 
 	perf.mark('didShowPartsSplash');
-}
-
-/**
- * @returns {Promise<void>}
- */
-function getLazyEnv() {
-	const ipcRenderer = bootstrapWindow.globals().ipcRenderer;
-
-	return new Promise(function (resolve) {
-		const handle = setTimeout(function () {
-			resolve();
-			console.warn('renderer did not receive lazyEnv in time');
-		}, 10000);
-
-		ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
-			clearTimeout(handle);
-			Object.assign(process.env, shellEnv);
-			// @ts-ignore
-			resolve(process.env);
-		});
-
-		ipcRenderer.send('vscode:fetchShellEnv');
-	});
 }
