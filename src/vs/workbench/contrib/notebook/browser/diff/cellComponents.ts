@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffViewModel, MetadataFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
-import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -46,7 +46,8 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 	minimap: { enabled: false },
 	renderValidationDecorations: 'on',
 	enableSplitViewResizing: false,
-	renderIndicators: false
+	renderIndicators: false,
+	renderLineHighlight: 'none'
 };
 
 const fixedEditorOptions: IEditorOptions = {
@@ -72,7 +73,8 @@ const fixedEditorOptions: IEditorOptions = {
 	glyphMargin: false,
 	fixedOverflowWidgets: true,
 	minimap: { enabled: false },
-	renderValidationDecorations: 'on'
+	renderValidationDecorations: 'on',
+	renderLineHighlight: 'none'
 };
 
 abstract class AbstractCellRenderer extends Disposable {
@@ -110,7 +112,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			editorMargin: 0,
 			metadataHeight: 0,
 			metadataStatusHeight: 25,
-			bodyMargin: 16
+			bodyMargin: 32
 		};
 		this._metadataEditorDisposeStore = new DisposableStore();
 		this._register(this._metadataEditorDisposeStore);
@@ -152,9 +154,6 @@ abstract class AbstractCellRenderer extends Disposable {
 		let metadataChanged = this.cell.type === 'modified' && hash(this.cell.original?.metadata ?? {}) !== hash(this.cell.modified?.metadata ?? {});
 		this._foldingIndicator = DOM.append(metadataHeaderContainer, DOM.$('.metadata-folding-indicator'));
 
-		if (metadataChanged) {
-			this.cell.foldingState = MetadataFoldingState.Expanded;
-		}
 
 		this._updateFoldingIcon();
 		const metadataStatus = DOM.append(metadataHeaderContainer, DOM.$('div.metadata-status'));
@@ -162,6 +161,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 		if (metadataChanged) {
 			this._metadataStatusSpan.textContent = 'Metadata changed';
+			this._metadataStatusSpan.style.fontWeight = 'bold';
 		} else {
 			this._metadataStatusSpan.textContent = 'Metadata';
 		}
@@ -266,7 +266,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: 0
 			}
 		}, {});
@@ -335,7 +335,7 @@ export class UnchangedCell extends AbstractCellRenderer {
 		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: editorHeight
 			}
 		}, {});
@@ -368,14 +368,14 @@ export class UnchangedCell extends AbstractCellRenderer {
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: this._layoutInfo.editorHeight
 			});
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: this._layoutInfo.metadataHeight
 			});
 		}
@@ -415,7 +415,7 @@ export class DeletedCell extends AbstractCellRenderer {
 		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
 			dimension: {
-				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: editorHeight
 			}
 		}, {});
@@ -447,14 +447,14 @@ export class DeletedCell extends AbstractCellRenderer {
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
-				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: this._layoutInfo.editorHeight
 			});
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
 			this._metadataEditor?.layout({
-				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: this._layoutInfo.metadataHeight
 			});
 		}
@@ -493,7 +493,7 @@ export class InsertCell extends AbstractCellRenderer {
 		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
 			dimension: {
-				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: editorHeight
 			}
 		}, {});
@@ -526,7 +526,7 @@ export class InsertCell extends AbstractCellRenderer {
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
-				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
+				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: this._layoutInfo.editorHeight
 			});
 		}
@@ -537,7 +537,7 @@ export class InsertCell extends AbstractCellRenderer {
 			}
 
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: this._layoutInfo.metadataHeight
 			});
 		}
@@ -579,7 +579,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		});
 
 		this._editor.layout({
-			width: this.notebookEditor.getLayoutInfo().width - 20,
+			width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 			height: editorHeight
 		});
 
@@ -635,7 +635,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 			}
 
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
 				height: this._layoutInfo.metadataHeight
 			});
 		}

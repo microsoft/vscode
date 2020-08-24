@@ -19,7 +19,6 @@
 .notebook-text-diff-editor .cell-body {
 	display: flex;
 	flex-direction: row;
-	margin: 8px;
 }
 
 .notebook-text-diff-editor .cell-body.right {

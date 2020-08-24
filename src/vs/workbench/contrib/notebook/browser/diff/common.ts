@@ -24,3 +24,5 @@ export interface CellDiffViewModelLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
 }
+
+export const DIFF_CELL_MARGIN = 16;
