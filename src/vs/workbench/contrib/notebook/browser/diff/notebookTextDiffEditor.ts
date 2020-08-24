@@ -288,7 +288,7 @@ export class NotebookTextDiffEditor extends BaseEditor implements INotebookTextD
 registerThemingParticipant((theme, collector) => {
 	const cellBorderColor = theme.getColor(notebookCellBorder);
 	if (cellBorderColor) {
-		collector.addRule(`.notebook-text-diff-editor .editor-container { border: 1px solid ${cellBorderColor};}`);
+		collector.addRule(`.notebook-text-diff-editor .source-container { border: 1px solid ${cellBorderColor};}`);
 		collector.addRule(`.notebook-text-diff-editor .metadata-editor-container {
 			border-left: 1px solid ${cellBorderColor};
 			border-right: 1px solid ${cellBorderColor};

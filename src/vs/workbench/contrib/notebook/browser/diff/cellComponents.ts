@@ -79,11 +79,14 @@ enum MetadataFoldingState {
 abstract class AbstractCellRenderer extends Disposable {
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataInfoContainer!: HTMLElement;
+	protected _diffEditorContainer!: HTMLElement;
+	protected _diagonalFill?: HTMLElement;
 	protected _layoutInfo!: {
 		editorHeight: number;
 		editorMargin: number;
 		metadataStatusHeight: number;
 		metadataHeight: number;
+		bodyMargin: number;
 	};
 	protected _foldingIndicator!: HTMLElement;
 	protected _foldingState!: MetadataFoldingState;
@@ -95,6 +98,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
 		readonly templateData: CellDiffRenderTemplate,
+		readonly style: 'left' | 'right' | 'full',
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly modeService: IModeService,
 		protected readonly modelService: IModelService,
@@ -104,9 +108,10 @@ abstract class AbstractCellRenderer extends Disposable {
 		// init
 		this._layoutInfo = {
 			editorHeight: 0,
-			editorMargin: 32,
+			editorMargin: 0,
 			metadataHeight: 0,
-			metadataStatusHeight: 24
+			metadataStatusHeight: 25,
+			bodyMargin: 16
 		};
 		this._metadataEditorDisposeStore = new DisposableStore();
 		this._foldingState = MetadataFoldingState.Collapsed;
@@ -116,16 +121,32 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	buildBody(container: HTMLElement) {
-		const diffEditorContainer = DOM.$('.cell-diff-editor-container');
-		DOM.append(container, diffEditorContainer);
-		this.styleContainer(diffEditorContainer);
-		const sourceContainer = DOM.append(diffEditorContainer, DOM.$('.source-container'));
+		const body = DOM.$('.cell-body');
+		DOM.append(container, body);
+		this._diffEditorContainer = DOM.$('.cell-diff-editor-container');
+		switch (this.style) {
+			case 'left':
+				DOM.addClass(body, 'left');
+				break;
+			case 'right':
+				DOM.addClass(body, 'right');
+				break;
+			default:
+				DOM.addClass(body, 'full');
+				break;
+		}
+
+		DOM.append(body, this._diffEditorContainer);
+		this._diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
+		// this._diagonalFill.style.display = '0px';
+		this.styleContainer(this._diffEditorContainer);
+		const sourceContainer = DOM.append(this._diffEditorContainer, DOM.$('.source-container'));
 		this.buildSourceEditor(sourceContainer);
 
-		this._metadataHeaderContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-header-container'));
-		this._metadataInfoContainer = DOM.append(diffEditorContainer, DOM.$('.metadata-info-container'));
+		this._metadataHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-header-container'));
+		this._metadataInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-info-container'));
 		this.buildMetadataHeader(this._metadataHeaderContainer);
-		this.buildMetadataBody(this._metadataInfoContainer);
+		// this.buildMetadataBody(this._metadataInfoContainer);
 	}
 
 	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
@@ -225,8 +246,6 @@ abstract class AbstractCellRenderer extends Disposable {
 	abstract initData(): void;
 	abstract styleContainer(container: HTMLElement): void;
 	abstract buildSourceEditor(sourceContainer: HTMLElement): void;
-	abstract buildMetadataBody(metadataBodyContainer: HTMLElement): void;
-
 	abstract onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void;
 	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }): void;
 }
@@ -242,7 +261,7 @@ export class UnchangedCell extends AbstractCellRenderer {
 		@IModelService protected modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService);
 	}
 
 	initData() {
@@ -284,9 +303,6 @@ export class UnchangedCell extends AbstractCellRenderer {
 		});
 	}
 
-	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
-
-	}
 
 	onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void {
 		if (event.outerWidth !== undefined) {
@@ -310,13 +326,12 @@ export class UnchangedCell extends AbstractCellRenderer {
 		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
+			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
 	}
 }
 
 export class DeletedCell extends AbstractCellRenderer {
 	private _editor!: CodeEditorWidget;
-	private _diagonalFill!: HTMLElement;
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
@@ -325,14 +340,13 @@ export class DeletedCell extends AbstractCellRenderer {
 		@IModelService readonly modelService: IModelService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'left', instantiationService, modeService, modelService);
 	}
 
 	initData(): void {
 	}
 
 	styleContainer(container: HTMLElement) {
-		DOM.addClass(container, 'delete');
 	}
 
 	buildSourceEditor(sourceContainer: HTMLElement): void {
@@ -342,7 +356,6 @@ export class DeletedCell extends AbstractCellRenderer {
 		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
 		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
-		this._diagonalFill = DOM.append(sourceContainer, DOM.$('.diagonal-fill'));
 
 		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
 			...fixedEditorOptions,
@@ -352,7 +365,10 @@ export class DeletedCell extends AbstractCellRenderer {
 			}
 		}, {});
 
-		this._diagonalFill.style.height = `${editorHeight}px`;
+		if (this._diagonalFill) {
+			this._layoutInfo.editorHeight = editorHeight;
+			// this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
+		}
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
@@ -372,9 +388,6 @@ export class DeletedCell extends AbstractCellRenderer {
 
 	}
 
-	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
-	}
-
 	onDidLayoutChange(e: CellDiffViewModelLayoutChangeEvent) {
 		if (e.outerWidth !== undefined) {
 			this.layout({ outerWidth: true });
@@ -390,21 +403,22 @@ export class DeletedCell extends AbstractCellRenderer {
 
 		if (state.metadataEditor || state.outerWidth) {
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 20,
+				width: (this.notebookEditor.getLayoutInfo().width - 20) / 2 - 18,
 				height: this._layoutInfo.metadataHeight
 			});
 		}
 
-		this._diagonalFill.style.height = `${this._layoutInfo.editorHeight}px`;
+		if (this._diagonalFill) {
+			// this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
+		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
+			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
 	}
 }
 
 export class InsertCell extends AbstractCellRenderer {
 	private _editor!: CodeEditorWidget;
-	private _diagonalFill!: HTMLElement;
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
 		readonly cell: CellDiffViewModel,
@@ -413,14 +427,13 @@ export class InsertCell extends AbstractCellRenderer {
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'right', instantiationService, modeService, modelService);
 	}
 
 	initData(): void {
 	}
 
 	styleContainer(container: HTMLElement): void {
-		DOM.addClass(container, 'insert');
 	}
 
 	buildSourceEditor(sourceContainer: HTMLElement): void {
@@ -428,7 +441,6 @@ export class InsertCell extends AbstractCellRenderer {
 		const lineCount = modifiedCell.textBuffer.getLineCount();
 		const lineHeight = this.notebookEditor.getLayoutInfo().fontInfo.lineHeight || 17;
 		const editorHeight = lineCount * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
-		this._diagonalFill = DOM.append(sourceContainer, DOM.$('.diagonal-fill'));
 		const editorContainer = DOM.append(sourceContainer, DOM.$('.editor-container'));
 
 		this._editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
@@ -439,7 +451,11 @@ export class InsertCell extends AbstractCellRenderer {
 			}
 		}, {});
 
-		this._diagonalFill.style.height = `${editorHeight}px`;
+		this._layoutInfo.editorHeight = editorHeight;
+
+		if (this._diagonalFill) {
+			this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
+		}
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
@@ -458,9 +474,6 @@ export class InsertCell extends AbstractCellRenderer {
 		});
 	}
 
-	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
-	}
-
 	onDidLayoutChange(e: CellDiffViewModelLayoutChangeEvent) {
 		if (e.outerWidth !== undefined) {
 			this.layout({ outerWidth: true });
@@ -482,10 +495,12 @@ export class InsertCell extends AbstractCellRenderer {
 			});
 		}
 
-		this._diagonalFill.style.height = `${this._layoutInfo.editorHeight}px`;
+		if (this._diagonalFill) {
+			this._diagonalFill.style.height = `${this._diffEditorContainer.clientHeight}px`;
+		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
+			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
 	}
 }
 
@@ -500,7 +515,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		@IModeService readonly modeService: IModeService,
 		@IModelService readonly modelService: IModelService,
 	) {
-		super(notebookEditor, cell, templateData, instantiationService, modeService, modelService);
+		super(notebookEditor, cell, templateData, 'full', instantiationService, modeService, modelService);
 	}
 
 	initData(): void {
@@ -559,9 +574,6 @@ export class ModifiedCell extends AbstractCellRenderer {
 
 	}
 
-	buildMetadataBody(metadataBodyContainer: HTMLElement): void {
-	}
-
 	onDidLayoutChange(e: CellDiffViewModelLayoutChangeEvent) {
 		if (e.outerWidth !== undefined) {
 			this.layout({ outerWidth: true });
@@ -582,7 +594,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight);
+			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
 
 	}
 }
