@@ -813,12 +813,12 @@ export interface DocumentHighlightProvider {
  */
 export interface OnTypeRenameProvider {
 
-	stopPattern?: RegExp;
+	wordPattern?: RegExp;
 
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
 }
 
 /**

@@ -115,11 +115,12 @@ export interface INotebookMimeTypeSelector {
 export interface INotebookRendererInfo {
 	id: string;
 	displayName: string;
+	entrypoint: URI;
+	preloads: ReadonlyArray<URI>;
+	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
-	extensionLocation: URI,
-	preloads: URI[],
-	render(uri: URI, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
-	render2<T>(uri: URI, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
+
+	matches(mimeType: string): boolean;
 }
 
 export interface INotebookKernelInfo {
@@ -191,9 +192,7 @@ export enum MimeTypeRendererResolver {
 
 export interface IOrderedMimeType {
 	mimeType: string;
-	isResolved: boolean;
-	rendererId?: string;
-	output?: string;
+	rendererId: string;
 }
 
 export interface ITransformedDisplayOutputDto {
@@ -281,16 +280,40 @@ export interface INotebookTextModel {
 	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
-	renderers: Set<string>;
 	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
 	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
-export interface IRenderOutput {
-	shadowContent?: string;
+export const enum RenderOutputType {
+	None,
+	Html,
+	Extension
+}
+
+export interface IRenderNoOutput {
+	type: RenderOutputType.None;
 	hasDynamicHeight: boolean;
 }
+
+export interface IRenderPlainHtmlOutput {
+	type: RenderOutputType.Html;
+	source: IProcessedOutput;
+	htmlContent: string;
+	hasDynamicHeight: boolean;
+}
+
+export interface IRenderOutputViaExtension {
+	type: RenderOutputType.Extension;
+	source: IProcessedOutput;
+	mimeType: string;
+	renderer: INotebookRendererInfo;
+}
+
+export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
+export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
+
+export const outputHasDynamicHeight = (o: IRenderOutput) => o.type === RenderOutputType.Extension || o.hasDynamicHeight;
 
 export type NotebookCellTextModelSplice = [
 	number /* start */,
@@ -376,13 +399,16 @@ export interface NotebookCellsChangeMetadataEvent {
 }
 
 export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
-export enum CellEditType {
+
+export const enum CellEditType {
 	Insert = 1,
-	Delete = 2
+	Delete = 2,
+	Output = 3,
+	Metadata = 4,
 }
 
 export interface ICellDto2 {
-	source: string | string[];
+	source: string;
 	language: string;
 	cellKind: CellKind;
 	outputs: IProcessedOutput[];
@@ -401,12 +427,23 @@ export interface ICellDeleteEdit {
 	count: number;
 }
 
-export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit;
+export interface ICellOutputEdit {
+	editType: CellEditType.Output;
+	index: number;
+	outputs: IProcessedOutput[];
+}
+
+export interface ICellMetadataEdit {
+	editType: CellEditType.Metadata;
+	index: number;
+	metadata: NotebookCellMetadata;
+}
+
+export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit | ICellOutputEdit | ICellMetadataEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
 	edits: ICellEditOperation[];
-	renderers: number[];
 }
 
 export interface NotebookDataDto {
@@ -720,3 +757,5 @@ export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
 	linesDiff: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
+export const DisplayOrderKey = 'notebook.displayOrder';
+export const CellToolbarLocKey = 'notebook.cellToolbarLocation';

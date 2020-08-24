@@ -24,6 +24,8 @@ import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browse
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -43,6 +45,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
 		super(
 			instantiationService,
@@ -56,7 +60,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
-		this._initialize();
+		// Initialize extensions first and do it only after workbench is ready
+		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
+			await this._userDataInitializationService.initializeExtensions(this._instantiationService);
+			this._initialize();
+		});
+
 		this._initFetchFileSystem();
 	}
 

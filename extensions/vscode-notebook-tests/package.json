@@ -62,8 +62,9 @@
     ],
     "notebookOutputRenderer": [
       {
-        "viewType": "notebookCoreTestRenderer",
+        "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",
+        "entrypoint": "./src/customRenderer.js",
         "mimeTypes": [
           "text/custom"
         ]

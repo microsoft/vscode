@@ -164,10 +164,7 @@ export interface IUserDataSyncStoreManagementService {
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
 }
 
-export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
-export interface IUserDataSyncStoreService {
-	readonly _serviceBrand: undefined;
-
+export interface IUserDataSyncStoreClient {
 	readonly onDidChangeDonotMakeRequestsUntil: Event<void>;
 	readonly donotMakeRequestsUntil: Date | undefined;
 
@@ -184,6 +181,11 @@ export interface IUserDataSyncStoreService {
 
 	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
 	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
+}
+
+export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export interface IUserDataSyncStoreService extends IUserDataSyncStoreClient {
+	readonly _serviceBrand: undefined;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -208,6 +210,7 @@ export const HEADER_EXECUTION_ID = 'X-Execution-Id';
 export enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Conflict = 'Conflict', /* 409 */
 	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
 	TooLarge = 'TooLarge', /* 413 */

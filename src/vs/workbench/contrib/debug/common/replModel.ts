@@ -174,13 +174,18 @@ export class ReplGroup implements IReplElement {
 	}
 }
 
+type FilterFunc = ((element: IReplElement) => void);
+
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 	private readonly _onDidChangeElements = new Emitter<void>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
+	private filterFunc: FilterFunc | undefined;
 
 	getReplElements(): IReplElement[] {
-		return this.replElements;
+		return this.replElements.filter(element =>
+			this.filterFunc ? this.filterFunc(element) : true
+		);
 	}
 
 	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
@@ -313,6 +318,10 @@ export class ReplModel {
 		if (simpleVals.length) {
 			this.appendToRepl(session, simpleVals.join(' ') + '\n', sev, source);
 		}
+	}
+
+	setFilter(filterFunc: FilterFunc): void {
+		this.filterFunc = filterFunc;
 	}
 
 	removeReplExpressions(): void {

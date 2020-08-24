@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessedOutput, IRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IProcessedOutput, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -38,9 +38,7 @@ export class OutputRenderer {
 
 		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.outputKind}`;
 		container.appendChild(contentNode);
-		return {
-			hasDynamicHeight: false
-		};
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
 	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {

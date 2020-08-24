@@ -1528,7 +1528,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
 					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this.notificationService.prompt(Severity.Info, message,
+					this.notificationService.prompt(Severity.Warning, message,
 						[{
 							label: nls.localize('terminateTask', "Terminate Task"),
 							run: () => this.terminate(lastInstance)
@@ -2963,7 +2963,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 						for (let task of tasks) {
-							entries.push({ label: task._label, task, description: this.getTaskDescription(task) });
+							entries.push({ label: task._label, task, description: this.getTaskDescription(task), detail: this.showDetail() ? task.configurationProperties.detail : undefined });
 							if (!ContributedTask.is(task)) {
 								needsCreateOrOpen = false;
 							}

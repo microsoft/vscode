@@ -583,6 +583,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * @internal
 	 */
+	getOverflowWidgetsDomNode(): HTMLElement | undefined;
+
+	/**
+	 * @internal
+	 */
 	getConfiguredWordAtPosition(position: Position): IWordAtPosition | null;
 
 	/**

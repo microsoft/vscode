@@ -13,6 +13,11 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
 import { TelemetryReporter } from './utils/telemetry';
 
+export enum ServerType {
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+}
+
 export namespace ServerResponse {
 
 	export class Cancelled {

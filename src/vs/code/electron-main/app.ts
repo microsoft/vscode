@@ -364,17 +364,17 @@ export class CodeApplication extends Disposable {
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
 			this.logService.trace('Shared process: IPC ready');
+
 			return connect(this.environmentService.sharedIPCHandle, 'main');
 		});
 		const sharedProcessReady = sharedProcess.whenReady().then(() => {
 			this.logService.trace('Shared process: init ready');
+
 			return sharedProcessClient;
 		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
-
-				sharedProcess.spawn(userEnv);
+				sharedProcess.spawn(await getShellEnvironment(this.logService, this.environmentService));
 			}, 3000)).schedule();
 		});
 
@@ -847,6 +847,9 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+
+		// Start to fetch shell environment after window has opened
+		getShellEnvironment(this.logService, this.environmentService);
 	}
 
 	private handleRemoteAuthorities(): void {
