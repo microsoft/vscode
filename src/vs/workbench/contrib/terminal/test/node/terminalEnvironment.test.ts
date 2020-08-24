@@ -45,16 +45,22 @@ suite('Workbench - TerminalEnvironment', () => {
 		test('auto', () => {
 			assert.equal(shouldSetLangEnvVariable({}, 'auto'), true);
 			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US' }, 'auto'), true);
+			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.utf' }, 'auto'), true);
+			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.utf8' }, 'auto'), false);
 			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.UTF-8' }, 'auto'), false);
 		});
 		test('off', () => {
 			assert.equal(shouldSetLangEnvVariable({}, 'off'), false);
 			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US' }, 'off'), false);
+			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.utf' }, 'off'), false);
+			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.utf8' }, 'off'), false);
 			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.UTF-8' }, 'off'), false);
 		});
 		test('on', () => {
 			assert.equal(shouldSetLangEnvVariable({}, 'on'), true);
 			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US' }, 'on'), true);
+			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.utf' }, 'on'), true);
+			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.utf8' }, 'on'), true);
 			assert.equal(shouldSetLangEnvVariable({ LANG: 'en-US.UTF-8' }, 'on'), true);
 		});
 	});
