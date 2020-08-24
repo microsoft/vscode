@@ -106,7 +106,7 @@ suite('Workbench base editor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 
-		await e.setInput(input, options, CancellationToken.None);
+		await e.setInput(input, options, Object.create(null), CancellationToken.None);
 		assert.strictEqual(input, e.input);
 		const group = new TestEditorGroupView(1);
 		e.setVisible(true, group);

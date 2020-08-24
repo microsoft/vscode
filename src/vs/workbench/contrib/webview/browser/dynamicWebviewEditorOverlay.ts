@@ -39,7 +39,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	public constructor(
-		private readonly id: string,
+		public readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,

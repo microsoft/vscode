@@ -136,7 +136,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	cells: NotebookCellTextModel[];
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
-	renderers = new Set<string>();
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
@@ -367,12 +366,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		if (cell) {
 			cell.metadata = metadata;
 		}
-	}
-
-	updateRenderers(renderers: string[]) {
-		renderers.forEach(render => {
-			this.renderers.add(render);
-		});
 	}
 
 	insertTemplateCell(cell: NotebookCellTextModel) {

@@ -323,6 +323,7 @@ export class ConfigurationManager implements IConfigurationManager {
 						if (launch.workspace && provider) {
 							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
 								label: config.name,
+								description: launch.name,
 								config,
 								buttons: [{
 									iconClass: 'codicon-gear',

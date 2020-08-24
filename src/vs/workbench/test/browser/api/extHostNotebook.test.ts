@@ -225,6 +225,24 @@ suite('NotebookCell#Document', function () {
 		}
 	});
 
+	test('cell document goes when cell is removed', async function () {
+
+		assert.equal(notebook.cells.length, 2);
+		const [cell1, cell2] = notebook.cells;
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			kind: NotebookCellsChangeType.ModelChange,
+			versionId: 2,
+			changes: [[0, 1, []]]
+		});
+
+		assert.equal(notebook.cells.length, 1);
+		assert.equal(cell1.document.isClosed, true); // ref still alive!
+		assert.equal(cell2.document.isClosed, false);
+
+		assert.throws(() => extHostDocuments.getDocument(cell1.uri));
+	});
+
 	test('cell document knows notebook', function () {
 		for (let cells of notebook.cells) {
 			assert.equal(cells.document.notebook === notebook, true);

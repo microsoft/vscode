@@ -5793,11 +5793,14 @@ declare namespace monaco.languages {
 	 * the live-rename feature.
 	 */
 	export interface OnTypeRenameProvider {
-		stopPattern?: RegExp;
+		wordPattern?: RegExp;
 		/**
 		 * Provide a list of ranges that can be live-renamed together.
 		 */
-		provideOnTypeRenameRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+		provideOnTypeRenameRanges(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<{
+			ranges: IRange[];
+			wordPattern?: RegExp;
+		}>;
 	}
 
 	/**

@@ -19,7 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { CONFIGURATION_SYNC_STORE_KEY, IUserDataSyncStoreClient, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
-import { getAuthenticationSession } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -87,7 +87,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 				let authenticationSession;
 				try {
-					authenticationSession = await getAuthenticationSession(this.environmentService.options.credentialsProvider, this.productService);
+					authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
 				} catch (error) {
 					this.logService.error(error);
 				}
@@ -166,5 +166,5 @@ class InitializeOtherResourcesContribution implements IWorkbenchContribution {
 
 if (isWeb) {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Eventually);
+	workbenchRegistry.registerWorkbenchContribution(InitializeOtherResourcesContribution, LifecyclePhase.Restored);
 }

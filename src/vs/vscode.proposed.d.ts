@@ -981,26 +981,12 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region CustomExecution: https://github.com/microsoft/vscode/issues/81007
 	/**
 	 * A task to execute
 	 */
 	export class Task2 extends Task {
 		detail?: string;
 	}
-
-	export class CustomExecution2 extends CustomExecution {
-		/**
-		 * Constructs a CustomExecution task object. The callback will be executed the task is run, at which point the
-		 * extension should return the Pseudoterminal it will "run in". The task should wait to do further execution until
-		 * [Pseudoterminal.open](#Pseudoterminal.open) is called. Task cancellation should be handled using
-		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
-		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
-		 * @param callback The callback that will be called when the task is started by a user.
-		 */
-		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
-	}
-	//#endregion
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
@@ -1078,9 +1064,11 @@ declare module 'vscode' {
 		 * @param position The position at which the command was invoked.
 		 * @param token A cancellation token.
 		 * @return A list of ranges that can be live-renamed togehter. The ranges must have
-		 * identical length and contain identical text content. The ranges cannot overlap.
+		 * identical length and contain identical text content. The ranges cannot overlap. Optional a word pattern
+		 * that overrides the word pattern defined when registering the provider. Live rename stops as soon as the renamed content
+		 * no longer matches the word pattern.
 		 */
-		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<{ ranges: Range[]; wordPattern?: RegExp; }>;
 	}
 
 	namespace languages {
@@ -1093,10 +1081,10 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider An on type rename provider.
-		 * @param stopPattern Stop on type renaming when input text matches the regular expression. Defaults to `^\s`.
+		 * @param wordPattern Word pattern for this provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, stopPattern?: RegExp): Disposable;
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, wordPattern?: RegExp): Disposable;
 	}
 
 	//#endregion
@@ -1284,7 +1272,7 @@ declare module 'vscode' {
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
 		readonly document: TextDocument;
-		language: string;
+		readonly language: string;
 		outputs: CellOutput[];
 		metadata: NotebookCellMetadata;
 	}
@@ -1339,7 +1327,7 @@ declare module 'vscode' {
 		readonly viewType: string;
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
-		readonly cells: NotebookCell[];
+		readonly cells: ReadonlyArray<NotebookCell>;
 		languages: string[];
 		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
@@ -1383,7 +1371,7 @@ declare module 'vscode' {
 		/**
 		 * The column in which this editor shows.
 		 */
-		viewColumn?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Whether the panel is active (focused by the user).
@@ -1434,31 +1422,6 @@ declare module 'vscode' {
 		output: CellDisplayOutput;
 		mimeType: string;
 		outputId: string;
-	}
-
-	export interface NotebookOutputRenderer {
-		/**
-		 *
-		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
-		 *
-		 */
-		render(document: NotebookDocument, request: NotebookRenderRequest): string;
-
-		/**
-		 * Call before HTML from the renderer is executed, and will be called for
-		 * every editor associated with notebook documents where the renderer
-		 * is or was used.
-		 *
-		 * The communication object will only send and receive messages to the
-		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
-		 * this specific renderer's ID.
-		 *
-		 * If you need to keep an association between the communication object
-		 * and the document for use in the `render()` method, you can use a WeakMap.
-		 */
-		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
-
-		readonly preloads?: Uri[];
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1677,12 +1640,6 @@ declare module 'vscode' {
 			id: string,
 			selectors: GlobPattern[],
 			kernel: NotebookKernel
-		): Disposable;
-
-		export function registerNotebookOutputRenderer(
-			id: string,
-			outputSelector: NotebookOutputSelector,
-			renderer: NotebookOutputRenderer
 		): Disposable;
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
@@ -1983,6 +1940,143 @@ declare module 'vscode' {
 		 * the document is not contained by a notebook (this should be the more frequent case).
 		 */
 		notebook: NotebookDocument | undefined;
+	}
+	//#endregion
+
+
+	//#region https://github.com/microsoft/vscode/issues/46585
+
+	/**
+	 * A webview based view.
+	 */
+	export interface WebviewView {
+		/**
+		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
+		 */
+		readonly viewType: string;
+
+		/**
+		 * The underlying webview for the view.
+		 */
+		readonly webview: Webview;
+
+		/**
+		 * View title displayed in the UI.
+		 *
+		 * The view title is initially taken from the extension `package.json` contribution.
+		 */
+		title?: string;
+
+		/**
+		 * Event fired when the view is disposed.
+		 *
+		 * Views are disposed of in a few cases:
+		 *
+		 * - When a view is collapsed and `retainContextWhenHidden` has not been set.
+		 * - When a view is hidden by a user.
+		 *
+		 * Trying to use the view after it has been disposed throws an exception.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
+		 * Tracks if the webview is currently visible.
+		 *
+		 * Views are visible when they are on the screen and expanded.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Event fired when the visibility of the view changes
+		 */
+		readonly onDidChangeVisibility: Event<void>;
+	}
+
+	interface WebviewViewResolveContext<T = unknown> {
+		/**
+		 * Persisted state from the webview content.
+		 *
+		 * To save resources, VS Code normally deallocates webview views that are not visible. For example, if the user
+		 * collapse a view or switching to another top level activity, the underlying webview document is deallocates.
+		 *
+		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
+		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to
+		 * save off a webview's state so that it can be quickly recreated as needed.
+		 *
+		 * To save off a persisted state, inside the webview call `acquireVsCodeApi().setState()` with
+		 * any json serializable object. To restore the state again, call `getState()`. For example:
+		 *
+		 * ```js
+		 * // Within the webview
+		 * const vscode = acquireVsCodeApi();
+		 *
+		 * // Get existing state
+		 * const oldState = vscode.getState() || { value: 0 };
+		 *
+		 * // Update state
+		 * setState({ value: oldState.value + 1 })
+		 * ```
+		 *
+		 * VS Code ensures that the persisted state is saved correctly when a webview is hidden and across
+		 * editor restarts.
+		 */
+		readonly state: T | undefined;
+	}
+
+	/**
+	 * Provider for creating `WebviewView` elements.
+	 */
+	export interface WebviewViewProvider {
+		/**
+		 * Revolves a webview view.
+		 *
+		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
+		 * first loaded or when the user hides and then shows a view again.
+		 *
+		 * @param webviewView Webview panel to restore. The serializer should take ownership of this panel. The
+		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
+		 * @param context Additional metadata about the view being resolved.
+		 * @param token Cancellation token indicating that the view being provided is no longer needed.
+		 *
+		 * @return Optional thenable indicating that the view has been fully resolved.
+		 */
+		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Thenable<void> | void;
+	}
+
+	namespace window {
+		/**
+		 * Register a new provider for webview views.
+		 *
+		 * @param viewId Unique id of the view. This should match the `id` from the
+		 *   `views` contribution in the package.json.
+		 * @param provider Provider for the webview views.
+		 *
+		 * @return Disposable that unregisters the provider.
+		 */
+		export function registerWebviewViewProvider(viewId: string, provider: WebviewViewProvider, options?: {
+			/**
+			 * Content settings for the webview created for this view.
+			 */
+			readonly webviewOptions?: {
+				/**
+				 * Controls if the webview panel's content (iframe) is kept around even when the panel
+				 * is no longer visible.
+				 *
+				 * Normally the webview's html context is created when the panel becomes visible
+				 * and destroyed when it is hidden. Extensions that have complex state
+				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+				 * context around, even when the webview moves to a background tab. When a webview using
+				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
+				 * When the panel becomes visible again, the context is automatically restored
+				 * in the exact same state it was in originally. You cannot send messages to a
+				 * hidden webview, even with `retainContextWhenHidden` enabled.
+				 *
+				 * `retainContextWhenHidden` has a high memory overhead and should only be used if
+				 * your panel's context cannot be quickly saved and restored.
+				 */
+				readonly retainContextWhenHidden?: boolean;
+			};
+		}): Disposable;
 	}
 	//#endregion
 }

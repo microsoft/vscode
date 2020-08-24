@@ -21,8 +21,6 @@ import { PanelPositionContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
-export const Deprecated_RemoteAuthorityContext = new RawContextKey<string>('remoteAuthority', '');
-
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '');
 export const RemoteConnectionState = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '');
 

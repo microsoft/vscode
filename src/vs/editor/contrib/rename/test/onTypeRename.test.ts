@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Handler } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
@@ -14,6 +14,8 @@ import { OnTypeRenameContribution } from 'vs/editor/contrib/rename/onTypeRename'
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ITextModel } from 'vs/editor/common/model';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 
 const mockFile = URI.parse('test:somefile.ttt');
 const mockFileSelector = { scheme: 'test' };
@@ -53,16 +55,21 @@ suite('On type rename', () => {
 
 	function testCase(
 		name: string,
-		initialState: { text: string | string[], ranges: Range[], stopPattern?: RegExp },
+		initialState: { text: string | string[], responseWordPattern?: RegExp, providerWordPattern?: RegExp },
 		operations: (editor: TestEditor) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
 			disposables.add(modes.OnTypeRenameProviderRegistry.register(mockFileSelector, {
-				stopPattern: initialState.stopPattern || /^\s/,
-
-				provideOnTypeRenameRanges() {
-					return initialState.ranges;
+				wordPattern: initialState.providerWordPattern,
+				provideOnTypeRenameRanges(model: ITextModel, pos: IPosition) {
+					const wordAtPos = model.getWordAtPosition(pos);
+					if (wordAtPos) {
+						const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
+						assert.ok(matches.length > 0);
+						return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };
+					}
+					return { ranges: [], wordPattern: initialState.responseWordPattern };
 				}
 			}));
 
@@ -76,19 +83,15 @@ suite('On type rename', () => {
 			const testEditor: TestEditor = {
 				setPosition(pos: Position) {
 					editor.setPosition(pos);
-					return ontypeRenameContribution.currentRequest;
+					return ontypeRenameContribution.currentUpdateTriggerPromise;
 				},
 				setSelection(sel: IRange) {
 					editor.setSelection(sel);
-					return ontypeRenameContribution.currentRequest;
+					return ontypeRenameContribution.currentUpdateTriggerPromise;
 				},
 				trigger(source: string | null | undefined, handlerId: string, payload: any) {
 					editor.trigger(source, handlerId, payload);
-					return new Promise((s, e) => {
-						setTimeout(() => {
-							s();
-						}, 0);
-					});
+					return ontypeRenameContribution.currentSyncTriggerPromise;
 				},
 				undo() {
 					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
@@ -114,11 +117,7 @@ suite('On type rename', () => {
 	}
 
 	const state = {
-		text: '<ooo></ooo>',
-		ranges: [
-			new Range(1, 2, 1, 5),
-			new Range(1, 8, 1, 11),
-		]
+		text: '<ooo></ooo>'
 	};
 
 	/**
@@ -294,12 +293,12 @@ suite('On type rename', () => {
 	}, '<oo io></ooo>');
 
 	/**
-	 * Break out with custom stopPattern
+	 * Break out with custom provider wordPattern
 	 */
 
 	const state3 = {
 		...state,
-		stopPattern: /^s/
+		providerWordPattern: /[a-yA-Y]+/
 	};
 
 	testCase('Breakout with stop pattern - insert', state3, async (editor) => {
@@ -311,26 +310,38 @@ suite('On type rename', () => {
 	testCase('Breakout with stop pattern - insert stop char', state3, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 's' });
-	}, '<sooo></ooo>');
+		await editor.trigger('keyboard', Handler.Type, { text: 'z' });
+	}, '<zooo></ooo>');
 
 	testCase('Breakout with stop pattern - paste char', state3, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: 's' });
-	}, '<sooo></ooo>');
+		await editor.trigger('keyboard', Handler.Paste, { text: 'z' });
+	}, '<zooo></ooo>');
 
 	testCase('Breakout with stop pattern - paste string', state3, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: 'so' });
-	}, '<soooo></ooo>');
+		await editor.trigger('keyboard', Handler.Paste, { text: 'zo' });
+	}, '<zoooo></ooo>');
 
 	testCase('Breakout with stop pattern - insert at end', state3, async (editor) => {
 		const pos = new Position(1, 5);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 's' });
-	}, '<ooos></ooo>');
+		await editor.trigger('keyboard', Handler.Type, { text: 'z' });
+	}, '<oooz></ooo>');
+
+	const state4 = {
+		...state,
+		providerWordPattern: /[a-yA-Y]+/,
+		responseWordPattern: /[a-eA-E]+/
+	};
+
+	testCase('Breakout with stop pattern - insert stop char, respos', state4, async (editor) => {
+		const pos = new Position(1, 2);
+		await editor.setPosition(pos);
+		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+	}, '<iooo></ooo>');
 
 	/**
 	 * Delete
@@ -357,7 +368,8 @@ suite('On type rename', () => {
 	testCase('Delete - left word then undo', state, async (editor) => {
 		const pos = new Position(1, 5);
 		await editor.setPosition(pos);
-		editor.trigger('keyboard', 'deleteWordLeft', {});
+		await editor.trigger('keyboard', 'deleteWordLeft', {});
+		editor.undo();
 		editor.undo();
 	}, '<ooo></ooo>');
 
@@ -430,10 +442,6 @@ suite('On type rename', () => {
 		text: [
 			'<ooo>',
 			'</ooo>'
-		],
-		ranges: [
-			new Range(1, 2, 1, 5),
-			new Range(2, 3, 2, 6),
 		]
 	};
 

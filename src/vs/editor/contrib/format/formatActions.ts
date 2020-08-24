@@ -202,7 +202,7 @@ class FormatOnPaste implements IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, Progress.None, CancellationToken.None).catch(onUnexpectedError);
 	}
 }
 
@@ -274,7 +274,7 @@ class FormatSelectionAction extends EditorAction {
 
 		const progressService = accessor.get(IEditorProgressService);
 		await progressService.showWhile(
-			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, range, FormattingMode.Explicit, CancellationToken.None),
+			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, range, FormattingMode.Explicit, Progress.None, CancellationToken.None),
 			250
 		);
 	}

@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
@@ -385,13 +385,19 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('notebookConfigurationTitle', "Notebook"),
 	type: 'object',
 	properties: {
-		'notebook.displayOrder': {
-			markdownDescription: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
+		[DisplayOrderKey]: {
+			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
 			type: ['array'],
 			items: {
 				type: 'string'
 			},
 			default: []
+		},
+		[CellToolbarLocKey]: {
+			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
+			type: 'string',
+			enum: ['left', 'right', 'hidden'],
+			default: 'right'
 		}
 	}
 });

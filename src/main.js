@@ -316,7 +316,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 		// Default argv content
 		const defaultArgvConfigContent = [
 			'// This configuration file allows you to pass permanent command line arguments to VS Code.',
-			'// Only a subset of arguments is currently supported to reduce the likelyhood of breaking',
+			'// Only a subset of arguments is currently supported to reduce the likelihood of breaking',
 			'// the installation.',
 			'//',
 			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',

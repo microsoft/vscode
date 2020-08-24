@@ -263,12 +263,19 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- on type rename
 
-	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], stopPattern?: IRegExpDto): void {
-		const revivedStopPattern = stopPattern ? MainThreadLanguageFeatures._reviveRegExp(stopPattern) : undefined;
+	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], wordPattern?: IRegExpDto): void {
+		const revivedWordPattern = wordPattern ? MainThreadLanguageFeatures._reviveRegExp(wordPattern) : undefined;
 		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
-			stopPattern: revivedStopPattern,
-			provideOnTypeRenameRanges: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<IRange[] | undefined> => {
-				return this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+			wordPattern: revivedWordPattern,
+			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> => {
+				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+				if (res) {
+					return {
+						ranges: res.ranges,
+						wordPattern: res.wordPattern ? MainThreadLanguageFeatures._reviveRegExp(res.wordPattern) : undefined
+					};
+				}
+				return undefined;
 			}
 		}));
 	}

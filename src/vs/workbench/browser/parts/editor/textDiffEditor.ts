@@ -9,7 +9,7 @@ import { isFunction, isObject, isArray, assertIsDefined } from 'vs/base/common/t
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane, IEditorInput } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -72,7 +72,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -81,7 +81,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		this.doSaveOrClearTextDiffEditorViewState(this.input);
 
 		// Set input and resolve
-		await super.setInput(input, options, token);
+		await super.setInput(input, options, context, token);
 
 		try {
 			const resolvedModel = await input.resolve();
@@ -107,9 +107,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 				optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
 			}
 
-			// Otherwise restore View State
+			// Otherwise restore View State unless disabled via settings
 			let hasPreviousViewState = false;
-			if (!optionsGotApplied) {
+			if (!optionsGotApplied && this.shouldRestoreTextEditorViewState(input, context)) {
 				hasPreviousViewState = this.restoreTextDiffEditorViewState(input, diffEditor);
 			}
 
@@ -288,7 +288,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		}
 
 		// Clear view state if input is disposed or we are configured to not storing any state
-		if (input.isDisposed() || (!this.shouldRestoreViewState && (!this.group || !this.group.isOpened(input)))) {
+		if (input.isDisposed() || (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input)))) {
 			super.clearTextEditorViewState([resource], this.group);
 		}
 
