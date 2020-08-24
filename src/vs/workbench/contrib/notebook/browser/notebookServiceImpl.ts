@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
@@ -34,10 +35,6 @@ import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/
 import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-
-function MODEL_ID(resource: URI): string {
-	return resource.toString();
-}
 
 export class NotebookKernelProviderInfoStore extends Disposable {
 	private readonly _notebookKernelProviders: INotebookKernelProvider[] = [];
@@ -236,7 +233,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	notebookProviderInfoStore: NotebookProviderInfoStore;
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	notebookKernelProviderInfoStore: NotebookKernelProviderInfoStore = new NotebookKernelProviderInfoStore();
-	private readonly _models = new Map<string, ModelData>();
+	private readonly _models = new ResourceMap<ModelData>();
 	private _onDidChangeActiveEditor = new Emitter<string | null>();
 	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
 	private _activeEditorDisposables = new DisposableStore();
@@ -664,12 +661,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return undefined;
 		}
 
-		const modelId = MODEL_ID(uri);
-
 		let notebookModel: NotebookTextModel | undefined = undefined;
-		if (this._models.has(modelId)) {
+		if (this._models.has(uri)) {
 			// the model already exists
-			notebookModel = this._models.get(modelId)!.model;
+			notebookModel = this._models.get(uri)!.model;
 			if (forceReload) {
 				await provider.controller.reloadNotebook(notebookModel);
 			}
@@ -690,7 +685,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			(model) => this._onWillDisposeDocument(model),
 		);
 
-		this._models.set(modelId, modelData);
+		this._models.set(uri, modelData);
 		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
 		// after the document is added to the store and sent to ext host, we transform the ouputs
 		await this.transformTextModelOutputs(notebookModel!);
@@ -703,9 +698,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {
-		const modelId = MODEL_ID(uri);
-
-		return this._models.get(modelId)?.model;
+		return this._models.get(uri)?.model;
 	}
 
 	private async transformTextModelOutputs(textModel: NotebookTextModel) {
@@ -1000,10 +993,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	private _onWillDisposeDocument(model: INotebookTextModel): void {
-		const modelId = MODEL_ID(model.uri);
 
-		const modelData = this._models.get(modelId);
-		this._models.delete(modelId);
+		const modelData = this._models.get(model.uri);
+		this._models.delete(model.uri);
 
 		if (modelData) {
 			// delete editors and documents
