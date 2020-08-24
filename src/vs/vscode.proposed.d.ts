@@ -1323,6 +1323,7 @@ declare module 'vscode' {
 
 	export interface NotebookDocument {
 		readonly uri: Uri;
+		readonly version: number;
 		readonly fileName: string;
 		readonly viewType: string;
 		readonly isDirty: boolean;
