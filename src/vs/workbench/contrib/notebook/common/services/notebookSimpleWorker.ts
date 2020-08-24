@@ -11,8 +11,6 @@ import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IProcessedOutput, NotebookCellMetadata, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
 class MirrorCell {
@@ -31,8 +29,16 @@ class MirrorCell {
 		return this._textBuffer;
 	}
 
-	private _hash: number | null = null;
+	private _primaryKey?: number | null = null;
+	primaryKey(): number | null {
+		if (this._primaryKey === undefined) {
+			this._primaryKey = hash(this.getValue());
+		}
 
+		return this._primaryKey;
+	}
+
+	private _hash: number | null = null;
 
 	constructor(
 		readonly handle: number,
@@ -59,13 +65,21 @@ class MirrorCell {
 		}
 	}
 
-	getHashValue(): number {
+	getComparisonValue(): number {
+		if (this._primaryKey !== null) {
+			return this._primaryKey!;
+		}
+
+		this._hash = hash([hash(this.getValue()), this.metadata]);
+		return this._hash;
+	}
+
+	getHashValue() {
 		if (this._hash !== null) {
 			return this._hash;
 		}
 
-		this._hash = hash([hash(this.getValue()), this.metadata]);
-		// this._hash = hash(this.getValue());
+		this._hash = hash([hash(this.getValue()), this.language, this.metadata]);
 		return this._hash;
 	}
 }
@@ -88,7 +102,7 @@ export class CellSequence implements ISequence {
 	getElements(): string[] | number[] | Int32Array {
 		const hashValue = new Int32Array(this.textModel.cells.length);
 		for (let i = 0; i < this.textModel.cells.length; i++) {
-			hashValue[i] = this.textModel.cells[i].getHashValue();
+			hashValue[i] = this.textModel.cells[i].getComparisonValue();
 		}
 
 		return hashValue;
@@ -137,7 +151,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
 		const diffResult = diff.ComputeDiff(false);
 
-		let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[] = [];
+		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[] = [];
 
 		diffResult.changes.forEach(change => {
 			if (change.modifiedLength === 0) {
@@ -185,10 +199,10 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 			}
 		});
-
+ */
 		return {
 			cellsDiff: diffResult,
-			linesDiff: cellLineChanges
+			// linesDiff: cellLineChanges
 		};
 	}
 

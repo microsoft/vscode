@@ -755,7 +755,7 @@ export class CellSequence implements ISequence {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
-	linesDiff: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
+	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';

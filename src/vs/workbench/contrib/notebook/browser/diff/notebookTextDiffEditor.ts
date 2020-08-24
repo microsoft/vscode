@@ -25,7 +25,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
@@ -144,14 +144,25 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			const change = cellChanges[i];
 			// common cells
 
-			cellDiffViewModels.push(...originalModel.cells.slice(originalCellIndex, change.originalStart).map(cell => {
-				return new CellDiffViewModel(
-					cell,
-					undefined,
-					'unchanged',
-					this._eventDispatcher!
-				);
-			}));
+			for (let j = 0; j < change.originalStart - originalCellIndex; j++) {
+				const originalCell = originalModel.cells[originalCellIndex + j];
+				const modifiedCell = modifiedModel.cells[modifiedCellIndex + j];
+				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
+					cellDiffViewModels.push(new CellDiffViewModel(
+						originalCell,
+						undefined,
+						'unchanged',
+						this._eventDispatcher!
+					));
+				} else {
+					cellDiffViewModels.push(new CellDiffViewModel(
+						originalCell,
+						modifiedCell,
+						'modified',
+						this._eventDispatcher!
+					));
+				}
+			}
 
 			// modified cells
 			const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
@@ -287,9 +298,6 @@ registerThemingParticipant((theme, collector) => {
 	const cellBorderColor = theme.getColor(notebookCellBorder);
 	if (cellBorderColor) {
 		collector.addRule(`.notebook-text-diff-editor .cell-body { border: 1px solid ${cellBorderColor};}`);
-		collector.addRule(`.notebook-text-diff-editor .metadata-editor-container {
-			border-top: 1px solid ${cellBorderColor}
-		}`);
 		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 			border-top: 1px solid ${cellBorderColor};
 		}`);
@@ -309,9 +317,5 @@ registerThemingParticipant((theme, collector) => {
 	}
 	`);
 
-	const containerBackground = theme.getColor(notebookOutputContainerColor);
-	if (containerBackground) {
-		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container { background-color: ${containerBackground}; }`);
-	}
-
+	collector.addRule(`.notebook-text-diff-editor .cell-body { margin: ${DIFF_CELL_MARGIN}px; }`);
 });
