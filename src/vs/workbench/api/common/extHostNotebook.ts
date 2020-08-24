@@ -500,10 +500,6 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	getCell(cellHandle: number): ExtHostCell | undefined {
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}
-
-	getCell2(cellUri: UriComponents): ExtHostCell | undefined {
-		return this._cells.find(cell => cell.uri.fragment === cellUri.fragment);
-	}
 }
 
 export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellEdit {
