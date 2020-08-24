@@ -333,7 +333,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public get capabilities(): WorkingCopyCapabilities {
-		return 0;
+		return WorkingCopyCapabilities.None;
 	}
 
 	public isDirty(): boolean {
