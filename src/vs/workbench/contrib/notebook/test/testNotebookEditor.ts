@@ -381,9 +381,15 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
 	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService);
-	notebook.cells = cells.map((cell, index) => {
-		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4], textModelService);
-	});
+	notebook.initialize(cells.map(cell => {
+		return {
+			source: cell[0],
+			language: cell[1],
+			cellKind: cell[2],
+			outputs: cell[3],
+			metadata: cell[4]
+		};
+	}));
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);

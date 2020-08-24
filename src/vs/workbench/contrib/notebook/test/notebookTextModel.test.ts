@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellEditType, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -136,6 +136,91 @@ suite('NotebookTextModel', () => {
 				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
 				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
 				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
+			}
+		);
+	});
+
+	test('output', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+			],
+			(editor, viewModel, textModel) => {
+
+				// invalid index 1
+				assert.throws(() => {
+					textModel.applyEdit(textModel.versionId, [{
+						index: Number.MAX_VALUE,
+						editType: CellEditType.Output,
+						outputs: []
+					}], true);
+				});
+
+				// invalid index 2
+				assert.throws(() => {
+					textModel.applyEdit(textModel.versionId, [{
+						index: -1,
+						editType: CellEditType.Output,
+						outputs: []
+					}], true);
+				});
+
+				textModel.applyEdit(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					outputs: [{
+						outputKind: CellOutputKind.Rich,
+						outputId: 'someId',
+						data: { 'text/markdown': '_Hello_' }
+					}]
+				}], true);
+
+				assert.equal(textModel.cells.length, 1);
+				assert.equal(textModel.cells[0].outputs.length, 1);
+				assert.equal(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
+			}
+		);
+	});
+
+	test('metadata', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				['var a = 1;', 'javascript', CellKind.Code, [], { editable: true }],
+			],
+			(editor, viewModel, textModel) => {
+
+				// invalid index 1
+				assert.throws(() => {
+					textModel.applyEdit(textModel.versionId, [{
+						index: Number.MAX_VALUE,
+						editType: CellEditType.Metadata,
+						metadata: { editable: false }
+					}], true);
+				});
+
+				// invalid index 2
+				assert.throws(() => {
+					textModel.applyEdit(textModel.versionId, [{
+						index: -1,
+						editType: CellEditType.Metadata,
+						metadata: { editable: false }
+					}], true);
+				});
+
+				textModel.applyEdit(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Metadata,
+					metadata: { editable: false },
+				}], true);
+
+				assert.equal(textModel.cells.length, 1);
+				assert.equal(textModel.cells[0].metadata?.editable, false);
 			}
 		);
 	});
