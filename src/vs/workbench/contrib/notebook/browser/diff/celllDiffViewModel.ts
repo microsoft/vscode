@@ -7,7 +7,9 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookDiffEditorEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellDiffViewModelLayoutChangeEvent } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN } from 'vs/workbench/contrib/notebook/browser/diff/common';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 
 export enum MetadataFoldingState {
 	Expanded,
@@ -32,5 +34,13 @@ export class CellDiffViewModel extends Disposable {
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
 			this._layoutInfoEmitter.fire({ outerWidth: e.value.width });
 		}));
+	}
+
+	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
+		if (fullWidth) {
+			return layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0) - 2;
+		}
+
+		return (layoutInfo.width - 2 * DIFF_CELL_MARGIN + (diffEditor ? DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH : 0)) / 2 - 18 - 2;
 	}
 }

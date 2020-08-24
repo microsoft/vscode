@@ -32,32 +32,32 @@
 
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container {
 	width: 100%;
+	overflow: hidden;
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
+	/** 100% + diffOverviewWidth */
+	width: calc(100% + 30px);
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview {
+	display: none;
+}
+
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container {
+	box-sizing: border-box;
 }
 
 .notebook-text-diff-editor .cell-body.left .cell-diff-editor-container,
 .notebook-text-diff-editor .cell-body.right .cell-diff-editor-container {
 	display: inline-block;
+	width: 50%;
 }
 
 .notebook-text-diff-editor .cell-body.left .diagonal-fill,
 .notebook-text-diff-editor .cell-body.right .diagonal-fill {
 	display: inline-block;
-}
-
-.notebook-text-diff-editor .cell-body.left .cell-diff-editor-container {
-	width: calc(50% - 18px);
-}
-
-.notebook-text-diff-editor .cell-body.left .diagonal-fill {
-	width: calc(50% + 18px);
-}
-
-.notebook-text-diff-editor .cell-body.right .cell-diff-editor-container {
-	width: calc(50% + 18px);
-}
-
-.notebook-text-diff-editor .cell-body.right .diagonal-fill {
-	width: calc(50% - 18px);
+	width: 50%;
 }
 
 .notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {

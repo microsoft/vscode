@@ -241,6 +241,8 @@ abstract class AbstractCellRenderer extends Disposable {
 					...fixedDiffEditorOptions
 				});
 
+				DOM.addClass(this._metadataEditorContainer!, 'diff');
+
 				const mode = this.modeService.create('json');
 				const originalMetadataModel = this.modelService.createModel(originalMetadataSource, mode, undefined, true);
 				const modifiedMetadataModel = this.modelService.createModel(modifiedMetadataSource, mode, undefined, true);
@@ -266,7 +268,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
 			...fixedEditorOptions,
 			dimension: {
-				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: 0
 			}
 		}, {});
@@ -368,14 +370,14 @@ export class UnchangedCell extends AbstractCellRenderer {
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: this._layoutInfo.editorHeight
 			});
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: this._layoutInfo.metadataHeight
 			});
 		}
@@ -447,14 +449,14 @@ export class DeletedCell extends AbstractCellRenderer {
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 				height: this._layoutInfo.editorHeight
 			});
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
 			this._metadataEditor?.layout({
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 				height: this._layoutInfo.metadataHeight
 			});
 		}
@@ -526,7 +528,7 @@ export class InsertCell extends AbstractCellRenderer {
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
-				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
 				height: this._layoutInfo.editorHeight
 			});
 		}
@@ -537,7 +539,7 @@ export class InsertCell extends AbstractCellRenderer {
 			}
 
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: this._layoutInfo.metadataHeight
 			});
 		}
@@ -577,6 +579,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._editor = this.instantiationService.createInstance(DiffEditorWidget, this._editorContainer, {
 			...fixedDiffEditorOptions
 		});
+		DOM.addClass(this._editorContainer, 'diff');
 
 		this._editor.layout({
 			width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
@@ -635,7 +638,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 			}
 
 			this._metadataEditor?.layout({
-				width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: this._layoutInfo.metadataHeight
 			});
 		}
