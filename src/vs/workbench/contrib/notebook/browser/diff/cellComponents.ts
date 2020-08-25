@@ -20,36 +20,6 @@ import { applyEdits } from 'vs/base/common/jsonEdit';
 import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { hash } from 'vs/base/common/hash';
 
-
-const fixedDiffEditorOptions: IDiffEditorOptions = {
-	padding: {
-		top: 12,
-		bottom: 12
-	},
-	scrollBeyondLastLine: false,
-	scrollbar: {
-		verticalScrollbarSize: 14,
-		horizontal: 'auto',
-		useShadows: true,
-		verticalHasArrows: false,
-		horizontalHasArrows: false,
-		alwaysConsumeMouseWheel: false
-	},
-	renderLineHighlightOnlyWhenFocus: true,
-	overviewRulerLanes: 0,
-	selectOnLineNumbers: false,
-	wordWrap: 'off',
-	lineNumbers: 'off',
-	lineDecorationsWidth: 0,
-	glyphMargin: true,
-	fixedOverflowWidgets: true,
-	minimap: { enabled: false },
-	renderValidationDecorations: 'on',
-	enableSplitViewResizing: false,
-	renderIndicators: false,
-	renderLineHighlight: 'none'
-};
-
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
 		top: 12,
@@ -74,8 +44,18 @@ const fixedEditorOptions: IEditorOptions = {
 	fixedOverflowWidgets: true,
 	minimap: { enabled: false },
 	renderValidationDecorations: 'on',
-	renderLineHighlight: 'none'
+	renderLineHighlight: 'none',
+	readOnly: true
 };
+
+const fixedDiffEditorOptions: IDiffEditorOptions = {
+	...fixedEditorOptions,
+	glyphMargin: true,
+	enableSplitViewResizing: false,
+	renderIndicators: false,
+};
+
+
 
 class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
@@ -111,6 +91,7 @@ class PropertyHeader extends Disposable {
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
+			DOM.addClass(this.metadataHeaderContainer, 'modified');
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
 		}

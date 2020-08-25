@@ -390,6 +390,15 @@ registerThemingParticipant((theme, collector) => {
 		);
 	}
 
+	// const changed = theme.getColor(editorGutterModifiedBackground);
+
+	// if (changed) {
+	// 	collector.addRule(`
+	// 		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container.modified {
+	// 			background-color: ${changed};
+	// 		}
+	// 	`);
+	// }
 
 	collector.addRule(`.notebook-text-diff-editor .cell-body { margin: ${DIFF_CELL_MARGIN}px; }`);
 });
