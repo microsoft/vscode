@@ -48,6 +48,7 @@ export class ExtensionHostManager extends Disposable {
 	 */
 	private _proxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
 	private _resolveAuthorityAttempt: number;
+	private _hasStarted = false;
 
 	constructor(
 		extensionHost: IExtensionHost,
@@ -65,6 +66,7 @@ export class ExtensionHostManager extends Disposable {
 		this.onDidExit = this._extensionHost.onExit;
 		this._proxy = this._extensionHost.start()!.then(
 			(protocol) => {
+				this._hasStarted = true;
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
@@ -217,14 +219,18 @@ export class ExtensionHostManager extends Disposable {
 		return proxy.$activate(extension, reason);
 	}
 
-	public activateByEvent(activationEvent: string): Promise<void> {
+	public activateByEvent(activationEvent: string, eager?: boolean): Promise<void> {
+		if (eager && !this._hasStarted) {
+			return Promise.resolve();
+		}
+
 		if (!this._cachedActivationEvents.has(activationEvent)) {
-			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent));
+			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent, eager));
 		}
 		return this._cachedActivationEvents.get(activationEvent)!;
 	}
 
-	private async _activateByEvent(activationEvent: string): Promise<void> {
+	private async _activateByEvent(activationEvent: string, eager?: boolean): Promise<void> {
 		if (!this._proxy) {
 			return;
 		}
@@ -234,7 +240,7 @@ export class ExtensionHostManager extends Disposable {
 			// i.e. the extension host could not be started
 			return;
 		}
-		return proxy.value.$activateByEvent(activationEvent);
+		return proxy.value.$activateByEvent(activationEvent, eager);
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {

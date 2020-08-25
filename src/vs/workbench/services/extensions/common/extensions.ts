@@ -177,8 +177,13 @@ export interface IExtensionService {
 
 	/**
 	 * Send an activation event and activate interested extensions.
+	 *
+	 * Normally, this will queue the activation event if the extension hosts are not ready
+	 * and send it to all of them. If the extension needs to be activated before this,
+	 * the eager flag can be used to ignore extension hosts that aren't yet started. Do not
+	 * use this flag unless necessary.
 	 */
-	activateByEvent(activationEvent: string): Promise<void>;
+	activateByEvent(activationEvent: string, eager?: boolean): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
