@@ -101,6 +101,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	public readonly onDidFocus = this._onDidFocusEmitter.event;
 	private readonly _onWillScroll = this._register(new Emitter<ScrollEvent>());
 	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
 	set scrollTop(top: number) {
 		if (this._list) {
@@ -1672,6 +1674,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	dispose() {
 		this._isDisposed = true;
+		this._onWillDispose.fire();
 		// dispose webview first
 		this._webview?.dispose();
 

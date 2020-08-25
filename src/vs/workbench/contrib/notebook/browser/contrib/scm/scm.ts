@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditorContribution, INotebookEditor, INotebookDeltaDecoration } from '../../notebookBrowser';
+import { INotebookEditorContribution, INotebookEditor } from '../../notebookBrowser';
 import { registerNotebookContribution } from '../../notebookEditorExtensions';
 import { ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { createProviderComparer } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
 import { first, ThrottledDelayer } from 'vs/base/common/async';
 import { INotebookService } from '../../../common/notebookService';
-import { LcsDiff } from 'vs/base/common/diff/diff';
-import { CellSequence } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -40,6 +38,7 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 		if (!this._notebookEditor.isEmbedded) {
 			this._register(this._notebookEditor.onDidChangeModel(() => {
 				this._localDisposable.clear();
+				this._originalResourceDisposableStore.clear();
 				this._diffDelayer.cancel();
 				this.update();
 
@@ -52,6 +51,11 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 						this.update();
 					}));
 				}
+			}));
+
+			this._register(this._notebookEditor.onWillDispose(() => {
+				this._localDisposable.clear();
+				this._originalResourceDisposableStore.clear();
 			}));
 
 			this.update();
@@ -87,6 +91,12 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 		}));
 
 		const originalDocument = await this._notebookService.resolveNotebook(viewType, result, false);
+		this._originalResourceDisposableStore.add({
+			dispose: () => {
+				this._originalDocument?.dispose();
+				this._originalDocument = undefined;
+			}
+		});
 
 		this._originalDocument = originalDocument;
 	}
@@ -115,37 +125,37 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 					return;
 				}
 
-				const diff = new LcsDiff(new CellSequence(this._originalDocument), new CellSequence(modifiedDocument));
-				const diffResult = diff.ComputeDiff(false);
+				// const diff = new LcsDiff(new CellSequence(this._originalDocument), new CellSequence(modifiedDocument));
+				// const diffResult = diff.ComputeDiff(false);
 
-				const decorations: INotebookDeltaDecoration[] = [];
-				diffResult.changes.forEach(change => {
-					if (change.originalLength === 0) {
-						// doesn't exist in original
-						for (let i = 0; i < change.modifiedLength; i++) {
-							decorations.push({
-								handle: modifiedDocument.cells[change.modifiedStart + i].handle,
-								options: { gutterClassName: 'nb-gutter-cell-inserted' }
-							});
-						}
-					} else {
-						if (change.modifiedLength === 0) {
-							// diff.deleteCount
-							// removed from original
-						} else {
-							// modification
-							for (let i = 0; i < change.modifiedLength; i++) {
-								decorations.push({
-									handle: modifiedDocument.cells[change.modifiedStart + i].handle,
-									options: { gutterClassName: 'nb-gutter-cell-changed' }
-								});
-							}
-						}
-					}
-				});
+				// const decorations: INotebookDeltaDecoration[] = [];
+				// diffResult.changes.forEach(change => {
+				// 	if (change.originalLength === 0) {
+				// 		// doesn't exist in original
+				// 		for (let i = 0; i < change.modifiedLength; i++) {
+				// 			decorations.push({
+				// 				handle: modifiedDocument.cells[change.modifiedStart + i].handle,
+				// 				options: { gutterClassName: 'nb-gutter-cell-inserted' }
+				// 			});
+				// 		}
+				// 	} else {
+				// 		if (change.modifiedLength === 0) {
+				// 			// diff.deleteCount
+				// 			// removed from original
+				// 		} else {
+				// 			// modification
+				// 			for (let i = 0; i < change.modifiedLength; i++) {
+				// 				decorations.push({
+				// 					handle: modifiedDocument.cells[change.modifiedStart + i].handle,
+				// 					options: { gutterClassName: 'nb-gutter-cell-changed' }
+				// 				});
+				// 			}
+				// 		}
+				// 	}
+				// });
 
 
-				this._lastDecorationId = this._notebookEditor.deltaCellDecorations(this._lastDecorationId, decorations);
+				// this._lastDecorationId = this._notebookEditor.deltaCellDecorations(this._lastDecorationId, decorations);
 			});
 	}
 

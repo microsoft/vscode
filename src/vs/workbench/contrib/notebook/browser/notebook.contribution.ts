@@ -56,7 +56,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
-import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
+// import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
 
 // Output renderers registration
 

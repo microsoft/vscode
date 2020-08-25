@@ -77,6 +77,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidChangeAvailableKernels: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
 	onDidScroll = new Emitter<ScrollEvent>().event;
+	onWillDispose = new Emitter<void>().event;
 
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;

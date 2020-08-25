@@ -224,6 +224,7 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	readonly onDidScroll: Event<ScrollEvent>;
+	readonly onWillDispose: Event<void>;
 
 	isDisposed: boolean;
 
