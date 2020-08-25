@@ -71,7 +71,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 
 		const { invalidRecommendations, message } = await this.validateExtensions(extensionsConfigBySource.map(({ contents }) => contents));
 		if (invalidRecommendations.length) {
-			this.notificationService.warn(`The below ${invalidRecommendations.length} extension(s) in workspace recommendations have issues:\n${message}`);
+			this.notificationService.warn(`The ${invalidRecommendations.length} extension(s) below, in workspace recommendations have issues:\n${message}`);
 		}
 
 		this._ignoredRecommendations = [];
