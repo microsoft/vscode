@@ -175,6 +175,10 @@ self.addEventListener('activate', (event) => {
 	event.waitUntil(self.clients.claim()); // Become available to all pages
 });
 
+/**
+ * @param {string} event
+ * @param {URL} requestUrl
+ */
 async function processResourceRequest(event, requestUrl) {
 	const client = await self.clients.get(event.clientId);
 	if (!client) {
@@ -183,7 +187,11 @@ async function processResourceRequest(event, requestUrl) {
 	}
 
 	const webviewId = getWebviewIdForClient(client);
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) :  requestUrl.pathname;
+	let resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) :  requestUrl.pathname;
+
+	if (resourcePath.startsWith('/vscode-remote')) {
+		resourcePath += requestUrl.search;
+	}
 
 	function resolveResourceEntry(entry) {
 		if (!entry) {
@@ -209,7 +217,7 @@ async function processResourceRequest(event, requestUrl) {
 
 	parentClient.postMessage({
 		channel: 'load-resource',
-		path: resourcePath
+		path: resourcePath,
 	});
 
 	return resourceRequestStore.create(webviewId, resourcePath)

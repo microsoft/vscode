@@ -7,6 +7,7 @@ import * as glob from 'vs/base/common/glob';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookOutputRendererInfo implements INotebookRendererInfo {
@@ -32,10 +33,22 @@ export class NotebookOutputRendererInfo implements INotebookRendererInfo {
 		this.id = descriptor.id;
 		this.extensionId = descriptor.extension.identifier;
 		this.extensionLocation = descriptor.extension.extensionLocation;
-		this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint);
 		this.displayName = descriptor.displayName;
 		this.mimeTypes = descriptor.mimeTypes;
 		this.mimeTypeGlobs = this.mimeTypes.map(pattern => glob.parse(pattern));
+
+		this.entrypoint = joinPath(this.extensionLocation, descriptor.entrypoint);
+
+		if (this.entrypoint.scheme === REMOTE_HOST_SCHEME) {
+			this.entrypoint = URI.from({
+				scheme: REMOTE_HOST_SCHEME,
+				authority: this.extensionLocation.authority,
+				path: '/vscode-resource',
+				query: JSON.stringify({
+					requestResourcePath: this.entrypoint.path
+				})
+			});
+		}
 	}
 
 	matches(mimeType: string) {
