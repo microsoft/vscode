@@ -16,6 +16,7 @@ import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/wi
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
+import { Schemas } from 'vs/base/common/network';
 
 interface ICredential {
 	service: string;
@@ -277,6 +278,20 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		return false;
 	}
+
+	hasRemote(): boolean {
+		if (this.workspace) {
+			if (isFolderToOpen(this.workspace)) {
+				return this.workspace.folderUri.scheme === Schemas.vscodeRemote;
+			}
+
+			if (isWorkspaceToOpen(this.workspace)) {
+				return this.workspace.workspaceUri.scheme === Schemas.vscodeRemote;
+			}
+		}
+
+		return true;
+	}
 }
 
 class WindowIndicator implements IWindowIndicator {
@@ -391,6 +406,9 @@ class WindowIndicator implements IWindowIndicator {
 		}
 	}
 
+	// Workspace Provider
+	const workspaceProvider = new WorkspaceProvider(workspace, payload);
+
 	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
 		href: 'https://github.com/Microsoft/vscode',
@@ -401,10 +419,13 @@ class WindowIndicator implements IWindowIndicator {
 	// Commands
 	const commands: ICommand[] = [];
 
-	// Window indicator
-	const windowIndicator = new WindowIndicator(workspace);
-	if (windowIndicator.commandImpl) {
-		commands.push(windowIndicator.commandImpl);
+	// Window indicator (unless connected to a remote)
+	let windowIndicator: WindowIndicator | undefined = undefined;
+	if (!workspaceProvider.hasRemote()) {
+		windowIndicator = new WindowIndicator(workspace);
+		if (windowIndicator.commandImpl) {
+			commands.push(windowIndicator.commandImpl);
+		}
 	}
 
 	// Product Quality Change Handler
@@ -429,7 +450,7 @@ class WindowIndicator implements IWindowIndicator {
 		commands,
 		windowIndicator,
 		productQualityChangeHandler,
-		workspaceProvider: new WorkspaceProvider(workspace, payload),
+		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
