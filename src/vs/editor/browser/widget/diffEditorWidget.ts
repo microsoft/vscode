@@ -517,6 +517,18 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}));
 
+		this._register(editor.onDidContentSizeChange(e => {
+			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
+			const height = Math.max(this.modifiedEditor.getContentHeight(), this.originalEditor.getContentHeight());
+
+			this._onDidContentSizeChange.fire({
+				contentHeight: height,
+				contentWidth: width,
+				contentHeightChanged: e.contentHeightChanged,
+				contentWidthChanged: e.contentWidthChanged
+			});
+		}));
+
 		return editor;
 	}
 
@@ -563,8 +575,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		this._register(editor.onDidContentSizeChange(e => {
-			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth();
-			const height = this.modifiedEditor.getContentHeight();
+			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
+			const height = Math.max(this.modifiedEditor.getContentHeight(), this.originalEditor.getContentHeight());
 
 			this._onDidContentSizeChange.fire({
 				contentHeight: height,
