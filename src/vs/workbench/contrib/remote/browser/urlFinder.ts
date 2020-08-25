@@ -60,7 +60,7 @@ export class UrlFinder extends Disposable {
 				if (!isNaN(port) && Number.isInteger(port) && port > 0 && port <= 65535) {
 					// normalize the host name
 					let host = serverUrl.hostname;
-					if (host !== '0.0.0.0') {
+					if (host !== '0.0.0.0' && host !== '127.0.0.1') {
 						host = 'localhost';
 					}
 					this._onDidMatchLocalUrl.fire({ port, host });

@@ -73,6 +73,13 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	) {
 		super();
 
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		// register defaults before creating default configuration model
+		// so that the model is not required to be updated after registering
+		if (environmentService.options?.configurationDefaults) {
+			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+		}
+
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
@@ -94,10 +101,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			});
 		}));
 
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		if (environmentService.options?.configurationDefaults) {
-			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
-		}
 		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(configurationRegistry.onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 

@@ -982,7 +982,7 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
-function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
+export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
 	return (a, b) => {
 		const aIsParent = isEqualOrParent(uri, a.rootUri!);
 		const bIsParent = isEqualOrParent(uri, b.rootUri!);
@@ -997,6 +997,22 @@ function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) =>
 			return 0;
 		}
 	};
+}
+
+export async function getOriginalResource(scmService: ISCMService, uri: URI): Promise<URI | null> {
+	const providers = scmService.repositories.map(r => r.provider);
+	const rootedProviders = providers.filter(p => !!p.rootUri);
+
+	rootedProviders.sort(createProviderComparer(uri));
+
+	const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
+
+	if (result) {
+		return result;
+	}
+
+	const nonRootedProviders = providers.filter(p => !p.rootUri);
+	return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
 }
 
 export class DirtyDiffModel extends Disposable {
@@ -1155,19 +1171,7 @@ export class DirtyDiffModel extends Disposable {
 		}
 
 		const uri = this._model.resource;
-		const providers = this.scmService.repositories.map(r => r.provider);
-		const rootedProviders = providers.filter(p => !!p.rootUri);
-
-		rootedProviders.sort(createProviderComparer(uri));
-
-		const result = await first(rootedProviders.map(p => () => p.getOriginalResource(uri)));
-
-		if (result) {
-			return result;
-		}
-
-		const nonRootedProviders = providers.filter(p => !p.rootUri);
-		return first(nonRootedProviders.map(p => () => p.getOriginalResource(uri)));
+		return getOriginalResource(this.scmService, uri);
 	}
 
 	findNextClosestChange(lineNumber: number, inclusive = true): number {

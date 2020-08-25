@@ -6,6 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { ToWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import { RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringifies and injected into
@@ -373,24 +374,21 @@ function webviewPreloads() {
 
 					addMouseoverListeners(outputNode, outputId);
 					const content = data.content;
-					outputNode.innerHTML = content;
-					cellOutputContainer.appendChild(outputNode);
-
-					let pureData: { mimeType: string, output: unknown } | undefined;
-					const outputScript = cellOutputContainer.querySelector('script.vscode-pure-data');
-					if (outputScript) {
-						try { pureData = JSON.parse(outputScript.innerHTML); } catch { }
+					if (content.type === RenderOutputType.Html) {
+						outputNode.innerHTML = content.htmlContent;
+						cellOutputContainer.appendChild(outputNode);
+						domEval(outputNode);
+					} else {
+						onDidCreateOutput.fire([data.apiNamespace, {
+							element: outputNode,
+							output: content.output,
+							mimeType: content.mimeType,
+							outputId
+						}]);
+						cellOutputContainer.appendChild(outputNode);
 					}
 
-					// eval
-					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
-					onDidCreateOutput.fire([data.apiNamespace, {
-						element: outputNode,
-						output: pureData?.output,
-						mimeType: pureData?.mimeType,
-						outputId
-					}]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,

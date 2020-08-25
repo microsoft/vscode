@@ -93,6 +93,14 @@
 		process: {
 			platform: process.platform,
 			env: process.env,
+			_whenEnvResolved: undefined,
+			get whenEnvResolved() {
+				if (!this._whenEnvResolved) {
+					this._whenEnvResolved = resolveEnv();
+				}
+
+				return this._whenEnvResolved;
+			},
 			on:
 				/**
 				 * @param {string} type
@@ -155,6 +163,34 @@
 		}
 
 		return true;
+	}
+
+	/**
+	 * If VSCode is not run from a terminal, we should resolve additional
+	 * shell specific environment from the OS shell to ensure we are seeing
+	 * all development related environment variables. We do this from the
+	 * main process because it may involve spawning a shell.
+	 */
+	function resolveEnv() {
+		return new Promise(function (resolve) {
+			const handle = setTimeout(function () {
+				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
+
+				// It took too long to fetch the shell environment, return
+				resolve();
+			}, 3000);
+
+			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
+				clearTimeout(handle);
+
+				// Assign all keys of the shell environment to our process environment
+				Object.assign(process.env, shellEnv);
+
+				resolve();
+			});
+
+			ipcRenderer.send('vscode:fetchShellEnv');
+		});
 	}
 
 	//#endregion

@@ -19,7 +19,7 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/brow
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
-	EnableAllAction, EnableAllWorkspaceAction, DisableAllAction, DisableAllWorkspaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction, ClearExtensionsSearchResultsAction
+	EnableAllAction, EnableAllWorkspaceAction, DisableAllAction, DisableAllWorkspaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction, ClearExtensionsSearchResultsAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -112,9 +112,6 @@ actionRegistry.registerWorkbenchAction(keymapRecommendationsActionDescriptor, 'P
 
 const languageExtensionsActionDescriptor = SyncActionDescriptor.from(ShowLanguageExtensionsAction);
 actionRegistry.registerWorkbenchAction(languageExtensionsActionDescriptor, 'Preferences: Language Extensions', PreferencesLabel);
-
-const azureExtensionsActionDescriptor = SyncActionDescriptor.from(ShowAzureExtensionsAction);
-actionRegistry.registerWorkbenchAction(azureExtensionsActionDescriptor, 'Preferences: Azure Extensions', PreferencesLabel);
 
 const popularActionDescriptor = SyncActionDescriptor.from(ShowPopularExtensionsAction);
 actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Show Popular Extensions', ExtensionsLabel);
@@ -472,7 +469,7 @@ function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | u
 		const editorService = accessor.get(IEditorService);
 		const editor = editorService.activeEditorPane;
 		if (editor instanceof ExtensionEditor) {
-			if (editor.activeWebview) {
+			if (editor.activeWebview?.isFocused) {
 				f(editor.activeWebview);
 				return true;
 			}

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -386,7 +386,7 @@ suite('EditorService', () => {
 	test('delegate', function (done) {
 		const instantiationService = workbenchInstantiationService();
 
-		class MyEditor extends BaseEditor {
+		class MyEditor extends EditorPane {
 
 			constructor(id: string) {
 				super(id, undefined!, new TestThemeService(), new TestStorageService());

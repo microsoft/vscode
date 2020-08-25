@@ -33,6 +33,7 @@ import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationS
 import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isWeb } from 'vs/base/common/platform';
 
 // implementation
 
@@ -102,8 +103,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ILogService private readonly logService: ILogService
 	) {
 		this.container = layoutService.container;
-		const defaultThemeType = environmentService.configuration.defaultThemeType || DARK;
-		this.settings = new ThemeConfiguration(configurationService, defaultThemeType);
+		this.settings = new ThemeConfiguration(configurationService);
 
 		this.colorThemeRegistry = new ThemeRegistry(extensionService, colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
 		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this));
@@ -128,7 +128,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			themeData = ColorThemeData.createUnloadedThemeForThemeType(HIGH_CONTRAST);
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(defaultThemeType);
+			const initialColorTheme = environmentService.options?.initialColorTheme;
+			if (initialColorTheme) {
+				themeData = ColorThemeData.createUnloadedThemeForThemeType(initialColorTheme.themeType, initialColorTheme.colors);
+			}
+		}
+		if (!themeData) {
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? LIGHT : DARK);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);

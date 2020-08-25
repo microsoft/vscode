@@ -1112,7 +1112,7 @@ declare module 'vscode' {
 		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
-		viewColumn?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Perform an edit on the document associated with this text editor.
@@ -3086,6 +3086,8 @@ declare module 'vscode' {
 		 * @param uri Uri of the new file..
 		 * @param options Defines if an existing file should be overwritten or be
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * When both are unset and when the file already exists then the edit cannot
+		 * be applied successfully.
 		 * @param metadata Optional metadata for the entry.
 		 */
 		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
@@ -5630,14 +5632,42 @@ declare module 'vscode' {
 		asAbsolutePath(relativePath: string): string;
 
 		/**
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly storageUri: Uri | undefined;
+
+		/**
 		 * An absolute file path of a workspace specific directory in which the extension
 		 * can store private state. The directory might not exist on disk and creation is
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly globalStorageUri: Uri;
 
 		/**
 		 * An absolute file path in which the extension can store global state.
@@ -5645,13 +5675,27 @@ declare module 'vscode' {
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly logUri: Uri;
 
 		/**
 		 * An absolute file path of a directory in which the extension can create log files.
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
 		 */
 		readonly logPath: string;
 
@@ -6081,9 +6125,10 @@ declare module 'vscode' {
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
-		 * @param callback The callback that will be called when the task is started by a user.
+		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
+		 * were in the task definition will be resolved and passed into the callback.
 		 */
-		constructor(callback: () => Thenable<Pseudoterminal>);
+		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
 
 	/**
@@ -10858,6 +10903,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
+	 */
+	export class DebugAdapterNamedPipeServer {
+		/**
+		 * The path to the NamedPipe/UNIX Domain Socket.
+		 */
+		readonly path: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(path: string);
+	}
+
+	/**
 	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
 	 */
 	export interface DebugAdapter extends Disposable {
@@ -10895,7 +10955,7 @@ declare module 'vscode' {
 		constructor(implementation: DebugAdapter);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterInlineImplementation;
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -11090,6 +11150,19 @@ declare module 'vscode' {
 		 * Defaults to Separate.
 		 */
 		consoleMode?: DebugConsoleMode;
+
+		/**
+		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
+		 */
+		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 */
+		compact?: boolean;
 	}
 
 	/**

@@ -119,12 +119,12 @@ const copyrightFilter = [
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/linux/snap/electron-launch',
 	'!resources/win32/bin/code.js',
+	'!resources/web/code-web.js',
 	'!resources/completions/**',
 	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
-	'!src/vs/editor/test/node/classification/typescript-test.ts',
-	'!resources/serverless/code-web.js'
+	'!src/vs/editor/test/node/classification/typescript-test.ts'
 ];
 
 const jsHygieneFilter = [

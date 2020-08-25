@@ -37,7 +37,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -278,6 +278,14 @@ export class SearchEditor extends BaseTextEditor {
 		} else if (this.searchResultEditor.hasWidgetFocus()) {
 			// unreachable.
 		}
+	}
+
+	setQuery(query: string) {
+		this.queryEditorWidget.searchInput.setValue(query);
+	}
+
+	selectQuery() {
+		this.queryEditorWidget.searchInput.select();
 	}
 
 	toggleWholeWords() {
@@ -548,10 +556,10 @@ export class SearchEditor extends BaseTextEditor {
 		return this._input as SearchEditorInput;
 	}
 
-	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
-		await super.setInput(newInput, options, token);
+		await super.setInput(newInput, options, context, token);
 		if (token.isCancellationRequested) { return; }
 
 		const { body, config } = await newInput.getModels();

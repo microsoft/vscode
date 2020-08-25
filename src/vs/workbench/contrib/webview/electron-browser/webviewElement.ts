@@ -166,7 +166,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this._myLogService.debug(`Webview(${this.id}): dom-ready`);
 
 			// Workaround for https://github.com/electron/electron/issues/14474
-			if (this.element && (this.focused || document.activeElement === this.element)) {
+			if (this.element && (this.isFocused || document.activeElement === this.element)) {
 				this.element.blur();
 				this.element.focus();
 			}
@@ -312,7 +312,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// Workaround this by debouncing the focus and making sure we are not focused on an input
 		// when we try to re-focus.
 		this._focusDelayer.trigger(async () => {
-			if (!this.focused || !this.element) {
+			if (!this.isFocused || !this.element) {
 				return;
 			}
 

@@ -13,11 +13,11 @@ const OFF_TEXT = localize('status.text.auto.attach.off', 'Auto Attach: Off');
 
 const TOGGLE_COMMAND = 'extension.node-debug.toggleAutoAttach';
 const JS_DEBUG_SETTINGS = 'debug.javascript';
-const JS_DEBUG_USEPREVIEW = 'usePreview';
+const JS_DEBUG_USEPREVIEWAA = 'usePreviewAutoAttach';
 const JS_DEBUG_IPC_KEY = 'jsDebugIpcState';
 const NODE_DEBUG_SETTINGS = 'debug.node';
-const NODE_DEBUG_USEV3 = 'useV3';
 const AUTO_ATTACH_SETTING = 'autoAttach';
+const LAST_STATE_STORAGE_KEY = 'lastState';
 
 type AUTO_ATTACH_VALUES = 'disabled' | 'on' | 'off';
 
@@ -29,33 +29,36 @@ const enum State {
 }
 
 // on activation this feature is always disabled...
-let currentState = Promise.resolve({ state: State.Disabled, transitionData: null as unknown });
+let currentState: Promise<{ context: vscode.ExtensionContext, state: State; transitionData: unknown }>;
 let statusItem: vscode.StatusBarItem | undefined; // and there is no status bar item
 
 export function activate(context: vscode.ExtensionContext): void {
+	const previousState = context.workspaceState.get<State>(LAST_STATE_STORAGE_KEY, State.Disabled);
+	currentState = Promise.resolve(transitions[previousState].onActivate?.(context, readCurrentState()))
+		.then(() => ({ context, state: State.Disabled, transitionData: null }));
+
 	context.subscriptions.push(vscode.commands.registerCommand(TOGGLE_COMMAND, toggleAutoAttachSetting));
 
 	// settings that can result in the "state" being changed--on/off/disable or useV3 toggles
 	const effectualConfigurationSettings = [
 		`${NODE_DEBUG_SETTINGS}.${AUTO_ATTACH_SETTING}`,
-		`${NODE_DEBUG_SETTINGS}.${NODE_DEBUG_USEV3}`,
-		`${JS_DEBUG_SETTINGS}.${JS_DEBUG_USEPREVIEW}`,
+		`${JS_DEBUG_SETTINGS}.${JS_DEBUG_USEPREVIEWAA}`,
 	];
 
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (effectualConfigurationSettings.some(setting => e.affectsConfiguration(setting))) {
-				updateAutoAttach(context);
+				updateAutoAttach();
 			}
 		})
 	);
 
-	updateAutoAttach(context);
+	updateAutoAttach();
 }
 
 export async function deactivate(): Promise<void> {
-	const { state, transitionData } = await currentState;
-	await transitions[state].exit?.(transitionData);
+	const { context, state, transitionData } = await currentState;
+	await transitions[state].exit?.(context, transitionData);
 }
 
 function toggleAutoAttachSetting() {
@@ -88,6 +91,11 @@ function toggleAutoAttachSetting() {
 	}
 }
 
+function autoAttachWithJsDebug() {
+	const jsDebugConfig = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
+	return jsDebugConfig.get(JS_DEBUG_USEPREVIEWAA, true);
+}
+
 function readCurrentState(): State {
 	const nodeConfig = vscode.workspace.getConfiguration(NODE_DEBUG_SETTINGS);
 	const autoAttachState = <AUTO_ATTACH_VALUES>nodeConfig.get(AUTO_ATTACH_SETTING);
@@ -95,11 +103,7 @@ function readCurrentState(): State {
 		case 'off':
 			return State.Off;
 		case 'on':
-			// todo: reenable after resolving https://github.com/microsoft/vscode/issues/102057
-			// const jsDebugConfig = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
-			// const useV3 = nodeConfig.get(NODE_DEBUG_USEV3) || jsDebugConfig.get(JS_DEBUG_USEPREVIEW);
-			// return useV3 ? State.OnWithJsDebug : State.OnWithNodeDebug;
-			return State.OnWithNodeDebug;
+			return autoAttachWithJsDebug() ? State.OnWithJsDebug : State.OnWithNodeDebug;
 		case 'disabled':
 		default:
 			return State.Disabled;
@@ -126,37 +130,44 @@ function ensureStatusBarExists(context: vscode.ExtensionContext) {
 	return statusItem;
 }
 
+async function clearJsDebugAttachState(context: vscode.ExtensionContext) {
+	await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
+	await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
+}
+
 interface CachedIpcState {
 	ipcAddress: string;
 	jsDebugPath: string;
 }
 
 interface StateTransition<StateData> {
-	exit?(stateData: StateData): Promise<void> | void;
+	onActivate?(context: vscode.ExtensionContext, currentState: State): Promise<void>;
+	exit?(context: vscode.ExtensionContext, stateData: StateData): Promise<void> | void;
 	enter?(context: vscode.ExtensionContext): Promise<StateData> | StateData;
 }
+
+const makeTransition = <T>(tsn: StateTransition<T>) => tsn; // helper to apply generic type
 
 /**
  * Map of logic that happens when auto attach states are entered and exited.
  * All state transitions are queued and run in order; promises are awaited.
  */
 const transitions: { [S in State]: StateTransition<unknown> } = {
-	[State.Disabled]: {
+	[State.Disabled]: makeTransition({
 		async enter(context) {
 			statusItem?.hide();
-			await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
-			await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
+			await clearJsDebugAttachState(context);
 		},
-	},
+	}),
 
-	[State.Off]: {
+	[State.Off]: makeTransition({
 		enter(context) {
 			const statusItem = ensureStatusBarExists(context);
 			statusItem.text = OFF_TEXT;
 		},
-	},
+	}),
 
-	[State.OnWithNodeDebug]: {
+	[State.OnWithNodeDebug]: makeTransition({
 		async enter(context) {
 			const statusItem = ensureStatusBarExists(context);
 			const vscode_pid = process.env['VSCODE_PID'];
@@ -168,21 +179,29 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 		async exit() {
 			await vscode.commands.executeCommand('extension.node-debug.stopAutoAttach');
 		},
-	},
+	}),
 
-	[State.OnWithJsDebug]: {
+	[State.OnWithJsDebug]: makeTransition<Server | null>({
 		async enter(context) {
 			const ipcAddress = await getIpcAddress(context);
-			const server = await new Promise((resolve, reject) => {
+			if (!ipcAddress) {
+				return null;
+			}
+
+			const server = await new Promise<Server>((resolve, reject) => {
 				const s = createServer((socket) => {
 					let data: Buffer[] = [];
 					socket.on('data', (chunk) => data.push(chunk));
-					socket.on('end', () =>
-						vscode.commands.executeCommand(
-							'extension.js-debug.autoAttachToProcess',
-							JSON.parse(Buffer.concat(data).toString())
-						)
-					);
+					socket.on('end', async () => {
+						try {
+							await vscode.commands.executeCommand(
+								'extension.js-debug.autoAttachToProcess',
+								JSON.parse(Buffer.concat(data).toString())
+							);
+						} catch (err) {
+							console.error(err);
+						}
+					});
 				})
 					.on('error', reject)
 					.listen(ipcAddress, () => resolve(s));
@@ -190,33 +209,47 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 
 			const statusItem = ensureStatusBarExists(context);
 			statusItem.text = ON_TEXT;
-			return server;
+			return server || null;
 		},
 
-		async exit(server: Server) {
+		async exit(context, server) {
 			// we don't need to clear the environment variables--the bootloader will
 			// no-op if the debug server is closed. This prevents having to reload
 			// terminals if users want to turn it back on.
-			await new Promise((resolve) => server.close(resolve));
+			if (server) {
+				await new Promise((resolve) => server.close(resolve));
+			}
+
+			// but if they toggled auto attach use js-debug off, go ahead and do so
+			if (!autoAttachWithJsDebug()) {
+				await clearJsDebugAttachState(context);
+			}
 		},
-	},
+
+		async onActivate(context, currentState) {
+			if (currentState === State.OnWithNodeDebug || currentState === State.Disabled) {
+				await clearJsDebugAttachState(context);
+			}
+		}
+	}),
 };
 
 /**
  * Updates the auto attach feature based on the user or workspace setting
  */
-function updateAutoAttach(context: vscode.ExtensionContext) {
+function updateAutoAttach() {
 	const newState = readCurrentState();
 
-	currentState = currentState.then(async ({ state: oldState, transitionData }) => {
+	currentState = currentState.then(async ({ context, state: oldState, transitionData }) => {
 		if (newState === oldState) {
-			return { state: oldState, transitionData };
+			return { context, state: oldState, transitionData };
 		}
 
-		await transitions[oldState].exit?.(transitionData);
+		await transitions[oldState].exit?.(context, transitionData);
 		const newData = await transitions[newState].enter?.(context);
+		await context.workspaceState.update(LAST_STATE_STORAGE_KEY, newState);
 
-		return { state: newState, transitionData: newData };
+		return { context, state: newState, transitionData: newData };
 	});
 }
 
@@ -244,8 +277,11 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 	const result = await vscode.commands.executeCommand<{ ipcAddress: string; }>(
 		'extension.js-debug.setAutoAttachVariables'
 	);
+	if (!result) {
+		return;
+	}
 
-	const ipcAddress = result!.ipcAddress;
+	const ipcAddress = result.ipcAddress;
 	await context.workspaceState.update(JS_DEBUG_IPC_KEY, { ipcAddress, jsDebugPath });
 	return ipcAddress;
 }
