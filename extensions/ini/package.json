@@ -18,7 +18,7 @@
 		},
 		{
 			"id": "properties",
-			"extensions": [ ".properties", ".cfg", ".conf", ".directory", ".gitattributes", ".gitconfig", ".gitmodules", ".editorconfig" ],
+			"extensions": [ ".properties", ".cfg", ".conf", ".desktop" , ".directory", ".gitattributes", ".gitconfig", ".gitmodules", ".editorconfig" ],
 			"filenames": [ "gitconfig" ],
 			"filenamePatterns": [ "**/.config/git/config", "**/.git/config" ],
 			"aliases": [ "Properties", "properties" ],
