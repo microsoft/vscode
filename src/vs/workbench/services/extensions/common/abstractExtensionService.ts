@@ -186,7 +186,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
-	public activateByEvent(activationEvent: string, eager?: boolean): Promise<void> {
+	public activateByEvent(activationEvent: string): Promise<void> {
 		if (this._installedExtensionsReady.isOpen()) {
 			// Extensions have been scanned and interpreted
 
@@ -205,17 +205,13 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents.add(activationEvent);
 
-			if (eager) {
-				return this._activateByEvent(activationEvent, eager);
-			}
-
 			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
 		}
 	}
 
-	private _activateByEvent(activationEvent: string, eager?: boolean): Promise<void> {
+	private _activateByEvent(activationEvent: string): Promise<void> {
 		const result = Promise.all(
-			this._extensionHostManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent, eager))
+			this._extensionHostManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent))
 		).then(() => { });
 		this._onWillActivateByEvent.fire({
 			event: activationEvent,
