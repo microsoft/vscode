@@ -62,9 +62,7 @@ bootstrapWindow.load([
 	{
 		removeDeveloperKeybindingsAfterLoad: true,
 		canModifyDOM: function (windowConfig) {
-			if (!bootstrapWindow.globals().context.sandbox) {
-				showPartsSplash(windowConfig); // TODO@sandbox non-sandboxed only
-			}
+			showPartsSplash(windowConfig);
 		},
 		beforeLoaderConfig: function (windowConfig, loaderConfig) {
 			loaderConfig.recordStats = true;
