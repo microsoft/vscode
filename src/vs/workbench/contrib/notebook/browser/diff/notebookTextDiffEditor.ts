@@ -298,7 +298,8 @@ registerThemingParticipant((theme, collector) => {
 	const cellBorderColor = theme.getColor(notebookCellBorder);
 	if (cellBorderColor) {
 		collector.addRule(`.notebook-text-diff-editor .cell-body { border: 1px solid ${cellBorderColor};}`);
-		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
+		collector.addRule(`.notebook-text-diff-editor .cell-diff-editor-container .output-header-container,
+		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container {
 			border-top: 1px solid ${cellBorderColor};
 		}`);
 	}

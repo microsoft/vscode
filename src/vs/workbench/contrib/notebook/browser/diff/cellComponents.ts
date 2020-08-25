@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CellDiffViewModel, MetadataFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
+import { CellDiffViewModel, PropertyFoldingState } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -77,10 +77,110 @@ const fixedEditorOptions: IEditorOptions = {
 	renderLineHighlight: 'none'
 };
 
+class PropertyHeader extends Disposable {
+	protected _foldingIndicator!: HTMLElement;
+	protected _statusSpan!: HTMLElement;
+
+	constructor(
+		readonly cell: CellDiffViewModel,
+		readonly metadataHeaderContainer: HTMLElement,
+		readonly notebookEditor: INotebookTextDiffEditor,
+		readonly accessor: {
+			updateInfoRendering: () => void;
+			checkIfModified: (cell: CellDiffViewModel) => boolean;
+			getFoldingState: (cell: CellDiffViewModel) => PropertyFoldingState;
+			updateFoldingState: (cell: CellDiffViewModel, newState: PropertyFoldingState) => void;
+			unChangedLabel: string;
+			changedLabel: string;
+			prefix: string;
+		}
+	) {
+		super();
+	}
+
+	buildHeader(): void {
+		let metadataChanged = this.accessor.checkIfModified(this.cell);
+		this._foldingIndicator = DOM.append(this.metadataHeaderContainer, DOM.$('.property-folding-indicator'));
+		DOM.addClass(this._foldingIndicator, this.accessor.prefix);
+
+
+		this._updateFoldingIcon();
+		const metadataStatus = DOM.append(this.metadataHeaderContainer, DOM.$('div.property-status'));
+		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
+
+		if (metadataChanged) {
+			this._statusSpan.textContent = this.accessor.changedLabel;
+			this._statusSpan.style.fontWeight = 'bold';
+		} else {
+			this._statusSpan.textContent = this.accessor.unChangedLabel;
+		}
+
+		this._register(this.notebookEditor.onMouseUp(e => {
+			if (!e.event.target) {
+				return;
+			}
+
+			const target = e.event.target as HTMLElement;
+
+			if (DOM.hasClass(target, 'codicon-chevron-down') || DOM.hasClass(target, 'codicon-chevron-right')) {
+				const parent = target.parentElement as HTMLElement;
+
+				if (!parent) {
+					return;
+				}
+
+				if (!DOM.hasClass(parent, this.accessor.prefix)) {
+					return;
+				}
+
+				if (!DOM.hasClass(parent, 'property-folding-indicator')) {
+					return;
+				}
+
+				// folding icon
+
+				const cellViewModel = e.target;
+
+				if (cellViewModel === this.cell) {
+					const oldFoldingState = this.accessor.getFoldingState(this.cell);
+					this.accessor.updateFoldingState(this.cell, oldFoldingState === PropertyFoldingState.Expanded ? PropertyFoldingState.Collapsed : PropertyFoldingState.Expanded);
+					this._updateFoldingIcon();
+					this.accessor.updateInfoRendering();
+				}
+			}
+
+			return;
+		}));
+
+		this._updateFoldingIcon();
+		this.accessor.updateInfoRendering();
+	}
+
+	private _updateFoldingIcon() {
+		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
+			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
+		} else {
+			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+		}
+	}
+}
+
 abstract class AbstractCellRenderer extends Disposable {
 	protected _metadataHeaderContainer!: HTMLElement;
+	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
-	protected _metadataStatusSpan!: HTMLElement;
+	protected _metadataEditorContainer?: HTMLElement;
+	protected _metadataEditorDisposeStore!: DisposableStore;
+	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
+
+	protected _outputHeaderContainer!: HTMLElement;
+	protected _outputHeader!: PropertyHeader;
+	protected _outputInfoContainer!: HTMLElement;
+	protected _outputEditorContainer?: HTMLElement;
+	protected _outputEditorDisposeStore!: DisposableStore;
+	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
+
+
 	protected _diffEditorContainer!: HTMLElement;
 	protected _diagonalFill?: HTMLElement;
 	protected _layoutInfo!: {
@@ -88,12 +188,10 @@ abstract class AbstractCellRenderer extends Disposable {
 		editorMargin: number;
 		metadataStatusHeight: number;
 		metadataHeight: number;
+		outputStatusHeight: number;
+		outputHeight: number;
 		bodyMargin: number;
 	};
-	protected _foldingIndicator!: HTMLElement;
-	protected _metadataEditorContainer?: HTMLElement;
-	protected _metadataEditorDisposeStore!: DisposableStore;
-	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
 
 	constructor(
 		readonly notebookEditor: INotebookTextDiffEditor,
@@ -112,9 +210,12 @@ abstract class AbstractCellRenderer extends Disposable {
 			editorMargin: 0,
 			metadataHeight: 0,
 			metadataStatusHeight: 25,
+			outputHeight: 0,
+			outputStatusHeight: 25,
 			bodyMargin: 32
 		};
 		this._metadataEditorDisposeStore = new DisposableStore();
+		this._outputEditorDisposeStore = new DisposableStore();
 		this._register(this._metadataEditorDisposeStore);
 		this.initData();
 		this.buildBody(templateData.container);
@@ -139,65 +240,65 @@ abstract class AbstractCellRenderer extends Disposable {
 
 		DOM.append(body, this._diffEditorContainer);
 		this._diagonalFill = DOM.append(body, DOM.$('.diagonal-fill'));
-		// this._diagonalFill.style.display = '0px';
 		this.styleContainer(this._diffEditorContainer);
 		const sourceContainer = DOM.append(this._diffEditorContainer, DOM.$('.source-container'));
 		this.buildSourceEditor(sourceContainer);
 
 		this._metadataHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-header-container'));
 		this._metadataInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-info-container'));
-		this.buildMetadataHeader(this._metadataHeaderContainer);
-		// this.buildMetadataBody(this._metadataInfoContainer);
-	}
 
-	buildMetadataHeader(metadataHeaderContainer: HTMLElement): void {
-		let metadataChanged = this.cell.type === 'modified' && hash(this.cell.original?.metadata ?? {}) !== hash(this.cell.modified?.metadata ?? {});
-		this._foldingIndicator = DOM.append(metadataHeaderContainer, DOM.$('.metadata-folding-indicator'));
-
-
-		this._updateFoldingIcon();
-		const metadataStatus = DOM.append(metadataHeaderContainer, DOM.$('div.metadata-status'));
-		this._metadataStatusSpan = DOM.append(metadataStatus, DOM.$('span'));
-
-		if (metadataChanged) {
-			this._metadataStatusSpan.textContent = 'Metadata changed';
-			this._metadataStatusSpan.style.fontWeight = 'bold';
-		} else {
-			this._metadataStatusSpan.textContent = 'Metadata';
-		}
-
-		this._register(this.notebookEditor.onMouseUp(e => {
-			if (!e.event.target) {
-				return;
+		this._metadataHeader = new PropertyHeader(
+			this.cell,
+			this._metadataHeaderContainer,
+			this.notebookEditor,
+			{
+				updateInfoRendering: this.updateMetadataRendering.bind(this),
+				checkIfModified: (cell) => {
+					return cell.type === 'modified' && hash(cell.original?.metadata ?? {}) !== hash(cell.modified?.metadata ?? {});
+				},
+				getFoldingState: (cell) => {
+					return cell.metadataFoldingState;
+				},
+				updateFoldingState: (cell, state) => {
+					cell.metadataFoldingState = state;
+				},
+				unChangedLabel: 'Metadata',
+				changedLabel: 'Metadata changed',
+				prefix: 'metadata'
 			}
+		);
+		this._register(this._metadataHeader);
+		this._metadataHeader.buildHeader();
 
-			const target = e.event.target as HTMLElement;
+		this._outputHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-header-container'));
+		this._outputInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-info-container'));
 
-			if (DOM.hasClass(target, 'codicon-chevron-down') || DOM.hasClass(target, 'codicon-chevron-right')) {
-				const parent = target.parentElement as HTMLElement;
-
-				if (parent && !DOM.hasClass(parent, 'metadata-folding-indicator')) {
-					return;
-				}
-
-				// folding icon
-
-				const cellViewModel = e.target;
-
-				if (cellViewModel === this.cell) {
-					this.cell.foldingState = this.cell.foldingState === MetadataFoldingState.Expanded ? MetadataFoldingState.Collapsed : MetadataFoldingState.Expanded;
-					this.updateMetadataRendering();
-				}
+		this._outputHeader = new PropertyHeader(
+			this.cell,
+			this._outputHeaderContainer,
+			this.notebookEditor,
+			{
+				updateInfoRendering: this.updateOutputRendering.bind(this),
+				checkIfModified: (cell) => {
+					return cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+				},
+				getFoldingState: (cell) => {
+					return this.cell.outputFoldingState;
+				},
+				updateFoldingState: (cell, state) => {
+					cell.outputFoldingState = state;
+				},
+				unChangedLabel: 'Outputs',
+				changedLabel: 'Outputs changed',
+				prefix: 'output'
 			}
-
-			return;
-		}));
-
-		this.updateMetadataRendering();
+		);
+		this._register(this._outputHeader);
+		this._outputHeader.buildHeader();
 	}
 
 	updateMetadataRendering() {
-		if (this.cell.foldingState === MetadataFoldingState.Expanded) {
+		if (this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
 			// we should expand the metadata editor
 			this._metadataInfoContainer.style.display = 'block';
 
@@ -216,11 +317,30 @@ abstract class AbstractCellRenderer extends Disposable {
 			this._layoutInfo.metadataHeight = 0;
 			this.layout({});
 		}
-
-		this._updateFoldingIcon();
 	}
 
-	private _getFormatedJSON(metadata: NotebookCellMetadata, language?: string) {
+	updateOutputRendering() {
+		if (this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
+			this._outputInfoContainer.style.display = 'block';
+
+			if (!this._outputEditorContainer || !this._outputEditor) {
+				// create editor
+				this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
+				this._buildOutputEditor();
+			} else {
+				console.log(this.cell);
+				this._layoutInfo.outputHeight = this._outputEditor.getContentHeight();
+				this.layout({ outputEditor: true });
+			}
+		} else {
+			this._outputInfoContainer.style.display = 'none';
+			this._outputEditorDisposeStore.clear();
+			this._layoutInfo.outputHeight = 0;
+			this.layout({});
+		}
+	}
+
+	private _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
 		const content = JSON.stringify({
 			language,
 			...metadata
@@ -234,8 +354,8 @@ abstract class AbstractCellRenderer extends Disposable {
 
 	private _buildMetadataEditor() {
 		if (this.cell.type === 'modified') {
-			const originalMetadataSource = this._getFormatedJSON(this.cell.original?.metadata || {}, this.cell.original?.language);
-			const modifiedMetadataSource = this._getFormatedJSON(this.cell.modified?.metadata || {}, this.cell.modified?.language);
+			const originalMetadataSource = this._getFormatedMetadataJSON(this.cell.original?.metadata || {}, this.cell.original?.language);
+			const modifiedMetadataSource = this._getFormatedMetadataJSON(this.cell.modified?.metadata || {}, this.cell.modified?.language);
 			if (originalMetadataSource !== modifiedMetadataSource) {
 				this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
 					...fixedDiffEditorOptions
@@ -255,7 +375,7 @@ abstract class AbstractCellRenderer extends Disposable {
 				this.layout({ metadataEditor: true });
 
 				this._register(this._metadataEditor.onDidContentSizeChange((e) => {
-					if (e.contentHeightChanged && this.cell.foldingState === MetadataFoldingState.Expanded) {
+					if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
 						this._layoutInfo.metadataHeight = e.contentHeight;
 						this.layout({ metadataEditor: true });
 					}
@@ -274,7 +394,7 @@ abstract class AbstractCellRenderer extends Disposable {
 		}, {});
 
 		const mode = this.modeService.create('json');
-		const originalMetadataSource = this._getFormatedJSON(
+		const originalMetadataSource = this._getFormatedMetadataJSON(
 			this.cell.type === 'insert'
 				? this.cell.modified!.metadata || {}
 				: this.cell.original!.metadata || {});
@@ -285,26 +405,100 @@ abstract class AbstractCellRenderer extends Disposable {
 		this.layout({ metadataEditor: true });
 
 		this._register(this._metadataEditor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged && this.cell.foldingState === MetadataFoldingState.Expanded) {
+			if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
 				this._layoutInfo.metadataHeight = e.contentHeight;
 				this.layout({ metadataEditor: true });
 			}
 		}));
 	}
 
-	private _updateFoldingIcon() {
-		if (this.cell.foldingState === MetadataFoldingState.Collapsed) {
-			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
-		} else {
-			this._foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+	private _getFormatedOutputJSON(outputs: any[]) {
+		const content = JSON.stringify(outputs);
+
+		const edits = format(content, undefined, {});
+		const source = applyEdits(content, edits);
+
+		return source;
+	}
+
+	private _buildOutputEditor() {
+		if (this.cell.type === 'modified') {
+			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
+			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
+			if (originalOutputsSource !== modifiedOutputsSource) {
+				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputEditorContainer!, {
+					...fixedDiffEditorOptions
+				});
+
+				DOM.addClass(this._outputEditorContainer!, 'diff');
+
+				const mode = this.modeService.create('json');
+				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
+				const modifiedModel = this.modelService.createModel(modifiedOutputsSource, mode, undefined, true);
+				this._outputEditor.setModel({
+					original: originalModel,
+					modified: modifiedModel
+				});
+
+				this._layoutInfo.outputHeight = this._outputEditor.getContentHeight();
+				this.layout({ outputEditor: true });
+
+				this._register(this._outputEditor.onDidContentSizeChange((e) => {
+					if (e.contentHeightChanged && this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
+						this._layoutInfo.outputHeight = e.contentHeight;
+						this.layout({ outputEditor: true });
+					}
+				}));
+
+				return;
+			}
 		}
+
+		this._outputEditor = this.instantiationService.createInstance(CodeEditorWidget, this._outputEditorContainer!, {
+			...fixedEditorOptions,
+			dimension: {
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+				height: 0
+			}
+		}, {});
+
+		const mode = this.modeService.create('json');
+		const originaloutputSource = this._getFormatedOutputJSON(
+			this.cell.type === 'insert'
+				? this.cell.modified!.outputs || []
+				: this.cell.original!.outputs || []);
+		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
+		this._outputEditor.setModel(outputModel);
+
+		this._layoutInfo.outputHeight = this._outputEditor.getContentHeight();
+		this.layout({ outputEditor: true });
+
+		this._register(this._outputEditor.onDidContentSizeChange((e) => {
+			if (e.contentHeightChanged && this.cell.outputFoldingState === PropertyFoldingState.Expanded) {
+				this._layoutInfo.outputHeight = e.contentHeight;
+				this.layout({ outputEditor: true });
+			}
+		}));
+	}
+
+	protected layoutNotebookCell() {
+		this.notebookEditor.layoutNotebookCell(
+			this.cell,
+			this._layoutInfo.editorHeight
+			+ this._layoutInfo.editorMargin
+			+ this._layoutInfo.metadataHeight
+			+ this._layoutInfo.metadataStatusHeight
+			+ this._layoutInfo.outputHeight
+			+ this._layoutInfo.outputStatusHeight
+			+ this._layoutInfo.bodyMargin
+		);
 	}
 
 	abstract initData(): void;
 	abstract styleContainer(container: HTMLElement): void;
 	abstract buildSourceEditor(sourceContainer: HTMLElement): void;
 	abstract onDidLayoutChange(event: CellDiffViewModelLayoutChangeEvent): void;
-	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }): void;
+	abstract layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }): void;
 }
 
 export class UnchangedCell extends AbstractCellRenderer {
@@ -367,7 +561,7 @@ export class UnchangedCell extends AbstractCellRenderer {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
 				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
@@ -382,8 +576,14 @@ export class UnchangedCell extends AbstractCellRenderer {
 			});
 		}
 
-		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
+		if (state.outputEditor || state.outerWidth) {
+			this._outputEditor?.layout({
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+				height: this._layoutInfo.outputHeight
+			});
+		}
+
+		this.layoutNotebookCell();
 	}
 }
 
@@ -446,7 +646,7 @@ export class DeletedCell extends AbstractCellRenderer {
 			this.layout({ outerWidth: true });
 		}
 	}
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
 				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -461,8 +661,14 @@ export class DeletedCell extends AbstractCellRenderer {
 			});
 		}
 
-		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
+		if (state.outputEditor || state.outerWidth) {
+			this._outputEditor?.layout({
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+				height: this._layoutInfo.outputHeight
+			});
+		}
+
+		this.layoutNotebookCell();
 	}
 }
 
@@ -525,7 +731,7 @@ export class InsertCell extends AbstractCellRenderer {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editor.layout({
 				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
@@ -534,18 +740,20 @@ export class InsertCell extends AbstractCellRenderer {
 		}
 
 		if (state.metadataEditor || state.outerWidth) {
-			if (this._metadataEditorContainer) {
-				this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
-			}
-
 			this._metadataEditor?.layout({
 				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: this._layoutInfo.metadataHeight
 			});
 		}
 
-		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
+		if (state.outputEditor || state.outerWidth) {
+			this._outputEditor?.layout({
+				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+				height: this._layoutInfo.outputHeight
+			});
+		}
+
+		this.layoutNotebookCell();
 	}
 }
 
@@ -626,7 +834,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		}
 	}
 
-	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean }) {
+	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
 		if (state.editorHeight || state.outerWidth) {
 			this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
 			this._editor!.layout();
@@ -639,8 +847,13 @@ export class ModifiedCell extends AbstractCellRenderer {
 			}
 		}
 
-		this.notebookEditor.layoutNotebookCell(this.cell,
-			this._layoutInfo.editorHeight + this._layoutInfo.editorMargin + this._layoutInfo.metadataHeight + this._layoutInfo.metadataStatusHeight + this._layoutInfo.bodyMargin);
+		if (state.outputEditor || state.outerWidth) {
+			if (this._outputEditorContainer) {
+				this._outputEditorContainer.style.height = `${this._layoutInfo.outputHeight}px`;
+				this._outputEditor?.layout();
+			}
+		}
 
+		this.layoutNotebookCell();
 	}
 }

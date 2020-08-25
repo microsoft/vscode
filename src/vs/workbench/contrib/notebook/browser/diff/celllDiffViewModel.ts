@@ -11,13 +11,14 @@ import { CellDiffViewModelLayoutChangeEvent, DIFF_CELL_MARGIN } from 'vs/workben
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 
-export enum MetadataFoldingState {
+export enum PropertyFoldingState {
 	Expanded,
 	Collapsed
 }
 
 export class CellDiffViewModel extends Disposable {
-	public foldingState: MetadataFoldingState;
+	public metadataFoldingState: PropertyFoldingState;
+	public outputFoldingState: PropertyFoldingState;
 	private _layoutInfoEmitter = new Emitter<CellDiffViewModelLayoutChangeEvent>();
 
 	onDidLayoutChange = this._layoutInfoEmitter.event;
@@ -29,7 +30,8 @@ export class CellDiffViewModel extends Disposable {
 		readonly editorEventDispatcher: NotebookDiffEditorEventDispatcher
 	) {
 		super();
-		this.foldingState = MetadataFoldingState.Collapsed;
+		this.metadataFoldingState = PropertyFoldingState.Collapsed;
+		this.outputFoldingState = PropertyFoldingState.Collapsed;
 
 		this._register(this.editorEventDispatcher.onDidChangeLayout(e => {
 			this._layoutInfoEmitter.fire({ outerWidth: e.value.width });
