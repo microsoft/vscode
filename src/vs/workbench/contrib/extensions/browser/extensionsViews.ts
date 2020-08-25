@@ -736,8 +736,8 @@ export class ExtensionsListView extends ViewPane {
 
 	private async getExeRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const exe = query.value.replace(/@exe:/g, '').trim().toLowerCase();
-		const { important } = await this.tipsService.getExeBasedRecommendations(exe.startsWith('"') ? exe.substring(1, exe.length - 1) : exe);
-		const names: string[] = important.map(({ extensionId }) => extensionId);
+		const { important, others } = await this.tipsService.getExeBasedRecommendations(exe.startsWith('"') ? exe.substring(1, exe.length - 1) : exe);
+		const names: string[] = [...important, ...others].map(({ extensionId }) => extensionId);
 
 		if (!names.length) {
 			return Promise.resolve(new PagedModel([]));

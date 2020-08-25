@@ -189,7 +189,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		const installed = await this.extensionsWorkbenchService.queryLocal();
-		if (await this.promptRecommendedExtensionForFileType(recommendationsToPrompt, installed)) {
+		if (await this.promptRecommendedExtensionForFileType(fileExtension.substring(1), recommendationsToPrompt, installed)) {
 			return;
 		}
 
@@ -209,7 +209,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.promptRecommendedExtensionForFileExtension(fileExtension, installed);
 	}
 
-	private async promptRecommendedExtensionForFileType(recommendations: string[], installed: IExtension[]): Promise<boolean> {
+	private async promptRecommendedExtensionForFileType(ext: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
 
 		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
@@ -227,7 +227,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install recommendations for this file?"), extensionId);
+		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install support for this file?"), `ext:${ext}`);
 		return true;
 	}
 
