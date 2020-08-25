@@ -17,7 +17,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,6 +37,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
 
 	private _rootElement!: HTMLElement;
+	private _overflowContainer!: HTMLElement;
 	private _dimension: DOM.Dimension | null = null;
 	private _list!: WorkbenchList<CellDiffViewModel>;
 	private _fontInfo: BareFontInfo | undefined;
@@ -45,7 +46,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	public readonly onMouseUp = this._onMouseUp.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
-	private _inNotebookTextDiffEditor: IContextKey<boolean> | null = null;
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -64,9 +64,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
-		// this._scopeContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		this._inNotebookTextDiffEditor = IN_NOTEBOOK_TEXT_DIFF_EDITOR.bindTo(this.contextKeyService);
-		this._inNotebookTextDiffEditor.set(true);
+		this._overflowContainer = document.createElement('div');
+		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
+		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		DOM.append(parent, this._overflowContainer);
 
 		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
 
@@ -260,6 +261,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	getDomNode() {
 		return this._rootElement;
+	}
+
+	getOverflowContainerDomNode(): HTMLElement {
+		return this._overflowContainer;
 	}
 
 	getControl(): NotebookEditorWidget | undefined {

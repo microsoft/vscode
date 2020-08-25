@@ -348,6 +348,14 @@ export interface IEditorConstructionOptions extends IEditorOptions {
 	overflowWidgetsDomNode?: HTMLElement;
 }
 
+export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
+	/**
+	 * Place overflow widgets inside an external DOM node.
+	 * Defaults to an internal DOM node.
+	 */
+	overflowWidgetsDomNode?: HTMLElement;
+}
+
 /**
  * A rich code editor.
  */

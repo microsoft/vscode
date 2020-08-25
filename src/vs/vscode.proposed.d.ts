@@ -1616,7 +1616,10 @@ declare module 'vscode' {
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
-			provider: NotebookContentProvider
+			provider: NotebookContentProvider,
+			options?: {
+				transientMetadata?: { [K in keyof NotebookCellMetadata]?: boolean }
+			}
 		): Disposable;
 
 		export function registerNotebookKernelProvider(

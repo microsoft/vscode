@@ -11,6 +11,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export interface INotebookTextDiffEditor {
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>;
+	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: CellDiffViewModel, height: number): void;
 }
