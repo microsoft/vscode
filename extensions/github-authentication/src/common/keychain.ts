@@ -5,47 +5,19 @@
 
 // keytar depends on a native module shipped in vscode, so this is
 // how we load it
-import type * as keytarType from 'keytar';
 import * as vscode from 'vscode';
 import Logger from './logger';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-function getKeytar(): Keytar | undefined {
-	try {
-		return require('keytar');
-	} catch (err) {
-		console.log(err);
-	}
 
-	return undefined;
-}
-
-export type Keytar = {
-	getPassword: typeof keytarType['getPassword'];
-	setPassword: typeof keytarType['setPassword'];
-	deletePassword: typeof keytarType['deletePassword'];
-};
-
-const SERVICE_ID = `${vscode.env.uriScheme}-github.login`;
-const ACCOUNT_ID = 'account';
+const SERVICE_ID = `${vscode.env.uriScheme}-github.auth`;
 
 export class Keychain {
-	private keytar: Keytar;
-
-	constructor() {
-		const keytar = getKeytar();
-		if (!keytar) {
-			throw new Error('System keychain unavailable');
-		}
-
-		this.keytar = keytar;
-	}
-
 	async setToken(token: string): Promise<void> {
 		try {
-			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
+			return await vscode.authentication.setPassword(SERVICE_ID, token);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Setting token failed: ${e}`);
@@ -59,7 +31,7 @@ export class Keychain {
 
 	async getToken(): Promise<string | null | undefined> {
 		try {
-			return await this.keytar.getPassword(SERVICE_ID, ACCOUNT_ID);
+			return await vscode.authentication.getPassword(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Getting token failed: ${e}`);
@@ -67,9 +39,9 @@ export class Keychain {
 		}
 	}
 
-	async deleteToken(): Promise<boolean | undefined> {
+	async deleteToken(): Promise<void> {
 		try {
-			return await this.keytar.deletePassword(SERVICE_ID, ACCOUNT_ID);
+			return await vscode.authentication.deletePassword(SERVICE_ID);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);

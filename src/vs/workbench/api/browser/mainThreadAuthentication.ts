@@ -19,6 +19,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { fromNow } from 'vs/base/common/date';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Platform, platform } from 'vs/base/common/platform';
+import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
 
@@ -216,7 +217,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -442,5 +444,18 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
+	}
+
+	async $getPassword(key: string): Promise<string | undefined> {
+		const password = await this.credentialsService.getPassword(key, '');
+		return password ?? undefined;
+	}
+
+	async $setPassword(key: string, value: string): Promise<void> {
+		return this.credentialsService.setPassword(key, '', value);
+	}
+
+	async $deletePassword(key: string): Promise<void> {
+		await this.credentialsService.deletePassword(key, '');
 	}
 }

@@ -198,4 +198,16 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._onDidChangeAuthenticationProviders.fire({ added, removed });
 		return Promise.resolve();
 	}
+
+	getPassword(key: string): Promise<string | undefined> {
+		return this._proxy.$getPassword(key);
+	}
+
+	setPassword(key: string, value: string): Promise<void> {
+		return this._proxy.$setPassword(key, value);
+	}
+
+	deletePassword(key: string): Promise<void> {
+		return this._proxy.$deletePassword(key);
+	}
 }

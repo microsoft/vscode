@@ -172,6 +172,10 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$getSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>>;
 	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession>;
 	$logout(providerId: string, sessionId: string): Promise<void>;
+
+	$getPassword(key: string): Promise<string | undefined>;
+	$setPassword(key: string, value: string): Promise<void>;
+	$deletePassword(key: string): Promise<void>;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
