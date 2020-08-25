@@ -85,6 +85,12 @@ export const process = (window as any).vscode.process as {
 	env: { [key: string]: string | undefined };
 
 	/**
+	 * Allows to await resolving the full process environment by checking for the shell environment
+	 * of the OS in certain cases (e.g. when the app is started from the Dock on macOS).
+	 */
+	whenEnvResolved: Promise<void>;
+
+	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
 	 */
 	on: (type: string, callback: Function) => void;

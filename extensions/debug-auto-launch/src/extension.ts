@@ -93,7 +93,7 @@ function toggleAutoAttachSetting() {
 
 function autoAttachWithJsDebug() {
 	const jsDebugConfig = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
-	return jsDebugConfig.get(JS_DEBUG_USEPREVIEWAA, false);
+	return jsDebugConfig.get(JS_DEBUG_USEPREVIEWAA, true);
 }
 
 function readCurrentState(): State {

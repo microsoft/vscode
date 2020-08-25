@@ -46,6 +46,8 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		return editor.getContribution<OnTypeRenameContribution>(OnTypeRenameContribution.ID);
 	}
 
+	private _debounceDuration = 200;
+
 	private readonly _editor: ICodeEditor;
 	private _enabled: boolean;
 
@@ -121,15 +123,15 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
 		}));
 
-		const rangeUpdateScheduler = new Delayer(200);
+		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
 		const triggerRangeUpdate = () => {
-			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges());
+			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges(), this._debounceDuration);
 		};
 		const rangeSyncScheduler = new Delayer(0);
 		const triggerRangeSync = (decorations: string[]) => {
 			this._rangeSyncTriggerPromise = rangeSyncScheduler.trigger(() => this._syncRanges(decorations));
 		};
-		this._localToDispose.add(this._editor.onDidChangeCursorPosition((e) => {
+		this._localToDispose.add(this._editor.onDidChangeCursorPosition(() => {
 			triggerRangeUpdate();
 		}));
 		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
@@ -330,6 +332,11 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		});
 		this._currentRequest = request;
 		return request;
+	}
+
+	// for testing
+	public setDebounceDuration(timeInMS: number) {
+		this._debounceDuration = timeInMS;
 	}
 
 	// private printDecorators(model: ITextModel) {

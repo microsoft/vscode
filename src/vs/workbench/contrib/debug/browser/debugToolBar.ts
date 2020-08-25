@@ -91,7 +91,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this.updateScheduler = this._register(new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || state === State.Initializing || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
+			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
 				return this.hide();
 			}
 

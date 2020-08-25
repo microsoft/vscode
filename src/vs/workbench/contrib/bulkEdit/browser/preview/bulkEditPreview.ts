@@ -17,7 +17,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IFileService } from 'vs/platform/files/common/files';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
-import { ConflictDetector } from 'vs/workbench/services/bulkEdit/browser/conflicts';
+import { ConflictDetector } from 'vs/workbench/contrib/bulkEdit/browser/conflicts';
 import { ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { extUri } from 'vs/base/common/resources';

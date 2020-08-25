@@ -59,12 +59,13 @@ import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { ReplFilter, TreeFilterState, TreeFilterPanelActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
 
 const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const DECORATION_KEY = 'replinputdecoration';
-
+const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
 function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 	tree.scrollTop = tree.scrollHeight - tree.renderHeight;
@@ -93,6 +94,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private styleElement: HTMLStyleElement | undefined;
 	private completionItemProvider: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
+	private filter: ReplFilter;
+	private filterState: TreeFilterState;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -116,6 +119,13 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
+		this.filter = new ReplFilter();
+		this.filterState = this._register(new TreeFilterState({
+			filterText: '',
+			filterHistory: [],
+			layout: new dom.Dimension(0, 0),
+		}));
+
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
 	}
@@ -236,6 +246,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.setMode();
+		}));
+
+		this._register(this.filterState.onDidChange((e) => {
+			if (e.filterText) {
+				this.filter.filterQuery = this.filterState.filterText;
+				if (this.tree) {
+					this.tree.refilter();
+				}
+			}
 		}));
 	}
 
@@ -428,6 +447,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
 		this.replInput.layout({ width: width - 30, height: replInputHeight });
+		this.filterState.layout = new dom.Dimension(width, height);
 	}
 
 	focus(): void {
@@ -437,6 +457,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
+		} else if (action.id === FILTER_ACTION_ID) {
+			return this.instantiationService.createInstance(TreeFilterPanelActionViewItem, action, localize('workbench.debug.filter.placeholder', "Filter. E.g.: text, !exclude"), this.filterState);
 		}
 
 		return super.getActionViewItem(action);
@@ -444,6 +466,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	getActions(): IAction[] {
 		const result: IAction[] = [];
+		result.push(new Action(FILTER_ACTION_ID));
 		if (this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s)).length > 1) {
 			result.push(this.selectReplAction);
 		}
@@ -532,6 +555,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
 			{
+				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,

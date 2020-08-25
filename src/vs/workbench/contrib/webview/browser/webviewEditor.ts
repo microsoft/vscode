@@ -11,9 +11,9 @@ import { isWeb } from 'vs/base/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -21,7 +21,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
-export class WebviewEditor extends BaseEditor {
+export class WebviewEditor extends EditorPane {
 
 	public static readonly ID = 'WebviewEditor';
 
@@ -107,7 +107,7 @@ export class WebviewEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	public async setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (input.matches(this.input)) {
 			return;
 		}
@@ -117,7 +117,7 @@ export class WebviewEditor extends BaseEditor {
 			this.webview.release(this);
 		}
 
-		await super.setInput(input, options, token);
+		await super.setInput(input, options, context, token);
 		await input.resolve();
 
 		if (token.isCancellationRequested) {

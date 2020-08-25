@@ -2075,29 +2075,6 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 }
 
-export class ShowAzureExtensionsAction extends Action {
-
-	static readonly ID = 'workbench.extensions.action.showAzureExtensions';
-	static readonly LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private readonly viewletService: IViewletService
-	) {
-		super(id, label, undefined, true);
-	}
-
-	run(): Promise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => {
-				viewlet.search('@sort:installs azure ');
-				viewlet.focus();
-			});
-	}
-}
-
 export class SearchCategoryAction extends Action {
 
 	constructor(

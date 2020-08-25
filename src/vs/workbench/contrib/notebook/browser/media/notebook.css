@@ -55,6 +55,12 @@
 	width: 100%;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container > .notebook-gutter > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
+	cursor: default;
+	overflow: visible !important;
+	width: 100%;
+}
+
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image {
 	position: absolute;
 	top: -500px;
@@ -298,10 +304,21 @@
 	display: inline-flex;
 	position: absolute;
 	height: 26px;
-	right: 44px;
 	top: -12px;
 	/* this lines up the bottom toolbar border with the current line when on line 01 */
 	z-index: 30;
+}
+
+.monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+	right: 44px;
+}
+
+.monaco-workbench .notebookOverlay.cell-title-toolbar-left > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+	left: 76px;
+}
+
+.monaco-workbench .notebookOverlay.cell-title-toolbar-hidden > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
+	display: none;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar .action-item {
@@ -327,7 +344,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container {
-	height: 21px;
+	height: 22px;
 	font-size: 12px;
 	display: flex;
 	position: relative;
@@ -344,6 +361,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker {
+	height: 21px; /* Editor outline is -1px in, don't overlap */
 	padding: 0px 6px;
 	cursor: pointer;
 }
@@ -727,16 +745,21 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
+	height: 20px;
+	width: 20px;
+
 	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	height: 100%;
+	top: 6px;
+	left: 8px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	z-index: 26;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
-	padding: 8px 0 0 10px;
+	height: 16px;
 }
 
 /** Theming */

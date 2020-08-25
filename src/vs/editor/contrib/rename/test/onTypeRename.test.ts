@@ -79,6 +79,7 @@ suite('On type rename', () => {
 				OnTypeRenameContribution.ID,
 				OnTypeRenameContribution
 			);
+			ontypeRenameContribution.setDebounceDuration(0);
 
 			const testEditor: TestEditor = {
 				setPosition(pos: Position) {

@@ -35,7 +35,6 @@ import { isSafari } from 'vs/base/browser/browser';
 import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { debugAdapterRegisteredEmitter } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 
 const $ = dom.$;
 
@@ -169,20 +168,16 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 	) {
 		this.breakpointWidgetVisible = CONTEXT_BREAKPOINT_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.setDecorationsScheduler = new RunOnceScheduler(() => this.setDecorations(), 30);
-		const manager = this.debugService.getConfigurationManager();
-		if (manager.hasDebuggers()) {
-			this.registerListeners();
-			this.setDecorationsScheduler.schedule();
-		} else {
-			this.toDispose.push(debugAdapterRegisteredEmitter.event(() => {
-				this.registerListeners();
-				this.setDecorationsScheduler.schedule();
-			}));
-		}
+		this.registerListeners();
+		this.setDecorationsScheduler.schedule();
 	}
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
+			if (!this.debugService.getConfigurationManager().hasDebuggers()) {
+				return;
+			}
+
 			const data = e.target.detail as IMarginData;
 			const model = this.editor.getModel();
 			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
@@ -257,6 +252,10 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			 * 2. When users click on line numbers, the breakpoint hint displays immediately, however it doesn't create the breakpoint unless users click on the left gutter. On a touch screen, it's hard to click on that small area.
 			 */
 			this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => {
+				if (!this.debugService.getConfigurationManager().hasDebuggers()) {
+					return;
+				}
+
 				let showBreakpointHintAtLineNumber = -1;
 				const model = this.editor.getModel();
 				if (model && e.target.position && (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) && this.debugService.getConfigurationManager().canSetBreakpointsIn(model) &&

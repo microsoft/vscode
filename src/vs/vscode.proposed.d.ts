@@ -1323,6 +1323,7 @@ declare module 'vscode' {
 
 	export interface NotebookDocument {
 		readonly uri: Uri;
+		readonly version: number;
 		readonly fileName: string;
 		readonly viewType: string;
 		readonly isDirty: boolean;
@@ -1353,7 +1354,14 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookEditorCellEdit {
+
+		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;
+		replaceOutputs(index: number, outputs: CellOutput[]): void;
+		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
+
+		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		/** @deprecated */
 		delete(index: number): void;
 	}
 
@@ -1424,31 +1432,6 @@ declare module 'vscode' {
 		outputId: string;
 	}
 
-	export interface NotebookOutputRenderer {
-		/**
-		 *
-		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
-		 *
-		 */
-		render(document: NotebookDocument, request: NotebookRenderRequest): string;
-
-		/**
-		 * Call before HTML from the renderer is executed, and will be called for
-		 * every editor associated with notebook documents where the renderer
-		 * is or was used.
-		 *
-		 * The communication object will only send and receive messages to the
-		 * render API, retrieved via `acquireNotebookRendererApi`, acquired with
-		 * this specific renderer's ID.
-		 *
-		 * If you need to keep an association between the communication object
-		 * and the document for use in the `render()` method, you can use a WeakMap.
-		 */
-		resolveNotebook?(document: NotebookDocument, communication: NotebookCommunication): void;
-
-		readonly preloads?: Uri[];
-	}
-
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
@@ -1502,9 +1485,9 @@ declare module 'vscode' {
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
-		language: string;
-		outputs: CellOutput[];
-		metadata: NotebookCellMetadata;
+		readonly language: string;
+		readonly outputs: CellOutput[];
+		readonly metadata: NotebookCellMetadata | undefined;
 	}
 
 	export interface NotebookData {
@@ -1665,12 +1648,6 @@ declare module 'vscode' {
 			id: string,
 			selectors: GlobPattern[],
 			kernel: NotebookKernel
-		): Disposable;
-
-		export function registerNotebookOutputRenderer(
-			id: string,
-			outputSelector: NotebookOutputSelector,
-			renderer: NotebookOutputRenderer
 		): Disposable;
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;

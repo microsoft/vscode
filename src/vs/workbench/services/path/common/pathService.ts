@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
-export const IPathService = createDecorator<IPathService>('path');
+export const IPathService = createDecorator<IPathService>('pathService');
 
 /**
  * Provides access to path related properties that will match the

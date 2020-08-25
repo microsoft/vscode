@@ -982,7 +982,7 @@ function compareChanges(a: IChange, b: IChange): number {
 	return a.originalEndLineNumber - b.originalEndLineNumber;
 }
 
-function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
+export function createProviderComparer(uri: URI): (a: ISCMProvider, b: ISCMProvider) => number {
 	return (a, b) => {
 		const aIsParent = isEqualOrParent(uri, a.rootUri!);
 		const bIsParent = isEqualOrParent(uri, b.rootUri!);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { BaseEditor, EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as Platform from 'vs/platform/registry/common/platform';
@@ -27,7 +27,7 @@ const NullThemeService = new TestThemeService();
 let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
 let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(EditorExtensions.EditorInputFactories);
 
-export class MyEditor extends BaseEditor {
+export class MyEditor extends EditorPane {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 		super('MyEditor', NullTelemetryService, NullThemeService, new TestStorageService());
@@ -38,7 +38,7 @@ export class MyEditor extends BaseEditor {
 	createEditor(): any { }
 }
 
-export class MyOtherEditor extends BaseEditor {
+export class MyOtherEditor extends EditorPane {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) {
 		super('myOtherEditor', NullTelemetryService, NullThemeService, new TestStorageService());
@@ -96,9 +96,9 @@ class MyOtherInput extends EditorInput {
 }
 class MyResourceEditorInput extends ResourceEditorInput { }
 
-suite('Workbench base editor', () => {
+suite('Workbench EditorPane', () => {
 
-	test('BaseEditor API', async () => {
+	test('EditorPane API', async () => {
 		let e = new MyEditor(NullTelemetryService);
 		let input = new MyOtherInput();
 		let options = new EditorOptions();
@@ -106,7 +106,7 @@ suite('Workbench base editor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 
-		await e.setInput(input, options, CancellationToken.None);
+		await e.setInput(input, options, Object.create(null), CancellationToken.None);
 		assert.strictEqual(input, e.input);
 		const group = new TestEditorGroupView(1);
 		e.setVisible(true, group);
