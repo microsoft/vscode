@@ -11,6 +11,11 @@
   "categories": [
     "Other"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace",
+    "web"
+  ],
   "activationEvents": [
     "*",
     "onAuthenticationRequest:github"

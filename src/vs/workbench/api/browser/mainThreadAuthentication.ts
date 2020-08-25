@@ -249,7 +249,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	$ensureProvider(id: string): Promise<void> {
-		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id));
+		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), true);
 	}
 
 	$sendDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
