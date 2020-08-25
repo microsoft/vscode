@@ -313,7 +313,7 @@ export interface IRenderOutputViaExtension {
 export type IInsetRenderOutput = IRenderPlainHtmlOutput | IRenderOutputViaExtension;
 export type IRenderOutput = IRenderNoOutput | IInsetRenderOutput;
 
-export const outputHasDynamicHeight = (o: IRenderOutput) => o.type === RenderOutputType.Extension || o.hasDynamicHeight;
+export const outputHasDynamicHeight = (o: IRenderOutput) => o.type !== RenderOutputType.Extension && o.hasDynamicHeight;
 
 export type NotebookCellTextModelSplice = [
 	number /* start */,
