@@ -35,15 +35,18 @@
 	overflow: hidden;
 }
 
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container.diff,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff {
 	/** 100% + diffOverviewWidth */
 	width: calc(100% + 30px);
 }
 
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container .monaco-diff-editor .diffOverview,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container.diff .monaco-diff-editor .diffOverview {
 	display: none;
 }
 
+.notebook-text-diff-editor .cell-body .cell-diff-editor-container .metadata-editor-container,
 .notebook-text-diff-editor .cell-body .cell-diff-editor-container .editor-container {
 	box-sizing: border-box;
 }

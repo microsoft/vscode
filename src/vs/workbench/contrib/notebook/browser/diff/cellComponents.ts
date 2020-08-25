@@ -635,12 +635,8 @@ export class ModifiedCell extends AbstractCellRenderer {
 		if (state.metadataEditor || state.outerWidth) {
 			if (this._metadataEditorContainer) {
 				this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
+				this._metadataEditor?.layout();
 			}
-
-			this._metadataEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-				height: this._layoutInfo.metadataHeight
-			});
 		}
 
 		this.notebookEditor.layoutNotebookCell(this.cell,
