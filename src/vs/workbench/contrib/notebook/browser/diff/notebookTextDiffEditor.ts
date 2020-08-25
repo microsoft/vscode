@@ -17,7 +17,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,6 +31,8 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 
+export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
+
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
 
@@ -42,6 +44,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>());
 	public readonly onMouseUp = this._onMouseUp.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
+	protected _scopeContextKeyService!: IContextKeyService;
+	private _inNotebookTextDiffEditor: IContextKey<boolean> | null = null;
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -60,6 +64,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
+		// this._scopeContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		this._inNotebookTextDiffEditor = IN_NOTEBOOK_TEXT_DIFF_EDITOR.bindTo(this.contextKeyService);
+		this._inNotebookTextDiffEditor.set(true);
 
 		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
 

@@ -58,6 +58,9 @@ import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 // import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
 
+// Diff Editor Contribution
+import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
+
 // Output renderers registration
 
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
