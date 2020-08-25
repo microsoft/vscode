@@ -208,6 +208,7 @@ export const HEADER_EXECUTION_ID = 'X-Execution-Id';
 export enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Conflict = 'Conflict', /* 409 */
 	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
 	TooLarge = 'TooLarge', /* 413 */
