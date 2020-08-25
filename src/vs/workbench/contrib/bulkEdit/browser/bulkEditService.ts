@@ -14,8 +14,8 @@ import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { BulkTextEdits } from 'vs/workbench/services/bulkEdit/browser/bulkTextEdits';
-import { BulkFileEdits } from 'vs/workbench/services/bulkEdit/browser/bulkFileEdits';
+import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
+import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
 import { ResourceMap } from 'vs/base/common/map';
 
 type Edit = WorkspaceFileEdit | WorkspaceTextEdit;

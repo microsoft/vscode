@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations, BulkFileOperation, BulkFileOperationType, BulkTextEdit, BulkCategory } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { FileKind } from 'vs/platform/files/common/files';
 import { localize } from 'vs/nls';
 import { ILabelService } from 'vs/platform/label/common/label';

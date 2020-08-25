@@ -9,14 +9,14 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
-import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
+import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
@@ -366,4 +366,3 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: Codicon.lightbulb.classNames,
 }], container);
-
