@@ -930,7 +930,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 
 		commands.registerArgumentProcessor({
-			processArgument: arg => {
+			// Serialized INotebookCellActionContext
+			processArgument: (arg) => {
 				if (arg && arg.$mid === 12) {
 					const documentHandle = arg.notebookEditor?.notebookHandle;
 					const cellHandle = arg.cell.handle;
@@ -939,7 +940,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						if (value[1].editor.notebookData.handle === documentHandle) {
 							const cell = value[1].editor.notebookData.getCell(cellHandle);
 							if (cell) {
-								return cell;
+								return cell.cell;
 							}
 						}
 					}
