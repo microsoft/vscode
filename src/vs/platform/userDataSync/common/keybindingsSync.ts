@@ -38,7 +38,7 @@ interface IKeybindingsResourcePreview extends IFileResourcePreview {
 
 export function getKeybindingsContentFromSyncContent(syncContent: string, platformSpecific: boolean): string | null {
 	const parsed = <ISyncContent>JSON.parse(syncContent);
-	if (platformSpecific) {
+	if (!platformSpecific) {
 		return isUndefined(parsed.all) ? null : parsed.all;
 	}
 	switch (OS) {
