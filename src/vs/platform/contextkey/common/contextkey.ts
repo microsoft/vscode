@@ -17,6 +17,8 @@ STATIC_VALUES.set('isWindows', isWindows);
 STATIC_VALUES.set('isWeb', isWeb);
 STATIC_VALUES.set('isMacNative', isMacintosh && !isWeb);
 
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+
 export const enum ContextKeyExprType {
 	False = 0,
 	True = 1,
@@ -138,7 +140,7 @@ export abstract class ContextKeyExpr {
 
 		if (serializedOne.indexOf(' in ') >= 0) {
 			let pieces = serializedOne.split(' in ');
-			return ContextKeyInExpr.create(pieces[0].trim(), this._deserializeValue(pieces[1], strict));
+			return ContextKeyInExpr.create(pieces[0].trim(), pieces[1].trim());
 		}
 
 		if (/^\!\s*/.test(serializedOne)) {
@@ -451,8 +453,8 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 			return (source.indexOf(item) >= 0);
 		}
 
-		if (typeof item === 'string' && typeof source === 'object' && source !== undefined && source !== null) {
-			return item in source;
+		if (typeof item === 'string' && typeof source === 'object' && source !== null) {
+			return hasOwnProperty.call(source, item);
 		}
 		return false;
 	}
@@ -462,7 +464,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 	}
 
 	public keys(): string[] {
-		return [this.key];
+		return [this.key, this.valueKey];
 	}
 
 	public map(mapFnc: IContextKeyExprMapper): ContextKeyInExpr {
