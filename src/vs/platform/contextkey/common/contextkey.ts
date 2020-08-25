@@ -448,7 +448,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 		const item = context.getValue(this.key);
 
 		if (Array.isArray(source)) {
-			return source.includes(item);
+			return (source.indexOf(item) >= 0);
 		}
 
 		if (typeof item === 'string' && typeof source === 'object' && source !== undefined && source !== null) {
