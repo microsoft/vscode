@@ -226,13 +226,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		if (!entry) {
 			return false;
 		}
-		const extensionName = entry.name;
-		let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", extensionName);
-		if (entry.isExtensionPack) {
-			message = localize('reallyRecommendedExtensionPack', "The '{0}' extension pack is recommended for this file type.", extensionName);
-		}
 
-		this.promptImportantExtensionsInstallNotification([extensionId], message);
+		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install recommendations for this file?"), extensionId);
 		return true;
 	}
 

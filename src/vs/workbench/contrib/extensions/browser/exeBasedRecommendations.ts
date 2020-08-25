@@ -26,11 +26,11 @@ type ExeExtensionRecommendationsClassification = {
 export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 
-	private readonly _otherRecommendations: ExtensionRecommendation[] = [];
-	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
+	private _otherTips: IExecutableBasedExtensionTip[] = [];
+	private _importantTips: IExecutableBasedExtensionTip[] = [];
 
-	private readonly _importantRecommendations: ExtensionRecommendation[] = [];
-	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantRecommendations; }
+	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherTips.map(tip => this.toExtensionRecommendation(tip)); }
+	get importantRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._importantTips.map(tip => this.toExtensionRecommendation(tip)); }
 
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
@@ -58,9 +58,20 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		timeout(3000).then(() => this.fetchAndPromptImportantExeBasedRecommendations());
 	}
 
+	getRecommendations(exe: string): { important: ExtensionRecommendation[], others: ExtensionRecommendation[] } {
+		const important = this._importantTips
+			.filter(tip => tip.exeName.toLowerCase() === exe.toLowerCase())
+			.map(tip => this.toExtensionRecommendation(tip));
+
+		const others = this._otherTips
+			.filter(tip => tip.exeName.toLowerCase() === exe.toLowerCase())
+			.map(tip => this.toExtensionRecommendation(tip));
+
+		return { important, others };
+	}
+
 	protected async doActivate(): Promise<void> {
-		const otherExectuableBasedTips = await this.extensionTipsService.getOtherExecutableBasedTips();
-		otherExectuableBasedTips.forEach(tip => this._otherRecommendations.push(this.toExtensionRecommendation(tip)));
+		this._otherTips = await this.extensionTipsService.getOtherExecutableBasedTips();
 		await this.fetchImportantExeBasedRecommendations();
 	}
 
@@ -74,11 +85,8 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 	private async doFetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
 		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
-		const importantExectuableBasedTips = await this.extensionTipsService.getImportantExecutableBasedTips();
-		importantExectuableBasedTips.forEach(tip => {
-			this._importantRecommendations.push(this.toExtensionRecommendation(tip));
-			importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
-		});
+		this._importantTips = await this.extensionTipsService.getImportantExecutableBasedTips();
+		this._importantTips.forEach(tip => importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
 		return importantExeBasedRecommendations;
 	}
 
@@ -127,22 +135,8 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 			}
 
-			if (tips.length === 1) {
-				const tip = tips[0];
-				const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended as you have {1} installed on your system.", tip.extensionName, tip.exeFriendlyName || basename(tip.windowsPath!))
-					: localize('exeRecommended', "The '{0}' extension is recommended as you have {1} installed on your system.", tip.extensionName, tip.exeFriendlyName || basename(tip.windowsPath!));
-				this.promptImportantExtensionsInstallNotification(extensionIds, message);
-			}
-
-			else if (tips.length === 2) {
-				const message = localize('two extensions recommended', "The '{0}' and '{1}' extensions are recommended as you have {2} installed on your system.", tips[0].extensionName, tips[1].extensionName, tips[0].exeFriendlyName || basename(tips[0].windowsPath!));
-				this.promptImportantExtensionsInstallNotification(extensionIds, message);
-			}
-
-			else if (tips.length > 2) {
-				const message = localize('more than two extensions recommended', "The '{0}', '{1}' and other extensions are recommended as you have {2} installed on your system.", tips[0].extensionName, tips[1].extensionName, tips[0].exeFriendlyName || basename(tips[0].windowsPath!));
-				this.promptImportantExtensionsInstallNotification(extensionIds, message);
-			}
+			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install recommendations for it?", tips[0].exeFriendlyName);
+			this.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
 		}
 	}
 

@@ -460,6 +460,8 @@ export class ExtensionsListView extends ViewPane {
 			return this.getWorkspaceRecommendationsModel(query, options, token);
 		} else if (ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)) {
 			return this.getKeymapRecommendationsModel(query, options, token);
+		} else if (ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)) {
+			return this.getExeRecommendationsModel(query, options, token);
 		} else if (/@recommended:all/i.test(query.value) || ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)) {
 			return this.getAllRecommendationsModel(query, options, token);
 		} else if (ExtensionsListView.isRecommendedExtensionsQuery(query.value)) {
@@ -732,6 +734,19 @@ export class ExtensionsListView extends ViewPane {
 			.then(result => this.getPagedModel(result));
 	}
 
+	private async getExeRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const exe = query.value.replace(/@exe:/g, '').trim().toLowerCase();
+		const { important } = await this.tipsService.getExeBasedRecommendations(exe.startsWith('"') ? exe.substring(1, exe.length - 1) : exe);
+		const names: string[] = important.map(({ extensionId }) => extensionId);
+
+		if (!names.length) {
+			return Promise.resolve(new PagedModel([]));
+		}
+		options.source = 'recommendations-exe';
+		return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }), token)
+			.then(result => this.getPagedModel(result));
+	}
+
 	// Sorts the firstPage of the pager in the same order as given array of extension ids
 	private sortFirstPage(pager: IPager<IExtension>, ids: string[]) {
 		ids = ids.map(x => x.toLowerCase());
@@ -862,6 +877,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isWorkspaceRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended:workspace/i.test(query);
+	}
+
+	static isExeRecommendedExtensionsQuery(query: string): boolean {
+		return /@exe:.+/i.test(query);
 	}
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {

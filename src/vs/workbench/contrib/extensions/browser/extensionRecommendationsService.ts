@@ -191,6 +191,13 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
 	}
 
+	async getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
+		await this.exeBasedRecommendations.activate();
+		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
+			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };
+		return { important: this.toExtensionRecommendations(important), others: this.toExtensionRecommendations(others) };
+	}
+
 	getFileBasedRecommendations(): IExtensionRecommendation[] {
 		return this.toExtensionRecommendations(this.fileBasedRecommendations.recommendations);
 	}
