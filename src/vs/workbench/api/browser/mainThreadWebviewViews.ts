@@ -43,9 +43,9 @@ export class MainThreadWebviewsViews extends Disposable {
 
 		this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
-				this._webviewViews.set(viewType, webviewView);
-
 				const handle = webviewView.webview.id;
+
+				this._webviewViews.set(handle, webviewView);
 				this.mainThreadWebviews.addWebview(handle, webviewView.webview);
 
 				let state = undefined;
@@ -67,6 +67,7 @@ export class MainThreadWebviewsViews extends Disposable {
 
 				webviewView.onDispose(() => {
 					this._proxyViews.$disposeWebviewView(handle);
+					this._webviewViews.delete(handle);
 				});
 
 				try {
