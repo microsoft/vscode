@@ -87,8 +87,7 @@ const enum CellToolbarOrder {
 	EditCell,
 	SplitCell,
 	SaveCell,
-	ClearCellOutput,
-	DeleteCell
+	ClearCellOutput
 }
 
 const enum CellOverflowToolbarGroups {
@@ -261,6 +260,23 @@ export class CancelCellAction extends MenuItemAction {
 	}
 }
 
+export class DeleteCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: DELETE_CELL_COMMAND_ID,
+				title: localize('notebookActions.deleteCell', "Delete Cell"),
+				icon: { id: 'codicon/trash' }
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -775,9 +791,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.DeleteCell,
-					when: NOTEBOOK_EDITOR_EDITABLE,
-					group: CELL_TITLE_CELL_GROUP_ID
+					when: NOTEBOOK_EDITOR_EDITABLE
 				},
 				keybinding: {
 					primary: KeyCode.Delete,
@@ -1254,7 +1268,7 @@ registerAction2(class extends NotebookCellAction {
 	constructor() {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
-			title: localize('clearActiveCellOutputs', 'Clear Active Cell Outputs'),
+			title: localize('clearCellOutputs', 'Clear Cell Outputs'),
 			menu: {
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_CELL_HAS_OUTPUTS),
@@ -1277,6 +1291,14 @@ registerAction2(class extends NotebookCellAction {
 		}
 
 		editor.viewModel.notebookDocument.clearCellOutput(context.cell.handle);
+		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
+			context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, {
+				runState: NotebookCellRunState.Idle,
+				runStartTime: undefined,
+				lastRunDuration: undefined,
+				statusMessage: undefined
+			});
+		}
 	}
 });
 
@@ -1464,7 +1486,8 @@ registerAction2(class extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-					group: '2_edit',
+					group: CellOverflowToolbarGroups.Edit,
+					order: 10
 				}
 			});
 	}
@@ -1489,6 +1512,7 @@ registerAction2(class extends NotebookCellAction {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					group: CellOverflowToolbarGroups.Edit,
+					order: 11
 				}
 			});
 	}

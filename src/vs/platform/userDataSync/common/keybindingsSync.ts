@@ -18,11 +18,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 interface ISyncContent {
 	mac?: string;
@@ -33,6 +34,21 @@ interface ISyncContent {
 
 interface IKeybindingsResourcePreview extends IFileResourcePreview {
 	previewResult: IMergeResult;
+}
+
+export function getKeybindingsContentFromSyncContent(syncContent: string, platformSpecific: boolean): string | null {
+	const parsed = <ISyncContent>JSON.parse(syncContent);
+	if (!platformSpecific) {
+		return isUndefined(parsed.all) ? null : parsed.all;
+	}
+	switch (OS) {
+		case OperatingSystem.Macintosh:
+			return isUndefined(parsed.mac) ? null : parsed.mac;
+		case OperatingSystem.Linux:
+			return isUndefined(parsed.linux) ? null : parsed.linux;
+		case OperatingSystem.Windows:
+			return isUndefined(parsed.windows) ? null : parsed.windows;
+	}
 }
 
 export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
@@ -266,20 +282,9 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		return null;
 	}
 
-	getKeybindingsContentFromSyncContent(syncContent: string): string | null {
+	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
 		try {
-			const parsed = <ISyncContent>JSON.parse(syncContent);
-			if (!this.syncKeybindingsPerPlatform()) {
-				return isUndefined(parsed.all) ? null : parsed.all;
-			}
-			switch (OS) {
-				case OperatingSystem.Macintosh:
-					return isUndefined(parsed.mac) ? null : parsed.mac;
-				case OperatingSystem.Linux:
-					return isUndefined(parsed.linux) ? null : parsed.linux;
-				case OperatingSystem.Windows:
-					return isUndefined(parsed.windows) ? null : parsed.windows;
-			}
+			return getKeybindingsContentFromSyncContent(syncContent, this.syncKeybindingsPerPlatform());
 		} catch (e) {
 			this.logService.error(e);
 			return null;
@@ -322,6 +327,55 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 			return userValue;
 		}
 		return this.configurationService.getValue<boolean>('settingsSync.keybindingsPerPlatform');
+	}
+
+}
+
+export class KeybindingsInitializer extends AbstractInitializer {
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	) {
+		super(SyncResource.Keybindings, environmentService, logService, fileService);
+	}
+
+	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+		const keybindingsContent = remoteUserData.syncData ? this.getKeybindingsContentFromSyncContent(remoteUserData.syncData.content) : null;
+		if (!keybindingsContent) {
+			this.logService.info('Skipping initializing keybindings because remote keybindings does not exist.');
+			return;
+		}
+
+		const isEmpty = await this.isEmpty();
+		if (!isEmpty) {
+			this.logService.info('Skipping initializing keybindings because local keybindings exist.');
+			return;
+		}
+
+		await this.fileService.writeFile(this.environmentService.keybindingsResource, VSBuffer.fromString(keybindingsContent));
+
+		await this.updateLastSyncUserData(remoteUserData);
+	}
+
+	private async isEmpty(): Promise<boolean> {
+		try {
+			const fileContent = await this.fileService.readFile(this.environmentService.settingsResource);
+			const keybindings = parse(fileContent.value.toString());
+			return !isNonEmptyArray(keybindings);
+		} catch (error) {
+			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+		}
+	}
+
+	private getKeybindingsContentFromSyncContent(syncContent: string): string | null {
+		try {
+			return getKeybindingsContentFromSyncContent(syncContent, true);
+		} catch (e) {
+			this.logService.error(e);
+			return null;
+		}
 	}
 
 }

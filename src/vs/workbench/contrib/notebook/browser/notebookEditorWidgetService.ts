@@ -126,7 +126,7 @@ class NotebookEditorWidgetService implements INotebookEditorWidgetService {
 		if (!value) {
 			// NEW widget
 			const instantiationService = accessor.get(IInstantiationService);
-			const widget = instantiationService.createInstance(NotebookEditorWidget, {});
+			const widget = instantiationService.createInstance(NotebookEditorWidget, { isEmbedded: false });
 			widget.createEditor();
 			const token = this._tokenPool++;
 			value = { widget, token };

@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -165,6 +165,7 @@ export interface INotebookEditorContribution {
 
 export interface INotebookCellDecorationOptions {
 	className?: string;
+	gutterClassName?: string;
 	outputClassName?: string;
 }
 
@@ -195,12 +196,13 @@ export interface INotebookEditorContributionDescription {
 	ctor: INotebookEditorContributionCtor;
 }
 
-export interface INotebookEditorWidgetOptions {
-
-	contributions?: INotebookEditorContributionDescription[];
+export interface INotebookEditorCreationOptions {
+	readonly isEmbedded?: boolean;
+	readonly contributions?: INotebookEditorContributionDescription[];
 }
 
 export interface INotebookEditor extends IEditor {
+	isEmbedded: boolean;
 
 	cursorNavigationMode: boolean;
 
@@ -215,13 +217,14 @@ export interface INotebookEditor extends IEditor {
 	 */
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
-	isNotebookEditor: boolean;
+	readonly isNotebookEditor: boolean;
 	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
 	readonly onDidChangeActiveCell: Event<void>;
 	readonly onDidScroll: Event<ScrollEvent>;
+	readonly onWillDispose: Event<void>;
 
 	isDisposed: boolean;
 
@@ -334,7 +337,7 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Render the output in webview layer
 	 */
-	createInset(cell: ICellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): Promise<void>;
+	createInset(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
 	/**
 	 * Remove the output from the webview layer
@@ -425,6 +428,8 @@ export interface INotebookEditor extends IEditor {
 
 	setCellSelection(cell: ICellViewModel, selection: Range): void;
 
+	deltaCellDecorations(oldDecorations: string[], newDecorations: INotebookDeltaDecoration[]): string[];
+
 	/**
 	 * Change the decorations on cells.
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
@@ -452,7 +457,7 @@ export interface INotebookEditor extends IEditor {
 }
 
 export interface INotebookCellList {
-	isDisposed: boolean
+	isDisposed: boolean;
 	readonly contextKeyService: IContextKeyService;
 	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
@@ -513,6 +518,7 @@ export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;
+	deleteToolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
 	focusIndicatorLeft: HTMLElement;
 	disposables: DisposableStore;
@@ -557,6 +563,11 @@ export interface IOutputTransformContribution {
 	 */
 	dispose(): void;
 
+	/**
+	 * Returns contents to place in the webview inset, or the {@link IRenderNoOutput}.
+	 * This call is allowed to have side effects, such as placing output
+	 * directly into the container element.
+	 */
 	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
 }
 

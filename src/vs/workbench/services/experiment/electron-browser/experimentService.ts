@@ -172,7 +172,7 @@ export class ExperimentService implements ITASExperimentService {
 		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 
-		if (this.productService.tasConfig && this.experimentsEnabled) {
+		if (this.productService.tasConfig && this.experimentsEnabled && this.telemetryService.isOptedIn) {
 			this.tasClient = this.setupTASClient();
 		}
 	}

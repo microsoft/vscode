@@ -11,6 +11,7 @@ import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { flatten } from './utils/arrays';
+import * as fileSchemes from './utils/fileSchemes';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import { lazy, Lazy } from './utils/lazy';
 import ManagedFileContextManager from './utils/managedFileContext';
@@ -85,5 +86,6 @@ function isSupportedDocument(
 	supportedLanguage: readonly string[],
 	document: vscode.TextDocument
 ): boolean {
-	return supportedLanguage.indexOf(document.languageId) >= 0;
+	return supportedLanguage.indexOf(document.languageId) >= 0
+		&& !fileSchemes.disabledSchemes.has(document.uri.scheme);
 }

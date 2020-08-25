@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IModelService } from 'vs/editor/common/services/modelService';
 import type { WorkspaceEdit } from 'vs/editor/common/modes';
 import { URI } from 'vs/base/common/uri';
-import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPreview';
+import { BulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { Range } from 'vs/editor/common/core/range';
 
 suite('BulkEditPreview', function () {

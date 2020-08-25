@@ -855,10 +855,6 @@ export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
 
-export function safeBtoa(str: string): string {
-	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
-}
-
 /**
  * @deprecated ES6
  */

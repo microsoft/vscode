@@ -53,7 +53,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
 import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { RemoteWindowActiveIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
+import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -838,4 +838,4 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
-workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);

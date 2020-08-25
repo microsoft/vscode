@@ -81,8 +81,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected content: WebviewContent;
 
 	constructor(
-		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
-		protected readonly id: string,
+		public readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,

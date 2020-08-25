@@ -1137,6 +1137,22 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	}
 }
 
+/**
+ * Context passed into `EditorPane#setInput` to give additional
+ * context information around why the editor was opened.
+ */
+export interface IEditorOpenContext {
+
+	/**
+	 * An indicator if the editor input is new for the group the editor is in.
+	 * An editor is new for a group if it was not part of the group before and
+	 * otherwise was already opened in the group and just became the active editor.
+	 *
+	 * This hint can e.g. be used to decide wether to restore view state or not.
+	 */
+	newInGroup?: boolean;
+}
+
 export interface IEditorIdentifier {
 	groupId: GroupIdentifier;
 	editor: IEditorInput;
