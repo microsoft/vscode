@@ -1232,7 +1232,13 @@ export interface IWorkspaceEditEntryMetadataDto {
 	iconPath?: { id: string } | UriComponents | { light: UriComponents, dark: UriComponents };
 }
 
+export const enum WorkspaceEditType {
+	File = 1,
+	Text = 2,
+}
+
 export interface IWorkspaceFileEditDto {
+	_type: WorkspaceEditType.File;
 	oldUri?: UriComponents;
 	newUri?: UriComponents;
 	options?: modes.WorkspaceFileEditOptions
@@ -1240,6 +1246,7 @@ export interface IWorkspaceFileEditDto {
 }
 
 export interface IWorkspaceTextEditDto {
+	_type: WorkspaceEditType.Text;
 	resource: UriComponents;
 	edit: modes.TextEdit;
 	modelVersionId?: number;
