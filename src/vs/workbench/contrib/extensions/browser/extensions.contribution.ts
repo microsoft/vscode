@@ -15,7 +15,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
@@ -55,7 +54,7 @@ import { MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 
 // Singletons
-registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
+// registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService); // TODO@sandbox TODO@ben uncomment when 'semver-umd' can be loaded
 registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)

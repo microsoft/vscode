@@ -167,12 +167,23 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: product.nameLong,
 				webPreferences: {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
-					nodeIntegration: true,
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					nativeWindowOpen: true,
 					webviewTag: true,
-					zoomFactor: zoomLevelToZoomFactor(windowConfig?.zoomLevel)
+					zoomFactor: zoomLevelToZoomFactor(windowConfig?.zoomLevel),
+					...this.environmentService.sandbox ?
+
+						// Sandbox
+						{
+							sandbox: true,
+							contextIsolation: true
+						} :
+
+						// No Sandbox
+						{
+							nodeIntegration: true
+						}
 				}
 			};
 
@@ -799,7 +810,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doGetUrl(config: object): string {
-		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		let workbench: string;
+		if (this.environmentService.sandbox) {
+			workbench = 'vs/code/electron-sandbox/workbench/workbench.html';
+		} else {
+			workbench = 'vs/code/electron-browser/workbench/workbench.html';
+		}
+
+		return `${require.toUrl(workbench)}?config=${encodeURIComponent(JSON.stringify(config))}`;
 	}
 
 	private doGetPreloadUrl(): string {
