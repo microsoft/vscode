@@ -8,10 +8,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, IMainCellDto, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
+import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
@@ -128,6 +128,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	cells: NotebookCellTextModel[];
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
+	transientMetadata: TransientMetadata = {};
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
@@ -259,7 +260,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 				case CellEditType.Metadata:
 					this.assertIndex(edit.index);
-					this.changeCellMetadata(this.cells[edit.index].handle, edit.metadata);
+					this.deltaCellMetadata(this.cells[edit.index].handle, edit.metadata);
 					break;
 			}
 		}
@@ -340,14 +341,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
 		this._onDidChangeMetadata.fire(this.metadata);
-	}
-
-	updateNotebookCellMetadata(handle: number, metadata: NotebookCellMetadata) {
-		const cell = this.cells.find(cell => cell.handle === handle);
-
-		if (cell) {
-			cell.metadata = metadata;
-		}
 	}
 
 	insertTemplateCell(cell: NotebookCellTextModel) {
@@ -504,16 +497,99 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	changeCellMetadata(handle: number, newMetadata: NotebookCellMetadata) {
+	private _compareCellMetadata(a: NotebookCellMetadata | undefined, b: NotebookCellMetadata | undefined) {
+		if (a?.editable !== b?.editable && !this.transientMetadata.editable) {
+			return true;
+		}
+
+		if (a?.runnable !== b?.runnable && !this.transientMetadata.runnable) {
+			return true;
+		}
+
+		if (a?.breakpointMargin !== b?.breakpointMargin && !this.transientMetadata.breakpointMargin) {
+			return true;
+		}
+
+		if (a?.hasExecutionOrder !== b?.hasExecutionOrder && !this.transientMetadata.hasExecutionOrder) {
+			return true;
+		}
+
+		if (a?.executionOrder !== b?.executionOrder && !this.transientMetadata.executionOrder) {
+			return true;
+		}
+
+		if (a?.statusMessage !== b?.statusMessage && !this.transientMetadata.statusMessage) {
+			return true;
+		}
+
+		if (a?.runState !== b?.runState && !this.transientMetadata.runState) {
+			return true;
+		}
+
+		if (a?.runStartTime !== b?.runStartTime && !this.transientMetadata.runStartTime) {
+			return true;
+		}
+
+		if (a?.lastRunDuration !== b?.lastRunDuration && !this.transientMetadata.lastRunDuration) {
+			return true;
+		}
+
+		if (a?.inputCollapsed !== b?.inputCollapsed && !this.transientMetadata.inputCollapsed) {
+			return true;
+		}
+
+		if (a?.outputCollapsed !== b?.outputCollapsed && !this.transientMetadata.outputCollapsed) {
+			return true;
+		}
+
+		if (a?.custom !== b?.custom && !this.transientMetadata.custom) {
+			return true;
+		}
+
+		return false;
+	}
+
+	changeCellMetadata(handle: number, metadata: NotebookCellMetadata | undefined, pushUndoStop: boolean) {
+		const cell = this.cells.find(cell => cell.handle === handle);
+
+		if (!cell) {
+			return;
+		}
+
+		const triggerDirtyChange = this._compareCellMetadata(cell.metadata, metadata);
+
+		if (triggerDirtyChange) {
+			if (pushUndoStop) {
+				const index = this.cells.indexOf(cell);
+				this._operationManager.pushEditOperation(new CellMetadataEdit(this.uri, index, Object.freeze(cell.metadata), Object.freeze(metadata), {
+					updateCellMetadata: (index, newMetadata) => {
+						const cell = this.cells[index];
+						if (!cell) {
+							return;
+						}
+						this.changeCellMetadata(cell.handle, newMetadata, false);
+					},
+					emitSelections: this._emitSelectionsDelegate.bind(this)
+				}));
+			}
+			cell.metadata = metadata;
+			this.setDirty(true);
+			this._onDidChangeContent.fire();
+		} else {
+			cell.metadata = metadata;
+		}
+
+		this._increaseVersionId();
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
+	}
+
+	deltaCellMetadata(handle: number, newMetadata: NotebookCellMetadata) {
 		const cell = this._mapping.get(handle);
 		if (cell) {
-			cell.metadata = {
+			this.changeCellMetadata(handle, {
 				...cell.metadata,
 				...newMetadata
-			};
-
-			this._increaseVersionId();
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
+			}, true);
 		}
 	}
 

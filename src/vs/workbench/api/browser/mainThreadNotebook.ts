@@ -9,7 +9,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, IEditor, INotebookDocumentFilter, DisplayOrderKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, IEditor, INotebookDocumentFilter, DisplayOrderKey, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -375,10 +375,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined): Promise<void> {
+	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined, options: { transientMetadata: TransientMetadata }): Promise<void> {
 		const controller: IMainNotebookController = {
 			kernel: _kernel,
 			supportBackup: _supportBackup,
+			options: options,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
 				const data = await this._proxy.$resolveNotebookData(_viewType, mainthreadTextModel.uri);
 				if (!data) {
@@ -387,6 +388,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 				mainthreadTextModel.languages = data.languages;
 				mainthreadTextModel.metadata = data.metadata;
+				mainthreadTextModel.transientMetadata = options.transientMetadata;
 
 				const edits: ICellEditOperation[] = [
 					{ editType: CellEditType.Delete, count: mainthreadTextModel.cells.length, index: 0 },
@@ -410,6 +412,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 				textModel.languages = data.languages;
 				textModel.metadata = data.metadata;
+				textModel.transientMetadata = options.transientMetadata;
 
 				if (data.cells.length) {
 					textModel.initialize(data!.cells);
@@ -551,7 +554,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void> {
 		this.logService.debug('MainThreadNotebooks#updateNotebookCellMetadata', resource.path, handle, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		textModel?.updateNotebookCellMetadata(handle, metadata);
+		textModel?.changeCellMetadata(handle, metadata, true);
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {

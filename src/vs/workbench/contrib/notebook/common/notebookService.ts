@@ -10,7 +10,7 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Event } from 'vs/base/common/event';
 import {
 	INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo, INotebookKernelInfoDto,
-	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2
+	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -24,6 +24,7 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
 	supportBackup: boolean;
+	options: { transientMetadata: TransientMetadata };
 	createNotebook(textModel: NotebookTextModel, editorId?: string, backupId?: string): Promise<void>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;

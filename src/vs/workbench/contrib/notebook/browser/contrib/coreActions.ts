@@ -1292,7 +1292,7 @@ registerAction2(class extends NotebookCellAction {
 
 		editor.viewModel.notebookDocument.clearCellOutput(context.cell.handle);
 		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
-			context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, {
+			context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, {
 				runState: NotebookCellRunState.Idle,
 				runStartTime: undefined,
 				lastRunDuration: undefined,
@@ -1562,7 +1562,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { inputCollapsed: true });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { inputCollapsed: true });
 	}
 });
 
@@ -1585,7 +1585,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { inputCollapsed: false });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { inputCollapsed: false });
 	}
 });
 
@@ -1608,7 +1608,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { outputCollapsed: true });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { outputCollapsed: true });
 	}
 });
 
@@ -1631,7 +1631,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { outputCollapsed: false });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { outputCollapsed: false });
 	}
 });
 

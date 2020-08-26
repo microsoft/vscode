@@ -329,9 +329,9 @@ abstract class AbstractCellRenderer {
 			}
 
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
-				this.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(templateData.currentRenderedCell.handle, { inputCollapsed: false });
+				this.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(templateData.currentRenderedCell.handle, { inputCollapsed: false });
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
-				this.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(templateData.currentRenderedCell.handle, { outputCollapsed: false });
+				this.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(templateData.currentRenderedCell.handle, { outputCollapsed: false });
 			}
 		}));
 	}
