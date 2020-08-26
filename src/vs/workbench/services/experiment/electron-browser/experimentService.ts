@@ -206,7 +206,7 @@ export class ExperimentService implements ITASExperimentService {
 		const telemetry = new ExperimentServiceTelemetry(this.telemetryService);
 
 		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new TASClient({
+		const tasClient = new (await import('tas-client')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: telemetry,
 			storageKey: storageKey,
