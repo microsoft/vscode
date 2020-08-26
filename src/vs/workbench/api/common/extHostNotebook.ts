@@ -428,9 +428,9 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._emitter.emitCellLanguageChange(event);
 	}
 
-	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata): void {
+	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata | undefined): void {
 		const cell = this._cells[index];
-		cell.setMetadata(newMetadata);
+		cell.setMetadata(newMetadata || {});
 		const event: vscode.NotebookCellMetadataChangeEvent = { document: this.notebookDocument, cell: cell.cell };
 		this._emitter.emitCellMetadataChange(event);
 	}

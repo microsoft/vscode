@@ -15,7 +15,7 @@ export interface ITextCellEditingDelegate {
 	insertCell?(index: number, cell: NotebookCellTextModel): void;
 	deleteCell?(index: number): void;
 	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void;
-	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata | undefined): void;
+	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
 	emitSelections(selections: number[]): void;
 }
 
@@ -192,8 +192,8 @@ export class CellMetadataEdit implements IResourceUndoRedoElement {
 	constructor(
 		public resource: URI,
 		readonly index: number,
-		readonly oldMetadata: NotebookCellMetadata | undefined,
-		readonly newMetadata: NotebookCellMetadata | undefined,
+		readonly oldMetadata: NotebookCellMetadata,
+		readonly newMetadata: NotebookCellMetadata,
 		private editingDelegate: ITextCellEditingDelegate,
 	) {
 

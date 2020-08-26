@@ -32,13 +32,13 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this._outputs;
 	}
 
-	private _metadata: NotebookCellMetadata | undefined;
+	private _metadata: NotebookCellMetadata;
 
 	get metadata() {
 		return this._metadata;
 	}
 
-	set metadata(newMetadata: NotebookCellMetadata | undefined) {
+	set metadata(newMetadata: NotebookCellMetadata) {
 		this._metadata = newMetadata;
 		this._hash = null;
 		this._onDidChangeMetadata.fire();
@@ -89,7 +89,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	) {
 		super();
 		this._outputs = outputs;
-		this._metadata = metadata;
+		this._metadata = metadata || {};
 	}
 
 	getValue(): string {

@@ -235,7 +235,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type === 'modified' && hash(cell.original?.metadata ?? {}) !== hash(cell.modified?.metadata ?? {});
+					return cell.type === 'modified' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {})) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}));
 				},
 				getFoldingState: (cell) => {
 					return cell.metadataFoldingState;
@@ -321,10 +321,25 @@ abstract class AbstractCellRenderer extends Disposable {
 		}
 	}
 
-	private _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
+	protected _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
+		let filteredMetadata: { [key: string]: any } = {};
+		if (this.notebookEditor.textModel) {
+			const transientMetadata = this.notebookEditor.textModel!.transientMetadata;
+
+			const keys = new Set([...Object.keys(metadata)]);
+			for (let key of keys) {
+				if (!(transientMetadata[key as keyof NotebookCellMetadata])
+				) {
+					filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+				}
+			}
+		} else {
+			filteredMetadata = metadata;
+		}
+
 		const content = JSON.stringify({
 			language,
-			...metadata
+			...filteredMetadata
 		});
 
 		const edits = format(content, undefined, {});

@@ -397,7 +397,7 @@ export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeMetadata;
 	readonly versionId: number;
 	readonly index: number;
-	readonly metadata: NotebookCellMetadata;
+	readonly metadata: NotebookCellMetadata | undefined;
 }
 
 export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;

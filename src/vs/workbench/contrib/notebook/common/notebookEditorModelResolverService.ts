@@ -76,3 +76,9 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 		};
 	}
 }
+
+// notebookService.onDidAddDocument
+
+// resolve()
+
+// notebookService.onDidRemoveDocument ...

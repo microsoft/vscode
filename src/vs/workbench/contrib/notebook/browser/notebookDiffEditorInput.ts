@@ -198,14 +198,6 @@ ${patterns}
 		if (!this._textModel) {
 			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
 			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!, editorId);
-
-			// this._register(this._textModel.object.onDidChangeDirty(() => {
-			// 	this._onDidChangeDirty.fire();
-			// }));
-
-			// if (this._textModel.object.isDirty()) {
-			// 	this._onDidChangeDirty.fire();
-			// }
 		}
 
 		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);

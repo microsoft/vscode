@@ -30,6 +30,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -46,6 +47,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	public readonly onMouseUp = this._onMouseUp.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
+	private _model: INotebookDiffEditorModel | null = null;
+	get textModel() {
+		return this._model?.modified.notebook;
+	}
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -132,19 +137,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
-		const model = await input.resolve();
-		if (model === null) {
+		this._model = await input.resolve();
+		if (this._model === null) {
 			return;
 		}
 
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(model.original.resource, model.modified.resource);
+		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
 
 		const cellDiffViewModels: CellDiffViewModel[] = [];
-		const originalModel = model.original.notebook;
-		const modifiedModel = model.modified.notebook;
+		const originalModel = this._model.original.notebook;
+		const modifiedModel = this._model.modified.notebook;
 		let originalCellIndex = 0;
 		let modifiedCellIndex = 0;
 

@@ -187,7 +187,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		const cellHandle = this._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata, this._modelService);
+		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this._modelService);
 	}
 
 	initialize(cells: ICellDto2[]) {
@@ -497,59 +497,22 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _compareCellMetadata(a: NotebookCellMetadata | undefined, b: NotebookCellMetadata | undefined) {
-		if (a?.editable !== b?.editable && !this.transientMetadata.editable) {
-			return true;
-		}
-
-		if (a?.runnable !== b?.runnable && !this.transientMetadata.runnable) {
-			return true;
-		}
-
-		if (a?.breakpointMargin !== b?.breakpointMargin && !this.transientMetadata.breakpointMargin) {
-			return true;
-		}
-
-		if (a?.hasExecutionOrder !== b?.hasExecutionOrder && !this.transientMetadata.hasExecutionOrder) {
-			return true;
-		}
-
-		if (a?.executionOrder !== b?.executionOrder && !this.transientMetadata.executionOrder) {
-			return true;
-		}
-
-		if (a?.statusMessage !== b?.statusMessage && !this.transientMetadata.statusMessage) {
-			return true;
-		}
-
-		if (a?.runState !== b?.runState && !this.transientMetadata.runState) {
-			return true;
-		}
-
-		if (a?.runStartTime !== b?.runStartTime && !this.transientMetadata.runStartTime) {
-			return true;
-		}
-
-		if (a?.lastRunDuration !== b?.lastRunDuration && !this.transientMetadata.lastRunDuration) {
-			return true;
-		}
-
-		if (a?.inputCollapsed !== b?.inputCollapsed && !this.transientMetadata.inputCollapsed) {
-			return true;
-		}
-
-		if (a?.outputCollapsed !== b?.outputCollapsed && !this.transientMetadata.outputCollapsed) {
-			return true;
-		}
-
-		if (a?.custom !== b?.custom && !this.transientMetadata.custom) {
-			return true;
+	private _compareCellMetadata(a: NotebookCellMetadata, b: NotebookCellMetadata) {
+		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+		for (let key of keys) {
+			if (
+				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
+				&&
+				!(this.transientMetadata[key as keyof NotebookCellMetadata])
+			) {
+				return true;
+			}
 		}
 
 		return false;
 	}
 
-	changeCellMetadata(handle: number, metadata: NotebookCellMetadata | undefined, pushUndoStop: boolean) {
+	changeCellMetadata(handle: number, metadata: NotebookCellMetadata, pushUndoStop: boolean) {
 		const cell = this.cells.find(cell => cell.handle === handle);
 
 		if (!cell) {
