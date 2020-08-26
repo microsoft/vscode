@@ -32,6 +32,9 @@ interface IRenderedOutput {
 export class CodeCell extends Disposable {
 	private outputResizeListeners = new Map<IProcessedOutput, DisposableStore>();
 	private outputElements = new Map<IProcessedOutput, IRenderedOutput>();
+
+	private modifyInsetQueue = Promise.resolve();
+
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
@@ -170,7 +173,7 @@ export class CodeCell extends Disposable {
 					removedKeys.push(key);
 					// remove element from DOM
 					this.templateData?.outputContainer?.removeChild(value.element);
-					this.notebookEditor.removeInset(key);
+					this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.removeInset(key));
 				}
 			});
 
@@ -503,7 +506,7 @@ export class CodeCell extends Disposable {
 
 		if (result.type !== RenderOutputType.None) {
 			this.viewCell.selfSizeMonitoring = true;
-			this.notebookEditor.createInset(this.viewCell, result, this.viewCell.getOutputOffset(index));
+			this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index)));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
 			DOM.addClass(outputItemDiv, 'output-element');
@@ -598,7 +601,7 @@ export class CodeCell extends Disposable {
 			const element = this.outputElements.get(output)?.element;
 			if (element) {
 				this.templateData?.outputContainer?.removeChild(element);
-				this.notebookEditor.removeInset(output);
+				await (this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.removeInset(output)));
 			}
 
 			output.pickedMimeTypeIndex = pick;
