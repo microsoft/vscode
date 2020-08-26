@@ -161,7 +161,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private async promptRecommendations(uri: URI, fileExtension: string): Promise<void> {
-		const recommendationsToPrompt: string[] = [];
+		const recommendationsToPrompt: { extensionId: string, languageName: string }[] = [];
 		forEach(this.fileBasedRecommendationsByPattern, ({ key: pattern, value: extensionIds }) => {
 			if (match(pattern, uri.toString())) {
 				for (const extensionId of extensionIds) {
@@ -169,7 +169,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					// Only prompt if the pattern matches the extensionImportantTips pattern
 					// Otherwise, assume pattern is from extensionTips, which means it should be a file based "passive" recommendation
 					if (this.importantExtensionTips[extensionId]?.pattern === pattern) {
-						recommendationsToPrompt.push(extensionId);
+						recommendationsToPrompt.push({ extensionId, languageName: this.importantExtensionTips[extensionId].name });
 					}
 					// Update file based recommendations
 					const filedBasedRecommendation = this.fileBasedRecommendations[extensionId] || { recommendedTime: Date.now(), sources: [] };
@@ -189,7 +189,8 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		}
 
 		const installed = await this.extensionsWorkbenchService.queryLocal();
-		if (await this.promptRecommendedExtensionForFileType(fileExtension.substring(1), recommendationsToPrompt, installed)) {
+		if (recommendationsToPrompt.length &&
+			await this.promptRecommendedExtensionForFileType(fileExtension.substring(1), recommendationsToPrompt[0].languageName, recommendationsToPrompt.map(r => r.extensionId), installed)) {
 			return;
 		}
 
@@ -209,7 +210,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.promptRecommendedExtensionForFileExtension(fileExtension, installed);
 	}
 
-	private async promptRecommendedExtensionForFileType(ext: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
+	private async promptRecommendedExtensionForFileType(ext: string, languageName: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
 
 		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
@@ -227,7 +228,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install support for this file?"), `ext:${ext}`);
+		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install support for {0}?", languageName), `ext:${ext}`);
 		return true;
 	}
 
