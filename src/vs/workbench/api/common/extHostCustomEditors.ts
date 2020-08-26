@@ -14,6 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { ExtHostWebviews, toExtensionData } from 'vs/workbench/api/common/extHostWebview';
+import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import type * as vscode from 'vscode';
 import { Cache } from './cache';
@@ -165,6 +166,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		private readonly _extHostDocuments: ExtHostDocuments,
 		private readonly _extensionStoragePaths: IExtensionStoragePaths | undefined,
 		private readonly _extHostWebview: ExtHostWebviews,
+		private readonly _extHostWebviewPanels: ExtHostWebviewPanels,
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadCustomEditors);
 	}
@@ -260,7 +262,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		}
 
 		const webview = this._extHostWebview.createNewWebview(handle, options, entry.extension);
-		const panel = this._extHostWebview.createNewWebviewPanel(handle, viewType, title, position, options, webview);
+		const panel = this._extHostWebviewPanels.createNewWebviewPanel(handle, viewType, title, position, options, webview);
 
 		const revivedResource = URI.revive(resource);
 
@@ -297,7 +299,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 			throw new Error(`Provider does not implement move '${viewType}'`);
 		}
 
-		const webview = this._extHostWebview.getWebviewPanel(handle);
+		const webview = this._extHostWebviewPanels.getWebviewPanel(handle);
 		if (!webview) {
 			throw new Error(`No webview found`);
 		}

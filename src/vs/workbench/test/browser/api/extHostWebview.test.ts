@@ -13,6 +13,7 @@ import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
+import { ExtHostWebviewPanels } from 'vs/workbench/api/common/extHostWebviewPanels';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
@@ -35,6 +36,8 @@ suite('ExtHostWebview', () => {
 			isExtensionDevelopmentDebug: false,
 		}, undefined, new NullLogService(), NullApiDeprecationService);
 
+		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
+
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
 		class NoopSerializer implements vscode.WebviewPanelSerializer {
@@ -48,20 +51,20 @@ suite('ExtHostWebview', () => {
 		const serializerA = new NoopSerializer();
 		const serializerB = new NoopSerializer();
 
-		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerA);
+		const serializerARegistration = extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerA);
 
-		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
+		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
-			() => extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerB),
+			() => extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB),
 			'Should throw when registering two serializers for the same view');
 
 		serializerARegistration.dispose();
 
-		extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerB);
+		extHostWebviewPanels.registerWebviewPanelSerializer(extension, viewType, serializerB);
 
-		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
+		await extHostWebviewPanels.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 
@@ -71,7 +74,10 @@ suite('ExtHostWebview', () => {
 			webviewResourceRoot: 'vscode-resource://{{resource}}',
 			isExtensionDevelopmentDebug: false,
 		}, undefined, new NullLogService(), NullApiDeprecationService);
-		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
+
+		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
+
+		const webview = extHostWebviewPanels.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		assert.strictEqual(
 			webview.webview.asWebviewUri(URI.parse('file:///Users/codey/file.html')).toString(),
@@ -110,7 +116,10 @@ suite('ExtHostWebview', () => {
 			webviewResourceRoot: `https://{{uuid}}.webview.contoso.com/commit/{{resource}}`,
 			isExtensionDevelopmentDebug: false,
 		}, undefined, new NullLogService(), NullApiDeprecationService);
-		const webview = extHostWebviews.createWebviewPanel({} as any, 'type', 'title', 1, {});
+
+		const extHostWebviewPanels = new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined);
+
+		const webview = extHostWebviewPanels.createWebviewPanel({} as any, 'type', 'title', 1, {});
 
 		function stripEndpointUuid(input: string) {
 			return input.replace(/^https:\/\/[^\.]+?\./, '');
