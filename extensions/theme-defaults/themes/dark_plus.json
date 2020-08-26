@@ -4,6 +4,11 @@
 	"include": "./dark_vs.json",
 	"tokenColors": [
 		{
+			"settings": {
+				"foreground": "#D4D4D4"
+			}
+		},
+		{
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",

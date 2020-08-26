@@ -4,6 +4,11 @@
 	"include": "./light_vs.json",
 	"tokenColors": [
 		{
+			"settings": {
+				"foreground": "#000000"
+			}
+		},
+		{
 			"name": "Function declarations",
 			"scope": [
 				"entity.name.function",
