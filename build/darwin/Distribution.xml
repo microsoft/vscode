@@ -8,13 +8,13 @@
 	</pkg-ref>
 	<pkg-ref id="com.test.vscode.pkg">
 		<bundle-version>
-			<bundle CFBundleShortVersionString="1.0" CFBundleVersion="1" id="org.reactivecocoa.ReactiveCocoa" path="Visual Studio Code.app/Contents/Frameworks/ReactiveCocoa.framework"/>
-			<bundle CFBundleShortVersionString="1.0" CFBundleVersion="" id="org.mantle.Mantle" path="Visual Studio Code.app/Contents/Frameworks/Mantle.framework"/>
-			<bundle CFBundleShortVersionString="1.48.1" CFBundleVersion="1.48.1" id="com.microsoft.VSCode" path="Visual Studio Code.app"/>
-			<bundle CFBundleShortVersionString="1.0" CFBundleVersion="1" id="com.github.Squirrel" path="Visual Studio Code.app/Contents/Frameworks/Squirrel.framework"/>
-			<bundle CFBundleVersion="7.3.2" id="com.github.Electron.framework" path="Visual Studio Code.app/Contents/Frameworks/Electron Framework.framework"/>
-			<bundle id="com.github.Electron.helper" path="Visual Studio Code.app/Contents/Frameworks/Code Helper (GPU).app"/>
-			<bundle id="com.microsoft.VSCode.helper" path="Visual Studio Code.app/Contents/Frameworks/Code Helper.app"/>
+			<bundle CFBundleShortVersionString="1.0" CFBundleVersion="1" id="org.reactivecocoa.ReactiveCocoa" path="Code - OSS.app/Contents/Frameworks/ReactiveCocoa.framework"/>
+			<bundle CFBundleShortVersionString="1.0" CFBundleVersion="" id="org.mantle.Mantle" path="Code - OSS.app/Contents/Frameworks/Mantle.framework"/>
+			<bundle CFBundleShortVersionString="1.48.1" CFBundleVersion="1.48.1" id="com.microsoft.VSCode" path="Code - OSS.app"/>
+			<bundle CFBundleShortVersionString="1.0" CFBundleVersion="1" id="com.github.Squirrel" path="Code - OSS.app/Contents/Frameworks/Squirrel.framework"/>
+			<bundle CFBundleVersion="7.3.2" id="com.github.Electron.framework" path="Code - OSS.app/Contents/Frameworks/Electron Framework.framework"/>
+			<bundle id="com.github.Electron.helper" path="Code - OSS.app/Contents/Frameworks/Code Helper (GPU).app"/>
+			<bundle id="com.microsoft.VSCode.helper" path="Code - OSS.app/Contents/Frameworks/Code Helper.app"/>
 		</bundle-version>
 	</pkg-ref>
 	<!-- Options are never, allow, or always -->
@@ -26,12 +26,12 @@
 			<line choice="com.test.workflow.pkg"/>
 		</line>
 	</choices-outline>
-	<choice id="default" title="Visual Studio Code"/>
+	<choice id="default" title="Code - OSS"/>
 	<choice id="com.test.path.pkg" visible="true" title="Add to PATH" description="Add code to PATH">
 		<pkg-ref id="com.test.path.pkg"/>
 	</choice>
 	<pkg-ref id="com.test.path.pkg" version="0" onConclusion="none" installKBytes="0">#path.pkg</pkg-ref>
-	<choice id="com.test.workflow.pkg" visible="true" title="Add to right-click menu" description="Add 'Open in Visual Studio Code' to right-click menu">
+	<choice id="com.test.workflow.pkg" visible="true" title="Add to right-click menu" description="Add 'Open in Code - OSS' to right-click menu">
 		<pkg-ref id="com.test.workflow.pkg"/>
 	</choice>
 	<pkg-ref id="com.test.workflow.pkg" version="0" onConclusion="none" installKBytes="6">#workflow.pkg</pkg-ref>

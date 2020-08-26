@@ -56,7 +56,7 @@
 				<key>ActionParameters</key>
 				<dict>
 					<key>appPath</key>
-					<string>/Applications/Visual Studio Code.app</string>
+					<string>/Applications/Code - OSS.app</string>
 				</dict>
 				<key>BundleIdentifier</key>
 				<string>com.apple.Automator.OpenFinderItems</string>

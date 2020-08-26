@@ -13,7 +13,7 @@
 				<key>NSMenuItem</key>
 				<dict>
 					<key>default</key>
-					<string>Open in Visual Studio Code</string>
+					<string>Open in Code - OSS</string>
 				</dict>
 				<key>NSMessage</key>
 				<string>runWorkflowAsService</string>
