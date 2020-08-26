@@ -65,7 +65,7 @@ export abstract class ExtensionRecommendations extends Disposable {
 		}
 	}
 
-	protected promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, showRecommendationsLabel?: string): void {
+	protected promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string): void {
 		this.notificationService.prompt(Severity.Info, message,
 			[{
 				label: localize('install', 'Install'),
@@ -76,15 +76,13 @@ export abstract class ExtensionRecommendations extends Disposable {
 					this.runAction(this.instantiationService.createInstance(InstallRecommendedExtensionsAction, InstallRecommendedExtensionsAction.ID, InstallRecommendedExtensionsAction.LABEL, extensionIds, searchValue, 'install-recommendations'));
 				}
 			}, {
-				label: showRecommendationsLabel || localize('show recommendations', "Show Recommendations"),
+				label: localize('show recommendations', "Show Recommendations"),
 				run: async () => {
 					for (const extensionId of extensionIds) {
 						this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId });
+						this.runAction(this.instantiationService.createInstance(OpenExtensionEditorAction, extensionId));
 					}
 					this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
-					if (extensionIds.length === 1) {
-						this.runAction(this.instantiationService.createInstance(OpenExtensionEditorAction, extensionIds[0]));
-					}
 				}
 			}, {
 				label: choiceNever,

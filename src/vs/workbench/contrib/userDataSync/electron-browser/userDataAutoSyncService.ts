@@ -29,11 +29,11 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	) {
 		super(storageService, environmentService, userDataSyncStoreManagementService);
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
-		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerSync([source], true)));
+		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerSync([source], true, false)));
 	}
 
-	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void> {
-		return this.channel.call('triggerSync', [sources, hasToLimitSync]);
+	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void> {
+		return this.channel.call('triggerSync', [sources, hasToLimitSync, disableCache]);
 	}
 
 	turnOn(): Promise<void> {

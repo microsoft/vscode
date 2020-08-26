@@ -5,12 +5,12 @@
 
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
+import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 
 export class ConflictDetector {
 
@@ -21,31 +21,35 @@ export class ConflictDetector {
 	readonly onDidConflict: Event<this> = this._onDidConflict.event;
 
 	constructor(
-		workspaceEdit: WorkspaceEdit,
+		edits: ResourceEdit[],
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 	) {
 
 		const _workspaceEditResources = new ResourceMap<boolean>();
 
-		for (let edit of workspaceEdit.edits) {
-			if (WorkspaceTextEdit.is(edit)) {
-
+		for (let edit of edits) {
+			if (edit instanceof ResourceTextEdit) {
 				_workspaceEditResources.set(edit.resource, true);
-
-				if (typeof edit.modelVersionId === 'number') {
+				if (typeof edit.versionId === 'number') {
 					const model = modelService.getModel(edit.resource);
-					if (model && model.getVersionId() !== edit.modelVersionId) {
+					if (model && model.getVersionId() !== edit.versionId) {
 						this._conflicts.set(edit.resource, true);
 						this._onDidConflict.fire(this);
 					}
 				}
 
-			} else if (edit.newUri) {
-				_workspaceEditResources.set(edit.newUri, true);
+			} else if (edit instanceof ResourceFileEdit) {
+				if (edit.newResource) {
+					_workspaceEditResources.set(edit.newResource, true);
 
-			} else if (edit.oldUri) {
-				_workspaceEditResources.set(edit.oldUri, true);
+				} else if (edit.oldResource) {
+					_workspaceEditResources.set(edit.oldResource, true);
+				}
+
+			} else {
+				//todo@jrieken
+				console.log('UNKNOWN EDIT TYPE');
 			}
 		}
 

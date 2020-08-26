@@ -15,7 +15,7 @@ export const INotebookEditorModelResolverService = createDecorator<INotebookEdit
 
 export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
-	resolve(resource: URI, viewType: string, editorId?: string): Promise<IReference<INotebookEditorModel>>;
+	resolve(resource: URI, viewType?: string, editorId?: string): Promise<IReference<INotebookEditorModel>>;
 }
 
 
@@ -30,9 +30,16 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 	}
 
 	protected createReferencedObject(key: string, ...args: any[]): Promise<INotebookEditorModel> {
-		const [viewType, editorId] = args as [string, string | undefined];
-
 		const resource = URI.parse(key);
+
+		let [viewType, editorId] = args as [string | undefined, string | undefined];
+		if (!viewType) {
+			viewType = this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
+		}
+		if (!viewType) {
+			throw new Error('Missing viewType');
+		}
+
 		const model = this._instantiationService.createInstance(NotebookEditorModel, resource, viewType);
 		const promise = model.load({ editorId });
 		return promise;
@@ -60,7 +67,7 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 	}
 
-	async resolve(resource: URI, viewType: string, editorId?: string | undefined): Promise<IReference<INotebookEditorModel>> {
+	async resolve(resource: URI, viewType?: string, editorId?: string | undefined): Promise<IReference<INotebookEditorModel>> {
 		const reference = this._data.acquire(resource.toString(), viewType, editorId);
 		const model = await reference.object;
 		return {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { WorkspaceFileEdit, WorkspaceFileEditOptions } from 'vs/editor/common/modes';
+import { WorkspaceFileEditOptions } from 'vs/editor/common/modes';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 
 interface IFileOperation {
 	uris: URI[];
@@ -147,7 +148,7 @@ export class BulkFileEdits {
 	constructor(
 		private readonly _label: string,
 		private readonly _progress: IProgress<void>,
-		private readonly _edits: WorkspaceFileEdit[],
+		private readonly _edits: ResourceFileEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 	) { }
@@ -159,15 +160,15 @@ export class BulkFileEdits {
 
 			const options = edit.options || {};
 			let op: IFileOperation | undefined;
-			if (edit.newUri && edit.oldUri) {
+			if (edit.newResource && edit.oldResource) {
 				// rename
-				op = this._instaService.createInstance(RenameOperation, edit.newUri, edit.oldUri, options);
-			} else if (!edit.newUri && edit.oldUri) {
+				op = this._instaService.createInstance(RenameOperation, edit.newResource, edit.oldResource, options);
+			} else if (!edit.newResource && edit.oldResource) {
 				// delete file
-				op = this._instaService.createInstance(DeleteOperation, edit.oldUri, options);
-			} else if (edit.newUri && !edit.oldUri) {
+				op = this._instaService.createInstance(DeleteOperation, edit.oldResource, options);
+			} else if (edit.newResource && !edit.oldResource) {
 				// create file
-				op = this._instaService.createInstance(CreateOperation, edit.newUri, options, undefined);
+				op = this._instaService.createInstance(CreateOperation, edit.newResource, options, undefined);
 			}
 			if (op) {
 				const undoOp = await op.perform();

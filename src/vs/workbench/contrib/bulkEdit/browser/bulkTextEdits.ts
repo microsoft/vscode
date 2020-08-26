@@ -11,7 +11,6 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -19,6 +18,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceMap } from 'vs/base/common/map';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
@@ -39,31 +39,31 @@ class ModelEditTask implements IDisposable {
 		this._modelReference.dispose();
 	}
 
-	addEdit(resourceEdit: WorkspaceTextEdit): void {
-		this._expectedModelVersionId = resourceEdit.modelVersionId;
-		const { edit } = resourceEdit;
+	addEdit(resourceEdit: ResourceTextEdit): void {
+		this._expectedModelVersionId = resourceEdit.versionId;
+		const { textEdit } = resourceEdit;
 
-		if (typeof edit.eol === 'number') {
+		if (typeof textEdit.eol === 'number') {
 			// honor eol-change
-			this._newEol = edit.eol;
+			this._newEol = textEdit.eol;
 		}
-		if (!edit.range && !edit.text) {
+		if (!textEdit.range && !textEdit.text) {
 			// lacks both a range and the text
 			return;
 		}
-		if (Range.isEmpty(edit.range) && !edit.text) {
+		if (Range.isEmpty(textEdit.range) && !textEdit.text) {
 			// no-op edit (replace empty range with empty text)
 			return;
 		}
 
 		// create edit operation
 		let range: Range;
-		if (!edit.range) {
+		if (!textEdit.range) {
 			range = this.model.getFullModelRange();
 		} else {
-			range = Range.lift(edit.range);
+			range = Range.lift(textEdit.range);
 		}
-		this._edits.push(EditOperation.replaceMove(range, edit.text));
+		this._edits.push(EditOperation.replaceMove(range, textEdit.text));
 	}
 
 	validate(): ValidationResult {
@@ -116,13 +116,13 @@ class EditorEditTask extends ModelEditTask {
 
 export class BulkTextEdits {
 
-	private readonly _edits = new ResourceMap<WorkspaceTextEdit[]>();
+	private readonly _edits = new ResourceMap<ResourceTextEdit[]>();
 
 	constructor(
 		private readonly _label: string,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<void>,
-		edits: WorkspaceTextEdit[],
+		edits: ResourceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
@@ -143,9 +143,9 @@ export class BulkTextEdits {
 		// First check if loaded models were not changed in the meantime
 		for (const array of this._edits.values()) {
 			for (let edit of array) {
-				if (typeof edit.modelVersionId === 'number') {
+				if (typeof edit.versionId === 'number') {
 					let model = this._modelService.getModel(edit.resource);
-					if (model && model.getVersionId() !== edit.modelVersionId) {
+					if (model && model.getVersionId() !== edit.versionId) {
 						// model changed in the meantime
 						throw new Error(`${model.uri.toString()} has changed in the meantime`);
 					}
@@ -172,12 +172,12 @@ export class BulkTextEdits {
 
 				for (const edit of value) {
 					if (makeMinimal) {
-						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.edit]);
+						const newEdits = await this._editorWorker.computeMoreMinimalEdits(edit.resource, [edit.textEdit]);
 						if (!newEdits) {
 							task.addEdit(edit);
 						} else {
 							for (let moreMinialEdit of newEdits) {
-								task.addEdit({ ...edit, edit: moreMinialEdit });
+								task.addEdit(new ResourceTextEdit(edit.resource, moreMinialEdit, edit.versionId, edit.metadata));
 							}
 						}
 					} else {
@@ -186,7 +186,6 @@ export class BulkTextEdits {
 				}
 
 				tasks.push(task);
-				this._progress.report(undefined);
 			});
 			promises.push(promise);
 		}

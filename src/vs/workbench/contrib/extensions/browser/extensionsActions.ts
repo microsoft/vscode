@@ -1953,7 +1953,7 @@ export class OpenExtensionEditorAction extends Action {
 		const pager = await this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None);
 		if (pager && pager.firstPage && pager.firstPage.length) {
 			const extension = pager.firstPage[0];
-			return this.extensionWorkbenchService.open(extension);
+			return this.extensionWorkbenchService.open(extension, { pinned: true });
 		}
 	}
 }

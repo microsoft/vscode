@@ -8,7 +8,7 @@ import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
@@ -223,7 +223,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto): Promise<boolean> {
 		const { edits } = reviveWorkspaceEditDto(dto)!;
-		return this._bulkEditService.apply({ edits }).then(() => true, _err => false);
+		return this._bulkEditService.apply(ResourceEdit.convert({ edits })).then(() => true, _err => false);
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {

@@ -1120,7 +1120,7 @@ class ColorProviderAdapter {
 	provideColors(resource: URI, token: CancellationToken): Promise<extHostProtocol.IRawColorInfo[]> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (!Array.isArray<vscode.ColorInformation>(colors)) {
+			if (!Array.isArray(colors)) {
 				return [];
 			}
 

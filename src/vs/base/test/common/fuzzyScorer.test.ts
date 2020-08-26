@@ -1029,7 +1029,7 @@ suite('Fuzzy Scorer', () => {
 		const resourceA = URI.file('src/vs/workbench/services/host/browser/browserHostService.ts');
 		const resourceB = URI.file('src/vs/workbench/browser/workbench.ts');
 
-		for (const query of ['workbench.ts browser', 'browser workbench.ts']) {
+		for (const query of ['workbench.ts browser', 'browser workbench.ts', 'browser workbench', 'workbench browser']) {
 			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
 			assert.equal(res[0], resourceB);
 			assert.equal(res[1], resourceA);
