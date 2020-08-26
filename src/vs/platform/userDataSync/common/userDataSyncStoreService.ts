@@ -394,7 +394,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		this._onTokenSucceed.fire();
 
 		if (context.res.statusCode === 409) {
-			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Conflict (409). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Conflict, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Conflict (409). There is new data for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.Conflict, operationId);
 		}
 
 		if (context.res.statusCode === 410) {
@@ -402,7 +402,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		}
 
 		if (context.res.statusCode === 412) {
-			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.PreconditionFailed, operationId);
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.PreconditionFailed, operationId);
 		}
 
 		if (context.res.statusCode === 413) {
@@ -482,7 +482,7 @@ export class RequestsSession {
 
 		if (this.requests.length >= this.limit) {
 			this.logService.info('Too many requests', ...this.requests);
-			throw new UserDataSyncStoreError(`Too many requests. Allowed only ${this.limit} requests in ${this.interval / (1000 * 60)} minutes.`, UserDataSyncErrorCode.LocalTooManyRequests, undefined);
+			throw new UserDataSyncStoreError(`Too many requests. Only ${this.limit} requests allowed in ${this.interval / (1000 * 60)} minutes.`, UserDataSyncErrorCode.LocalTooManyRequests, undefined);
 		}
 
 		this.startTime = this.startTime || new Date();
