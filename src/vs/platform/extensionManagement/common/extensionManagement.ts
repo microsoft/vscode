@@ -239,6 +239,7 @@ export type IExecutableBasedExtensionTip = {
 	readonly extensionId: string,
 	readonly extensionName: string,
 	readonly isExtensionPack: boolean,
+	readonly exeName: string,
 	readonly exeFriendlyName: string,
 	readonly windowsPath?: string,
 };

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -100,7 +100,7 @@ interface IRuntimeExtension {
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
-export class RuntimeExtensionsEditor extends BaseEditor {
+export class RuntimeExtensionsEditor extends EditorPane {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 

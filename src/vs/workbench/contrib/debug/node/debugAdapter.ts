@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
@@ -91,25 +91,22 @@ export abstract class StreamDebugAdapter extends AbstractDebugAdapter {
 	}
 }
 
-/**
- * An implementation that connects to a debug adapter via a socket.
-*/
-export class SocketDebugAdapter extends StreamDebugAdapter {
+export abstract class NetworkDebugAdapter extends StreamDebugAdapter {
 
-	private socket?: net.Socket;
+	protected socket?: net.Socket;
 
-	constructor(private adapterServer: IDebugAdapterServer) {
-		super();
-	}
+	protected abstract createConnection(connectionListener: () => void): net.Socket;
 
 	startSession(): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			let connected = false;
-			this.socket = net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', () => {
+
+			this.socket = this.createConnection(() => {
 				this.connect(this.socket!, this.socket!);
 				resolve();
 				connected = true;
 			});
+
 			this.socket.on('close', () => {
 				if (connected) {
 					this._onError.fire(new Error('connection closed'));
@@ -117,6 +114,7 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 					reject(new Error('connection closed'));
 				}
 			});
+
 			this.socket.on('error', error => {
 				if (connected) {
 					this._onError.fire(error);
@@ -133,6 +131,34 @@ export class SocketDebugAdapter extends StreamDebugAdapter {
 			this.socket.end();
 			this.socket = undefined;
 		}
+	}
+}
+
+/**
+ * An implementation that connects to a debug adapter via a socket.
+*/
+export class SocketDebugAdapter extends NetworkDebugAdapter {
+
+	constructor(private adapterServer: IDebugAdapterServer) {
+		super();
+	}
+
+	protected createConnection(connectionListener: () => void): net.Socket {
+		return net.createConnection(this.adapterServer.port, this.adapterServer.host || '127.0.0.1', connectionListener);
+	}
+}
+
+/**
+ * An implementation that connects to a debug adapter via a NamedPipe (on Windows)/UNIX Domain Socket (on non-Windows).
+ */
+export class NamedPipeDebugAdapter extends NetworkDebugAdapter {
+
+	constructor(private adapterServer: IDebugAdapterNamedPipeServer) {
+		super();
+	}
+
+	protected createConnection(connectionListener: () => void): net.Socket {
+		return net.createConnection(this.adapterServer.path, connectionListener);
 	}
 }
 

@@ -93,6 +93,22 @@ suite('dom', () => {
 			assert(!div.firstChild);
 		});
 
+		test('should buld nodes with id', () => {
+			const div = $('div#foo');
+			assert(div);
+			assert(div instanceof HTMLElement);
+			assert.equal(div.tagName, 'DIV');
+			assert.equal(div.id, 'foo');
+		});
+
+		test('should buld nodes with class-name', () => {
+			const div = $('div.foo');
+			assert(div);
+			assert(div instanceof HTMLElement);
+			assert.equal(div.tagName, 'DIV');
+			assert.equal(div.className, 'foo');
+		});
+
 		test('should build nodes with attributes', () => {
 			let div = $('div', { class: 'test' });
 			assert.equal(div.className, 'test');
@@ -110,6 +126,13 @@ suite('dom', () => {
 			div = $('div', undefined, 'hello');
 
 			assert.equal(div.firstChild && div.firstChild.textContent, 'hello');
+		});
+
+		test('should build nodes with text children', () => {
+			let div = $('div', undefined, 'foobar');
+			let firstChild = div.firstChild as HTMLElement;
+			assert.equal(firstChild.tagName, undefined);
+			assert.equal(firstChild.textContent, 'foobar');
 		});
 	});
 });

@@ -35,8 +35,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_TOP_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CancelCellAction, ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { BOTTOM_CELL_TOOLBAR_GAP, CELL_BOTTOM_MARGIN, CELL_TOP_MARGIN, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CancelCellAction, DeleteCellAction, ExecuteCellAction, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, EXPAND_CELL_CONTENT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
@@ -379,7 +379,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
-		const toolbar = disposables.add(this.createToolbar(container, 'cell-title-toolbar'));
+
+		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
+		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
+		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
+		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
@@ -411,6 +416,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			disposables,
 			elementDisposables: new DisposableStore(),
 			toolbar,
+			deleteToolbar,
 			betweenCellToolbar,
 			bottomCellContainer,
 			statusBarContainer: statusBar.statusBarContainer,
@@ -475,6 +481,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			$mid: 12
 		};
 		templateData.toolbar.context = toolbarContext;
+		templateData.deleteToolbar.context = toolbarContext;
 
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
@@ -644,16 +651,19 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
-		const toolbar = disposables.add(this.createToolbar(container, 'cell-title-toolbar'));
+		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
+		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
+		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
+		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const dragHandle = DOM.append(container, DOM.$('.cell-drag-handle'));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
-		const runToolbar = this.createToolbar(runButtonContainer);
-		disposables.add(runToolbar);
+		const runToolbar = disposables.add(this.createToolbar(runButtonContainer));
 
-		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
+		const executionOrderLabel = DOM.append(cellContainer, $('div.execution-count-label'));
 
 		// create a special context key service that set the inCompositeEditor-contextkey
 		const editorContextKeyService = disposables.add(this.contextKeyServiceProvider(container));
@@ -711,6 +721,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			focusIndicatorRight,
 			focusIndicatorBottom,
 			toolbar,
+			deleteToolbar,
 			betweenCellToolbar,
 			focusSinkElement,
 			runToolbar,
@@ -797,9 +808,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT - CELL_BOTTOM_MARGIN}px`;
+		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP - CELL_BOTTOM_MARGIN}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
-		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT}px`;
+		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - BOTTOM_CELL_TOOLBAR_GAP}px`;
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
@@ -862,6 +873,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 		templateData.toolbar.context = toolbarContext;
 		templateData.runToolbar.context = toolbarContext;
+		templateData.deleteToolbar.context = toolbarContext;
 
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 

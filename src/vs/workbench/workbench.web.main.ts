@@ -46,7 +46,6 @@ import 'vs/workbench/services/workspaces/browser/workspaceEditingService';
 import 'vs/workbench/services/dialogs/browser/dialogService';
 import 'vs/workbench/services/dialogs/browser/fileDialogService';
 import 'vs/workbench/services/host/browser/browserHostService';
-import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
@@ -130,5 +129,8 @@ import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.con
 
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
+
+// Extensions Management (// TODO@sandbox TODO@ben move back into common/extensions.contribution.ts when 'semver-umd' can be loaded)
+import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
 
 //#endregion

@@ -381,7 +381,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
-	private _ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
+	private _ariaLabel: string | undefined;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickAcceptEvent>());
@@ -435,8 +435,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	filterValue = (value: string) => value;
 
-	set ariaLabel(ariaLabel: string) {
-		this._ariaLabel = ariaLabel || QuickPick.DEFAULT_ARIA_LABEL;
+	set ariaLabel(ariaLabel: string | undefined) {
+		this._ariaLabel = ariaLabel;
 		this.update();
 	}
 
@@ -884,8 +884,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (inputShownJustForScreenReader) {
 			this.ui.inputBox.ariaLabel = '';
-		} else if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
-			this.ui.inputBox.ariaLabel = this.ariaLabel;
+		} else {
+			const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+				this.ui.inputBox.ariaLabel = ariaLabel;
+			}
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
@@ -1384,9 +1387,6 @@ export class QuickInputController extends Disposable {
 			];
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
-			if (options.placeHolder) {
-				input.ariaLabel = options.placeHolder;
-			}
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;

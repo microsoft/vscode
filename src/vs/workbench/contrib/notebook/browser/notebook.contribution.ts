@@ -30,17 +30,22 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorOpenWith';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
-import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService, NotebookModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
+import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
+import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
+import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
 // Editor Contribution
 
@@ -51,13 +56,16 @@ import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
+// import 'vs/workbench/contrib/notebook/browser/contrib/scm/scm';
+
+// Diff Editor Contribution
+import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 
 // Output renderers registration
 
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -69,6 +77,17 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	),
 	[
 		new SyncDescriptor(NotebookEditorInput)
+	]
+);
+
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		NotebookTextDiffEditor,
+		NotebookTextDiffEditor.ID,
+		'Notebook Diff Editor'
+	),
+	[
+		new SyncDescriptor(NotebookDiffEditorInput)
 	]
 );
 
@@ -226,6 +245,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
+		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue('notebook.diff.enablePreview')) {
+			return this._handleDiffEditorInput(originalInput, options, group);
+		}
+
 		if (!originalInput.resource) {
 			return undefined;
 		}
@@ -299,6 +322,49 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		const notebookInput = NotebookEditorInput.create(this.instantiationService, notebookUri, originalInput.getName(), info.id);
 		const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions, override: false, index });
+		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
+	}
+
+	private _handleDiffEditorInput(diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+		const modifiedInput = diffEditorInput.modifiedInput;
+		const originalInput = diffEditorInput.originalInput;
+		const notebookUri = modifiedInput.resource;
+		const originalNotebookUri = originalInput.resource;
+
+		if (!notebookUri || !originalNotebookUri) {
+			return undefined;
+		}
+
+		const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
+
+		if (existingEditors.length) {
+			return undefined;
+		}
+
+		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
+		const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
+
+		if (userAssociatedEditors.length && !notebookEditor.length) {
+			// user pick a non-notebook editor for this resource
+			return undefined;
+		}
+
+		// user might pick a notebook editor
+
+		const associatedEditors = distinct([
+			...this.getUserAssociatedNotebookEditors(notebookUri),
+			...(this.getContributedEditors(notebookUri).filter(editor => editor.priority === NotebookEditorPriority.default))
+		], editor => editor.id);
+
+		if (!associatedEditors.length) {
+			// there is no notebook editor contribution which is enabled by default
+			return undefined;
+		}
+
+		const info = associatedEditors[0];
+
+		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), info.id);
+		const notebookOptions = new NotebookEditorOptions({ ...options, override: false });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
 }
@@ -377,6 +443,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContributio
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
+registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -386,13 +453,19 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('notebookConfigurationTitle', "Notebook"),
 	type: 'object',
 	properties: {
-		'notebook.displayOrder': {
-			markdownDescription: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
+		[DisplayOrderKey]: {
+			description: nls.localize('notebook.displayOrder.description', "Priority list for output mime types"),
 			type: ['array'],
 			items: {
 				type: 'string'
 			},
 			default: []
+		},
+		[CellToolbarLocKey]: {
+			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
+			type: 'string',
+			enum: ['left', 'right', 'hidden'],
+			default: 'right'
 		}
 	}
 });
