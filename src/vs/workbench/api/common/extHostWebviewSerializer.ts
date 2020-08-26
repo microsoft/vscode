@@ -11,7 +11,7 @@ import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
 
-export class ExtHostWebviewSerializer implements extHostProtocol.ExtHostWebviewSerializerShape {
+export class ExtHostWebviewSerializer implements extHostProtocol.ExtHostWebviewPanelsShape {
 
 	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
 

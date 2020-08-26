@@ -3,23 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { MainThreadCustomEditors } from 'vs/workbench/api/browser/mainThreadCustomEditors';
 import { MainThreadWebviews, reviveWebviewExtension, reviveWebviewOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { MainThreadWebviewSerializers } from 'vs/workbench/api/browser/mainThreadWebviewSerializer';
 import { MainThreadWebviewsViews } from 'vs/workbench/api/browser/mainThreadWebviewViews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 import { WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 /**
@@ -78,9 +80,10 @@ class WebviewViewTypeTransformer {
 @extHostNamedCustomer(extHostProtocol.MainContext.MainThreadWebviewService)
 export class MainThreadWebviewPanelsAndViews extends Disposable implements extHostProtocol.MainThreadWebviewPanelsAndViewsShape {
 
-	public readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
+	private readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
 
 	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
+	private readonly _proxyPanels: extHostProtocol.ExtHostWebviewPanelsShape;
 
 	private readonly _webviewInputs = new WebviewInputStore();
 
@@ -89,10 +92,11 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 
 	private readonly _mainThreadWebviews: MainThreadWebviews;
 
-	private readonly serializers: MainThreadWebviewSerializers;
+	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
 		context: extHostProtocol.IExtHostContext,
+		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
@@ -102,6 +106,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
+		this._proxyPanels = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
 		this._mainThreadWebviews = this._instantiationService.createInstance(MainThreadWebviews, context);
 		context.set(extHostProtocol.MainContext.MainThreadWebviews, this._mainThreadWebviews);
@@ -111,8 +116,6 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 
 		const customEditors = this._instantiationService.createInstance(MainThreadCustomEditors, this._mainThreadWebviews, this, context);
 		context.set(extHostProtocol.MainContext.MainThreadCustomEditors, customEditors);
-
-		this.serializers = this._instantiationService.createInstance(MainThreadWebviewSerializers, this._mainThreadWebviews, this, context);
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			const activeInput = this._editorService.activeEditor;
@@ -125,6 +128,24 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 
 		this._register(_editorService.onDidVisibleEditorsChange(() => {
 			this.updateWebviewViewStates(this._editorService.activeEditor);
+		}));
+
+		// This reviver's only job is to activate extensions.
+		// This should trigger the real reviver to be registered from the extension host side.
+		this._register(_webviewWorkbenchService.registerResolver({
+			canResolve: (webview: WebviewInput) => {
+				if (webview instanceof CustomEditorInput) {
+					extensionService.activateByEvent(`onCustomEditor:${webview.viewType}`);
+					return false;
+				}
+
+				const viewType = this.webviewPanelViewType.toExternal(webview.viewType);
+				if (typeof viewType === 'string') {
+					extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
+				}
+				return false;
+			},
+			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
 	}
 
@@ -205,12 +226,55 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 		}
 	}
 
-	public $registerSerializer(viewType: string): void {
-		this.serializers.$registerSerializer(viewType);
+	public $registerSerializer(viewType: string)
+		: void {
+		if (this._revivers.has(viewType)) {
+			throw new Error(`Reviver for ${viewType} already registered`);
+		}
+
+		this._revivers.set(viewType, this._webviewWorkbenchService.registerResolver({
+			canResolve: (webviewInput) => {
+				return webviewInput.viewType === this.webviewPanelViewType.fromExternal(viewType);
+			},
+			resolveWebview: async (webviewInput): Promise<void> => {
+				const viewType = this.webviewPanelViewType.toExternal(webviewInput.viewType);
+				if (!viewType) {
+					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
+					return;
+				}
+
+
+				const handle = webviewInput.id;
+
+				this.addWebviewInput(handle, webviewInput);
+
+				let state = undefined;
+				if (webviewInput.webview.state) {
+					try {
+						state = JSON.parse(webviewInput.webview.state);
+					} catch (e) {
+						console.error('Could not load webview state', e, webviewInput.webview.state);
+					}
+				}
+
+				try {
+					await this._proxyPanels.$deserializeWebviewPanel(handle, viewType, webviewInput.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
+				} catch (error) {
+					onUnexpectedError(error);
+					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
+				}
+			}
+		}));
 	}
 
 	public $unregisterSerializer(viewType: string): void {
-		this.serializers.$unregisterSerializer(viewType);
+		const reviver = this._revivers.get(viewType);
+		if (!reviver) {
+			throw new Error(`No reviver for ${viewType} registered`);
+		}
+
+		reviver.dispose();
+		this._revivers.delete(viewType);
 	}
 
 	private registerWebviewFromDiffEditorListeners(diffEditorInput: DiffEditorInput): void {
