@@ -409,7 +409,7 @@ export class ContextKeyEqualsExpr implements IContextKeyExpression {
 
 export class ContextKeyInExpr implements IContextKeyExpression {
 
-	public static create(key: string, valueKey: string): ContextKeyExpression {
+	public static create(key: string, valueKey: string): ContextKeyInExpr {
 		return new ContextKeyInExpr(key, valueKey);
 	}
 
@@ -478,7 +478,7 @@ export class ContextKeyInExpr implements IContextKeyExpression {
 
 export class ContextKeyNotInExpr implements IContextKeyExpression {
 
-	public static create(actual: ContextKeyInExpr): ContextKeyExpression {
+	public static create(actual: ContextKeyInExpr): ContextKeyNotInExpr {
 		return new ContextKeyNotInExpr(actual);
 	}
 
