@@ -609,10 +609,13 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 			return scoreA > scoreB ? -1 : 1;
 		}
 
-		// prefer more compact matches over longer in label
-		const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
-		if (comparedByMatchLength !== 0) {
-			return comparedByMatchLength;
+		// prefer more compact matches over longer in label (unless this is a prefix match where
+		// longer prefix matches are actually preferred)
+		if (scoreA < LABEL_PREFIX_SCORE_THRESHOLD && scoreB < LABEL_PREFIX_SCORE_THRESHOLD) {
+			const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
+			if (comparedByMatchLength !== 0) {
+				return comparedByMatchLength;
+			}
 		}
 
 		// prefer shorter labels over longer labels
