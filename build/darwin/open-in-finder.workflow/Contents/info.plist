@@ -1,0 +1,27 @@
+
+	<?xml version="1.0" encoding="UTF-8"?>
+	<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+	<plist version="1.0">
+	<dict>
+		<key>NSServices</key>
+		<array>
+			<dict>
+				<key>NSBackgroundColorName</key>
+				<string>background</string>
+				<key>NSIconName</key>
+				<string>NSActionTemplate</string>
+				<key>NSMenuItem</key>
+				<dict>
+					<key>default</key>
+					<string>Open in Visual Studio Code</string>
+				</dict>
+				<key>NSMessage</key>
+				<string>runWorkflowAsService</string>
+				<key>NSSendFileTypes</key>
+				<array>
+					<string>public.item</string>
+				</array>
+			</dict>
+		</array>
+	</dict>
+	</plist>
