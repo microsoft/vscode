@@ -13,7 +13,7 @@ import * as extHostTypes from './extHostTypes';
 
 export class ExtHostWebviewSerializer implements extHostProtocol.ExtHostWebviewSerializerShape {
 
-	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
+	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
 
 	private readonly _serializers = new Map<string, {
 		readonly serializer: vscode.WebviewPanelSerializer;
@@ -24,7 +24,7 @@ export class ExtHostWebviewSerializer implements extHostProtocol.ExtHostWebviewS
 		mainContext: extHostProtocol.IMainContext,
 		private readonly _webviewService: ExtHostWebviews,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
+		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewService);
 	}
 
 	public registerWebviewPanelSerializer(

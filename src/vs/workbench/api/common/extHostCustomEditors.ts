@@ -154,7 +154,7 @@ class EditorProviderStore {
 
 export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditorsShape {
 
-	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
+	private readonly _proxy: extHostProtocol.MainThreadCustomEditorsShape;
 
 	private readonly _editorProviders = new EditorProviderStore();
 
@@ -166,7 +166,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		private readonly _extensionStoragePaths: IExtensionStoragePaths | undefined,
 		private readonly _extHostWebview: ExtHostWebviews,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
+		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadCustomEditors);
 	}
 
 	public registerCustomEditorProvider(

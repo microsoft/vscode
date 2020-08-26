@@ -5,7 +5,8 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import type { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
+import type { MainThreadWebviewPanelsAndViews } from 'vs/workbench/api/browser/mainThreadWebviewPanelsAndViews';
+import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
@@ -22,6 +23,7 @@ export class MainThreadWebviewSerializers extends Disposable {
 
 	constructor(
 		private readonly mainThreadWebviews: MainThreadWebviews,
+		private readonly mainThreadWebviewsPanelsAndViews: MainThreadWebviewPanelsAndViews,
 		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
@@ -40,7 +42,7 @@ export class MainThreadWebviewSerializers extends Disposable {
 					return false;
 				}
 
-				const viewType = this.mainThreadWebviews.webviewPanelViewType.toExternal(webview.viewType);
+				const viewType = this.mainThreadWebviewsPanelsAndViews.webviewPanelViewType.toExternal(webview.viewType);
 				if (typeof viewType === 'string') {
 					extensionService.activateByEvent(`onWebviewPanel:${viewType}`);
 				}
@@ -50,17 +52,18 @@ export class MainThreadWebviewSerializers extends Disposable {
 		}));
 	}
 
-	public $registerSerializer(viewType: string): void {
+	public $registerSerializer(viewType: string)
+		: void {
 		if (this._revivers.has(viewType)) {
 			throw new Error(`Reviver for ${viewType} already registered`);
 		}
 
 		this._revivers.set(viewType, this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
-				return webviewInput.viewType === this.mainThreadWebviews.webviewPanelViewType.fromExternal(viewType);
+				return webviewInput.viewType === this.mainThreadWebviewsPanelsAndViews.webviewPanelViewType.fromExternal(viewType);
 			},
 			resolveWebview: async (webviewInput): Promise<void> => {
-				const viewType = this.mainThreadWebviews.webviewPanelViewType.toExternal(webviewInput.viewType);
+				const viewType = this.mainThreadWebviewsPanelsAndViews.webviewPanelViewType.toExternal(webviewInput.viewType);
 				if (!viewType) {
 					webviewInput.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(webviewInput.viewType);
 					return;
@@ -69,7 +72,7 @@ export class MainThreadWebviewSerializers extends Disposable {
 
 				const handle = webviewInput.id;
 
-				this.mainThreadWebviews.addWebviewInput(handle, webviewInput);
+				this.mainThreadWebviewsPanelsAndViews.addWebviewInput(handle, webviewInput);
 
 				let state = undefined;
 				if (webviewInput.webview.state) {

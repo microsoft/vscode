@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
+import { MainThreadWebviewPanelsAndViews } from 'vs/workbench/api/browser/mainThreadWebviewPanelsAndViews';
 import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -153,7 +153,7 @@ suite('ExtHostWebview', () => {
 
 
 function createNoopMainThreadWebviews() {
-	return new class extends mock<MainThreadWebviews>() {
+	return new class extends mock<MainThreadWebviewPanelsAndViews>() {
 		$createWebviewPanel() { /* noop */ }
 		$registerSerializer() { /* noop */ }
 		$unregisterSerializer() { /* noop */ }

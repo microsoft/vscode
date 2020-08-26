@@ -120,7 +120,7 @@ type IconPath = URI | { light: URI, dark: URI };
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
 	readonly #handle: extHostProtocol.WebviewPanelHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
 	readonly #viewType: string;
 
 	readonly #webview: ExtHostWebview;
@@ -141,7 +141,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
 	constructor(
 		handle: extHostProtocol.WebviewPanelHandle,
-		proxy: extHostProtocol.MainThreadWebviewsShape,
+		proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape,
 		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn | undefined,
@@ -246,11 +246,6 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 		}
 	}
 
-	public postMessage(message: any): Promise<boolean> {
-		this.assertNotDisposed();
-		return this.#proxy.$postMessage(this.#handle, message);
-	}
-
 	public reveal(viewColumn?: vscode.ViewColumn, preserveFocus?: boolean): void {
 		this.assertNotDisposed();
 		this.#proxy.$reveal(this.#handle, {
@@ -272,11 +267,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		return generateUuid();
 	}
 
-	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
+	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
+	private readonly _webviewProxy: extHostProtocol.MainThreadWebviewsShape;
 
 	private readonly _webviews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebview>();
 	private readonly _webviewPanels = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewPanel>();
-
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -285,7 +280,8 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		private readonly _logService: ILogService,
 		private readonly _deprecationService: IExtHostApiDeprecationService,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
+		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewService);
+		this._webviewProxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
 	}
 
 	public createWebviewPanel(
@@ -375,7 +371,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	}
 
 	public createNewWebview(handle: string, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, extension: IExtensionDescription): ExtHostWebview {
-		const webview = new ExtHostWebview(handle, this._proxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
+		const webview = new ExtHostWebview(handle, this._webviewProxy, reviveOptions(options), this.initData, this.workspace, extension, this._deprecationService);
 		this._webviews.set(handle, webview);
 
 		webview._onDidDispose(() => { this._webviews.delete(handle); });

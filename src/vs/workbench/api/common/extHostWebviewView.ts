@@ -15,7 +15,7 @@ import * as extHostTypes from './extHostTypes';
 class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 	readonly #handle: extHostProtocol.WebviewPanelHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
+	readonly #proxy: extHostProtocol.MainThreadWebviewViewsShape;
 
 	readonly #viewType: string;
 	readonly #webview: ExtHostWebview;
@@ -26,7 +26,7 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 	constructor(
 		handle: extHostProtocol.WebviewPanelHandle,
-		proxy: extHostProtocol.MainThreadWebviewsShape,
+		proxy: extHostProtocol.MainThreadWebviewViewsShape,
 		viewType: string,
 		webview: ExtHostWebview,
 		isVisible: boolean,
@@ -94,7 +94,7 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsShape {
 
-	private readonly _proxy: extHostProtocol.MainThreadWebviewsShape;
+	private readonly _proxy: extHostProtocol.MainThreadWebviewViewsShape;
 
 	private readonly _viewProviders = new Map<string, {
 		readonly provider: vscode.WebviewViewProvider;
@@ -107,7 +107,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		mainContext: extHostProtocol.IMainContext,
 		private readonly _extHostWebview: ExtHostWebviews,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
+		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewViews);
 	}
 
 	public registerWebviewViewProvider(
