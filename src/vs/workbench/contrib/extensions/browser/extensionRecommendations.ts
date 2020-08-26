@@ -80,11 +80,9 @@ export abstract class ExtensionRecommendations extends Disposable {
 				run: async () => {
 					for (const extensionId of extensionIds) {
 						this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'show', extensionId });
+						this.runAction(this.instantiationService.createInstance(OpenExtensionEditorAction, extensionId));
 					}
 					this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
-					if (extensionIds.length === 1) {
-						this.runAction(this.instantiationService.createInstance(OpenExtensionEditorAction, extensionIds[0]));
-					}
 				}
 			}, {
 				label: choiceNever,
