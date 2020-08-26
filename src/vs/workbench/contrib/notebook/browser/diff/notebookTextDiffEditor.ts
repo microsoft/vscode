@@ -163,7 +163,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					cellDiffViewModels.push(new CellDiffViewModel(
 						originalCell,
-						undefined,
+						modifiedCell,
 						'unchanged',
 						this._eventDispatcher!
 					));
