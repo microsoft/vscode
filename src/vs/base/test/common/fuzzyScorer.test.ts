@@ -1025,6 +1025,21 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[1], resourceB);
 	});
 
+	test('compareFilesByScore - boost better prefix match if multiple queries are used', function () {
+		const resourceA = URI.file('src/vs/workbench/services/host/browser/browserHostService.ts');
+		const resourceB = URI.file('src/vs/workbench/browser/workbench.ts');
+
+		for (const query of ['workbench.ts browser', 'browser workbench.ts']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceB);
+			assert.equal(res[1], resourceA);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceB);
+			assert.equal(res[1], resourceA);
+		}
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
