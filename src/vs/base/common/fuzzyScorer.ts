@@ -463,17 +463,20 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 	if (preferLabelMatches || !description) {
 		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelScore) {
-
 			// If we have a prefix match on the label, we give a much
 			// higher baseScore to elevate these matches over others
+			// This ensures that typing a file name wins over results
+			// that are present somewhere in the label, but not the
+			// beginning.
+			const labelPrefixMatch = matchesPrefix(query.normalized, label);
 			let baseScore: number;
-			if (matchesPrefix(query.normalized, label)) {
+			if (labelPrefixMatch) {
 				baseScore = LABEL_PREFIX_SCORE_THRESHOLD;
 			} else {
 				baseScore = LABEL_SCORE_THRESHOLD;
 			}
 
-			return { score: baseScore + labelScore, labelMatch: createMatches(labelPositions) };
+			return { score: baseScore + labelScore, labelMatch: labelPrefixMatch || createMatches(labelPositions) };
 		}
 	}
 
