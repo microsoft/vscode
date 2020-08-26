@@ -27,18 +27,18 @@ cp $ROOT/darwin/Distribution.xml "$BUILD/"
 
 # Create packages
 cd $BUILD
-# pkgbuild --identifier com.test.path.pkg  --nopayload --scripts "path" "path.pkg"
+pkgbuild --identifier com.test.path.pkg  --nopayload --scripts "path" "path.pkg"
 pkgbuild --root workflow --identifier com.test.workflow.pkg --install-location ~/library/services "workflow.pkg"
-pkgbuild --root vscode --identifier com.test.vscode.pkg "vscode.pkg" --scripts "path"
+pkgbuild --root vscode --identifier com.test.vscode.pkg "app.pkg"
 
 # # Create final distribution package
-productbuild --distribution "distribution.xml" "full.pkg"
+productbuild --distribution "distribution.xml" "vscode.pkg"
 
 # cleanup items that are not necessary anymore
 rm -r vscode
 rm -r path
 rm -r workflow
-rm vscode.pkg
+rm app.pkg
 rm workflow.pkg
-# rm path.pkg
+rm path.pkg
 rm distribution.xml

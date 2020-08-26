@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1">
-	<!-- <pkg-ref id="com.test.path.pkg">
+	<pkg-ref id="com.test.path.pkg">
 		<bundle-version/>
-	</pkg-ref> -->
+	</pkg-ref>
 	<pkg-ref id="com.test.workflow.pkg">
 		<bundle-version/>
 	</pkg-ref>
@@ -21,16 +21,16 @@
 	<options customize="always" require-scripts="false"/>
 	<choices-outline>
 		<line choice="default">
-			<!-- <line choice="com.test.path.pkg"/> -->
+			<line choice="com.test.path.pkg"/>
 			<line choice="com.test.vscode.pkg"/>
 			<line choice="com.test.workflow.pkg"/>
 		</line>
 	</choices-outline>
 	<choice id="default" title="Visual Studio Code"/>
-	<!-- <choice id="com.test.path.pkg" visible="true" title="Add to PATH" description="Add code to PATH">
+	<choice id="com.test.path.pkg" visible="true" title="Add to PATH" description="Add code to PATH">
 		<pkg-ref id="com.test.path.pkg"/>
 	</choice>
-	<pkg-ref id="com.test.path.pkg" version="0" onConclusion="none" installKBytes="0">#path.pkg</pkg-ref> -->
+	<pkg-ref id="com.test.path.pkg" version="0" onConclusion="none" installKBytes="0">#path.pkg</pkg-ref>
 	<choice id="com.test.workflow.pkg" visible="true" title="Add to right-click menu" description="Add 'Open in Visual Studio Code' to right-click menu">
 		<pkg-ref id="com.test.workflow.pkg"/>
 	</choice>
@@ -38,5 +38,5 @@
 	<choice id="com.test.vscode.pkg" visible="false">
 		<pkg-ref id="com.test.vscode.pkg"/>
 	</choice>
-	<pkg-ref id="com.test.vscode.pkg" version="0" onConclusion="none" installKBytes="247964">#vscode.pkg</pkg-ref>
+	<pkg-ref id="com.test.vscode.pkg" version="0" onConclusion="none" installKBytes="247964">#app.pkg</pkg-ref>
 </installer-gui-script>
