@@ -70,7 +70,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/com
 
 //#region Workspace
 
-export const workspaceResource = URI.file(isWindows ? 'C:\\simpleWorkspace' : '/simpleWorkspace');
+export const workspaceResource = URI.file(isWindows ? '\\simpleWorkspace' : '/simpleWorkspace');
 
 export class SimpleWorkspaceService implements IWorkspaceContextService {
 
