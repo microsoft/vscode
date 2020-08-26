@@ -6,11 +6,8 @@
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { MainThreadCustomEditors } from 'vs/workbench/api/browser/mainThreadCustomEditors';
 import { MainThreadWebviews, reviveWebviewExtension, reviveWebviewOptions } from 'vs/workbench/api/browser/mainThreadWebviews';
-import { MainThreadWebviewsViews } from 'vs/workbench/api/browser/mainThreadWebviewViews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn, EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -22,7 +19,6 @@ import { ICreateWebViewShowOptions, IWebviewWorkbenchService, WebviewInputOption
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { extHostNamedCustomer } from '../common/extHostCustomers';
 
 /**
  * Bi-directional map between webview handles and inputs.
@@ -77,8 +73,7 @@ class WebviewViewTypeTransformer {
 	}
 }
 
-@extHostNamedCustomer(extHostProtocol.MainContext.MainThreadWebviewService)
-export class MainThreadWebviewPanelsAndViews extends Disposable implements extHostProtocol.MainThreadWebviewPanelsAndViewsShape {
+export class MainThreadWebviewPanels extends Disposable implements extHostProtocol.MainThreadWebviewPanelsShape {
 
 	private readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
 
@@ -89,31 +84,20 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 	private readonly _editorProviders = new Map<string, IDisposable>();
 	private readonly _webviewFromDiffEditorHandles = new Set<string>();
 
-	private readonly _mainThreadWebviews: MainThreadWebviews;
-
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
+		private readonly _mainThreadWebviews: MainThreadWebviews,
 		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
-
-		this._mainThreadWebviews = this._instantiationService.createInstance(MainThreadWebviews, context);
-		context.set(extHostProtocol.MainContext.MainThreadWebviews, this._mainThreadWebviews);
-
-		const webviewViews = this._instantiationService.createInstance(MainThreadWebviewsViews, this._mainThreadWebviews, context);
-		context.set(extHostProtocol.MainContext.MainThreadWebviewViews, webviewViews);
-
-		const customEditors = this._instantiationService.createInstance(MainThreadCustomEditors, this._mainThreadWebviews, this, context);
-		context.set(extHostProtocol.MainContext.MainThreadCustomEditors, customEditors);
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			const activeInput = this._editorService.activeEditor;

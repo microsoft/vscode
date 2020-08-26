@@ -19,7 +19,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import type { MainThreadWebviewPanelsAndViews } from 'vs/workbench/api/browser/mainThreadWebviewPanelsAndViews';
+import { MainThreadWebviewPanels } from 'vs/workbench/api/browser/mainThreadWebviewPanels';
 import { MainThreadWebviews, reviveWebviewExtension } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { editorGroupToViewColumn } from 'vs/workbench/api/common/shared/editor';
@@ -49,7 +49,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	constructor(
 		private readonly mainThreadWebview: MainThreadWebviews,
-		private readonly mainThreadWebviewPanelsAndViews: MainThreadWebviewPanelsAndViews,
+		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
 		context: extHostProtocol.IExtHostContext,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
@@ -121,7 +121,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				const handle = webviewInput.id;
 				const resource = webviewInput.resource;
 
-				this.mainThreadWebviewPanelsAndViews.addWebviewInput(handle, webviewInput);
+				this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput);
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
@@ -210,7 +210,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			case CustomEditorModelType.Custom:
 				{
 					const model = MainThreadCustomEditorModel.create(this._instantiationService, this._proxyCustomEditors, viewType, resource, options, () => {
-						return Array.from(this.mainThreadWebviewPanelsAndViews.webviewInputs)
+						return Array.from(this.mainThreadWebviewPanels.webviewInputs)
 							.filter(editor => editor instanceof CustomEditorInput && isEqual(editor.resource, resource)) as CustomEditorInput[];
 					}, cancellation, this._backupService);
 					return this._customEditorService.models.add(resource, viewType, model);

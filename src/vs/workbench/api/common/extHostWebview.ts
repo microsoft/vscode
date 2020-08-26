@@ -122,7 +122,7 @@ type IconPath = URI | { light: URI, dark: URI };
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
 	readonly #handle: extHostProtocol.WebviewHandle;
-	readonly #proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
+	readonly #proxy: extHostProtocol.MainThreadWebviewPanelsShape;
 	readonly #viewType: string;
 
 	readonly #webview: ExtHostWebview;
@@ -143,7 +143,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
 	constructor(
 		handle: extHostProtocol.WebviewHandle,
-		proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape,
+		proxy: extHostProtocol.MainThreadWebviewPanelsShape,
 		viewType: string,
 		title: string,
 		viewColumn: vscode.ViewColumn | undefined,
@@ -269,7 +269,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 		return generateUuid();
 	}
 
-	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
+	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsShape;
 	private readonly _webviewProxy: extHostProtocol.MainThreadWebviewsShape;
 
 	private readonly _webviews = new Map<extHostProtocol.WebviewHandle, ExtHostWebview>();
@@ -287,7 +287,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 		private readonly _logService: ILogService,
 		private readonly _deprecationService: IExtHostApiDeprecationService,
 	) {
-		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewService);
+		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviewPanels);
 		this._webviewProxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
 	}
 

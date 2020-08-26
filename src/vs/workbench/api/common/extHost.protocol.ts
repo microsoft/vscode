@@ -614,7 +614,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$postMessage(handle: WebviewHandle, value: any): Promise<boolean>
 }
 
-export interface MainThreadWebviewPanelsAndViewsShape extends IDisposable {
+export interface MainThreadWebviewPanelsShape extends IDisposable {
 	$createWebviewPanel(extension: WebviewExtensionDescription, handle: WebviewHandle, viewType: string, title: string, showOptions: WebviewPanelShowOptions, options: modes.IWebviewPanelOptions & modes.IWebviewOptions): void;
 	$disposeWebview(handle: WebviewHandle): void;
 	$reveal(handle: WebviewHandle, showOptions: WebviewPanelShowOptions): void;
@@ -1720,8 +1720,8 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
-	MainThreadWebviewService: createMainId<MainThreadWebviewPanelsAndViewsShape>('MainThreadWebviewService'),
 	MainThreadWebviews: createMainId<MainThreadWebviewsShape>('MainThreadWebviews'),
+	MainThreadWebviewPanels: createMainId<MainThreadWebviewPanelsShape>('MainThreadWebviewPanels'),
 	MainThreadWebviewViews: createMainId<MainThreadWebviewViewsShape>('MainThreadWebviewViews'),
 	MainThreadCustomEditors: createMainId<MainThreadCustomEditorsShape>('MainThreadCustomEditors'),
 	MainThreadUrls: createMainId<MainThreadUrlsShape>('MainThreadUrls'),
