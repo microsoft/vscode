@@ -513,9 +513,10 @@ export namespace WorkspaceEdit {
 		if (value instanceof types.WorkspaceEdit) {
 			for (let entry of value.allEntries()) {
 
-				if (entry._type === 1) {
+				if (entry._type === types.FileEditType.File) {
 					// file operation
 					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.File,
 						oldUri: entry.from,
 						newUri: entry.to,
 						options: entry.options,
@@ -526,6 +527,7 @@ export namespace WorkspaceEdit {
 					// text edits
 					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: doc?.version,
