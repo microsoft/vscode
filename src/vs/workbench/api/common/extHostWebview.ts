@@ -21,7 +21,7 @@ import * as extHostTypes from './extHostTypes';
 
 export class ExtHostWebview implements vscode.Webview {
 
-	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #handle: extHostProtocol.WebviewHandle;
 	readonly #proxy: extHostProtocol.MainThreadWebviewsShape;
 	readonly #deprecationService: IExtHostApiDeprecationService;
 
@@ -35,7 +35,7 @@ export class ExtHostWebview implements vscode.Webview {
 	#hasCalledAsWebviewUri = false;
 
 	constructor(
-		handle: extHostProtocol.WebviewPanelHandle,
+		handle: extHostProtocol.WebviewHandle,
 		proxy: extHostProtocol.MainThreadWebviewsShape,
 		options: vscode.WebviewOptions,
 		initData: WebviewInitData,
@@ -121,7 +121,7 @@ type IconPath = URI | { light: URI, dark: URI };
 
 class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
-	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #handle: extHostProtocol.WebviewHandle;
 	readonly #proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
 	readonly #viewType: string;
 
@@ -142,7 +142,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	public readonly onDidChangeViewState = this.#onDidChangeViewState.event;
 
 	constructor(
-		handle: extHostProtocol.WebviewPanelHandle,
+		handle: extHostProtocol.WebviewHandle,
 		proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape,
 		viewType: string,
 		title: string,
@@ -265,15 +265,15 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 
 export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, extHostProtocol.ExtHostWebviewPanelsShape {
 
-	private static newHandle(): extHostProtocol.WebviewPanelHandle {
+	private static newHandle(): extHostProtocol.WebviewHandle {
 		return generateUuid();
 	}
 
 	private readonly _proxy: extHostProtocol.MainThreadWebviewPanelsAndViewsShape;
 	private readonly _webviewProxy: extHostProtocol.MainThreadWebviewsShape;
 
-	private readonly _webviews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebview>();
-	private readonly _webviewPanels = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewPanel>();
+	private readonly _webviews = new Map<extHostProtocol.WebviewHandle, ExtHostWebview>();
+	private readonly _webviewPanels = new Map<extHostProtocol.WebviewHandle, ExtHostWebviewPanel>();
 
 	private readonly _serializers = new Map<string, {
 		readonly serializer: vscode.WebviewPanelSerializer;
@@ -314,7 +314,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 	}
 
 	public $onMessage(
-		handle: extHostProtocol.WebviewPanelHandle,
+		handle: extHostProtocol.WebviewHandle,
 		message: any
 	): void {
 		const webview = this.getWebview(handle);
@@ -324,7 +324,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 	}
 
 	public $onMissingCsp(
-		_handle: extHostProtocol.WebviewPanelHandle,
+		_handle: extHostProtocol.WebviewHandle,
 		extensionId: string
 	): void {
 		this._logService.warn(`${extensionId} created a webview without a content security policy: https://aka.ms/vscode-webview-missing-csp`);
@@ -363,7 +363,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 		}
 	}
 
-	async $onDidDisposeWebviewPanel(handle: extHostProtocol.WebviewPanelHandle): Promise<void> {
+	async $onDidDisposeWebviewPanel(handle: extHostProtocol.WebviewHandle): Promise<void> {
 		const panel = this.getWebviewPanel(handle);
 		panel?.dispose();
 
@@ -391,7 +391,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 	}
 
 	async $deserializeWebviewPanel(
-		webviewHandle: extHostProtocol.WebviewPanelHandle,
+		webviewHandle: extHostProtocol.WebviewHandle,
 		viewType: string,
 		title: string,
 		state: any,
@@ -424,11 +424,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, ex
 		return webview;
 	}
 
-	private getWebview(handle: extHostProtocol.WebviewPanelHandle): ExtHostWebview | undefined {
+	private getWebview(handle: extHostProtocol.WebviewHandle): ExtHostWebview | undefined {
 		return this._webviews.get(handle);
 	}
 
-	public getWebviewPanel(handle: extHostProtocol.WebviewPanelHandle): ExtHostWebviewPanel | undefined {
+	public getWebviewPanel(handle: extHostProtocol.WebviewHandle): ExtHostWebviewPanel | undefined {
 		return this._webviewPanels.get(handle);
 	}
 }

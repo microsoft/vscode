@@ -41,28 +41,28 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
 	}
 
-	public addWebview(handle: extHostProtocol.WebviewPanelHandle, webview: WebviewOverlay): void {
+	public addWebview(handle: extHostProtocol.WebviewHandle, webview: WebviewOverlay): void {
 		this._webviews.set(handle, webview);
 		this.hookupWebviewEventDelegate(handle, webview);
 	}
 
-	public $setHtml(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
+	public $setHtml(handle: extHostProtocol.WebviewHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
 	}
 
-	public $setOptions(handle: extHostProtocol.WebviewPanelHandle, options: IWebviewOptions): void {
+	public $setOptions(handle: extHostProtocol.WebviewHandle, options: IWebviewOptions): void {
 		const webview = this.getWebview(handle);
 		webview.contentOptions = reviveWebviewOptions(options);
 	}
 
-	public async $postMessage(handle: extHostProtocol.WebviewPanelHandle, message: any): Promise<boolean> {
+	public async $postMessage(handle: extHostProtocol.WebviewHandle, message: any): Promise<boolean> {
 		const webview = this.getWebview(handle);
 		webview.postMessage(message);
 		return true;
 	}
 
-	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, webview: WebviewOverlay) {
+	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewHandle, webview: WebviewOverlay) {
 		const disposables = new DisposableStore();
 
 		disposables.add(webview.onDidClickLink((uri) => this.onDidClickLink(handle, uri)));
@@ -75,7 +75,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		}));
 	}
 
-	private onDidClickLink(handle: extHostProtocol.WebviewPanelHandle, link: string): void {
+	private onDidClickLink(handle: extHostProtocol.WebviewHandle, link: string): void {
 		const webview = this.getWebview(handle);
 		if (this.isSupportedLink(webview, URI.parse(link))) {
 			this._openerService.open(link, { fromUserGesture: true });
@@ -92,7 +92,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return !!webview.contentOptions.enableCommandUris && link.scheme === Schemas.command;
 	}
 
-	private getWebview(handle: extHostProtocol.WebviewPanelHandle): Webview {
+	private getWebview(handle: extHostProtocol.WebviewHandle): Webview {
 		const webview = this._webviews.get(handle);
 		if (!webview) {
 			throw new Error(`Unknown webview handle:${handle}`);

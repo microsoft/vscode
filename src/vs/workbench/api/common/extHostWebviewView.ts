@@ -14,7 +14,7 @@ import * as extHostTypes from './extHostTypes';
 
 class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
-	readonly #handle: extHostProtocol.WebviewPanelHandle;
+	readonly #handle: extHostProtocol.WebviewHandle;
 	readonly #proxy: extHostProtocol.MainThreadWebviewViewsShape;
 
 	readonly #viewType: string;
@@ -25,7 +25,7 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 	#title: string | undefined;
 
 	constructor(
-		handle: extHostProtocol.WebviewPanelHandle,
+		handle: extHostProtocol.WebviewHandle,
 		proxy: extHostProtocol.MainThreadWebviewViewsShape,
 		viewType: string,
 		webview: ExtHostWebview,
@@ -101,7 +101,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		readonly extension: IExtensionDescription;
 	}>();
 
-	private readonly _webviewViews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewView>();
+	private readonly _webviewViews = new Map<extHostProtocol.WebviewHandle, ExtHostWebviewView>();
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,

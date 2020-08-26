@@ -28,7 +28,7 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		this._proxyViews = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
-	public $setWebviewViewTitle(handle: extHostProtocol.WebviewPanelHandle, value: string | undefined): void {
+	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
 		const webviewView = this._webviewViews.get(handle);
 		if (!webviewView) {
 			throw new Error('unknown webview view');

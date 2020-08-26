@@ -158,7 +158,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 
 	public get webviewInputs(): Iterable<WebviewInput> { return this._webviewInputs; }
 
-	public addWebviewInput(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput): void {
+	public addWebviewInput(handle: extHostProtocol.WebviewHandle, input: WebviewInput): void {
 		this._webviewInputs.add(handle, input);
 		this._mainThreadWebviews.addWebview(handle, input.webview);
 
@@ -171,7 +171,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 
 	public $createWebviewPanel(
 		extensionData: extHostProtocol.WebviewExtensionDescription,
-		handle: extHostProtocol.WebviewPanelHandle,
+		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
 		title: string,
 		showOptions: { viewColumn?: EditorViewColumn, preserveFocus?: boolean; },
@@ -196,23 +196,23 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extension.id.value });
 	}
 
-	public $disposeWebview(handle: extHostProtocol.WebviewPanelHandle): void {
+	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {
 		const webview = this.getWebviewInput(handle);
 		webview.dispose();
 	}
 
-	public $setTitle(handle: extHostProtocol.WebviewPanelHandle, value: string): void {
+	public $setTitle(handle: extHostProtocol.WebviewHandle, value: string): void {
 		const webview = this.getWebviewInput(handle);
 		webview.setName(value);
 	}
 
 
-	public $setIconPath(handle: extHostProtocol.WebviewPanelHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
+	public $setIconPath(handle: extHostProtocol.WebviewHandle, value: { light: UriComponents, dark: UriComponents; } | undefined): void {
 		const webview = this.getWebviewInput(handle);
 		webview.iconPath = reviveWebviewIcon(value);
 	}
 
-	public $reveal(handle: extHostProtocol.WebviewPanelHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
+	public $reveal(handle: extHostProtocol.WebviewHandle, showOptions: extHostProtocol.WebviewPanelShowOptions): void {
 		const webview = this.getWebviewInput(handle);
 		if (webview.isDisposed()) {
 			return;
@@ -336,7 +336,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 		}
 	}
 
-	private getWebviewInput(handle: extHostProtocol.WebviewPanelHandle): WebviewInput {
+	private getWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput {
 		const webview = this.tryGetWebviewInput(handle);
 		if (!webview) {
 			throw new Error(`Unknown webview handle:${handle}`);
@@ -344,7 +344,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 		return webview;
 	}
 
-	private tryGetWebviewInput(handle: extHostProtocol.WebviewPanelHandle): WebviewInput | undefined {
+	private tryGetWebviewInput(handle: extHostProtocol.WebviewHandle): WebviewInput | undefined {
 		return this._webviewInputs.getInputForHandle(handle);
 	}
 }

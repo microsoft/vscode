@@ -247,7 +247,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 
 	async $resolveWebviewEditor(
 		resource: UriComponents,
-		handle: extHostProtocol.WebviewPanelHandle,
+		handle: extHostProtocol.WebviewHandle,
 		viewType: string,
 		title: string,
 		position: EditorViewColumn,
