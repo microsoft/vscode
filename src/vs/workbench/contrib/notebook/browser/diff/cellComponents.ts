@@ -626,7 +626,8 @@ export class InsertCell extends AbstractCellRenderer {
 				width: (this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN) / 2 - 18,
 				height: editorHeight
 			},
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+			readOnly: false
 		}, {});
 
 		this._layoutInfo.editorHeight = editorHeight;
