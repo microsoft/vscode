@@ -1138,12 +1138,6 @@ export interface ITextModel {
 	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
 
 	/**
-	 * Returns the text that has just been overtyped
-	 * @internal
-	 */
-	getOvertypedText(overtypeIdx: number, undoSearchLimit: number, editSizeLimit: number): string | undefined;
-
-	/**
 	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
