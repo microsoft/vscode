@@ -205,7 +205,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents.add(activationEvent);
 
-			if (activationKind === ActivationKind.Eager) {
+			if (activationKind === ActivationKind.Immediate) {
 				// Do not wait for the normal start-up of the extension host(s)
 				return this._activateByEvent(activationEvent, activationKind);
 			}

@@ -220,7 +220,7 @@ export class ExtensionHostManager extends Disposable {
 	}
 
 	public activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
-		if (activationKind === ActivationKind.Eager && !this._hasStarted) {
+		if (activationKind === ActivationKind.Immediate && !this._hasStarted) {
 			return Promise.resolve();
 		}
 

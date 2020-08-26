@@ -142,7 +142,7 @@ export interface IResponsiveStateChangeEvent {
 
 export const enum ActivationKind {
 	Normal = 0,
-	Eager = 1
+	Immediate = 1
 }
 
 export interface IExtensionService {
@@ -187,7 +187,7 @@ export interface IExtensionService {
 	 *
 	 * In extraordinary circumstances, if the activation event needs to activate
 	 * one or more extensions before the normal startup is finished, then you can use
-	 * `ActivationKind.Eager`. Please do not use this flag unless really necessary
+	 * `ActivationKind.Immediate`. Please do not use this flag unless really necessary
 	 * and you understand all consequences.
 	 */
 	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
