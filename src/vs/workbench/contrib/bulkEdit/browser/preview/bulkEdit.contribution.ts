@@ -7,8 +7,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceEdit } from 'vs/editor/common/modes';
+import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
@@ -105,18 +104,18 @@ class BulkEditPreviewContribution {
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		bulkEditService.setPreviewHandler((edit) => this._previewEdit(edit));
+		bulkEditService.setPreviewHandler(edits => this._previewEdit(edits));
 		this._ctxEnabled = BulkEditPreviewContribution.ctxEnabled.bindTo(contextKeyService);
 	}
 
-	private async _previewEdit(edit: WorkspaceEdit) {
+	private async _previewEdit(edits: ResourceEdit[]): Promise<ResourceEdit[]> {
 		this._ctxEnabled.set(true);
 
 		const uxState = this._activeSession?.uxState ?? new UXState(this._panelService, this._editorGroupsService);
 		const view = await getBulkEditPane(this._viewsService);
 		if (!view) {
 			this._ctxEnabled.set(false);
-			return edit;
+			return edits;
 		}
 
 		// check for active preview session and let the user decide
@@ -130,7 +129,7 @@ class BulkEditPreviewContribution {
 
 			if (choice.choice === 0) {
 				// this refactoring is being cancelled
-				return { edits: [] };
+				return [];
 			}
 		}
 
@@ -147,12 +146,7 @@ class BulkEditPreviewContribution {
 		// the actual work...
 		try {
 
-			const newEditOrUndefined = await view.setInput(edit, session.cts.token);
-			if (!newEditOrUndefined) {
-				return { edits: [] };
-			}
-
-			return newEditOrUndefined;
+			return await view.setInput(edits, session.cts.token);
 
 		} finally {
 			// restore UX state

@@ -6,8 +6,7 @@
 import { localize } from 'vs/nls';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceFileEdit, WorkspaceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
+import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler, ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
@@ -16,14 +15,11 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
 import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
-import { ResourceMap } from 'vs/base/common/map';
-
-type Edit = WorkspaceFileEdit | WorkspaceTextEdit;
 
 class BulkEdit {
 
 	private readonly _label: string | undefined;
-	private readonly _edits: Edit[] = [];
+	private readonly _edits: ResourceEdit[] = [];
 	private readonly _editor: ICodeEditor | undefined;
 	private readonly _progress: IProgress<IProgressStep>;
 
@@ -31,7 +27,7 @@ class BulkEdit {
 		label: string | undefined,
 		editor: ICodeEditor | undefined,
 		progress: IProgress<IProgressStep> | undefined,
-		edits: Edit[],
+		edits: ResourceEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -55,52 +51,44 @@ class BulkEdit {
 
 	async perform(): Promise<void> {
 
-		let seen = new ResourceMap<true>();
-		let total = 0;
+		if (this._edits.length === 0) {
+			return;
+		}
 
-		const groups: Edit[][] = [];
-		let group: Edit[] | undefined;
-		for (const edit of this._edits) {
-			if (!group
-				|| (WorkspaceFileEdit.is(group[0]) && !WorkspaceFileEdit.is(edit))
-				|| (WorkspaceTextEdit.is(group[0]) && !WorkspaceTextEdit.is(edit))
-			) {
-				group = [];
-				groups.push(group);
-			}
-			group.push(edit);
-
-			if (WorkspaceFileEdit.is(edit)) {
-				total += 1;
-			} else if (!seen.has(edit.resource)) {
-				seen.set(edit.resource, true);
-				total += 2;
+		const ranges: number[] = [1];
+		for (let i = 1; i < this._edits.length; i++) {
+			if (Object.getPrototypeOf(this._edits[i - 1]) === Object.getPrototypeOf(this._edits[i])) {
+				ranges[ranges.length - 1]++;
+			} else {
+				ranges.push(1);
 			}
 		}
 
-		// define total work and progress callback
-		// for child operations
-		this._progress.report({ total });
-
+		this._progress.report({ total: this._edits.length });
 		const progress: IProgress<void> = { report: _ => this._progress.report({ increment: 1 }) };
 
-		// do it.
-		for (const group of groups) {
-			if (WorkspaceFileEdit.is(group[0])) {
-				await this._performFileEdits(<WorkspaceFileEdit[]>group, progress);
+
+		let index = 0;
+		for (let range of ranges) {
+			const group = this._edits.slice(index, index + range);
+			if (group[0] instanceof ResourceFileEdit) {
+				await this._performFileEdits(<ResourceFileEdit[]>group, progress);
+			} else if (group[0] instanceof ResourceTextEdit) {
+				await this._performTextEdits(<ResourceTextEdit[]>group, progress);
 			} else {
-				await this._performTextEdits(<WorkspaceTextEdit[]>group, progress);
+				console.log('UNKNOWN EDIT');
 			}
+			index = index + range;
 		}
 	}
 
-	private async _performFileEdits(edits: WorkspaceFileEdit[], progress: IProgress<void>) {
+	private async _performFileEdits(edits: ResourceFileEdit[], progress: IProgress<void>) {
 		this._logService.debug('_performFileEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), progress, edits);
 		await model.apply();
 	}
 
-	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
+	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, progress, edits);
 		await model.apply();
@@ -132,17 +120,17 @@ export class BulkEditService implements IBulkEditService {
 		return Boolean(this._previewHandler);
 	}
 
-	async apply(edit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async apply(edits: ResourceEdit[], options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
-		if (edit.edits.length === 0) {
+		if (edits.length === 0) {
 			return { ariaSummary: localize('nothing', "Made no edits") };
 		}
 
-		if (this._previewHandler && (options?.showPreview || edit.edits.some(value => value.metadata?.needsConfirmation))) {
-			edit = await this._previewHandler(edit, options);
+		if (this._previewHandler && (options?.showPreview || edits.some(value => value.metadata?.needsConfirmation))) {
+			edits = await this._previewHandler(edits, options);
 		}
 
-		const { edits } = edit;
+		// const { edits } = edit;
 		let codeEditor = options?.editor;
 		// try to find code editor
 		if (!codeEditor) {

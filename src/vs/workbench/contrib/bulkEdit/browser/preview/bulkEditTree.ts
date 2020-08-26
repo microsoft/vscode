@@ -22,11 +22,11 @@ import type { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWid
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { basename } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { WorkspaceFileEdit } from 'vs/editor/common/modes';
 import { compare } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { Iterable } from 'vs/base/common/iterator';
+import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 
 // --- VIEW MODEL
 
@@ -62,7 +62,7 @@ export class FileElement implements ICheckable {
 
 		// multiple file edits -> reflect single state
 		for (let edit of this.edit.originalEdits.values()) {
-			if (WorkspaceFileEdit.is(edit)) {
+			if (edit instanceof ResourceFileEdit) {
 				checked = checked && model.checked.isChecked(edit);
 			}
 		}
@@ -73,7 +73,7 @@ export class FileElement implements ICheckable {
 				for (let file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
 						for (const edit of file.originalEdits.values()) {
-							if (WorkspaceFileEdit.is(edit)) {
+							if (edit instanceof ResourceFileEdit) {
 								checked = checked && model.checked.isChecked(edit);
 							}
 						}
@@ -113,7 +113,7 @@ export class FileElement implements ICheckable {
 				for (let file of category.fileOperations) {
 					if (file.uri.toString() === this.edit.uri.toString()) {
 						for (const edit of file.originalEdits.values()) {
-							if (WorkspaceFileEdit.is(edit)) {
+							if (edit instanceof ResourceFileEdit) {
 								checked = checked && model.checked.isChecked(edit);
 							}
 						}
@@ -155,7 +155,7 @@ export class TextEditElement implements ICheckable {
 		// make sure parent is checked when this element is checked...
 		if (value) {
 			for (const edit of this.parent.edit.originalEdits.values()) {
-				if (WorkspaceFileEdit.is(edit)) {
+				if (edit instanceof ResourceFileEdit) {
 					(<BulkFileOperations>model).checked.updateChecked(edit, value);
 				}
 			}
@@ -219,7 +219,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 			}
 
 			const result = element.edit.textEdits.map((edit, idx) => {
-				const range = Range.lift(edit.textEdit.edit.range);
+				const range = Range.lift(edit.textEdit.textEdit.range);
 
 				//prefix-math
 				let startTokens = textModel.getLineTokens(range.startLineNumber);
@@ -241,7 +241,7 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
 					textModel.getValueInRange(range),
-					edit.textEdit.edit.text,
+					edit.textEdit.textEdit.text,
 					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
 				);
 			});
@@ -263,7 +263,7 @@ export class BulkEditSorter implements ITreeSorter<BulkEditElement> {
 		}
 
 		if (a instanceof TextEditElement && b instanceof TextEditElement) {
-			return Range.compareRangesUsingStarts(a.edit.textEdit.edit.range, b.edit.textEdit.edit.range);
+			return Range.compareRangesUsingStarts(a.edit.textEdit.textEdit.range, b.edit.textEdit.textEdit.range);
 		}
 
 		return 0;
@@ -336,13 +336,13 @@ export class BulkEditAccessibilityProvider implements IListAccessibilityProvider
 		if (element instanceof TextEditElement) {
 			if (element.selecting.length > 0 && element.inserting.length > 0) {
 				// edit: replace
-				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.textEdit.edit.range.startLineNumber, element.selecting, element.inserting);
+				return localize('aria.replace', "line {0}, replacing {1} with {2}", element.edit.textEdit.textEdit.range.startLineNumber, element.selecting, element.inserting);
 			} else if (element.selecting.length > 0 && element.inserting.length === 0) {
 				// edit: delete
-				return localize('aria.del', "line {0}, removing {1}", element.edit.textEdit.edit.range.startLineNumber, element.selecting);
+				return localize('aria.del', "line {0}, removing {1}", element.edit.textEdit.textEdit.range.startLineNumber, element.selecting);
 			} else if (element.selecting.length === 0 && element.inserting.length > 0) {
 				// edit: insert
-				return localize('aria.insert', "line {0}, inserting {1}", element.edit.textEdit.edit.range.startLineNumber, element.selecting);
+				return localize('aria.insert', "line {0}, inserting {1}", element.edit.textEdit.textEdit.range.startLineNumber, element.selecting);
 			}
 		}
 

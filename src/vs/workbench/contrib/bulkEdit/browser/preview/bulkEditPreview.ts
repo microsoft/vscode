@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { WorkspaceEdit, WorkspaceTextEdit, WorkspaceFileEdit, WorkspaceEditMetadata } from 'vs/editor/common/modes';
+import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mergeSort, coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,6 +21,7 @@ import { ConflictDetector } from 'vs/workbench/contrib/bulkEdit/browser/conflict
 import { ResourceMap } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 import { extUri } from 'vs/base/common/resources';
+import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 
 export class CheckedStates<T extends object> {
 
@@ -67,7 +68,7 @@ export class BulkTextEdit {
 
 	constructor(
 		readonly parent: BulkFileOperation,
-		readonly textEdit: WorkspaceTextEdit
+		readonly textEdit: ResourceTextEdit
 	) { }
 }
 
@@ -82,7 +83,7 @@ export class BulkFileOperation {
 
 	type: BulkFileOperationType = 0;
 	textEdits: BulkTextEdit[] = [];
-	originalEdits = new Map<number, WorkspaceTextEdit | WorkspaceFileEdit>();
+	originalEdits = new Map<number, ResourceTextEdit | ResourceFileEdit>();
 	newUri?: URI;
 
 	constructor(
@@ -90,14 +91,14 @@ export class BulkFileOperation {
 		readonly parent: BulkFileOperations
 	) { }
 
-	addEdit(index: number, type: BulkFileOperationType, edit: WorkspaceTextEdit | WorkspaceFileEdit) {
+	addEdit(index: number, type: BulkFileOperationType, edit: ResourceTextEdit | ResourceFileEdit) {
 		this.type |= type;
 		this.originalEdits.set(index, edit);
-		if (WorkspaceTextEdit.is(edit)) {
+		if (edit instanceof ResourceTextEdit) {
 			this.textEdits.push(new BulkTextEdit(this, edit));
 
 		} else if (type === BulkFileOperationType.Rename) {
-			this.newUri = edit.newUri;
+			this.newUri = edit.newResource;
 		}
 	}
 
@@ -134,19 +135,19 @@ export class BulkCategory {
 
 export class BulkFileOperations {
 
-	static async create(accessor: ServicesAccessor, bulkEdit: WorkspaceEdit): Promise<BulkFileOperations> {
+	static async create(accessor: ServicesAccessor, bulkEdit: ResourceEdit[]): Promise<BulkFileOperations> {
 		const result = accessor.get(IInstantiationService).createInstance(BulkFileOperations, bulkEdit);
 		return await result._init();
 	}
 
-	readonly checked = new CheckedStates<WorkspaceFileEdit | WorkspaceTextEdit>();
+	readonly checked = new CheckedStates<ResourceEdit>();
 
 	readonly fileOperations: BulkFileOperation[] = [];
 	readonly categories: BulkCategory[] = [];
 	readonly conflicts: ConflictDetector;
 
 	constructor(
-		private readonly _bulkEdit: WorkspaceEdit,
+		private readonly _bulkEdit: ResourceEdit[],
 		@IFileService private readonly _fileService: IFileService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
@@ -164,8 +165,8 @@ export class BulkFileOperations {
 
 		const newToOldUri = new ResourceMap<URI>();
 
-		for (let idx = 0; idx < this._bulkEdit.edits.length; idx++) {
-			const edit = this._bulkEdit.edits[idx];
+		for (let idx = 0; idx < this._bulkEdit.length; idx++) {
+			const edit = this._bulkEdit[idx];
 
 			let uri: URI;
 			let type: BulkFileOperationType;
@@ -173,39 +174,45 @@ export class BulkFileOperations {
 			// store inital checked state
 			this.checked.updateChecked(edit, !edit.metadata?.needsConfirmation);
 
-			if (WorkspaceTextEdit.is(edit)) {
+			if (edit instanceof ResourceTextEdit) {
 				type = BulkFileOperationType.TextEdit;
 				uri = edit.resource;
 
-			} else if (edit.newUri && edit.oldUri) {
-				type = BulkFileOperationType.Rename;
-				uri = edit.oldUri;
-				if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
-					// noop -> "soft" rename to something that already exists
-					continue;
-				}
-				// map newUri onto oldUri so that text-edit appear for
-				// the same file element
-				newToOldUri.set(edit.newUri, uri);
+			} else if (edit instanceof ResourceFileEdit) {
+				if (edit.newResource && edit.oldResource) {
+					type = BulkFileOperationType.Rename;
+					uri = edit.oldResource;
+					if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
+						// noop -> "soft" rename to something that already exists
+						continue;
+					}
+					// map newResource onto oldResource so that text-edit appear for
+					// the same file element
+					newToOldUri.set(edit.newResource, uri);
 
-			} else if (edit.oldUri) {
-				type = BulkFileOperationType.Delete;
-				uri = edit.oldUri;
-				if (edit.options?.ignoreIfNotExists && !await this._fileService.exists(uri)) {
-					// noop -> "soft" delete something that doesn't exist
-					continue;
-				}
+				} else if (edit.oldResource) {
+					type = BulkFileOperationType.Delete;
+					uri = edit.oldResource;
+					if (edit.options?.ignoreIfNotExists && !await this._fileService.exists(uri)) {
+						// noop -> "soft" delete something that doesn't exist
+						continue;
+					}
 
-			} else if (edit.newUri) {
-				type = BulkFileOperationType.Create;
-				uri = edit.newUri;
-				if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
-					// noop -> "soft" create something that already exists
+				} else if (edit.newResource) {
+					type = BulkFileOperationType.Create;
+					uri = edit.newResource;
+					if (edit.options?.overwrite === undefined && edit.options?.ignoreIfExists && await this._fileService.exists(uri)) {
+						// noop -> "soft" create something that already exists
+						continue;
+					}
+
+				} else {
+					// invalid edit -> skip
 					continue;
 				}
 
 			} else {
-				// invalid edit -> skip
+				// unsupported edit
 				continue;
 			}
 
@@ -249,7 +256,7 @@ export class BulkFileOperations {
 			if (file.type !== BulkFileOperationType.TextEdit) {
 				let checked = true;
 				for (const edit of file.originalEdits.values()) {
-					if (WorkspaceFileEdit.is(edit)) {
+					if (edit instanceof ResourceFileEdit) {
 						checked = checked && this.checked.isChecked(edit);
 					}
 				}
@@ -275,14 +282,14 @@ export class BulkFileOperations {
 		return this;
 	}
 
-	getWorkspaceEdit(): WorkspaceEdit {
-		const result: WorkspaceEdit = { edits: [] };
+	getWorkspaceEdit(): ResourceEdit[] {
+		const result: ResourceEdit[] = [];
 		let allAccepted = true;
 
-		for (let i = 0; i < this._bulkEdit.edits.length; i++) {
-			const edit = this._bulkEdit.edits[i];
+		for (let i = 0; i < this._bulkEdit.length; i++) {
+			const edit = this._bulkEdit[i];
 			if (this.checked.isChecked(edit)) {
-				result.edits[i] = edit;
+				result[i] = edit;
 				continue;
 			}
 			allAccepted = false;
@@ -293,7 +300,7 @@ export class BulkFileOperations {
 		}
 
 		// not all edits have been accepted
-		coalesceInPlace(result.edits);
+		coalesceInPlace(result);
 		return result;
 	}
 
@@ -306,9 +313,9 @@ export class BulkFileOperations {
 				let ignoreAll = false;
 
 				for (const edit of file.originalEdits.values()) {
-					if (WorkspaceTextEdit.is(edit)) {
+					if (edit instanceof ResourceTextEdit) {
 						if (this.checked.isChecked(edit)) {
-							result.push(EditOperation.replaceMove(Range.lift(edit.edit.range), edit.edit.text));
+							result.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
 						}
 
 					} else if (!this.checked.isChecked(edit)) {
@@ -330,7 +337,7 @@ export class BulkFileOperations {
 		return [];
 	}
 
-	getUriOfEdit(edit: WorkspaceFileEdit | WorkspaceTextEdit): URI {
+	getUriOfEdit(edit: ResourceEdit): URI {
 		for (let file of this.fileOperations) {
 			for (const value of file.originalEdits.values()) {
 				if (value === edit) {
