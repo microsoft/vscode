@@ -525,10 +525,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return;
 		}
 
-		if (!this._isCellMetadataChanged(cell.metadata, metadata)) {
-			return;
-		}
-
 		const triggerDirtyChange = this._isCellMetadataChanged(cell.metadata, metadata);
 
 		if (triggerDirtyChange) {
