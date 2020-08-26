@@ -46,6 +46,8 @@ import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/n
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
 
 // Editor Contribution
 
@@ -445,6 +447,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider
 registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
+registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({

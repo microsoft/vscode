@@ -2757,6 +2757,12 @@ export enum NotebookRunState {
 	Idle = 2
 }
 
+export enum NotebookCellStatusBarAlignment {
+	Left = 1,
+	Right = 2
+}
+
+
 //#endregion
 
 //#region Timeline

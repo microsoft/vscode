@@ -27,10 +27,10 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
+import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -525,8 +525,7 @@ export interface BaseCellRenderTemplate {
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
-	statusBarContainer: HTMLElement;
-	languageStatusBarItem: CellLanguageStatusBarItem;
+	statusBar: CellEditorStatusBar;
 	titleMenu: IMenu;
 	toJSON: () => object;
 }
@@ -539,7 +538,6 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	cellRunState: RunStateRenderer;
-	cellStatusMessageContainer: HTMLElement;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;

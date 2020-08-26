@@ -4,23 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, INotebookDocumentsAndEditorsDelta } from '../common/extHost.protocol';
-import { Disposable, IDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, IEditor, INotebookDocumentFilter, DisplayOrderKey, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Emitter } from 'vs/base/common/event';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-
+import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, IEditor, INotebookDocumentFilter, INotebookKernelInfo, INotebookKernelInfoDto, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
 	static ofSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
@@ -137,6 +137,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
 	private _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
+	private readonly _cellStatusBarEntries: Map<number, IDisposable> = new Map();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -144,8 +145,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@ILogService private readonly logService: ILogService
-
+		@ILogService private readonly logService: ILogService,
+		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -602,6 +603,24 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	$onContentChange(resource: UriComponents, viewType: string): void {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.handleUnknownChange();
+	}
+
+	async $setStatusBarEntry(id: number, rawStatusBarEntry: INotebookCellStatusBarEntryDto): Promise<void> {
+		const statusBarEntry = {
+			...rawStatusBarEntry,
+			...{ cellResource: URI.revive(rawStatusBarEntry.cellResource) }
+		};
+
+		const existingEntry = this._cellStatusBarEntries.get(id);
+		if (existingEntry) {
+			existingEntry.dispose();
+		}
+
+		if (statusBarEntry.visible) {
+			this._cellStatusBarEntries.set(
+				id,
+				this.cellStatusBarService.addEntry(statusBarEntry));
+		}
 	}
 }
 

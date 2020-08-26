@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Command } from 'vs/editor/common/modes';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions } from 'vs/workbench/common/editor';
-import { basename } from 'vs/base/common/path';
-import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export enum CellKind {
 	Markdown = 1,
@@ -744,7 +746,6 @@ export interface INotebookKernelProvider {
 	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }
 
-
 export class CellSequence implements ISequence {
 
 	constructor(readonly textModel: NotebookTextModel) {
@@ -764,6 +765,23 @@ export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
 	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
+
+export interface INotebookCellStatusBarEntry {
+	readonly cellResource: URI;
+	readonly alignment: CellStatusbarAlignment;
+	readonly priority?: number;
+	readonly text: string;
+	readonly tooltip: string | undefined;
+	readonly command: string | Command | undefined;
+	readonly accessibilityInformation?: IAccessibilityInformation;
+	readonly visible: boolean;
+}
+
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
 export const ShowCellStatusbarKey = 'notebook.showCellStatusbar';
+
+export const enum CellStatusbarAlignment {
+	LEFT,
+	RIGHT
+}

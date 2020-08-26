@@ -282,7 +282,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private layoutEditor(dimension: DOM.IDimension): void {
 		this.editor?.layout(dimension);
-		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
+		this.templateData.statusBar.layout(dimension.width);
 	}
 
 	private onCellEditorWidthChange(): void {

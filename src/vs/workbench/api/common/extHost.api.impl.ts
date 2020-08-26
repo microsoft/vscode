@@ -992,6 +992,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension);
 				return new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, selector);
+			},
+			createCellStatusBarItem(cell: vscode.NotebookCell, alignment?: vscode.NotebookCellStatusBarAlignment, priority?: number): vscode.NotebookCellStatusBarItem {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.createNotebookCellStatusBarItemInternal(cell, alignment, priority);
 			}
 		};
 
@@ -1126,7 +1130,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
 			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			NotebookRunState: extHostTypes.NotebookRunState
+			NotebookRunState: extHostTypes.NotebookRunState,
+			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment
 		};
 	};
 }

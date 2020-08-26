@@ -1928,7 +1928,8 @@ registerThemingParticipant((theme, collector) => {
 
 	const cellStatusBarHoverBg = theme.getColor(cellStatusBarItemHover);
 	if (cellStatusBarHoverBg) {
-		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover { background-color: ${cellStatusBarHoverBg}; }`);
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover,
+		.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-item.cell-status-item-has-command:hover { background-color: ${cellStatusBarHoverBg}; }`);
 	}
 
 	const cellInsertionIndicatorColor = theme.getColor(cellInsertionIndicator);

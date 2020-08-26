@@ -40,15 +40,16 @@ import { CancelCellAction, DeleteCellAction, ExecuteCellAction, INotebookCellAct
 import { BaseCellRenderTemplate, CellEditState, CodeCellRenderTemplate, EXPAND_CELL_CONTENT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
+import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
+import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
-import { CodiconActionViewItem, CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
-import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
 
 const $ = DOM.$;
 
@@ -403,7 +404,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
 
-		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
+		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
@@ -422,9 +423,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			deleteToolbar,
 			betweenCellToolbar,
 			bottomCellContainer,
-			statusBarContainer: statusBar.statusBarContainer,
-			languageStatusBarItem: statusBar.languageStatusBarItem,
 			titleMenu,
+			statusBar,
 			toJSON: () => { return {}; }
 		};
 		this.dndController.registerDragHandle(templateData, rootContainer, container, () => this.getDragImage(templateData));
@@ -493,7 +493,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 		elementDisposables.add(markdownCell);
 
-		templateData.languageStatusBarItem.update(element, this.notebookEditor);
+		templateData.statusBar.update(toolbarContext);
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -605,27 +605,6 @@ class CodeCellDragImageRenderer {
 	}
 }
 
-class CellEditorStatusBar {
-	readonly cellStatusMessageContainer: HTMLElement;
-	readonly cellRunStatusContainer: HTMLElement;
-	readonly statusBarContainer: HTMLElement;
-	readonly languageStatusBarItem: CellLanguageStatusBarItem;
-	readonly durationContainer: HTMLElement;
-
-	constructor(
-		container: HTMLElement,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
-		const leftStatusBarItems = DOM.append(this.statusBarContainer, $('.cell-status-left'));
-		const rightStatusBarItems = DOM.append(this.statusBarContainer, $('.cell-status-right'));
-		this.cellRunStatusContainer = DOM.append(leftStatusBarItems, $('.cell-run-status'));
-		this.durationContainer = DOM.append(leftStatusBarItems, $('.cell-run-duration'));
-		this.cellStatusMessageContainer = DOM.append(leftStatusBarItems, $('.cell-status-message'));
-		this.languageStatusBarItem = instantiationService.createInstance(CellLanguageStatusBarItem, rightStatusBarItems);
-	}
-}
-
 export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CodeCellViewModel, CodeCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 
@@ -692,7 +671,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		progressBar.hide();
 		disposables.add(progressBar);
 
-		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
+		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 		const timer = new TimerRenderer(statusBar.durationContainer);
 		const cellRunState = new RunStateRenderer(statusBar.cellRunStatusContainer, runToolbar, this.instantiationService);
 
@@ -715,11 +694,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			contextKeyService,
 			container,
 			cellContainer,
-			statusBarContainer: statusBar.statusBarContainer,
 			cellRunState,
-			cellStatusMessageContainer: statusBar.cellStatusMessageContainer,
-			languageStatusBarItem: statusBar.languageStatusBarItem,
 			progressBar,
+			statusBar,
 			focusIndicatorLeft: focusIndicator,
 			focusIndicatorRight,
 			focusIndicatorBottom,
@@ -766,7 +743,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
 		DOM.toggleClass(templateData.container, 'runnable', !!metadata.runnable);
 		this.updateExecutionOrder(metadata, templateData);
-		templateData.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
+		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
 		templateData.cellRunState.renderState(element.metadata?.runState);
 
@@ -880,7 +857,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
-		templateData.languageStatusBarItem.update(element, this.notebookEditor);
+		templateData.statusBar.update(toolbarContext);
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {
