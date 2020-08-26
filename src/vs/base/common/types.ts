@@ -260,11 +260,11 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
  * drops all functions.
  * todo@joh use toJSON-results
  */
-export type Dto<T> = { [K in keyof T]: T[K] extends URI
-	? UriComponents
+export type Dto<T> = { [K in keyof T]: T[K] extends { toJSON(): infer U }
+	? U
 	: T[K] extends Function
 	? never
-	: UriDto<T[K]> };
+	: Dto<T[K]> };
 
 
 export function NotImplementedProxy<T>(name: string): { new(): T } {
