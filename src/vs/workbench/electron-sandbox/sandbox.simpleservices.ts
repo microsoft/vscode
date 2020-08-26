@@ -718,7 +718,7 @@ class SimpleUserDataAutoSyncAccountService implements IUserDataAutoSyncService {
 	canToggleEnablement(): boolean { return false; }
 	async turnOn(): Promise<void> { }
 	async turnOff(everywhere: boolean): Promise<void> { }
-	async triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void> { }
+	async triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void> { }
 }
 
 registerSingleton(IUserDataAutoSyncService, SimpleUserDataAutoSyncAccountService);
