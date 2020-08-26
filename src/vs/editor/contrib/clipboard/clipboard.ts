@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
+import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -17,7 +17,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Handler } from 'vs/editor/common/editorCommon';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -187,12 +187,22 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			if (!result && platform.isWeb && browserCommand === 'paste') {
 				(async () => {
 					const clipboardText = await clipboardService.readText();
-
-					const selection = focusedEditor.getSelection();
-					if (selection) {
-						const edits = [EditOperation.insert(selection.getPosition(), clipboardText)];
-
-						focusedEditor.executeEdits('clipboard', edits);
+					if (clipboardText !== '') {
+						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+						let pasteOnNewLine = false;
+						let multicursorText: string[] | null = null;
+						let mode: string | null = null;
+						if (metadata) {
+							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+							mode = metadata.mode;
+						}
+						focusedEditor.trigger('keyboard', Handler.Paste, {
+							text: clipboardText,
+							pasteOnNewLine,
+							multicursorText,
+							mode
+						});
 					}
 				})();
 				return true;
