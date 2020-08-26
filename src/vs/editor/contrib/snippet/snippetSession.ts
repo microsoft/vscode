@@ -415,6 +415,7 @@ export class SnippetSession {
 			.map((selection, idx) => ({ selection, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
+		let overtypedIdx = 0; // Makes overtyping snippets working with multiselections
 		for (const { selection, idx } of indexedSelections) {
 
 			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
@@ -449,7 +450,7 @@ export class SnippetSession {
 			snippet.resolveVariables(new CompositeSnippetVariableResolver([
 				modelBasedVariableResolver,
 				new ClipboardBasedVariableResolver(readClipboardText, idx, indexedSelections.length, editor.getOption(EditorOption.multiCursorPaste) === 'spread'),
-				new SelectionBasedVariableResolver(model, selection),
+				new SelectionBasedVariableResolver(model, selection, overtypedIdx++),
 				new CommentBasedVariableResolver(model, selection),
 				new TimeBasedVariableResolver,
 				new WorkspaceBasedVariableResolver(workspaceService),

@@ -198,6 +198,24 @@ export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 		}
 	}
 
+	public getOvertypedTextAtEditingEnd(overtypeIdx: number, editingEnd: number): { text: string | undefined, continuousEditing: boolean, previousEditingEnd: number } {
+		let continuousEditing = false;
+		let overtypedText: string | undefined;
+		const data = (this._data instanceof SingleModelEditStackData ? this._data : SingleModelEditStackData.deserialize(this._data));
+		const change = data.changes[overtypeIdx >= data.changes.length ? 0 : overtypeIdx];
+		const inserted = change.oldLength === 0;
+		const deleted = change.newLength === 0;
+		if (inserted !== deleted) {
+			// If change is insert, and starts with new line, break the search
+			if (!(inserted && /^[\r\n]/.test(change.newText))) {
+				continuousEditing = editingEnd < 0 ? true : change.newEnd === editingEnd;
+			}
+		} else if (editingEnd < 0 || change.newEnd === editingEnd) {
+			overtypedText = change.oldText;
+		}
+		return { text: overtypedText, continuousEditing: continuousEditing, previousEditingEnd: change.oldEnd };
+	}
+
 	public undo(): void {
 		if (URI.isUri(this.model)) {
 			// don't have a model

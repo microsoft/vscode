@@ -16,7 +16,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
-import { EditStack } from 'vs/editor/common/model/editStack';
+import { EditStack, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
@@ -34,7 +34,7 @@ import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 
@@ -1489,6 +1489,33 @@ export class TextModel extends Disposable implements model.ITextModel {
 		}
 
 		return (result.reverseEdits === null ? undefined : result.reverseEdits);
+	}
+
+	public getOvertypedText(overtypeIdx: number, undoSearchLimit: number, editSizeLimit: number): string | undefined {
+		const elements = this._undoRedoService.getElements(this.uri).past;
+		if (elements.length === 0) {
+			return;
+		}
+
+		// Cycle through undo elements to find one containing text that was overtyped
+		let editingEnd = -1;
+		let elementIndex = elements.length;
+		do {
+			const element = elements[--elementIndex];
+			if (!(element.type === UndoRedoElementType.Resource && element instanceof SingleModelEditStackElement)) {
+				return;
+			}
+			const searchResult = element.getOvertypedTextAtEditingEnd(overtypeIdx, editingEnd);
+			if (searchResult.text) {
+				return searchResult.text;
+			}
+			if (!searchResult.continuousEditing || (editingEnd >= 0 && Math.abs(editingEnd - searchResult.previousEditingEnd) > editSizeLimit)) {
+				return;
+			}
+			editingEnd = searchResult.previousEditingEnd;
+		} while (elementIndex > 0 && --undoSearchLimit > 0);
+
+		return;
 	}
 
 	public undo(): void {
