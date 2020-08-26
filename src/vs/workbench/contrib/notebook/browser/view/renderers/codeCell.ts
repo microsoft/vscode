@@ -341,6 +341,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateInputCollapsed(): void {
 		DOM.hide(this.templateData.cellContainer);
+		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
@@ -358,6 +359,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateOutputCollapsed(): void {
 		DOM.show(this.templateData.cellContainer);
+		DOM.show(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
 
@@ -371,6 +373,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateAllCollapsed(): void {
 		DOM.hide(this.templateData.cellContainer);
+		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
@@ -385,6 +388,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateExpanded(): void {
 		DOM.show(this.templateData.cellContainer);
+		DOM.show(this.templateData.runButtonContainer);
 		DOM.hide(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', false);
