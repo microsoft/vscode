@@ -5,7 +5,7 @@
 
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import * as pty from 'node-pty';
+import type * as pty from 'node-pty';
 import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
