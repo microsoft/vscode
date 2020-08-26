@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IProcessedOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IProcessedOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata, NotebookDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 import * as model from 'vs/editor/common/model';
@@ -85,6 +85,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public cellKind: CellKind,
 		outputs: IProcessedOutput[],
 		metadata: NotebookCellMetadata | undefined,
+		public readonly transientOptions: TransientOptions,
 		private readonly _modelService: ITextModelService
 	) {
 		super();
@@ -108,9 +109,23 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}
 
 		// TODO, raw outputs
-		this._hash = hash([hash(this.getValue()), this._metadata, this._outputs]);
-		// this._hash = hash(this.getValue());
+		this._hash = hash([hash(this.getValue()), this._getPersisentMetadata, this.transientOptions.transientOutputs ? [] : this._outputs]);
 		return this._hash;
+	}
+
+	private _getPersisentMetadata() {
+		let filteredMetadata: { [key: string]: any } = {};
+		const transientMetadata = this.transientOptions.transientMetadata;
+
+		const keys = new Set([...Object.keys(this.metadata)]);
+		for (let key of keys) {
+			if (!(transientMetadata[key as keyof NotebookCellMetadata])
+			) {
+				filteredMetadata[key] = this.metadata[key as keyof NotebookCellMetadata];
+			}
+		}
+
+		return filteredMetadata;
 	}
 
 	getTextLength(): number {

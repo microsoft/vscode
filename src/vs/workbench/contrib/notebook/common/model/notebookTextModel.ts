@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, IMainCellDto, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, IMainCellDto, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
@@ -128,7 +128,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	cells: NotebookCellTextModel[];
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
-	transientMetadata: TransientMetadata = {};
+	transientOptions: TransientOptions = { transientMetadata: {}, transientOutputs: false };
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
@@ -187,7 +187,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		const cellHandle = this._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this._modelService);
+		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
 	}
 
 	initialize(cells: ICellDto2[]) {
@@ -197,7 +197,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this._modelService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
 		});
 
 		this._isUntitled = false;
@@ -245,7 +245,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					const mainCells = edit.cells.map(cell => {
 						const cellHandle = this._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
-						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this._modelService);
+						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
 					});
 					this.insertNewCell(edit.index, mainCells, false);
 					break;
@@ -473,6 +473,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
 		const cell = this._mapping.get(cellHandle);
 		cell?.spliceNotebookCellOutputs(splices);
+
+		if (!this.transientOptions.transientOutputs) {
+			this._increaseVersionId();
+			this.setDirty(true);
+			this._onDidChangeContent.fire();
+		}
 	}
 
 	clearCellOutput(handle: number) {
@@ -497,13 +503,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _compareCellMetadata(a: NotebookCellMetadata, b: NotebookCellMetadata) {
+	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
 		for (let key of keys) {
 			if (
 				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
 				&&
-				!(this.transientMetadata[key as keyof NotebookCellMetadata])
+				!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
 			) {
 				return true;
 			}
@@ -519,7 +525,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return;
 		}
 
-		const triggerDirtyChange = this._compareCellMetadata(cell.metadata, metadata);
+		if (!this._isCellMetadataChanged(cell.metadata, metadata)) {
+			return;
+		}
+
+		const triggerDirtyChange = this._isCellMetadataChanged(cell.metadata, metadata);
 
 		if (triggerDirtyChange) {
 			if (pushUndoStop) {

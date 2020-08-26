@@ -105,6 +105,11 @@ export interface NotebookCellMetadata {
 
 export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
 
+export interface TransientOptions {
+	transientOutputs: boolean;
+	transientMetadata: TransientMetadata;
+}
+
 export interface INotebookDisplayOrder {
 	defaultOrder: string[];
 	userOrder?: string[];

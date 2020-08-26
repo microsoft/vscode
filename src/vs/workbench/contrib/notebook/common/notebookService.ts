@@ -24,7 +24,7 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
 	supportBackup: boolean;
-	options: { transientMetadata: TransientMetadata };
+	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
 	createNotebook(textModel: NotebookTextModel, editorId?: string, backupId?: string): Promise<void>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;

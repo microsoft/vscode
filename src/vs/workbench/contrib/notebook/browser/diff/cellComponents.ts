@@ -261,7 +261,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+					return !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
 				},
 				getFoldingState: (cell) => {
 					return this.cell.outputFoldingState;
@@ -324,7 +324,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	protected _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
 		let filteredMetadata: { [key: string]: any } = {};
 		if (this.notebookEditor.textModel) {
-			const transientMetadata = this.notebookEditor.textModel!.transientMetadata;
+			const transientMetadata = this.notebookEditor.textModel!.transientOptions.transientMetadata;
 
 			const keys = new Set([...Object.keys(metadata)]);
 			for (let key of keys) {
@@ -421,7 +421,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	private _buildOutputEditor() {
-		if (this.cell.type === 'modified') {
+		if (this.cell.type === 'modified' && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
 			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
 			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
@@ -465,9 +465,11 @@ abstract class AbstractCellRenderer extends Disposable {
 
 		const mode = this.modeService.create('json');
 		const originaloutputSource = this._getFormatedOutputJSON(
-			this.cell.type === 'insert'
-				? this.cell.modified!.outputs || []
-				: this.cell.original!.outputs || []);
+			this.notebookEditor.textModel!.transientOptions
+				? []
+				: this.cell.type === 'insert'
+					? this.cell.modified!.outputs || []
+					: this.cell.original!.outputs || []);
 		const outputModel = this.modelService.createModel(originaloutputSource, mode, undefined, true);
 		this._outputEditor.setModel(outputModel);
 

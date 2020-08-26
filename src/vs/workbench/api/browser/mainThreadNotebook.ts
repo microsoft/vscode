@@ -375,7 +375,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined, options: { transientMetadata: TransientMetadata }): Promise<void> {
+	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void> {
 		const controller: IMainNotebookController = {
 			kernel: _kernel,
 			supportBackup: _supportBackup,
@@ -388,7 +388,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 				mainthreadTextModel.languages = data.languages;
 				mainthreadTextModel.metadata = data.metadata;
-				mainthreadTextModel.transientMetadata = options.transientMetadata;
+				mainthreadTextModel.transientOptions = options;
 
 				const edits: ICellEditOperation[] = [
 					{ editType: CellEditType.Delete, count: mainthreadTextModel.cells.length, index: 0 },
@@ -412,7 +412,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 				textModel.languages = data.languages;
 				textModel.metadata = data.metadata;
-				textModel.transientMetadata = options.transientMetadata;
+				textModel.transientOptions = options;
 
 				if (data.cells.length) {
 					textModel.initialize(data!.cells);
