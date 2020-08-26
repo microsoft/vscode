@@ -82,8 +82,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 
 	private readonly webviewPanelViewType = new WebviewViewTypeTransformer('mainThreadWebview-');
 
-	private readonly _proxy: extHostProtocol.ExtHostWebviewsShape;
-	private readonly _proxyPanels: extHostProtocol.ExtHostWebviewPanelsShape;
+	private readonly _proxy: extHostProtocol.ExtHostWebviewPanelsShape;
 
 	private readonly _webviewInputs = new WebviewInputStore();
 
@@ -105,8 +104,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 	) {
 		super();
 
-		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviews);
-		this._proxyPanels = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
+		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewPanels);
 
 		this._mainThreadWebviews = this._instantiationService.createInstance(MainThreadWebviews, context);
 		context.set(extHostProtocol.MainContext.MainThreadWebviews, this._mainThreadWebviews);
@@ -258,7 +256,7 @@ export class MainThreadWebviewPanelsAndViews extends Disposable implements extHo
 				}
 
 				try {
-					await this._proxyPanels.$deserializeWebviewPanel(handle, viewType, webviewInput.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
+					await this._proxy.$deserializeWebviewPanel(handle, viewType, webviewInput.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webviewInput.group || 0), webviewInput.webview.options);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this._mainThreadWebviews.getWebviewResolvedFailedContent(viewType);

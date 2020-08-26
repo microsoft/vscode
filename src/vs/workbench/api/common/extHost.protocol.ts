@@ -652,11 +652,11 @@ export interface WebviewPanelViewStateData {
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
 	$onMissingCsp(handle: WebviewPanelHandle, extensionId: string): void;
-	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
-	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 }
 
 export interface ExtHostWebviewPanelsShape {
+	$onDidChangeWebviewPanelViewStates(newState: WebviewPanelViewStateData): void;
+	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Promise<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: modes.IWebviewOptions & modes.IWebviewPanelOptions): Promise<void>;
 }
 

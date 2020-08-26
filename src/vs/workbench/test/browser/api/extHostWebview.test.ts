@@ -13,7 +13,6 @@ import { IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostWebviews } from 'vs/workbench/api/common/extHostWebview';
-import { ExtHostWebviewSerializer } from 'vs/workbench/api/common/extHostWebviewSerializer';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import type * as vscode from 'vscode';
 import { SingleProxyRPCProtocol } from './testRPCProtocol';
@@ -36,8 +35,6 @@ suite('ExtHostWebview', () => {
 			isExtensionDevelopmentDebug: false,
 		}, undefined, new NullLogService(), NullApiDeprecationService);
 
-		const extHostWebviewSerializer = new ExtHostWebviewSerializer(rpcProtocol!, extHostWebviews);
-
 		let lastInvokedDeserializer: vscode.WebviewPanelSerializer | undefined = undefined;
 
 		class NoopSerializer implements vscode.WebviewPanelSerializer {
@@ -51,20 +48,20 @@ suite('ExtHostWebview', () => {
 		const serializerA = new NoopSerializer();
 		const serializerB = new NoopSerializer();
 
-		const serializerARegistration = extHostWebviewSerializer.registerWebviewPanelSerializer(extension, viewType, serializerA);
+		const serializerARegistration = extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerA);
 
-		await extHostWebviewSerializer.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
+		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerA);
 
 		assert.throws(
-			() => extHostWebviewSerializer.registerWebviewPanelSerializer(extension, viewType, serializerB),
+			() => extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerB),
 			'Should throw when registering two serializers for the same view');
 
 		serializerARegistration.dispose();
 
-		extHostWebviewSerializer.registerWebviewPanelSerializer(extension, viewType, serializerB);
+		extHostWebviews.registerWebviewPanelSerializer(extension, viewType, serializerB);
 
-		await extHostWebviewSerializer.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
+		await extHostWebviews.$deserializeWebviewPanel('x', viewType, 'title', {}, 0 as EditorViewColumn, {});
 		assert.strictEqual(lastInvokedDeserializer, serializerB);
 	});
 

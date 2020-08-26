@@ -13,9 +13,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import type * as vscode from 'vscode';
 import * as extHostProtocol from './extHost.protocol';
+import * as extHostTypes from './extHostTypes';
 
 export class ExtHostWebview implements vscode.Webview {
 
@@ -261,7 +263,7 @@ class ExtHostWebviewPanel extends Disposable implements vscode.WebviewPanel {
 	}
 }
 
-export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
+export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape, extHostProtocol.ExtHostWebviewPanelsShape {
 
 	private static newHandle(): extHostProtocol.WebviewPanelHandle {
 		return generateUuid();
@@ -272,6 +274,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 	private readonly _webviews = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebview>();
 	private readonly _webviewPanels = new Map<extHostProtocol.WebviewPanelHandle, ExtHostWebviewPanel>();
+
+	private readonly _serializers = new Map<string, {
+		readonly serializer: vscode.WebviewPanelSerializer;
+		readonly extension: IExtensionDescription;
+	}>();
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -362,6 +369,44 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		this._webviewPanels.delete(handle);
 		this._webviews.delete(handle);
+	}
+
+
+	public registerWebviewPanelSerializer(
+		extension: IExtensionDescription,
+		viewType: string,
+		serializer: vscode.WebviewPanelSerializer
+	): vscode.Disposable {
+		if (this._serializers.has(viewType)) {
+			throw new Error(`Serializer for '${viewType}' already registered`);
+		}
+
+		this._serializers.set(viewType, { serializer, extension });
+		this._proxy.$registerSerializer(viewType);
+
+		return new extHostTypes.Disposable(() => {
+			this._serializers.delete(viewType);
+			this._proxy.$unregisterSerializer(viewType);
+		});
+	}
+
+	async $deserializeWebviewPanel(
+		webviewHandle: extHostProtocol.WebviewPanelHandle,
+		viewType: string,
+		title: string,
+		state: any,
+		position: EditorViewColumn,
+		options: modes.IWebviewOptions & modes.IWebviewPanelOptions
+	): Promise<void> {
+		const entry = this._serializers.get(viewType);
+		if (!entry) {
+			throw new Error(`No serializer found for '${viewType}'`);
+		}
+		const { serializer, extension } = entry;
+
+		const webview = this.createNewWebview(webviewHandle, options, extension);
+		const revivedPanel = this.createNewWebviewPanel(webviewHandle, viewType, title, position, options, webview);
+		await serializer.deserializeWebviewPanel(revivedPanel, state);
 	}
 
 	public createNewWebviewPanel(webviewHandle: string, viewType: string, title: string, position: number, options: modes.IWebviewOptions & modes.IWebviewPanelOptions, webview: ExtHostWebview) {
