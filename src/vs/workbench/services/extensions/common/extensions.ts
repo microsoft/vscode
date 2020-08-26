@@ -140,6 +140,11 @@ export interface IResponsiveStateChangeEvent {
 	isResponsive: boolean;
 }
 
+export const enum ActivationKind {
+	Normal = 0,
+	Eager = 1
+}
+
 export interface IExtensionService {
 	readonly _serviceBrand: undefined;
 
@@ -178,12 +183,14 @@ export interface IExtensionService {
 	/**
 	 * Send an activation event and activate interested extensions.
 	 *
-	 * Normally, this will queue the activation event if the extension hosts are not ready
-	 * and send it to all of them. If the extension needs to be activated before this,
-	 * the eager flag can be used to ignore extension hosts that aren't yet started. Do not
-	 * use this flag unless necessary.
+	 * This will wait for the normal startup of the extension host(s).
+	 *
+	 * In extraordinary circumstances, if the activation event needs to activate
+	 * one or more extensions before the normal startup is finished, then you can use
+	 * `ActivationKind.Eager`. Please do not use this flag unless really necessary
+	 * and you understand all consequences.
 	 */
-	activateByEvent(activationEvent: string, eager?: boolean): Promise<void>;
+	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after

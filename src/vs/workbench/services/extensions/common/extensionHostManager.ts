@@ -21,7 +21,7 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 
 // Enable to see detailed message communication between window and extension host
@@ -76,7 +76,7 @@ export class ExtensionHostManager extends Disposable {
 			}
 		);
 		this._proxy.then(() => {
-			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent));
+			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent, ActivationKind.Normal));
 			this._register(registerLatencyTestProvider({
 				measure: () => this.measure()
 			}));
@@ -219,18 +219,18 @@ export class ExtensionHostManager extends Disposable {
 		return proxy.$activate(extension, reason);
 	}
 
-	public activateByEvent(activationEvent: string, eager?: boolean): Promise<void> {
-		if (eager && !this._hasStarted) {
+	public activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		if (activationKind === ActivationKind.Eager && !this._hasStarted) {
 			return Promise.resolve();
 		}
 
 		if (!this._cachedActivationEvents.has(activationEvent)) {
-			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent, eager));
+			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent, activationKind));
 		}
 		return this._cachedActivationEvents.get(activationEvent)!;
 	}
 
-	private async _activateByEvent(activationEvent: string, eager?: boolean): Promise<void> {
+	private async _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		if (!this._proxy) {
 			return;
 		}
@@ -240,7 +240,7 @@ export class ExtensionHostManager extends Disposable {
 			// i.e. the extension host could not be started
 			return;
 		}
-		return proxy.value.$activateByEvent(activationEvent, eager);
+		return proxy.value.$activateByEvent(activationEvent, activationKind);
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
