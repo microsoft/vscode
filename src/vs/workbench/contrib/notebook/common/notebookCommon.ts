@@ -766,3 +766,4 @@ export interface INotebookDiffResult {
 }
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
+export const ShowCellStatusbarKey = 'notebook.showCellStatusbar';
