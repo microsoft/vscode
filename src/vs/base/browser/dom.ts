@@ -1009,6 +1009,18 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 
+export function reset<T extends Node>(parent: HTMLElement, ...children: Array<Node | string>) {
+	parent.innerText = '';
+	coalesce(children)
+		.forEach(child => {
+			if (child instanceof Node) {
+				parent.appendChild(child);
+			} else {
+				parent.appendChild(document.createTextNode(child as string));
+			}
+		});
+}
+
 export enum Namespace {
 	HTML = 'http://www.w3.org/1999/xhtml',
 	SVG = 'http://www.w3.org/2000/svg'
