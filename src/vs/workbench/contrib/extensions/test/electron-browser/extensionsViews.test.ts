@@ -40,7 +40,6 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browse
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -101,7 +100,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IConfigurationService), instantiationService.get(IProductService), instantiationService.get(ILogService), instantiationService.get(ILabelService));
+				super(instantiationService.get(ISharedProcessService), instantiationService, instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService));
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }

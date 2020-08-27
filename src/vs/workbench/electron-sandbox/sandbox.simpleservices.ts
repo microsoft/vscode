@@ -840,6 +840,7 @@ class SimpleExtensionManagementService implements IExtensionManagementService {
 	async unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('Method not implemented.'); }
 	async getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('Method not implemented.'); }
 	async install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
+	async canInstall(extension: IGalleryExtension): Promise<boolean> { throw new Error('Method not implemented.'); }
 	async installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
 	async uninstall(extension: ILocalExtension, force?: boolean): Promise<void> { }
 	async reinstallFromGallery(extension: ILocalExtension): Promise<void> { }
