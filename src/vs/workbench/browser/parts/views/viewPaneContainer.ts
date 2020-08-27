@@ -341,7 +341,7 @@ export abstract class ViewPane extends Pane implements IView {
 		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || 'codicon-window';
 	}
 
-	protected renderHeaderTitle(container: HTMLElement, title: string, description?: string | undefined): void {
+	protected renderHeaderTitle(container: HTMLElement, title: string): void {
 		this.iconContainer = append(container, $('.icon', undefined));
 		const icon = this.getIcon();
 
@@ -367,7 +367,10 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const calculatedTitle = this.calculateTitle(title);
 		this.titleContainer = append(container, $('h3.title', undefined, calculatedTitle));
-		this.titleDescriptionContainer = append(container, $('span.description', undefined, this._titleDescription ?? ''));
+
+		if (this._titleDescription) {
+			this.setTitleDescription(this._titleDescription, container);
+		}
 
 		this.iconContainer.title = calculatedTitle;
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
@@ -388,10 +391,17 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	protected updateTitleDescription(description?: string | undefined): void {
+	private setTitleDescription(description: string | undefined, headerContainer: HTMLElement | undefined = this.headerContainer) {
 		if (this.titleDescriptionContainer) {
 			this.titleDescriptionContainer.textContent = description ?? '';
 		}
+		else if (description && headerContainer) {
+			this.titleDescriptionContainer = append(headerContainer, $('span.description', undefined, description));
+		}
+	}
+
+	protected updateTitleDescription(description?: string | undefined): void {
+		this.setTitleDescription(description);
 
 		this._titleDescription = description;
 		this._onDidChangeTitleArea.fire();
