@@ -50,9 +50,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	private readonly _editorProviders = new Map<string, IDisposable>();
 
 	constructor(
+		context: extHostProtocol.IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
-		context: extHostProtocol.IExtHostContext,
 		@IExtensionService extensionService: IExtensionService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,

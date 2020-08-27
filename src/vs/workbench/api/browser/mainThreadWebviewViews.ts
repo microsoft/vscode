@@ -19,8 +19,8 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	private readonly _webviewViewProviders = new Map<string, IDisposable>();
 
 	constructor(
-		private readonly mainThreadWebviews: MainThreadWebviews,
 		context: extHostProtocol.IExtHostContext,
+		private readonly mainThreadWebviews: MainThreadWebviews,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();

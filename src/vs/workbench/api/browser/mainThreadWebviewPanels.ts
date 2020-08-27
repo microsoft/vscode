@@ -86,8 +86,8 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 	private readonly _revivers = new Map<string, IDisposable>();
 
 	constructor(
-		private readonly _mainThreadWebviews: MainThreadWebviews,
 		context: extHostProtocol.IExtHostContext,
+		private readonly _mainThreadWebviews: MainThreadWebviews,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
