@@ -39,7 +39,7 @@
 				"debug.javascript.usePreviewAutoAttach": {
 					"scope": "window",
           "type": "boolean",
-          "default": false,
+          "default": true,
 					"description": "%debug.javascript.usePreviewAutoAttach%"
 				}
 			}

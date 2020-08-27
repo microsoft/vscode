@@ -6,8 +6,8 @@
 import 'vs/css!./media/binaryeditor';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -30,7 +30,7 @@ export interface IOpenCallbacks {
 /*
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseBinaryResourceEditor extends BaseEditor {
+export abstract class BaseBinaryResourceEditor extends EditorPane {
 
 	private readonly _onMetadataChanged = this._register(new Emitter<void>());
 	readonly onMetadataChanged = this._onMetadataChanged.event;
@@ -74,8 +74,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, token);
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 
 		// Check for cancellation

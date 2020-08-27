@@ -240,6 +240,8 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 	isNew(): boolean {
 		return true; // always new when in-memory
 	}
+
+	async close(): Promise<void> { }
 }
 
 export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {

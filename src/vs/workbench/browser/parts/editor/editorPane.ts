@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Composite } from 'vs/workbench/browser/composite';
-import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -41,7 +41,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseEditor extends Composite implements IEditorPane {
+export abstract class EditorPane extends Composite implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
@@ -91,10 +91,12 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	 * to be different from the previous input that was set using the `input.matches()`
 	 * method.
 	 *
+	 * The provided context gives more information around how the editor was opened.
+	 *
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 	}
@@ -146,10 +148,10 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 
-		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
+		let editorMemento = EditorPane.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
 			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
-			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
+			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
 		return editorMemento;
@@ -158,7 +160,7 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 	protected saveState(): void {
 
 		// Save all editor memento for this editor type
-		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => {
+		EditorPane.EDITOR_MEMENTOS.forEach(editorMemento => {
 			if (editorMemento.id === this.getId()) {
 				editorMemento.saveState();
 			}

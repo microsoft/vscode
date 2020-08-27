@@ -93,7 +93,7 @@ function toggleAutoAttachSetting() {
 
 function autoAttachWithJsDebug() {
 	const jsDebugConfig = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
-	return jsDebugConfig.get(JS_DEBUG_USEPREVIEWAA, false);
+	return jsDebugConfig.get(JS_DEBUG_USEPREVIEWAA, true);
 }
 
 function readCurrentState(): State {
@@ -191,14 +191,22 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 			const server = await new Promise<Server>((resolve, reject) => {
 				const s = createServer((socket) => {
 					let data: Buffer[] = [];
-					socket.on('data', (chunk) => data.push(chunk));
-					socket.on('end', async () => {
+					socket.on('data', async (chunk) => {
+						if (chunk[chunk.length - 1] !== 0) { // terminated with NUL byte
+							data.push(chunk);
+							return;
+						}
+
+						data.push(chunk.slice(0, -1));
+
 						try {
 							await vscode.commands.executeCommand(
 								'extension.js-debug.autoAttachToProcess',
 								JSON.parse(Buffer.concat(data).toString())
 							);
+							socket.write(Buffer.from([0]));
 						} catch (err) {
+							socket.write(Buffer.from([1]));
 							console.error(err);
 						}
 					});

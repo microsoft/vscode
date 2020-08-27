@@ -11,14 +11,14 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "*",
-    "onAuthenticationRequest:github"
-  ],
   "extensionKind": [
     "ui",
     "workspace",
     "web"
+  ],
+  "activationEvents": [
+    "*",
+    "onAuthenticationRequest:github"
   ],
   "contributes": {
     "commands": [

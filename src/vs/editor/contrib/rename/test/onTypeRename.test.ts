@@ -55,22 +55,21 @@ suite('On type rename', () => {
 
 	function testCase(
 		name: string,
-		initialState: { text: string | string[], stopPattern?: RegExp },
+		initialState: { text: string | string[], responseWordPattern?: RegExp, providerWordPattern?: RegExp },
 		operations: (editor: TestEditor) => Promise<void>,
 		expectedEndText: string | string[]
 	) {
 		test(name, async () => {
 			disposables.add(modes.OnTypeRenameProviderRegistry.register(mockFileSelector, {
-				stopPattern: initialState.stopPattern || /\s/,
-
+				wordPattern: initialState.providerWordPattern,
 				provideOnTypeRenameRanges(model: ITextModel, pos: IPosition) {
 					const wordAtPos = model.getWordAtPosition(pos);
 					if (wordAtPos) {
 						const matches = model.findMatches(wordAtPos.word, false, false, true, USUAL_WORD_SEPARATORS, false);
 						assert.ok(matches.length > 0);
-						return matches.map(m => m.range);
+						return { ranges: matches.map(m => m.range), wordPattern: initialState.responseWordPattern };
 					}
-					return [];
+					return { ranges: [], wordPattern: initialState.responseWordPattern };
 				}
 			}));
 
@@ -80,6 +79,7 @@ suite('On type rename', () => {
 				OnTypeRenameContribution.ID,
 				OnTypeRenameContribution
 			);
+			ontypeRenameContribution.setDebounceDuration(0);
 
 			const testEditor: TestEditor = {
 				setPosition(pos: Position) {
@@ -294,12 +294,12 @@ suite('On type rename', () => {
 	}, '<oo io></ooo>');
 
 	/**
-	 * Break out with custom stopPattern
+	 * Break out with custom provider wordPattern
 	 */
 
 	const state3 = {
 		...state,
-		stopPattern: /s/
+		providerWordPattern: /[a-yA-Y]+/
 	};
 
 	testCase('Breakout with stop pattern - insert', state3, async (editor) => {
@@ -311,26 +311,38 @@ suite('On type rename', () => {
 	testCase('Breakout with stop pattern - insert stop char', state3, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 's' });
-	}, '<sooo></ooo>');
+		await editor.trigger('keyboard', Handler.Type, { text: 'z' });
+	}, '<zooo></ooo>');
 
 	testCase('Breakout with stop pattern - paste char', state3, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: 's' });
-	}, '<sooo></ooo>');
+		await editor.trigger('keyboard', Handler.Paste, { text: 'z' });
+	}, '<zooo></ooo>');
 
 	testCase('Breakout with stop pattern - paste string', state3, async (editor) => {
 		const pos = new Position(1, 2);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Paste, { text: 'so' });
-	}, '<soooo></ooo>');
+		await editor.trigger('keyboard', Handler.Paste, { text: 'zo' });
+	}, '<zoooo></ooo>');
 
 	testCase('Breakout with stop pattern - insert at end', state3, async (editor) => {
 		const pos = new Position(1, 5);
 		await editor.setPosition(pos);
-		await editor.trigger('keyboard', Handler.Type, { text: 's' });
-	}, '<ooos></ooo>');
+		await editor.trigger('keyboard', Handler.Type, { text: 'z' });
+	}, '<oooz></ooo>');
+
+	const state4 = {
+		...state,
+		providerWordPattern: /[a-yA-Y]+/,
+		responseWordPattern: /[a-eA-E]+/
+	};
+
+	testCase('Breakout with stop pattern - insert stop char, respos', state4, async (editor) => {
+		const pos = new Position(1, 2);
+		await editor.setPosition(pos);
+		await editor.trigger('keyboard', Handler.Type, { text: 'i' });
+	}, '<iooo></ooo>');
 
 	/**
 	 * Delete

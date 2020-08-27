@@ -121,30 +121,39 @@ interface IHomeIndicator {
 	title: string;
 }
 
-interface IRemoteIndicator {
+interface IWindowIndicator {
 
 	/**
-	 * Triggering this event will cause the remote indicator to update.
+	 * Triggering this event will cause the window indicator to update.
 	 */
 	onDidChange: Event<void>;
 
 	/**
-	 * Label of the remote indicator may include octicons
+	 * Label of the window indicator may include octicons
 	 * e.g. `$(remote) label`
 	 */
 	label: string;
 
 	/**
-	 * Tooltip of the remote indicator should not include
+	 * Tooltip of the window indicator should not include
 	 * octicons and be descriptive.
 	 */
 	tooltip: string;
 
 	/**
 	 * If provided, overrides the default command that
-	 * is executed when clicking on the remote indicator.
+	 * is executed when clicking on the window indicator.
 	 */
 	command?: string;
+}
+
+interface IInitialColorTheme {
+	themeType: 'light' | 'dark' | 'hc';
+
+	/**
+	 * a list of workbench colors
+	 */
+	colors?: { [colorId: string]: string };
 }
 
 interface IDefaultSideBarLayout {
@@ -377,9 +386,18 @@ interface IWorkbenchConstructionOptions {
 	readonly productConfiguration?: Partial<IProductConfiguration>;
 
 	/**
-	 * Optional override for properties of the remote window indicator in the status bar.
+	 * Optional override for properties of the window indicator in the status bar.
 	 */
-	readonly remoteIndicator?: IRemoteIndicator;
+	readonly windowIndicator?: IWindowIndicator;
+
+	/**
+	 * Specifies the default theme type (LIGHT, DARK..) and allows to provide initial colors that are shown
+	 * until the color theme that is specified in the settings (`editor.colorTheme`) is loaded and applied.
+	 * Once there are persisted colors from a last run these will be used.
+	 *
+	 * The idea is that the colors match the main colors from the theme defined in the `configurationDefaults`.
+	 */
+	readonly initialColorTheme?: IInitialColorTheme;
 
 	//#endregion
 
@@ -535,7 +553,7 @@ export {
 	// Branding
 	IHomeIndicator,
 	IProductConfiguration,
-	IRemoteIndicator,
+	IWindowIndicator,
 
 	// Default layout
 	IDefaultView,

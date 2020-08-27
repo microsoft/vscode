@@ -1031,7 +1031,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): Promise<any> {
-				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false);
+				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false, true);
 			}
 		}));
 	}

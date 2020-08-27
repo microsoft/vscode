@@ -112,7 +112,7 @@ export class SearchEditorInput extends EditorInput {
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
-			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
+			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }

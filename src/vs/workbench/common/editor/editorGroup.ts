@@ -19,38 +19,43 @@ const EditorOpenPositioning = {
 };
 
 export interface EditorCloseEvent extends IEditorCloseEvent {
-	editor: EditorInput;
+	readonly editor: EditorInput;
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
-	groupId: GroupIdentifier;
-	editor: EditorInput;
+	readonly groupId: GroupIdentifier;
+	readonly editor: EditorInput;
 }
 
 export interface IEditorOpenOptions {
-	pinned?: boolean;
+	readonly pinned?: boolean;
 	sticky?: boolean;
 	active?: boolean;
-	index?: number;
+	readonly index?: number;
+}
+
+export interface IEditorOpenResult {
+	readonly editor: EditorInput;
+	readonly isNew: boolean;
 }
 
 export interface ISerializedEditorInput {
-	id: string;
-	value: string;
+	readonly id: string;
+	readonly value: string;
 }
 
 export interface ISerializedEditorGroup {
-	id: number;
-	editors: ISerializedEditorInput[];
-	mru: number[];
-	preview?: number;
+	readonly id: number;
+	readonly editors: ISerializedEditorInput[];
+	readonly mru: number[];
+	readonly preview?: number;
 	sticky?: number;
 }
 
 export function isSerializedEditorGroup(obj?: unknown): obj is ISerializedEditorGroup {
 	const group = obj as ISerializedEditorGroup;
 
-	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
+	return !!(obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru));
 }
 
 export class EditorGroup extends Disposable {
@@ -174,7 +179,7 @@ export class EditorGroup extends Disposable {
 		return this.preview;
 	}
 
-	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): EditorInput {
+	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
@@ -274,7 +279,10 @@ export class EditorGroup extends Disposable {
 				this.doSetActive(newEditor);
 			}
 
-			return newEditor;
+			return {
+				editor: newEditor,
+				isNew: true
+			};
 		}
 
 		// Existing editor
@@ -302,7 +310,10 @@ export class EditorGroup extends Disposable {
 				this.doStick(existingEditor, this.indexOf(existingEditor));
 			}
 
-			return existingEditor;
+			return {
+				editor: existingEditor,
+				isNew: false
+			};
 		}
 	}
 

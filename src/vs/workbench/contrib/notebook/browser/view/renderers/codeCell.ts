@@ -4,21 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellOutputKind, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDimension } from 'vs/editor/common/editorCommon';
+import { BUILTIN_RENDERER_ID, CellOutputKind, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -32,6 +32,9 @@ interface IRenderedOutput {
 export class CodeCell extends Disposable {
 	private outputResizeListeners = new Map<IProcessedOutput, DisposableStore>();
 	private outputElements = new Map<IProcessedOutput, IRenderedOutput>();
+
+	private modifyInsetQueue = Promise.resolve();
+
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
@@ -170,7 +173,7 @@ export class CodeCell extends Disposable {
 					removedKeys.push(key);
 					// remove element from DOM
 					this.templateData?.outputContainer?.removeChild(value.element);
-					this.notebookEditor.removeInset(key);
+					this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.removeInset(key));
 				}
 			});
 
@@ -322,8 +325,9 @@ export class CodeCell extends Disposable {
 
 			const renderedOutput = this.outputElements.get(currOutput);
 			if (renderedOutput) {
-				if (renderedOutput.renderResult.shadowContent) {
+				if (renderedOutput.renderResult.type !== RenderOutputType.None) {
 					// Show inset in webview, or render output that isn't rendered
+					// TODO@roblou skipHeightInit flag is a hack - the webview only sends the real height once. Don't wipe it out here.
 					this.renderOutput(currOutput, index, undefined);
 				} else {
 					// Anything else, just update the height
@@ -337,6 +341,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateInputCollapsed(): void {
 		DOM.hide(this.templateData.cellContainer);
+		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
@@ -354,6 +359,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateOutputCollapsed(): void {
 		DOM.show(this.templateData.cellContainer);
+		DOM.show(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
 
@@ -367,6 +373,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateAllCollapsed(): void {
 		DOM.hide(this.templateData.cellContainer);
+		DOM.hide(this.templateData.runButtonContainer);
 		DOM.show(this.templateData.collapsedPart);
 		DOM.hide(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', true);
@@ -381,6 +388,7 @@ export class CodeCell extends Disposable {
 
 	private viewUpdateExpanded(): void {
 		DOM.show(this.templateData.cellContainer);
+		DOM.show(this.templateData.runButtonContainer);
 		DOM.hide(this.templateData.collapsedPart);
 		DOM.show(this.templateData.outputContainer);
 		this.templateData.container.classList.toggle('collapsed', false);
@@ -393,7 +401,7 @@ export class CodeCell extends Disposable {
 
 	private layoutEditor(dimension: IDimension): void {
 		this.templateData.editor?.layout(dimension);
-		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
+		this.templateData.statusBar.layout(dimension.width);
 	}
 
 	private onCellWidthChange(): void {
@@ -408,9 +416,10 @@ export class CodeCell extends Disposable {
 			}
 		);
 
+		// for contents for which we don't observe for dynamic height, update them manually
 		this.viewCell.outputs.forEach((o, i) => {
 			const renderedOutput = this.outputElements.get(o);
-			if (renderedOutput && !renderedOutput.renderResult.hasDynamicHeight && !renderedOutput.renderResult.shadowContent) {
+			if (renderedOutput && renderedOutput.renderResult.type === RenderOutputType.None && !renderedOutput.renderResult.hasDynamicHeight) {
 				this.viewCell.updateOutputHeight(i, renderedOutput.element.clientHeight);
 			}
 		});
@@ -469,9 +478,12 @@ export class CodeCell extends Disposable {
 			const innerContainer = DOM.$('.output-inner-container');
 			DOM.append(outputItemDiv, innerContainer);
 
-			if (pickedMimeTypeRenderer.isResolved) {
-				// html
-				result = this.notebookEditor.getOutputRenderer().render({ outputId: currOutput.outputId, outputKind: CellOutputKind.Rich, data: { 'text/html': pickedMimeTypeRenderer.output! } }, innerContainer, 'text/html');
+
+			if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
+				const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
+				result = renderer
+					? { type: RenderOutputType.Extension, renderer, source: currOutput, mimeType: pickedMimeTypeRenderer.mimeType }
+					: this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType);
 			} else {
 				result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType);
 			}
@@ -496,18 +508,16 @@ export class CodeCell extends Disposable {
 			this.templateData.outputContainer?.appendChild(outputItemDiv);
 		}
 
-		if (result.shadowContent) {
+		if (result.type !== RenderOutputType.None) {
 			this.viewCell.selfSizeMonitoring = true;
-			this.notebookEditor.createInset(this.viewCell, currOutput, result.shadowContent, this.viewCell.getOutputOffset(index));
+			this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index)));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
 			DOM.addClass(outputItemDiv, 'output-element');
 			outputItemDiv.style.position = 'absolute';
 		}
 
-		const hasDynamicHeight = result.hasDynamicHeight;
-
-		if (hasDynamicHeight) {
+		if (outputHasDynamicHeight(result)) {
 			this.viewCell.selfSizeMonitoring = true;
 
 			const clientHeight = outputItemDiv.clientHeight;
@@ -535,18 +545,12 @@ export class CodeCell extends Disposable {
 			elementSizeObserver.startObserving();
 			this.outputResizeListeners.get(currOutput)!.add(elementSizeObserver);
 			this.viewCell.updateOutputHeight(index, clientHeight);
-		} else {
-			if (result.shadowContent) {
-				// webview
-				// noop
-			} else {
-				// static output
-				const clientHeight = Math.ceil(outputItemDiv.clientHeight);
-				this.viewCell.updateOutputHeight(index, clientHeight);
+		} else if (result.type === RenderOutputType.None) { // no-op if it's a webview
+			const clientHeight = Math.ceil(outputItemDiv.clientHeight);
+			this.viewCell.updateOutputHeight(index, clientHeight);
 
-				const top = this.viewCell.getOutputOffsetInContainer(index);
-				outputItemDiv.style.top = `${top}px`;
-			}
+			const top = this.viewCell.getOutputOffsetInContainer(index);
+			outputItemDiv.style.top = `${top}px`;
 		}
 	}
 
@@ -601,21 +605,10 @@ export class CodeCell extends Disposable {
 			const element = this.outputElements.get(output)?.element;
 			if (element) {
 				this.templateData?.outputContainer?.removeChild(element);
-				this.notebookEditor.removeInset(output);
+				await (this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.removeInset(output)));
 			}
 
 			output.pickedMimeTypeIndex = pick;
-
-			if (!output.orderedMimeTypes![pick].isResolved && output.orderedMimeTypes![pick].rendererId !== BUILTIN_RENDERER_ID) {
-				// since it's not build in renderer and not resolved yet
-				// let's see if we can activate the extension and then render
-				// await this.notebookService.transformSpliceOutputs(this.notebookEditor.textModel!, [[0, 0, output]])
-				const outputRet = await this.notebookService.transformSingleOutput(this.notebookEditor.textModel!, output, output.orderedMimeTypes![pick].rendererId!, output.orderedMimeTypes![pick].mimeType);
-				if (outputRet) {
-					output.orderedMimeTypes![pick] = outputRet;
-				}
-			}
-
 			this.renderOutput(output, index, nextElement);
 			this.relayoutCell();
 		}

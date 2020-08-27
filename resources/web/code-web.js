@@ -144,7 +144,7 @@ async function ensureWebDevExtensions() {
 	}
 }
 
-async function getDefaultExtensionInfos() {
+async function getCommandlineProvidedExtensionInfos() {
 	const extensions = [];
 
 	/** @type {Object.<string, string>} */
@@ -196,7 +196,7 @@ async function getExtensionPackageJSON(extensionPath) {
 }
 
 const builtInExtensionsPromise = getBuiltInExtensionInfos();
-const defaultExtensionsPromise = getDefaultExtensionInfos();
+const commandlineProvidedExtensionsPromise = getCommandlineProvidedExtensionInfos();
 
 const mapCallbackUriToRequestId = new Map();
 
@@ -291,7 +291,7 @@ async function handleStatic(req, res, parsedUrl) {
 async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
-	const filePath = getExtensionFilePath(relativePath, (await defaultExtensionsPromise).locations);
+	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
 	if (!filePath) {
 		return serveError(req, res, 400, `Bad request.`);
 	}
@@ -335,10 +335,21 @@ async function handleRoot(req, res) {
 	}
 
 	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
-	const { extensions: staticExtensions } = await defaultExtensionsPromise;
+	const { extensions: staticExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
+
+	const dedupedBuiltInExtensions = [];
+	for (const builtInExtension of builtInExtensions) {
+		const extensionId = `${builtInExtension.packageJSON.publisher}.${builtInExtension.packageJSON.name}`;
+		if (staticLocations[extensionId]) {
+			fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: Ignoring built-in ${extensionId} because it was overridden via --extension argument`);
+			continue;
+		}
+
+		dedupedBuiltInExtensions.push(builtInExtension);
+	}
 
 	if (args.verbose) {
-		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${builtInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
+		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
 		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
@@ -352,7 +363,7 @@ async function handleRoot(req, res) {
 
 	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
-		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(builtInExtensions)))
+		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 

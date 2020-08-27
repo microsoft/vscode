@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -16,6 +16,7 @@ import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/wi
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
+import { Schemas } from 'vs/base/common/network';
 
 interface ICredential {
 	service: string;
@@ -277,9 +278,23 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		return false;
 	}
+
+	hasRemote(): boolean {
+		if (this.workspace) {
+			if (isFolderToOpen(this.workspace)) {
+				return this.workspace.folderUri.scheme === Schemas.vscodeRemote;
+			}
+
+			if (isWorkspaceToOpen(this.workspace)) {
+				return this.workspace.workspaceUri.scheme === Schemas.vscodeRemote;
+			}
+		}
+
+		return true;
+	}
 }
 
-class RemoteIndicator implements IRemoteIndicator {
+class WindowIndicator implements IWindowIndicator {
 
 	readonly onDidChange = Event.None;
 
@@ -391,6 +406,9 @@ class RemoteIndicator implements IRemoteIndicator {
 		}
 	}
 
+	// Workspace Provider
+	const workspaceProvider = new WorkspaceProvider(workspace, payload);
+
 	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
 		href: 'https://github.com/Microsoft/vscode',
@@ -401,10 +419,13 @@ class RemoteIndicator implements IRemoteIndicator {
 	// Commands
 	const commands: ICommand[] = [];
 
-	// Remote indicator
-	const remoteIndicator = new RemoteIndicator(workspace);
-	if (remoteIndicator.commandImpl) {
-		commands.push(remoteIndicator.commandImpl);
+	// Window indicator (unless connected to a remote)
+	let windowIndicator: WindowIndicator | undefined = undefined;
+	if (!workspaceProvider.hasRemote()) {
+		windowIndicator = new WindowIndicator(workspace);
+		if (windowIndicator.commandImpl) {
+			commands.push(windowIndicator.commandImpl);
+		}
 	}
 
 	// Product Quality Change Handler
@@ -427,9 +448,9 @@ class RemoteIndicator implements IRemoteIndicator {
 		...config,
 		homeIndicator,
 		commands,
-		remoteIndicator,
+		windowIndicator,
 		productQualityChangeHandler,
-		workspaceProvider: new WorkspaceProvider(workspace, payload),
+		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
 		credentialsProvider: new LocalStorageCredentialsProvider()
 	});

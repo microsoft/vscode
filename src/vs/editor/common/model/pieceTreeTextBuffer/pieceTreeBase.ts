@@ -626,8 +626,7 @@ export class PieceTreeBase {
 		return this._lastVisitedLine.value;
 	}
 
-	public getLineCharCode(lineNumber: number, index: number): number {
-		let nodePos = this.nodeAt2(lineNumber, index + 1);
+	private _getCharCode(nodePos: NodePosition): number {
 		if (nodePos.remainder === nodePos.node.piece.length) {
 			// the char we want to fetch is at the head of next node.
 			let matchingNode = nodePos.node.next();
@@ -647,12 +646,22 @@ export class PieceTreeBase {
 		}
 	}
 
+	public getLineCharCode(lineNumber: number, index: number): number {
+		let nodePos = this.nodeAt2(lineNumber, index + 1);
+		return this._getCharCode(nodePos);
+	}
+
 	public getLineLength(lineNumber: number): number {
 		if (lineNumber === this.getLineCount()) {
 			let startOffset = this.getOffsetAt(lineNumber, 1);
 			return this.getLength() - startOffset;
 		}
 		return this.getOffsetAt(lineNumber + 1, 1) - this.getOffsetAt(lineNumber, 1) - this._EOLLength;
+	}
+
+	public getCharCode(offset: number): number {
+		let nodePos = this.nodeAt(offset);
+		return this._getCharCode(nodePos);
 	}
 
 	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startColumn: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {

@@ -29,6 +29,7 @@ import * as strings from 'vs/base/common/strings';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
@@ -45,6 +46,8 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		return editor.getContribution<OnTypeRenameContribution>(OnTypeRenameContribution.ID);
 	}
 
+	private _debounceDuration = 200;
+
 	private readonly _editor: ICodeEditor;
 	private _enabled: boolean;
 
@@ -58,7 +61,8 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 	private _currentRequestModelVersion: number | null;
 
 	private _currentDecorations: string[]; // The one at index 0 is the reference one
-	private _stopPattern: RegExp;
+	private _languageWordPattern: RegExp | null;
+	private _currentWordPattern: RegExp | null;
 	private _ignoreChangeEvent: boolean;
 
 	private readonly _localToDispose = this._register(new DisposableStore());
@@ -73,7 +77,8 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
 
 		this._currentDecorations = [];
-		this._stopPattern = /\s/;
+		this._languageWordPattern = null;
+		this._currentWordPattern = null;
 		this._ignoreChangeEvent = false;
 		this._localToDispose = this._register(new DisposableStore());
 
@@ -113,15 +118,20 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 			return;
 		}
 
-		const rangeUpdateScheduler = new Delayer(200);
+		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		this._localToDispose.add(model.onDidChangeLanguageConfiguration(() => {
+			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		}));
+
+		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
 		const triggerRangeUpdate = () => {
-			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges());
+			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges(), this._debounceDuration);
 		};
 		const rangeSyncScheduler = new Delayer(0);
 		const triggerRangeSync = (decorations: string[]) => {
 			this._rangeSyncTriggerPromise = rangeSyncScheduler.trigger(() => this._syncRanges(decorations));
 		};
-		this._localToDispose.add(this._editor.onDidChangeCursorPosition((e) => {
+		this._localToDispose.add(this._editor.onDidChangeCursorPosition(() => {
 			triggerRangeUpdate();
 		}));
 		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
@@ -160,8 +170,12 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		}
 
 		const referenceValue = model.getValueInRange(referenceRange);
-		if (this._stopPattern.test(referenceValue)) {
-			return this.clearRanges();
+		if (this._currentWordPattern) {
+			const match = referenceValue.match(this._currentWordPattern);
+			const matchLength = match ? match[0].length : 0;
+			if (matchLength !== referenceValue.length) {
+				return this.clearRanges();
+			}
 		}
 
 		let edits: IIdentifiedSingleEditOperation[] = [];
@@ -281,9 +295,8 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 				if (response?.ranges) {
 					ranges = response.ranges;
 				}
-				if (response?.stopPattern) {
-					this._stopPattern = response.stopPattern;
-				}
+
+				this._currentWordPattern = response?.wordPattern || this._languageWordPattern;
 
 				let foundReferenceRange = false;
 				for (let i = 0, len = ranges.length; i < len; i++) {
@@ -319,6 +332,11 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		});
 		this._currentRequest = request;
 		return request;
+	}
+
+	// for testing
+	public setDebounceDuration(timeInMS: number) {
+		this._debounceDuration = timeInMS;
 	}
 
 	// private printDecorators(model: ITextModel) {
@@ -403,7 +421,7 @@ registerEditorCommand(new OnTypeRenameCommand({
 
 export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<{
 	ranges: IRange[],
-	stopPattern?: RegExp
+	wordPattern?: RegExp
 } | undefined | null> {
 	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
 
@@ -412,16 +430,16 @@ export function getOnTypeRenameRanges(model: ITextModel, position: Position, tok
 	// (good = none empty array)
 	return first<{
 		ranges: IRange[],
-		stopPattern?: RegExp
+		wordPattern?: RegExp
 	} | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token)).then((ranges) => {
-			if (!ranges) {
+		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token)).then((res) => {
+			if (!res) {
 				return undefined;
 			}
 
 			return {
-				ranges,
-				stopPattern: provider.stopPattern
+				ranges: res.ranges,
+				wordPattern: res.wordPattern || provider.wordPattern
 			};
 		}, (err) => {
 			onUnexpectedExternalError(err);
