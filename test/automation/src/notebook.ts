@@ -8,7 +8,6 @@ import { QuickAccess } from './quickaccess';
 import { IElement } from './driver';
 
 const notebookEditorSelector = `.notebook-editor`;
-const rowSelector = `${notebookEditorSelector} .monaco-list-row`;
 const activeRowSelector = `${notebookEditorSelector} .monaco-list-row.focused`;
 
 export interface ICellData {
@@ -26,6 +25,10 @@ export class Notebook {
 	}
 
 	async getCellDatas(): Promise<ICellData[]> {
+		if (await this.notebookIsEmpty()) {
+			return [];
+		}
+
 		const [cells, cellEditorsOrMarkdowns, languagePickersOrMarkdowns] = await Promise.all([
 			this.code.waitForElements('.notebookOverlay .monaco-list-row', false),
 			this.code.waitForElements('.notebookOverlay .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-editor-container > .monaco-editor, .notebookOverlay .monaco-list-row .markdown', false),
@@ -59,6 +62,11 @@ export class Notebook {
 		}).sort((cellA, cellB) => {
 			return cellA.top - cellB.top;
 		});
+	}
+
+	async notebookIsEmpty(): Promise<boolean> {
+		const empty = this.code.waitForElement(`.notebookOverlay .emptyNotebook`, () => true, 2);
+		return !!empty;
 	}
 
 	async createNewNotebook() {
@@ -148,7 +156,7 @@ export class Notebook {
 	}
 
 	async getRowCount(): Promise<number> {
-		return (await this.code.waitForElements(activeRowSelector, false)).length;
+		return (await this.code.waitForElements(activeRowSelector, false, () => true)).length;
 	}
 
 	async getFocusedRow(): Promise<IElement> {

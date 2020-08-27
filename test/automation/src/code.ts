@@ -322,11 +322,6 @@ export class Code {
 		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
 	}
 
-	async waitForNotebookCells(selector: string, recursive: boolean, accept: (result: IElement[]) => boolean = result => result.length > 0): Promise<IElement[]> {
-		const windowId = await this.getActiveWindowId();
-		return await poll(() => this.driver.getElements(windowId, selector, recursive), accept, `get elements '${selector}'`);
-	}
-
 	async waitForElement(selector: string, accept: (result: IElement | undefined) => boolean = result => !!result, retryCount: number = 200): Promise<IElement> {
 		const windowId = await this.getActiveWindowId();
 		return await poll<IElement>(() => this.driver.getElements(windowId, selector).then(els => els[0]), accept, `get element '${selector}'`, retryCount);

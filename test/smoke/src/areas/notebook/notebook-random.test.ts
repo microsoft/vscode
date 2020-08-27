@@ -80,11 +80,21 @@ class NotebookActionRunner {
 	private readonly actions: INotebookActions;
 	public readonly id: string;
 
+	private hasRunCopy = false;
+
 	constructor(
 		private readonly app: Application
 	) {
 		this.actions = getActions(app);
 		this.id = String(Math.floor(Date.now() / 1000)).slice(4);
+	}
+
+	private isCopyAction(actionKey: string): boolean {
+		return !!actionKey.match(/^(copy|cut)/);
+	}
+
+	private isPasteAction(actionKey: string): boolean {
+		return !!actionKey.match(/^paste/);
 	}
 
 	private async doAction(actionKey: string, i: number) {
@@ -122,20 +132,22 @@ class NotebookActionRunner {
 			const newCells = await this.app.workbench.notebook.getCellDatas();
 			assert.deepEqual(originalCells, newCells);
 		} catch (e) {
-			await this.app.captureScreenshot(`${this.id}/1_after`);
 			throw e;
+		} finally {
+			await this.app.captureScreenshot(`${this.id}/1_after`);
 		}
 	}
 
 	private async assertFocusInvariant() {
+		if (await this.app.workbench.notebook.notebookIsEmpty()) {
+			return;
+		}
+
 		try {
 			await this.app.workbench.notebook.getFocusedRow();
 		} catch (e) {
-			const count = await this.app.workbench.notebook.getRowCount();
-			if (count) {
-				console.error(`Failed invariant: a row must always be focused.`);
-				throw e;
-			}
+			console.error(`Failed invariant: a row must always be focused.`);
+			throw e;
 		}
 	}
 
@@ -147,18 +159,38 @@ class NotebookActionRunner {
 		});
 	}
 
-	private async doRandomAction(actions: INotebookActions, i: number) {
-		const actionKeys = Object.keys(actions);
-		const randomKeyIdx = Math.floor(Math.random() * actionKeys.length);
-		const randomKey = actionKeys[randomKeyIdx];
+	private async doRandomAction(i: number) {
+		const randomAction = this.selectRandomAction();
+		await this.doAction(randomAction, i);
+	}
 
-		await this.doAction(randomKey, i);
+	private selectRandomAction(): string {
+		const randomAction = this.getRandomAction();
+		if (this.isCopyAction(randomAction)) {
+			this.hasRunCopy = true;
+		}
+
+		if (this.isPasteAction(randomAction)) {
+			return this.selectRandomAction();
+		}
+
+		if (this.isPasteAction(randomAction) && !this.hasRunCopy) {
+			return this.selectRandomAction();
+		}
+
+		return randomAction;
+	}
+
+	private getRandomAction(): string {
+		const actionKeys = Object.keys(this.actions);
+		const randomKeyIdx = Math.floor(Math.random() * actionKeys.length);
+		return actionKeys[randomKeyIdx];
 	}
 
 	async doRandomActions(n: number) {
 		console.log(`Starting random action run: ${this.id}`);
 		for (let i = 0; i < n; i++) {
-			await this.doRandomAction(this.actions, i);
+			await this.doRandomAction(i);
 		}
 
 		try {
@@ -215,6 +247,10 @@ function getActions(app: Application): INotebookActions {
 			await n.waitForTypeInEditor('![msft](https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png)');
 		},
 		editCell: async () => {
+			if (await n.notebookIsEmpty()) {
+				return;
+			}
+
 			await n.editCell();
 			await n.waitForTypeInEditor('more text\n\n');
 		},
