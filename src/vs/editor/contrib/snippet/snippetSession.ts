@@ -320,7 +320,7 @@ export interface ISnippetSessionInsertOptions {
 	overwriteAfter: number;
 	adjustWhitespace: boolean;
 	clipboardText: string | undefined;
-	overtypingCapturer: OvertypingCapturer | null;
+	overtypingCapturer: OvertypingCapturer | undefined;
 }
 
 const _defaultOptions: ISnippetSessionInsertOptions = {
@@ -328,7 +328,7 @@ const _defaultOptions: ISnippetSessionInsertOptions = {
 	overwriteAfter: 0,
 	adjustWhitespace: true,
 	clipboardText: undefined,
-	overtypingCapturer: null
+	overtypingCapturer: undefined
 };
 
 export class SnippetSession {
@@ -385,7 +385,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | null): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: IActiveCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean, adjustWhitespace: boolean, clipboardText: string | undefined, overtypingCapturer: OvertypingCapturer | undefined): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 

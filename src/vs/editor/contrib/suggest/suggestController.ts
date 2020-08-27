@@ -207,7 +207,7 @@ export class SuggestController implements IEditorContribution {
 
 		// Wire up text overtyping capture
 		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
-			return this._toDispose.add(new OvertypingCapturer(this.editor, this.widget.value));
+			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
 		}));
 
 		this._alternatives = this._toDispose.add(new IdleValue(() => {

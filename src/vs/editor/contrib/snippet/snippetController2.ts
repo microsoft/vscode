@@ -27,7 +27,7 @@ export interface ISnippetInsertOptions {
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
-	overtypingCapturer: OvertypingCapturer | null;
+	overtypingCapturer: OvertypingCapturer | undefined;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -37,7 +37,7 @@ const _defaultOptions: ISnippetInsertOptions = {
 	undoStopAfter: true,
 	adjustWhitespace: true,
 	clipboardText: undefined,
-	overtypingCapturer: null
+	overtypingCapturer: undefined
 };
 
 export class SnippetController2 implements IEditorContribution {

@@ -5,27 +5,27 @@
 
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { SuggestWidget } from './suggestWidget';
+import { SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 
 export class OvertypingCapturer implements IDisposable {
 
-	private readonly _maxSelectionLength = 1000000;
+	private readonly _maxSelectionLength = 51200;
 	private readonly _disposables = new DisposableStore();
-	private readonly _editor: ICodeEditor;
 
 	private _lastOvertyped: string[];
 	private _holdCurrent: boolean;
+	private _empty: boolean;
 
-	constructor(editor: ICodeEditor, widget: SuggestWidget) {
-		this._editor = editor;
+	constructor(editor: ICodeEditor, suggestModel: SuggestModel) {
 		this._lastOvertyped = new Array<string>(0);
 		this._holdCurrent = false;
+		this._empty = true;
 
-		this._disposables.add(this._editor.onWillType(text => {
+		this._disposables.add(editor.onWillType(text => {
 			if (this._holdCurrent) {
 				return;
 			}
-			const selections = this._editor.getSelections();
+			const selections = editor.getSelections();
 			if (!selections) {
 				return;
 			}
@@ -44,7 +44,7 @@ export class OvertypingCapturer implements IDisposable {
 				return;
 			}
 
-			const model = this._editor.getModel();
+			const model = editor.getModel();
 			if (!model) {
 				return;
 			}
@@ -60,22 +60,23 @@ export class OvertypingCapturer implements IDisposable {
 			for (let i = 0; i < selectionsLength; i++) {
 				this._lastOvertyped[i] = model.getValueInRange(selections[i]);
 			}
+			this._empty = false;
 		}));
 
-		this._disposables.add(widget.onDidShow(() => {
+		this._disposables.add(suggestModel.onDidSuggest(e => {
 			this._holdCurrent = true;
 		}));
 
-		this._disposables.add(widget.onDidHide(() => {
-			if (this._lastOvertyped.length > 0) {
-				this._lastOvertyped = new Array<string>(0);
+		this._disposables.add(suggestModel.onDidCancel(e => {
+			if (!this._empty) {
+				this._empty = true;
 			}
 			this._holdCurrent = false;
 		}));
 	}
 
 	getLastOvertypedText(idx: number): string | undefined {
-		if (idx < this._lastOvertyped.length && this._lastOvertyped[idx].length > 0) {
+		if (!this._empty && idx >= 0 && idx < this._lastOvertyped.length) {
 			return this._lastOvertyped[idx];
 		}
 		return undefined;

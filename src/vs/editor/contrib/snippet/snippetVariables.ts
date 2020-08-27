@@ -74,7 +74,7 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 		private readonly _model: ITextModel,
 		private readonly _selection: Selection,
 		private readonly _selectionIdx: number,
-		private readonly _overtypingCapturer: OvertypingCapturer | null
+		private readonly _overtypingCapturer: OvertypingCapturer | undefined
 	) {
 		//
 	}
