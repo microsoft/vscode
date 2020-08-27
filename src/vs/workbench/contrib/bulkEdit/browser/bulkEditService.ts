@@ -15,26 +15,19 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BulkTextEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkTextEdits';
 import { BulkFileEdits } from 'vs/workbench/contrib/bulkEdit/browser/bulkFileEdits';
+import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 class BulkEdit {
 
-	private readonly _label: string | undefined;
-	private readonly _edits: ResourceEdit[] = [];
-	private readonly _editor: ICodeEditor | undefined;
-	private readonly _progress: IProgress<IProgressStep>;
-
 	constructor(
-		label: string | undefined,
-		editor: ICodeEditor | undefined,
-		progress: IProgress<IProgressStep> | undefined,
-		edits: ResourceEdit[],
+		private readonly _label: string | undefined,
+		private readonly _editor: ICodeEditor | undefined,
+		private readonly _progress: IProgress<IProgressStep>,
+		private readonly _edits: ResourceEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._label = label;
-		this._editor = editor;
-		this._progress = progress || Progress.None;
-		this._edits = edits;
+
 	}
 
 	ariaMessage(): string {
@@ -75,6 +68,8 @@ class BulkEdit {
 				await this._performFileEdits(<ResourceFileEdit[]>group, progress);
 			} else if (group[0] instanceof ResourceTextEdit) {
 				await this._performTextEdits(<ResourceTextEdit[]>group, progress);
+			} else if (group[0] instanceof ResourceNotebookCellEdit) {
+				await this._performCellEdits(<ResourceNotebookCellEdit[]>group, progress);
 			} else {
 				console.log('UNKNOWN EDIT');
 			}
@@ -91,6 +86,12 @@ class BulkEdit {
 	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._editor, progress, edits);
+		await model.apply();
+	}
+
+	private async _performCellEdits(edits: ResourceNotebookCellEdit[], progress: IProgress<void>): Promise<void> {
+		this._logService.debug('_performCellEdits', JSON.stringify(edits));
+		const model = this._instaService.createInstance(BulkCellEdits, progress, edits);
 		await model.apply();
 	}
 }
@@ -130,7 +131,6 @@ export class BulkEditService implements IBulkEditService {
 			edits = await this._previewHandler(edits, options);
 		}
 
-		// const { edits } = edit;
 		let codeEditor = options?.editor;
 		// try to find code editor
 		if (!codeEditor) {
@@ -144,15 +144,23 @@ export class BulkEditService implements IBulkEditService {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}
-		const bulkEdit = this._instaService.createInstance(BulkEdit, options?.quotableLabel || options?.label, codeEditor, options?.progress, edits);
-		return bulkEdit.perform().then(() => {
+
+		const bulkEdit = this._instaService.createInstance(
+			BulkEdit,
+			options?.quotableLabel || options?.label,
+			codeEditor, options?.progress ?? Progress.None,
+			edits
+		);
+
+		try {
+			await bulkEdit.perform();
 			return { ariaSummary: bulkEdit.ariaMessage() };
-		}).catch(err => {
+		} catch (err) {
 			// console.log('apply FAILED');
 			// console.log(err);
 			this._logService.error(err);
 			throw err;
-		});
+		}
 	}
 }
 

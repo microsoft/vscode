@@ -212,8 +212,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private registerListeners(): void {
 
-		// React to HC color scheme changes (Windows)
-		if (isWindows) {
+		// React to HC color scheme changes (Windows, macOS)
+		if (isWindows || isMacintosh) {
 			nativeTheme.on('updated', () => {
 				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
 					this.sendToAll('vscode:enterHighContrast');

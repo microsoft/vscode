@@ -10,7 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape, IWorkspaceTextEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { mock } from 'vs/base/test/common/mock';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/browser/mainThreadEditors';
@@ -170,6 +170,7 @@ suite('MainThreadEditors', () => {
 		let model = modelService.createModel('something', null, resource);
 
 		let workspaceResourceEdit: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -191,6 +192,7 @@ suite('MainThreadEditors', () => {
 		let model = modelService.createModel('something', null, resource);
 
 		let workspaceResourceEdit1: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -199,6 +201,7 @@ suite('MainThreadEditors', () => {
 			}
 		};
 		let workspaceResourceEdit2: IWorkspaceTextEditDto = {
+			_type: WorkspaceEditType.Text,
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edit: {
@@ -221,9 +224,9 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
-				{ oldUri: resource, newUri: resource, options: undefined },
-				{ oldUri: undefined, newUri: resource, options: undefined },
-				{ oldUri: resource, newUri: undefined, options: undefined }
+				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: resource, options: undefined },
+				{ _type: WorkspaceEditType.File, oldUri: undefined, newUri: resource, options: undefined },
+				{ _type: WorkspaceEditType.File, oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
 			assert.equal(result, true);

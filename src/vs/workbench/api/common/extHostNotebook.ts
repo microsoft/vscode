@@ -14,15 +14,15 @@ import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { CellEditType, CellOutputKind, diff, ICellDeleteEdit, ICellDto2, ICellEditOperation, ICellInsertEdit, IMainCellDto, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, IRawOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellEditOperation, ICellReplaceEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ResourceMap } from 'vs/base/common/map';
@@ -55,9 +55,6 @@ interface INotebookEventEmitter {
 	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
 }
 
-const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
-	? ({ ...output, outputId: id }) : output;
-
 export class ExtHostCell extends Disposable {
 
 	public static asModelAddData(notebook: vscode.NotebookDocument, cell: IMainCellDto): IExtHostModelAddedData {
@@ -71,6 +68,9 @@ export class ExtHostCell extends Disposable {
 			notebook
 		};
 	}
+
+	private _onDidDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	private _onDidChangeOutputs = new Emitter<ISplice<IProcessedOutput>[]>();
 	readonly onDidChangeOutputs: Event<ISplice<IProcessedOutput>[]> = this._onDidChangeOutputs.event;
@@ -132,6 +132,11 @@ export class ExtHostCell extends Disposable {
 			});
 		}
 		return this._cell;
+	}
+
+	dispose() {
+		super.dispose();
+		this._onDidDispose.fire();
 	}
 
 	private _updateOutputs(newOutputs: vscode.CellOutput[]) {
@@ -345,7 +350,9 @@ export class ExtHostNotebookDocument extends Disposable {
 				}
 
 				if (!this._cellDisposableMapping.has(extCell.handle)) {
-					this._cellDisposableMapping.set(extCell.handle, new DisposableStore());
+					const store = new DisposableStore();
+					store.add(extCell);
+					this._cellDisposableMapping.set(extCell.handle, store);
 				}
 
 				const store = this._cellDisposableMapping.get(extCell.handle)!;
@@ -428,9 +435,9 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._emitter.emitCellLanguageChange(event);
 	}
 
-	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata): void {
+	private _changeCellMetadata(index: number, newMetadata: NotebookCellMetadata | undefined): void {
 		const cell = this._cells[index];
-		cell.setMetadata(newMetadata);
+		cell.setMetadata(newMetadata || {});
 		const event: vscode.NotebookCellMetadataChangeEvent = { document: this.notebookDocument, cell: cell.cell };
 		this._emitter.emitCellMetadataChange(event);
 	}
@@ -520,7 +527,7 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		});
 	}
 
-	replaceOutputs(index: number, outputs: vscode.CellOutput[]): void {
+	replaceOutput(index: number, outputs: vscode.CellOutput[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Output,
@@ -532,29 +539,17 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
 
-		// deletion
-		if (to > from) {
-			this._collectedEdits.push({
-				editType: CellEditType.Delete,
-				index: from,
-				count: to - from
-			});
-		}
-		// insert
-		if (cells.length > 0) {
-			this._collectedEdits.push({
-				editType: CellEditType.Insert,
-				index: from,
-				cells: cells.map(data => {
-					return <ICellDto2>{
-						cellKind: data.cellKind,
-						language: data.language,
-						outputs: data.outputs.map(output => addIdToOutput(output)),
-						source: data.source
-					};
-				})
-			});
-		}
+		this._collectedEdits.push({
+			editType: CellEditType.Replace,
+			index: from,
+			count: to - from,
+			cells: cells.map(data => {
+				return {
+					...data,
+					outputs: data.outputs.map(output => addIdToOutput(output)),
+				};
+			})
+		});
 	}
 
 	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
@@ -709,16 +704,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			const prevIndex = compressedEditsIndex;
 			const prev = compressedEdits[prevIndex];
 
-			if (prev.editType === CellEditType.Insert && editData.edits[i].editType === CellEditType.Insert) {
+			if (prev.editType === CellEditType.Replace && editData.edits[i].editType === CellEditType.Replace) {
 				if (prev.index === editData.edits[i].index) {
-					prev.cells.push(...(editData.edits[i] as ICellInsertEdit).cells);
-					continue;
-				}
-			}
-
-			if (prev.editType === CellEditType.Delete && editData.edits[i].editType === CellEditType.Delete) {
-				if (prev.index === editData.edits[i].index) {
-					prev.count += (editData.edits[i] as ICellDeleteEdit).count;
+					prev.cells.push(...(editData.edits[i] as ICellReplaceEdit).cells);
+					prev.count += (editData.edits[i] as ICellReplaceEdit).count;
 					continue;
 				}
 			}
@@ -873,13 +862,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private static _notebookKernelProviderHandlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider & { kernel?: vscode.NotebookKernel }, readonly extension: IExtensionDescription; }>();
+	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _unInitializedDocuments = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
+	private readonly _commandsConverter: CommandsConverter;
 	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
 	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
 	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
@@ -903,10 +893,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._activeNotebookEditor;
 	}
 
-	get notebookDocuments() {
-		return [...this._documents.values()];
-	}
-
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
@@ -928,6 +914,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		private readonly _extensionStoragePaths: IExtensionStoragePaths,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
+		this._commandsConverter = commands.converter;
 
 		commands.registerArgumentProcessor({
 			// Serialized INotebookCellActionContext
@@ -950,19 +937,27 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
+	get notebookDocuments() {
+		return [...this._documents.values()];
+	}
+
+	lookupNotebookDocument(uri: URI): ExtHostNotebookDocument | undefined {
+		return this._documents.get(uri);
+	}
+
 	registerNotebookContentProvider(
 		extension: IExtensionDescription,
 		viewType: string,
-		provider: vscode.NotebookContentProvider & { kernel?: vscode.NotebookKernel },
+		provider: vscode.NotebookContentProvider,
+		options?: {
+			transientOutputs: boolean;
+			transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
+		}
 	): vscode.Disposable {
 
 		if (this._notebookContentProviders.has(viewType)) {
 			throw new Error(`Notebook provider for '${viewType}' already registered`);
 		}
-
-		// if ((<any>provider).executeCell) {
-		// 	throw new Error('NotebookContentKernel.executeCell is removed, please use vscode.notebook.registerNotebookKernel instead.');
-		// }
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
 
@@ -985,7 +980,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		const supportBackup = !!provider.backupNotebook;
 
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, { transientOutputs: options?.transientOutputs || false, transientMetadata: options?.transientMetadata || {} });
 
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
@@ -1122,48 +1117,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		await provider.provider.resolveNotebook(document.notebookDocument, webComm.contentProviderComm);
-	}
-
-	async $executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-
-		if (!document) {
-			return;
-		}
-
-		if (this._notebookContentProviders.has(viewType)) {
-			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-			const provider = this._notebookContentProviders.get(viewType)!.provider;
-
-			if (provider.kernel) {
-				if (cell) {
-					return withToken(token => (provider.kernel!.executeCell as any)(document, cell, token));
-				} else {
-					return withToken(token => (provider.kernel!.executeAllCells as any)(document, token));
-				}
-			}
-		}
-	}
-
-	async $cancelNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-
-		if (!document) {
-			return;
-		}
-
-		if (this._notebookContentProviders.has(viewType)) {
-			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-			const provider = this._notebookContentProviders.get(viewType)!.provider;
-
-			if (provider.kernel) {
-				if (cell) {
-					return provider.kernel.cancelCellExecution(document.notebookDocument, cell.cell);
-				} else {
-					return provider.kernel.cancelAllCellsExecution(document.notebookDocument);
-				}
-			}
-		}
 	}
 
 	async $executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void> {
@@ -1538,6 +1491,24 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor);
 		}
 	}
+
+	createNotebookCellStatusBarItemInternal(cell: vscode.NotebookCell, alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined, priority: number | undefined) {
+		const statusBarItem = new NotebookCellStatusBarItemInternal(this._proxy, this._commandsConverter, cell, alignment, priority);
+
+		// Look up the ExtHostCell for this NotebookCell URI, bind to its disposable lifecycle
+		const parsedUri = CellUri.parse(cell.uri);
+		if (parsedUri) {
+			const document = this._documents.get(parsedUri.notebook);
+			if (document) {
+				const cell = document.getCell(parsedUri.handle);
+				if (cell) {
+					Event.once(cell.onDidDispose)(() => statusBarItem.dispose());
+				}
+			}
+		}
+
+		return statusBarItem;
+	}
 }
 
 function hashPath(resource: URI): string {
@@ -1548,4 +1519,179 @@ function hashPath(resource: URI): string {
 function isEditEvent(e: vscode.NotebookDocumentEditEvent | vscode.NotebookDocumentContentChangeEvent): e is vscode.NotebookDocumentEditEvent {
 	return typeof (e as vscode.NotebookDocumentEditEvent).undo === 'function'
 		&& typeof (e as vscode.NotebookDocumentEditEvent).redo === 'function';
+}
+
+export class NotebookCellStatusBarItemInternal extends Disposable {
+	private static NEXT_ID = 0;
+
+	private readonly _id = NotebookCellStatusBarItemInternal.NEXT_ID++;
+	private readonly _internalCommandRegistration: DisposableStore;
+
+	private _isDisposed = false;
+	private _alignment: extHostTypes.NotebookCellStatusBarAlignment;
+
+	constructor(
+		private readonly _proxy: MainThreadNotebookShape,
+		private readonly _commands: CommandsConverter,
+		private readonly _cell: vscode.NotebookCell,
+		alignment: extHostTypes.NotebookCellStatusBarAlignment | undefined,
+		private _priority: number | undefined) {
+		super();
+		this._internalCommandRegistration = this._register(new DisposableStore());
+		this._alignment = alignment ?? extHostTypes.NotebookCellStatusBarAlignment.Left;
+	}
+
+	private _apiItem: vscode.NotebookCellStatusBarItem | undefined;
+	get apiItem(): vscode.NotebookCellStatusBarItem {
+		if (!this._apiItem) {
+			this._apiItem = createNotebookCellStatusBarApiItem(this);
+		}
+
+		return this._apiItem;
+	}
+
+	get cell(): vscode.NotebookCell {
+		return this._cell;
+	}
+
+	get alignment(): extHostTypes.NotebookCellStatusBarAlignment {
+		return this._alignment;
+	}
+
+	set alignment(v: extHostTypes.NotebookCellStatusBarAlignment) {
+		this._alignment = v;
+		this.update();
+	}
+
+	get priority(): number | undefined {
+		return this._priority;
+	}
+
+	set priority(v: number | undefined) {
+		this._priority = v;
+		this.update();
+	}
+
+	private _text: string = '';
+	get text(): string {
+		return this._text;
+	}
+
+	set text(v: string) {
+		this._text = v;
+		this.update();
+	}
+
+	private _tooltip: string | undefined;
+	get tooltip(): string | undefined {
+		return this._tooltip;
+	}
+
+	set tooltip(v: string | undefined) {
+		this._tooltip = v;
+		this.update();
+	}
+
+	private _command?: {
+		readonly fromApi: string | vscode.Command,
+		readonly internal: ICommandDto,
+	};
+	get command(): string | vscode.Command | undefined {
+		return this._command?.fromApi;
+	}
+
+	set command(command: string | vscode.Command | undefined) {
+		if (this._command?.fromApi === command) {
+			return;
+		}
+
+		this._internalCommandRegistration.clear();
+		if (typeof command === 'string') {
+			this._command = {
+				fromApi: command,
+				internal: this._commands.toInternal({ title: '', command }, this._internalCommandRegistration),
+			};
+		} else if (command) {
+			this._command = {
+				fromApi: command,
+				internal: this._commands.toInternal(command, this._internalCommandRegistration),
+			};
+		} else {
+			this._command = undefined;
+		}
+		this.update();
+	}
+
+	private _accessibilityInformation: vscode.AccessibilityInformation | undefined;
+	get accessibilityInformation(): vscode.AccessibilityInformation | undefined {
+		return this._accessibilityInformation;
+	}
+
+	set accessibilityInformation(v: vscode.AccessibilityInformation | undefined) {
+		this._accessibilityInformation = v;
+		this.update();
+	}
+
+	private _visible: boolean = false;
+	show(): void {
+		this._visible = true;
+		this.update();
+	}
+
+	hide(): void {
+		this._visible = false;
+		this.update();
+	}
+
+	dispose(): void {
+		this.hide();
+		this._isDisposed = true;
+		this._internalCommandRegistration.dispose();
+	}
+
+	private update(): void {
+		if (this._isDisposed) {
+			return;
+		}
+
+		const entry: INotebookCellStatusBarEntry = {
+			alignment: this.alignment === extHostTypes.NotebookCellStatusBarAlignment.Left ? CellStatusbarAlignment.LEFT : CellStatusbarAlignment.RIGHT,
+			cellResource: this.cell.uri,
+			command: this._command?.internal,
+			text: this.text,
+			tooltip: this.tooltip,
+			accessibilityInformation: this.accessibilityInformation,
+			priority: this.priority,
+			visible: this._visible
+		};
+
+		this._proxy.$setStatusBarEntry(this._id, entry);
+	}
+}
+
+function createNotebookCellStatusBarApiItem(internalItem: NotebookCellStatusBarItemInternal): vscode.NotebookCellStatusBarItem {
+	return Object.freeze({
+		cell: internalItem.cell,
+		get alignment() { return internalItem.alignment; },
+		set alignment(v: NotebookCellStatusBarItemInternal['alignment']) { internalItem.alignment = v; },
+
+		get priority() { return internalItem.priority; },
+		set priority(v: NotebookCellStatusBarItemInternal['priority']) { internalItem.priority = v; },
+
+		get text() { return internalItem.text; },
+		set text(v: NotebookCellStatusBarItemInternal['text']) { internalItem.text = v; },
+
+		get tooltip() { return internalItem.tooltip; },
+		set tooltip(v: NotebookCellStatusBarItemInternal['tooltip']) { internalItem.tooltip = v; },
+
+		get command() { return internalItem.command; },
+		set command(v: NotebookCellStatusBarItemInternal['command']) { internalItem.command = v; },
+
+		get accessibilityInformation() { return internalItem.accessibilityInformation; },
+		set accessibilityInformation(v: NotebookCellStatusBarItemInternal['accessibilityInformation']) { internalItem.accessibilityInformation = v; },
+
+		show() { internalItem.show(); },
+		hide() { internalItem.hide(); },
+		dispose() { internalItem.dispose(); }
+	});
 }

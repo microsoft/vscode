@@ -6,12 +6,12 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import type { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
+import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 
 
-export class MainThreadWebviewsViews extends Disposable {
+export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
 
 	private readonly _proxyViews: extHostProtocol.ExtHostWebviewViewsShape;
 
@@ -28,7 +28,7 @@ export class MainThreadWebviewsViews extends Disposable {
 		this._proxyViews = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
-	public $setWebviewViewTitle(handle: extHostProtocol.WebviewPanelHandle, value: string | undefined): void {
+	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
 		const webviewView = this._webviewViews.get(handle);
 		if (!webviewView) {
 			throw new Error('unknown webview view');

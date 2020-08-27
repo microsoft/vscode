@@ -8,12 +8,13 @@ import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { BOTTOM_CELL_TOOLBAR_GAP, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, CELL_TOP_MARGIN, EDITOR_TOP_PADDING, CELL_BOTTOM_MARGIN, CODE_CELL_LEFT_MARGIN, BOTTOM_CELL_TOOLBAR_HEIGHT, COLLAPSED_INDICATOR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo, CodeCellLayoutState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellOutputsSplice, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { BaseCellViewModel } from './baseCellViewModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CodeCellLayoutState, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
@@ -68,9 +69,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly eventDispatcher: NotebookEventDispatcher
+		readonly eventDispatcher: NotebookEventDispatcher,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(viewType, model, UUID.generateUuid());
+		super(viewType, model, UUID.generateUuid(), configurationService);
 		this._register(this.model.onDidChangeOutputs((splices) => {
 			this._outputCollection = new Array(this.model.outputs.length);
 			this._outputsTop = null;
@@ -121,8 +123,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				newState = CodeCellLayoutState.Estimated;
 			}
 
-			const indicatorHeight = editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
-			const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN + editorHeight + CELL_STATUSBAR_HEIGHT;
+			const statusbarHeight = this.getEditorStatusbarHeight();
+			const indicatorHeight = editorHeight + statusbarHeight + outputTotalHeight;
+			const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN + editorHeight + statusbarHeight;
 			const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_GAP - BOTTOM_CELL_TOOLBAR_HEIGHT / 2;
 			const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo?.editorWidth;
 
@@ -209,7 +212,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private computeTotalHeight(editorHeight: number, outputsTotalHeight: number): number {
-		return EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN + editorHeight + CELL_STATUSBAR_HEIGHT + outputsTotalHeight + BOTTOM_CELL_TOOLBAR_GAP + CELL_BOTTOM_MARGIN;
+		return EDITOR_TOOLBAR_HEIGHT + CELL_TOP_MARGIN + editorHeight + this.getEditorStatusbarHeight() + outputsTotalHeight + BOTTOM_CELL_TOOLBAR_GAP + CELL_BOTTOM_MARGIN;
 	}
 
 	/**

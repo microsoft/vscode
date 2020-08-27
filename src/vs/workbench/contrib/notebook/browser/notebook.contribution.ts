@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
@@ -46,6 +46,10 @@ import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/n
 import { NotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffEditor';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
+import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Editor Contribution
 
@@ -245,7 +249,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue('notebook.diff.enablePreview')) {
+		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview)) {
 			return this._handleDiffEditorInput(originalInput, options, group);
 		}
 
@@ -438,13 +442,84 @@ class CellContentProvider implements ITextModelContentProvider {
 	}
 }
 
+class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
+	constructor() {
+		super();
+		this.registerMetadataSchemas();
+	}
+
+	private registerMetadataSchemas(): void {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		const metadataSchema: IJSONSchema = {
+			properties: {
+				['language']: {
+					type: 'string',
+					description: 'The language for the cell'
+				},
+				['editable']: {
+					type: 'boolean',
+					description: `Controls whether a cell's editor is editable/readonly`
+				},
+				['runnable']: {
+					type: 'boolean',
+					description: 'Controls if the cell is executable'
+				},
+				['breakpointMargin']: {
+					type: 'boolean',
+					description: 'Controls if the cell has a margin to support the breakpoint UI'
+				},
+				['hasExecutionOrder']: {
+					type: 'boolean',
+					description: 'Whether the execution order indicator will be displayed'
+				},
+				['executionOrder']: {
+					type: 'number',
+					description: 'The order in which this cell was executed'
+				},
+				['statusMessage']: {
+					type: 'string',
+					description: `A status message to be shown in the cell's status bar`
+				},
+				['runState']: {
+					type: 'integer',
+					description: `The cell's current run state`
+				},
+				['runStartTime']: {
+					type: 'number',
+					description: 'If the cell is running, the time at which the cell started running'
+				},
+				['lastRunDuration']: {
+					type: 'number',
+					description: `The total duration of the cell's last run`
+				},
+				['inputCollapsed']: {
+					type: 'boolean',
+					description: `Whether a code cell's editor is collapsed`
+				},
+				['outputCollapsed']: {
+					type: 'boolean',
+					description: `Whether a code cell's outputs are collapsed`
+				}
+			},
+			// patternProperties: allSettings.patternProperties,
+			additionalProperties: true,
+			allowTrailingCommas: true,
+			allowComments: true
+		};
+
+		jsonRegistry.registerSchema('vscode://schemas/notebook/cellmetadata', metadataSchema);
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);
 registerSingleton(INotebookEditorModelResolverService, NotebookModelResolverService, true);
+registerSingleton(INotebookCellStatusBarService, NotebookCellStatusBarService, true);
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -466,6 +541,16 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['left', 'right', 'hidden'],
 			default: 'right'
+		},
+		[ShowCellStatusbarKey]: {
+			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell statusbar should be shown."),
+			type: 'boolean',
+			default: true
+		},
+		[NotebookTextDiffEditorPreview]: {
+			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
+			type: 'boolean',
+			default: true
 		}
 	}
 });

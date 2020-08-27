@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
@@ -17,7 +16,7 @@ function updateFoldingStateAtIndex(foldingModel: FoldingModel, index: number, co
 }
 
 suite('Notebook Folding', () => {
-	const instantiationService = new TestInstantiationService();
+	const instantiationService = setupInstantiationService();
 	const blukEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.stub(IUndoRedoService, () => { });
 	instantiationService.spy(IUndoRedoService, 'pushElement');

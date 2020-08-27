@@ -112,6 +112,7 @@ declare module 'vscode' {
 		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
 
 		/**
+		 * @deprecated - getSession should now trigger extension activation.
 		 * Fires with the provider id that was registered or unregistered.
 		 */
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
@@ -963,13 +964,6 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	/**
-	 * A task to execute
-	 */
-	export class Task2 extends Task {
-		detail?: string;
-	}
-
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
 		/**
@@ -1186,7 +1180,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellMetadata {
 		/**
-		 * Controls if the content of a cell is editable or not.
+		 * Controls whether a cell's editor is editable/readonly.
 		 */
 		editable?: boolean;
 
@@ -1335,10 +1329,16 @@ declare module 'vscode' {
 		contains(uri: Uri): boolean
 	}
 
+	export interface WorkspaceEdit {
+		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+	}
+
 	export interface NotebookEditorCellEdit {
 
-		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;
-		replaceOutputs(index: number, outputs: CellOutput[]): void;
+		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
+		replaceOutput(index: number, outputs: CellOutput[]): void;
 		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 
 		/** @deprecated */
@@ -1613,10 +1613,51 @@ declare module 'vscode' {
 		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
 
+	/**
+	 * Represents the alignment of status bar items.
+	 */
+	export enum NotebookCellStatusBarAlignment {
+
+		/**
+		 * Aligned to the left side.
+		 */
+		Left = 1,
+
+		/**
+		 * Aligned to the right side.
+		 */
+		Right = 2
+	}
+
+	export interface NotebookCellStatusBarItem {
+		readonly cell: NotebookCell;
+		readonly alignment: NotebookCellStatusBarAlignment;
+		readonly priority?: number;
+		text: string;
+		tooltip: string | undefined;
+		command: string | Command | undefined;
+		accessibilityInformation?: AccessibilityInformation;
+		show(): void;
+		hide(): void;
+		dispose(): void;
+	}
+
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
-			provider: NotebookContentProvider
+			provider: NotebookContentProvider,
+			options?: {
+				/**
+				 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
+				 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+				 */
+				transientOutputs: boolean;
+				/**
+				 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
+				 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+				 */
+				transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean }
+			}
 		): Disposable;
 
 		export function registerNotebookKernelProvider(
@@ -1658,6 +1699,17 @@ declare module 'vscode' {
 		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 
 		export const onDidChangeActiveNotebookKernel: Event<{ document: NotebookDocument, kernel: NotebookKernel | undefined }>;
+
+		/**
+		 * Creates a notebook cell status bar [item](#NotebookCellStatusBarItem).
+		 * It will be disposed automatically when the notebook document is closed or the cell is deleted.
+		 *
+		 * @param cell The cell on which this item should be shown.
+		 * @param alignment The alignment of the item.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
+		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
 	}
 
 	//#endregion

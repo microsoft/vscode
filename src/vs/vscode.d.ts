@@ -6206,6 +6206,11 @@ declare module 'vscode' {
 		name: string;
 
 		/**
+		 * A detail to show for the task on a second line in places where the task's name is displayed.
+		 */
+		detail?: string;
+
+		/**
 		 * The task's execution engine
 		 */
 		execution?: ProcessExecution | ShellExecution | CustomExecution;

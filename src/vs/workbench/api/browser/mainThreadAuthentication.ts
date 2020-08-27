@@ -17,7 +17,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Platform, platform } from 'vs/base/common/platform';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
@@ -232,6 +232,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(info => {
 			this._proxy.$onDidChangeAuthenticationProviders([], [info]);
 		}));
+
+		this._proxy.$setProviders(this.authenticationService.declaredProviders);
+
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(e => {
+			this._proxy.$setProviders(e);
+		}));
 	}
 
 	$getProviderIds(): Promise<string[]> {
@@ -249,7 +255,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	$ensureProvider(id: string): Promise<void> {
-		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id));
+		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
 	}
 
 	$sendDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
