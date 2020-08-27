@@ -8,7 +8,7 @@ import { IExtensionManagementService, IExtensionGalleryService, InstallOperation
 import { IExtensionRecommendationsService, ExtensionRecommendationReason, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ConfigurationKey, IExtensionsConfiguration, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ConfigurationKey, IExtension, IExtensionsConfiguration, IExtensionsWorkbenchService, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { distinct, shuffle } from 'vs/base/common/arrays';
@@ -29,7 +29,8 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import Severity from 'vs/base/common/severity';
 import { localize } from 'vs/nls';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { InstallRecommendedExtensionsAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -75,8 +76,9 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IWorkbenchExtensionEnablementService protected readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@INotificationService protected readonly notificationService: INotificationService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -289,6 +291,17 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
 	}
 
+	private async getInstallableExtensions(extensionIds: string[]): Promise<IExtension[]> {
+		const extensions: IExtension[] = [];
+		const pager = await this.extensionsWorkbenchService.queryGallery({ names: extensionIds, pageSize: extensionIds.length, source: 'install-recommendations' }, CancellationToken.None);
+		for (const extension of pager.firstPage) {
+			if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+				extensions.push(extension);
+			}
+		}
+		return extensions;
+	}
+
 	private async promptWorkspaceRecommendations(): Promise<void> {
 		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
 			.map(({ extensionId }) => extensionId)
@@ -309,6 +322,11 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			return;
 		}
 
+		const extensions = await this.getInstallableExtensions(recommendations);
+		if (!extensions.length) {
+			return;
+		}
+
 		const searchValue = '@recommended ';
 		this.notificationService.prompt(
 			Severity.Info,
@@ -317,12 +335,10 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				label: localize('install', "Install"),
 				run: async () => {
 					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
-					const action = this.instantiationService.createInstance(InstallRecommendedExtensionsAction, InstallRecommendedExtensionsAction.ID, InstallRecommendedExtensionsAction.LABEL, recommendations, searchValue, 'install-all-workspace-recommendations');
-					try {
-						await action.run();
-					} finally {
-						action.dispose();
-					}
+					await Promise.all(extensions.map(async extension => {
+						this.extensionsWorkbenchService.open(extension, { pinned: true });
+						await this.extensionManagementService.installFromGallery(extension.gallery!);
+					}));
 				}
 			}, {
 				label: localize('showRecommendations', "Show Recommendations"),

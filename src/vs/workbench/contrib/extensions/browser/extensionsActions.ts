@@ -1940,24 +1940,6 @@ export class ShowRecommendedExtensionAction extends Action {
 	}
 }
 
-export class OpenExtensionEditorAction extends Action {
-
-	constructor(
-		private readonly extensionId: string,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-	) {
-		super('extensions.openExtension', localize('open extension', "Open Extension"), undefined, true);
-	}
-
-	async run(): Promise<any> {
-		const pager = await this.extensionWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 }, CancellationToken.None);
-		if (pager && pager.firstPage && pager.firstPage.length) {
-			const extension = pager.firstPage[0];
-			return this.extensionWorkbenchService.open(extension, { pinned: true });
-		}
-	}
-}
-
 export class InstallRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
