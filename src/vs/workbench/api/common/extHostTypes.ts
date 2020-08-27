@@ -1875,7 +1875,7 @@ export class CustomExecution implements vscode.CustomExecution {
 }
 
 @es5ClassCompat
-export class Task implements vscode.Task2 {
+export class Task implements vscode.Task {
 
 	private static ExtensionCallbackType: string = 'customExecution';
 	private static ProcessType: string = 'process';
