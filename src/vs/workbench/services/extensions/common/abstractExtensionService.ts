@@ -15,7 +15,7 @@ import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionM
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -186,7 +186,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
 	}
 
-	public activateByEvent(activationEvent: string): Promise<void> {
+	public activateByEvent(activationEvent: string, activationKind: ActivationKind = ActivationKind.Normal): Promise<void> {
 		if (this._installedExtensionsReady.isOpen()) {
 			// Extensions have been scanned and interpreted
 
@@ -198,20 +198,25 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 				return NO_OP_VOID_PROMISE;
 			}
 
-			return this._activateByEvent(activationEvent);
+			return this._activateByEvent(activationEvent, activationKind);
 		} else {
 			// Extensions have not been scanned yet.
 
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents.add(activationEvent);
 
-			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
+			if (activationKind === ActivationKind.Immediate) {
+				// Do not wait for the normal start-up of the extension host(s)
+				return this._activateByEvent(activationEvent, activationKind);
+			}
+
+			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent, activationKind));
 		}
 	}
 
-	private _activateByEvent(activationEvent: string): Promise<void> {
+	private _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
 		const result = Promise.all(
-			this._extensionHostManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent))
+			this._extensionHostManagers.map(extHostManager => extHostManager.activateByEvent(activationEvent, activationKind))
 		).then(() => { });
 		this._onWillActivateByEvent.fire({
 			event: activationEvent,

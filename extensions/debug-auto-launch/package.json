@@ -35,6 +35,12 @@
 					],
 					"description": "%debug.node.autoAttach.description%",
 					"default": "disabled"
+				},
+				"debug.javascript.usePreviewAutoAttach": {
+					"scope": "window",
+          "type": "boolean",
+          "default": true,
+					"description": "%debug.javascript.usePreviewAutoAttach%"
 				}
 			}
 		},

@@ -212,8 +212,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private registerListeners(): void {
 
-		// React to HC color scheme changes (Windows)
-		if (isWindows) {
+		// React to HC color scheme changes (Windows, macOS)
+		if (isWindows || isMacintosh) {
 			nativeTheme.on('updated', () => {
 				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
 					this.sendToAll('vscode:enterHighContrast');
@@ -1134,7 +1134,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					if (forceOpenWorkspaceAsFile) {
 						return { fileUri: uri, remoteAuthority };
 					}
-				} else if (posix.extname(anyPath).length > 0) {
+				} else if (posix.basename(anyPath).indexOf('.') !== -1) { // file name starts with a dot or has an file extension
 					return { fileUri: uri, remoteAuthority };
 				}
 			}

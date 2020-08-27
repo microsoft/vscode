@@ -224,7 +224,6 @@ suite('PFS', function () {
 		}
 		catch (error) {
 			assert.fail(error);
-			throw error;
 		}
 	});
 

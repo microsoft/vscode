@@ -178,14 +178,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-
-				if (browser.isIPad) {
-					// Do not place anything in the textarea for the iPad
-					return TextAreaState.EMPTY;
-				}
-
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition

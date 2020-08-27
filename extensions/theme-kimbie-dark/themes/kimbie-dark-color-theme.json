@@ -260,7 +260,7 @@
 				"entity.name.section"
 			],
 			"settings": {
-				"fontStyle": "",
+				"fontStyle": "bold",
 				"foreground": "#8ab1b0"
 			}
 		},

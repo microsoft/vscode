@@ -590,6 +590,9 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
+/**
+ * @deprecated Use `Array.from` or `[...iter]`
+ */
 export function toArray<T>(iterable: IterableIterator<T>): T[] {
 	const result: T[] = [];
 	for (let element of iterable) {

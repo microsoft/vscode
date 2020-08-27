@@ -985,6 +985,61 @@ suite('Fuzzy Scorer', () => {
 		}
 	});
 
+	test('compareFilesByScore - prefer strict case prefix', function () {
+		const resourceA = URI.file('app/constants/color.js');
+		const resourceB = URI.file('app/components/model/input/Color.js');
+
+		let query = 'Color';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+		assert.equal(res[1], resourceA);
+
+		query = 'color';
+
+		res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+	});
+
+	test('compareFilesByScore - prefer prefix (bug #103052)', function () {
+		const resourceA = URI.file('test/smoke/src/main.ts');
+		const resourceB = URI.file('src/vs/editor/common/services/semantikTokensProviderStyling.ts');
+
+		let query = 'smoke main.ts';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceA);
+		assert.equal(res[1], resourceB);
+	});
+
+	test('compareFilesByScore - boost better prefix match if multiple queries are used', function () {
+		const resourceA = URI.file('src/vs/workbench/services/host/browser/browserHostService.ts');
+		const resourceB = URI.file('src/vs/workbench/browser/workbench.ts');
+
+		for (const query of ['workbench.ts browser', 'browser workbench.ts', 'browser workbench', 'workbench browser']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceB);
+			assert.equal(res[1], resourceA);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceB);
+			assert.equal(res[1], resourceA);
+		}
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');

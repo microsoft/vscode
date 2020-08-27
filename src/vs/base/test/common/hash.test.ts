@@ -32,12 +32,18 @@ suite('Hash', () => {
 		assert.equal(hash([1, 2, 3]), hash([1, 2, 3]));
 		assert.equal(hash(['foo', 'bar']), hash(['foo', 'bar']));
 		assert.equal(hash([]), hash([]));
+		assert.equal(hash([]), hash(new Array()));
 		assert.notEqual(hash(['foo', 'bar']), hash(['bar', 'foo']));
 		assert.notEqual(hash(['foo', 'bar']), hash(['bar', 'foo', null]));
+		assert.notEqual(hash(['foo', 'bar', null]), hash(['bar', 'foo', null]));
+		assert.notEqual(hash(['foo', 'bar']), hash(['bar', 'foo', undefined]));
+		assert.notEqual(hash(['foo', 'bar', undefined]), hash(['bar', 'foo', undefined]));
+		assert.notEqual(hash(['foo', 'bar', null]), hash(['foo', 'bar', undefined]));
 	});
 
 	test('object', () => {
 		assert.equal(hash({}), hash({}));
+		assert.equal(hash({}), hash(Object.create(null)));
 		assert.equal(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar' }));
 		assert.equal(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
 		assert.notEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
@@ -45,13 +51,25 @@ suite('Hash', () => {
 	});
 
 	test('array - unexpected collision', function () {
-		this.skip();
 		const a = hash([undefined, undefined, undefined, undefined, undefined]);
 		const b = hash([undefined, undefined, 'HHHHHH', [{ line: 0, character: 0 }, { line: 0, character: 0 }], undefined]);
-		// console.log(a);
-		// console.log(b);
 		assert.notEqual(a, b);
 	});
+
+	test('all different', () => {
+		const candidates: any[] = [
+			null, undefined, {}, [], 0, false, true, '', ' ', [null], [undefined], [undefined, undefined], { '': undefined }, { [' ']: undefined },
+			'ab', 'ba', ['ab']
+		];
+		const hashes: number[] = candidates.map(hash);
+		for (let i = 0; i < hashes.length; i++) {
+			assert.equal(hashes[i], hash(candidates[i])); // verify that repeated invocation returns the same hash
+			for (let k = i + 1; k < hashes.length; k++) {
+				assert.notEqual(hashes[i], hashes[k], `Same hash ${hashes[i]} for ${JSON.stringify(candidates[i])} and ${JSON.stringify(candidates[k])}`);
+			}
+		}
+	});
+
 
 	function checkSHA1(strings: string[], expected: string) {
 		const hash = new StringSHA1();

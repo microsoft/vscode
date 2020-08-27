@@ -11,6 +11,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 
 export class WebExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -40,7 +41,14 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		return Promise.all(extensions.map(e => this.toLocalExtension(e)));
 	}
 
+	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
+		return !!gallery.properties.webExtension;
+	}
+
 	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
+		if (!(await this.canInstall(gallery))) {
+			throw new Error(localize('non web extension', "Cannot install because {0} is not a web extension", gallery.displayName));
+		}
 		this.logService.info('Installing extension:', gallery.identifier.id);
 		this._onInstallExtension.fire({ identifier: gallery.identifier, gallery });
 		try {

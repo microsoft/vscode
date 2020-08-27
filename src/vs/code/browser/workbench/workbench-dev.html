@@ -30,7 +30,6 @@
 
 	<!-- Startup (do not modify order of script tags!) -->
 	<script>
-		// NOTE: Changes to inline scripts require update of content security policy
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
@@ -52,7 +51,6 @@
 		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
 	</script>
 	<script>
-		// NOTE: Changes to inline scripts require update of content security policy
 		require(['vs/code/browser/workbench/workbench'], function() {});
 	</script>
 </html>

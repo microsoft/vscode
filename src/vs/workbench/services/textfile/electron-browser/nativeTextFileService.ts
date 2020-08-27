@@ -126,7 +126,7 @@ export class NativeTextFileService extends AbstractTextFileService {
 		}
 
 		try {
-			return super.write(resource, value, options);
+			return await super.write(resource, value, options);
 		} catch (error) {
 
 			// In case of permission denied, we need to check for readonly

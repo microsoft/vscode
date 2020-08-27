@@ -110,11 +110,11 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 		}
 
 		if (isPrimaryGroup(group)) {
-			const to = Array.isArray<IAction>(target) ? target : target.primary;
+			const to = Array.isArray(target) ? target : target.primary;
 
 			to.unshift(...actions);
 		} else {
-			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+			const to = Array.isArray(target) ? target : target.secondary;
 
 			if (to.length > 0) {
 				to.push(new Separator());

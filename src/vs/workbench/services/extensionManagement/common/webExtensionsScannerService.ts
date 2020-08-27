@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as semver from 'semver-umd';
 import { IBuiltinExtensionsScannerService, IScannedExtension, ExtensionType, IExtensionIdentifier, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -225,6 +224,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async scanUserExtensions(): Promise<IScannedExtension[]> {
+		const semver = await import('semver-umd');
 		let userExtensions = await this.readUserExtensions();
 		const byExtension: IUserExtension[][] = groupByExtension(userExtensions, e => e.identifier);
 		userExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
