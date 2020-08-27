@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, Details } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -403,7 +403,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Crashes & Unrsponsive
-		this._win.webContents.on('crashed', () => this.onWindowError(WindowError.CRASHED));
+		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
 
 		// Window close
@@ -535,8 +535,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.marketplaceHeadersPromise.then(headers => cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) })));
 	}
 
-	private onWindowError(error: WindowError): void {
-		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: renderer process crashed!' : '[VS Code]: detected unresponsive');
+	private onWindowError(error: WindowError.UNRESPONSIVE): void;
+	private onWindowError(error: WindowError.CRASHED, details: Details): void;
+	private onWindowError(error: WindowError, details?: Details): void {
+		this.logService.error(error === WindowError.CRASHED ? `[VS Code]: renderer process crashed (detail: ${details?.reason})` : '[VS Code]: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
 		// very helpful in this case. Rather, we bring down the test run
@@ -590,11 +592,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Crashed
 		else {
+			let message: string;
+			if (details && details.reason !== 'crashed') {
+				message = nls.localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details?.reason);
+			} else {
+				message = nls.localize('appCrashed', "The window has crashed", details?.reason);
+			}
+
 			this.dialogMainService.showMessageBox({
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(nls.localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(nls.localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message: nls.localize('appCrashed', "The window has crashed"),
+				message,
 				detail: nls.localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
 			}, this._win).then(result => {
