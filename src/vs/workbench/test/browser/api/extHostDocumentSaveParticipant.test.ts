@@ -40,6 +40,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
+				isReadonly: false,
 				modeId: 'foo',
 				uri: resource,
 				versionId: 1,

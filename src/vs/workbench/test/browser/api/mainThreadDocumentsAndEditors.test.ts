@@ -99,6 +99,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 				readText() {
 					return Promise.resolve('clipboard_contents');
 				}
+			},
+			new class extends mock<IFileService>() {
+
 			}
 		);
 	});

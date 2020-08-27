@@ -33,6 +33,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
+				isReadonly: false,
 				modeId: 'foo',
 				uri: resource,
 				versionId: 1337,

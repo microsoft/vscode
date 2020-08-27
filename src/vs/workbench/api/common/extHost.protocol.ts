@@ -963,6 +963,7 @@ export interface IModelAddedData {
 	EOL: string;
 	modeId: string;
 	isDirty: boolean;
+	isReadonly: boolean;
 }
 export interface ExtHostDocumentsShape {
 	$acceptModelModeChanged(strURL: UriComponents, oldModeId: string, newModeId: string): void;

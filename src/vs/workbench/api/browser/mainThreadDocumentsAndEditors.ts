@@ -13,7 +13,7 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { MainThreadTextEditor } from 'vs/workbench/api/browser/mainThreadEditor';
@@ -30,6 +30,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Schemas } from 'vs/base/common/network';
 
 namespace delta {
 
@@ -334,6 +335,7 @@ export class MainThreadDocumentsAndEditors {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
@@ -425,8 +427,17 @@ export class MainThreadDocumentsAndEditors {
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
 			modeId: model.getLanguageIdentifier().language,
-			isDirty: this._textFileService.isDirty(model.uri)
+			isDirty: this._textFileService.isDirty(model.uri),
+			isReadonly: this.isReadonly(model),
 		};
+	}
+
+	private isReadonly(model: ITextModel): boolean {
+		if (model.uri.scheme === Schemas.untitled) {
+			// untitled is never readonly
+			return false;
+		}
+		return this._fileService.hasCapability(model.uri, FileSystemProviderCapabilities.Readonly);
 	}
 
 	private _toTextEditorAddData(textEditor: MainThreadTextEditor): ITextEditorAddData {

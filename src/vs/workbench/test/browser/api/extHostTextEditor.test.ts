@@ -17,7 +17,7 @@ suite('ExtHostTextEditor', () => {
 	let editor: ExtHostTextEditor;
 	let doc = new ExtHostDocumentData(undefined!, URI.file(''), [
 		'aaaa bbbb+cccc abc'
-	], '\n', 1, 'text', false);
+	], '\n', 1, 'text', false, false);
 
 	setup(() => {
 		editor = new ExtHostTextEditor('fake', null!, new NullLogService(), doc, [], { cursorStyle: 0, insertSpaces: true, lineNumbers: 1, tabSize: 4, indentSize: 4 }, [], 1);

@@ -120,6 +120,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
+				isReadonly: false,
 				versionId: model.getVersionId(),
 				modeId: model.getLanguageIdentifier().language,
 				uri: model.uri,

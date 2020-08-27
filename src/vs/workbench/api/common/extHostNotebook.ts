@@ -64,6 +64,7 @@ export class ExtHostCell extends Disposable {
 			modeId: cell.language,
 			uri: cell.uri,
 			isDirty: false,
+			isReadonly: false,
 			versionId: 1,
 			notebook
 		};

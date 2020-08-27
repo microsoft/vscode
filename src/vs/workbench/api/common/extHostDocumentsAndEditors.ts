@@ -104,6 +104,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 						data.versionId,
 						data.modeId,
 						data.isDirty,
+						data.isReadonly,
 						data.notebook
 					));
 					this._documents.set(resource, ref);

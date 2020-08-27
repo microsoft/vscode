@@ -37,6 +37,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
+		private readonly _isReadonly: boolean,
 		private readonly _notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
@@ -66,6 +67,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 				get version() { return that._versionId; },
 				get isClosed() { return that._isDisposed; },
 				get isDirty() { return that._isDirty; },
+				get isReadonly() { return that._isReadonly; },
 				get notebook() { return that._notebook; },
 				save() { return that._save(); },
 				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },

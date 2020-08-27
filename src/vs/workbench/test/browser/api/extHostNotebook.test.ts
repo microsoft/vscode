@@ -196,6 +196,7 @@ suite('NotebookCell#Document', function () {
 			addData.push({
 				EOL: '\n',
 				isDirty: doc.isDirty,
+				isReadonly: false,
 				lines: doc.getText().split('\n'),
 				modeId: doc.languageId,
 				uri: doc.uri,

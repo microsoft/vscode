@@ -2119,4 +2119,19 @@ declare module 'vscode' {
 		}): Disposable;
 	}
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/91697
+
+	export interface TextDocument {
+
+		/**
+		 * True if the document is on a readonly file system.
+		 *
+		 * `isReadonly === false` does not guarantee that can write the file. There still may be permissions
+		 * issues or other problems that prevent the file from actually being written.
+		 */
+		readonly isReadonly: boolean;
+	}
+
+	//#endregion
 }
