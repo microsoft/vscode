@@ -19,6 +19,11 @@
 (function () {
 	'use strict';
 
+	const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
+		navigator.userAgent &&
+		navigator.userAgent.indexOf('CriOS') === -1 &&
+		navigator.userAgent.indexOf('FxiOS') === -1;
+
 	/**
 	 * Use polling to track focus of main webview and iframes within the webview
 	 *
@@ -514,7 +519,7 @@
 					}, 0);
 				}
 
-				if (host.fakeLoad && false) {
+				if (host.fakeLoad && !options.allowScripts && isSafari) {
 					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired.
 					// Use polling instead.
 					const interval = setInterval(() => {
@@ -524,7 +529,7 @@
 							return;
 						}
 
-						if (newFrame.contentDocument.readyState === 'complete') {
+						if (newFrame.contentDocument.readyState !== 'loading') {
 							clearInterval(interval);
 							onFrameLoaded(newFrame.contentDocument);
 						}
