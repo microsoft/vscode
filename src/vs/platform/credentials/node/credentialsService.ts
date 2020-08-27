@@ -5,7 +5,6 @@
 
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IdleValue } from 'vs/base/common/async';
-// import { encrypt, decrypt } from 'vscode-encrypt';
 
 type KeytarModule = typeof import('keytar');
 export class KeytarCredentialsService implements ICredentialsService {
@@ -16,14 +15,11 @@ export class KeytarCredentialsService implements ICredentialsService {
 
 	async getPassword(service: string, account: string): Promise<string | null> {
 		const keytar = await this._keytar.value;
-		const password = await keytar.getPassword(service, account);
-		return password;
-		// return password ? decrypt('key', password) : password;
+		return keytar.getPassword(service, account);
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
 		const keytar = await this._keytar.value;
-		// const encrypted = await encrypt('key', password);
 		return keytar.setPassword(service, account, password);
 	}
 

@@ -9775,9 +9775,9 @@ vscode-debugprotocol@1.41.0:
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.41.0.tgz#fc99b01dee26e9f25cbb5708318fc0081002808c"
   integrity sha512-Sxp7kDDuhpEZiDaIfhM0jLF3RtMqvc6CpoESANE77t351uezsd/oDoqALLcOnmmsDzTgQ3W0sCvM4gErnjDFpA==
 
-"vscode-encrypt@https://github.com/microsoft/vscode-encrypt.git#b9fea04d866d06a128621c2b59dfb2cab0cdc72c":
+"vscode-encrypt@https://github.com/microsoft/vscode-encrypt.git#32527c469c084013ad1f26f12c0b7d196e3d479e":
   version "1.0.0"
-  resolved "https://github.com/microsoft/vscode-encrypt.git#b9fea04d866d06a128621c2b59dfb2cab0cdc72c"
+  resolved "https://github.com/microsoft/vscode-encrypt.git#32527c469c084013ad1f26f12c0b7d196e3d479e"
   dependencies:
     node-addon-api "^2.0.0"
 

@@ -20,6 +20,8 @@ import { fromNow } from 'vs/base/common/date';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Platform, platform } from 'vs/base/common/platform';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { encrypt, decrypt } from 'vscode-encrypt';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
 
@@ -218,7 +220,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ICredentialsService private readonly credentialsService: ICredentialsService
+		@ICredentialsService private readonly credentialsService: ICredentialsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -447,15 +450,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getPassword(key: string): Promise<string | undefined> {
-		const password = await this.credentialsService.getPassword(key, '');
-		return password ?? undefined;
+		const password = await this.credentialsService.getPassword(key, 'account');
+		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
+		const decrypted = password && await decrypt(telemetryInfo.machineId, password);
+		return decrypted ?? undefined;
 	}
 
 	async $setPassword(key: string, value: string): Promise<void> {
-		return this.credentialsService.setPassword(key, '', value);
+		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
+		const encrypted = await encrypt(telemetryInfo.machineId, value);
+		return this.credentialsService.setPassword(key, 'account', encrypted);
 	}
 
 	async $deletePassword(key: string): Promise<void> {
-		await this.credentialsService.deletePassword(key, '');
+		await this.credentialsService.deletePassword(key, 'account');
 	}
 }
