@@ -590,6 +590,12 @@ abstract class AbstractCellRenderer extends Disposable {
 					}
 				}));
 
+				this._register(this.cell.modified!.onDidChangeOutputs(() => {
+					const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
+					modifiedModel.setValue(modifiedOutputsSource);
+					this._outputHeader.refresh();
+				}));
+
 				return;
 			}
 		}

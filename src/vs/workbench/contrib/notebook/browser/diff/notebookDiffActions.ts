@@ -79,3 +79,33 @@ registerAction2(class extends Action2 {
 		modified.metadata = original.metadata;
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: 'notebook.diff.cell.revertOutputs',
+				title: localize('notebook.diff.cell.revertOutputs', "Revert Outputs"),
+				icon: { id: 'codicon/discard' },
+				f1: false,
+				menu: {
+					id: MenuId.NotebookDiffCellOutputsTitle
+				}
+			}
+		);
+	}
+	run(accessor: ServicesAccessor, context?: { cell: CellDiffViewModel }) {
+		if (!context) {
+			return;
+		}
+
+		const original = context.cell.original;
+		const modified = context.cell.modified;
+
+		if (!original || !modified) {
+			return;
+		}
+
+		modified.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
+	}
+});
