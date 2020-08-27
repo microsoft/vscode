@@ -60,8 +60,8 @@ export interface INotebookService {
 
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
-	executeNotebook2(viewType: string, uri: URI, kernelId: string): Promise<void>;
-	executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string): Promise<void>;
+	executeNotebook(viewType: string, uri: URI, kernelId: string): Promise<void>;
+	executeNotebookCell(viewType: string, uri: URI, handle: number, kernelId: string): Promise<void>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];

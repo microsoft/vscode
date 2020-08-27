@@ -1438,7 +1438,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
 			} else {
-				await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
+				await this.notebookService.executeNotebook(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
 			}
 		}
 	}
@@ -1492,7 +1492,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
 				} else {
 
-					return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id);
+					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, this._activeKernel.id);
 				}
 			}
 
