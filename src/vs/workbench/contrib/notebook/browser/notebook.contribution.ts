@@ -48,6 +48,8 @@ import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/comm
 import { NotebookEditorWorkerServiceImpl } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
+import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 // Editor Contribution
 
@@ -440,9 +442,79 @@ class CellContentProvider implements ITextModelContentProvider {
 	}
 }
 
+class RegisterSchemasContribution extends Disposable implements IWorkbenchContribution {
+	constructor() {
+		super();
+		this.registerMetadataSchemas();
+	}
+
+	private registerMetadataSchemas(): void {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		const metadataSchema: IJSONSchema = {
+			properties: {
+				['language']: {
+					type: 'string',
+					description: 'The language for the cell'
+				},
+				['editable']: {
+					type: 'boolean',
+					description: `Controls whether a cell's editor is editable/readonly`
+				},
+				['runnable']: {
+					type: 'boolean',
+					description: 'Controls if the cell is executable'
+				},
+				['breakpointMargin']: {
+					type: 'boolean',
+					description: 'Controls if the cell has a margin to support the breakpoint UI'
+				},
+				['hasExecutionOrder']: {
+					type: 'boolean',
+					description: 'Whether the execution order indicator will be displayed'
+				},
+				['executionOrder']: {
+					type: 'number',
+					description: 'The order in which this cell was executed'
+				},
+				['statusMessage']: {
+					type: 'string',
+					description: `A status message to be shown in the cell's status bar`
+				},
+				['runState']: {
+					type: 'integer',
+					description: `The cell's current run state`
+				},
+				['runStartTime']: {
+					type: 'number',
+					description: 'If the cell is running, the time at which the cell started running'
+				},
+				['lastRunDuration']: {
+					type: 'number',
+					description: `The total duration of the cell's last run`
+				},
+				['inputCollapsed']: {
+					type: 'boolean',
+					description: `Whether a code cell's editor is collapsed`
+				},
+				['outputCollapsed']: {
+					type: 'boolean',
+					description: `Whether a code cell's outputs are collapsed`
+				}
+			},
+			// patternProperties: allSettings.patternProperties,
+			additionalProperties: true,
+			allowTrailingCommas: true,
+			allowComments: true
+		};
+
+		jsonRegistry.registerSchema('vscode://schemas/notebook/cellmetadata', metadataSchema);
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
 
 registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);

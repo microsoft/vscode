@@ -474,11 +474,20 @@ export function getCellUndoRedoComparisonKey(uri: URI) {
 export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
+
 	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
+			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscode,
+			authority: 'vscode-notebook-cell-metadata',
 			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
