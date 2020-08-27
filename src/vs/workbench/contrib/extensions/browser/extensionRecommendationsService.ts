@@ -126,7 +126,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 				})
 		]);
 
-		this.promptWorkspaceRecommendations();
+		await this.promptWorkspaceRecommendations();
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations)(() => this.promptWorkspaceRecommendations()));
 	}
 

@@ -71,10 +71,12 @@ export abstract class ExtensionRecommendations extends Disposable {
 
 	private async getInstallableExtensions(extensionIds: string[]): Promise<IExtension[]> {
 		const extensions: IExtension[] = [];
-		const pager = await this.extensionsWorkbenchService.queryGallery({ names: extensionIds, pageSize: extensionIds.length, source: 'install-recommendations' }, CancellationToken.None);
-		for (const extension of pager.firstPage) {
-			if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
-				extensions.push(extension);
+		if (extensionIds.length) {
+			const pager = await this.extensionsWorkbenchService.queryGallery({ names: extensionIds, pageSize: extensionIds.length, source: 'install-recommendations' }, CancellationToken.None);
+			for (const extension of pager.firstPage) {
+				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+					extensions.push(extension);
+				}
 			}
 		}
 		return extensions;
