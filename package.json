@@ -56,7 +56,7 @@
     "keytar": "^5.5.0",
     "minimist": "^1.2.5",
     "native-is-elevated": "0.4.1",
-    "native-keymap": "2.1.2",
+    "native-keymap": "2.2.0",
     "native-watchdog": "1.3.0",
     "node-pty": "0.10.0-beta8",
     "semver-umd": "^5.5.7",
