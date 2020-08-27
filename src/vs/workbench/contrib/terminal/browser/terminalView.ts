@@ -197,7 +197,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
-		if (action.id === SwitchTerminalAction.ID && this._terminalService.isProcessSupportRegistered) {
+		if (action.id === SwitchTerminalAction.ID) {
 			return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 		}
 
