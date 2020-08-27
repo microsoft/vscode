@@ -12,10 +12,10 @@ import { dispose, Disposable, IDisposable, combinedDisposable, DisposableStore }
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IAction, Action } from 'vs/base/common/actions';
-import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { IAction, Action, Separator } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
@@ -30,7 +30,7 @@ import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollec
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { listHighlightForeground, badgeBackground, contrastBorder, badgeForeground, listActiveSelectionForeground, listInactiveSelectionForeground, listHoverForeground, listFocusForeground, editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground, listFocusBackground, listHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -44,6 +44,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
+import { Color, RGBA } from 'vs/base/common/color';
+import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { ThemableCheckboxActionViewItem } from 'vs/platform/browser/checkbox';
 
 const $ = DOM.$;
 
@@ -53,7 +56,9 @@ interface ColumnItem {
 	width: number;
 }
 
-export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorPane {
+const oddRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
+
+export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorPane {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
 
@@ -133,9 +138,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 		this.createBody(keybindingsEditorElement);
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
-		return super.setInput(input, options, token)
+		return super.setInput(input, options, context, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
 	}
 
@@ -372,13 +377,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 		const actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
 			actionViewItemProvider: (action: IAction) => {
+				let checkboxViewItem: CheckboxActionViewItem | undefined;
 				if (action.id === this.sortByPrecedenceAction.id) {
-					return new CheckboxActionViewItem(null, action);
+					checkboxViewItem = new ThemableCheckboxActionViewItem(null, action, undefined, this.themeService);
 				}
-				if (action.id === this.recordKeysAction.id) {
-					return new CheckboxActionViewItem(null, action);
+				else if (action.id === this.recordKeysAction.id) {
+					checkboxViewItem = new ThemableCheckboxActionViewItem(null, action, undefined, this.themeService);
 				}
-				return undefined;
+				if (checkboxViewItem) {
+
+				}
+				return checkboxViewItem;
 			}
 		}));
 
@@ -1119,11 +1128,56 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 }
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-header { background-color: ${oddRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.odd:not(.focused):not(.selected):not(:hover) { background-color: ${oddRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.odd:not(.selected):not(:hover) { background-color: ${oddRowBackgroundColor}; }`);
+	collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.odd:not(.selected):not(:hover) { background-color: ${oddRowBackgroundColor}; }`);
+
+	const foregroundColor = theme.getColor(foreground);
+	if (foregroundColor) {
+		const whenForegroundColor = foregroundColor.transparent(.8).makeOpaque(WORKBENCH_BACKGROUND(theme));
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column > .code { color: ${whenForegroundColor}; }`);
+		const whenForegroundColorForOddRow = foregroundColor.transparent(.8).makeOpaque(oddRowBackgroundColor);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row.odd > .column > .code { color: ${whenForegroundColorForOddRow}; }`);
+	}
+
+	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
+	const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
+	if (listActiveSelectionForegroundColor && listActiveSelectionBackgroundColor) {
+		const whenForegroundColor = listActiveSelectionForegroundColor.transparent(.8).makeOpaque(listActiveSelectionBackgroundColor);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column > .code { color: ${whenForegroundColor}; }`);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.odd.selected > .column > .code { color: ${whenForegroundColor}; }`);
+	}
+
+	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
+	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
+	if (listInactiveSelectionForegroundColor && listInactiveSelectionBackgroundColor) {
+		const whenForegroundColor = listInactiveSelectionForegroundColor.transparent(.8).makeOpaque(listInactiveSelectionBackgroundColor);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row.selected > .column > .code { color: ${whenForegroundColor}; }`);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row.odd.selected > .column > .code { color: ${whenForegroundColor}; }`);
+	}
+
+	const listFocusForegroundColor = theme.getColor(listFocusForeground);
+	const listFocusBackgroundColor = theme.getColor(listFocusBackground);
+	if (listFocusForegroundColor && listFocusBackgroundColor) {
+		const whenForegroundColor = listFocusForegroundColor.transparent(.8).makeOpaque(listFocusBackgroundColor);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.focused > .column > .code { color: ${whenForegroundColor}; }`);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.odd.focused > .column > .code { color: ${whenForegroundColor}; }`);
+	}
+
+	const listHoverForegroundColor = theme.getColor(listHoverForeground);
+	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
+	if (listHoverForegroundColor && listHoverBackgroundColor) {
+		const whenForegroundColor = listHoverForegroundColor.transparent(.8).makeOpaque(listHoverBackgroundColor);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row:hover:not(.focused):not(.selected) > .column > .code { color: ${whenForegroundColor}; }`);
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.odd:hover:not(.focused):not(.selected) > .column > .code { color: ${whenForegroundColor}; }`);
+	}
+
 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
 	if (listHighlightForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight { color: ${listHighlightForegroundColor}; }`);
 	}
-	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
+
 	if (listActiveSelectionForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected.focused > .column .monaco-keybinding-key { color: ${listActiveSelectionForegroundColor}; }`);
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list:focus .monaco-list-row.selected > .column .monaco-keybinding-key { color: ${listActiveSelectionForegroundColor}; }`);
@@ -1132,11 +1186,9 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (listInactiveFocusAndSelectionForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row.selected > .column .monaco-keybinding-key { color: ${listInactiveFocusAndSelectionForegroundColor}; }`);
 	}
-	const listHoverForegroundColor = theme.getColor(listHoverForeground);
 	if (listHoverForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row:hover:not(.selected):not(.focused) > .column .monaco-keybinding-key { color: ${listHoverForegroundColor}; }`);
 	}
-	const listFocusForegroundColor = theme.getColor(listFocusForeground);
 	if (listFocusForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list .monaco-list-row.focused > .column .monaco-keybinding-key { color: ${listFocusForegroundColor}; }`);
 	}

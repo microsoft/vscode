@@ -18,7 +18,6 @@ import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 import * as path from 'path';
 import * as pump from 'pump';
-import * as sm from 'source-map';
 import * as terser from 'terser';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
@@ -32,13 +31,13 @@ function log(prefix: string, message: string): void {
 	fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
 
-export function loaderConfig(emptyPaths?: string[]) {
+export function loaderConfig() {
 	const result: any = {
 		paths: {
 			'vs': 'out-build/vs',
 			'vscode': 'empty:'
 		},
-		nodeModules: emptyPaths || []
+		amdModulesPattern: /^vs\//
 	};
 
 	result['vs/css'] = { inlineResources: true };
@@ -47,10 +46,6 @@ export function loaderConfig(emptyPaths?: string[]) {
 }
 
 const IS_OUR_COPYRIGHT_REGEXP = /Copyright \(C\) Microsoft Corporation/i;
-
-declare class FileSourceMap extends VinylFile {
-	public sourceMap: sm.RawSourceMap;
-}
 
 function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): NodeJS.ReadWriteStream {
 	let sources = [
@@ -84,7 +79,7 @@ function loader(src: string, bundledFileHeader: string, bundleLoader: boolean): 
 	);
 }
 
-function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.IFile[], dest: string): NodeJS.ReadWriteStream {
+function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.IFile[], dest: string, fileContentMapper: (contents: string, path: string) => string): NodeJS.ReadWriteStream {
 	const useSourcemaps = /\.js$/.test(dest) && !/\.nls\.js$/.test(dest);
 
 	// If a bundle ends up including in any of the sources our copyright, then
@@ -108,11 +103,13 @@ function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.
 	const treatedSources = sources.map(function (source) {
 		const root = source.path ? REPO_ROOT_PATH.replace(/\\/g, '/') : '';
 		const base = source.path ? root + `/${src}` : '';
+		const path = source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake';
+		const contents = source.path ? fileContentMapper(source.contents, path) : source.contents;
 
 		return new VinylFile({
-			path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
+			path: path,
 			base: base,
-			contents: Buffer.from(source.contents)
+			contents: Buffer.from(contents)
 		});
 	});
 
@@ -122,9 +119,9 @@ function toConcatStream(src: string, bundledFileHeader: string, sources: bundle.
 		.pipe(createStatsStream(dest));
 }
 
-function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.IConcatFile[]): NodeJS.ReadWriteStream {
+function toBundleStream(src: string, bundledFileHeader: string, bundles: bundle.IConcatFile[], fileContentMapper: (contents: string, path: string) => string): NodeJS.ReadWriteStream {
 	return es.merge(bundles.map(function (bundle) {
-		return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest);
+		return toConcatStream(src, bundledFileHeader, bundle.sources, bundle.dest, fileContentMapper);
 	}));
 }
 
@@ -162,6 +159,12 @@ export interface IOptimizeTaskOpts {
 	 * (out folder name)
 	 */
 	languages?: Language[];
+	/**
+	 * File contents interceptor
+	 * @param contents The contens of the file
+	 * @param path The absolute file path, always using `/`, even on Windows
+	 */
+	fileContentMapper?: (contents: string, path: string) => string;
 }
 
 const DEFAULT_FILE_HEADER = [
@@ -178,6 +181,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 	const bundledFileHeader = opts.header || DEFAULT_FILE_HEADER;
 	const bundleLoader = (typeof opts.bundleLoader === 'undefined' ? true : opts.bundleLoader);
 	const out = opts.out;
+	const fileContentMapper = opts.fileContentMapper || ((contents: string, _path: string) => contents);
 
 	return function () {
 		const bundlesStream = es.through(); // this stream will contain the bundled files
@@ -187,7 +191,7 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 		bundle.bundle(entryPoints, loaderConfig, function (err, result) {
 			if (err || !result) { return bundlesStream.emit('error', JSON.stringify(err)); }
 
-			toBundleStream(src, bundledFileHeader, result.files).pipe(bundlesStream);
+			toBundleStream(src, bundledFileHeader, result.files, fileContentMapper).pipe(bundlesStream);
 
 			// Remove css inlined resources
 			const filteredResources = resources.slice();

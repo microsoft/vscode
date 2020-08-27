@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -36,10 +36,6 @@ steps:
     yarn electron
   displayName: Download Electron
 
-- script: |
-    yarn gulp hygiene
-  displayName: Run Hygiene Checks
-
 - powershell: |
     yarn monaco-compile-check
   displayName: Run Monaco Editor Checks
@@ -61,7 +57,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 
 - powershell: |
-    yarn test-browser --browser chromium --browser firefox
+    yarn test-browser --browser chromium --browser firefox --tfs "Browser Unit Tests"
   displayName: Run Unit Tests (Browser)
 
 - powershell: |

@@ -216,6 +216,15 @@ export abstract class ReferencesController implements IEditorContribution {
 		}
 	}
 
+	async revealReference(reference: OneReference): Promise<void> {
+		if (!this._editor.hasModel() || !this._model || !this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+
+		await this._widget.revealReference(reference);
+	}
+
 	closeWidget(focusEditor = true): void {
 		dispose(this._widget);
 		dispose(this._model);
@@ -364,6 +373,24 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
 });
 
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'revealReference',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+	},
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
+	handler(accessor: ServicesAccessor) {
+		const listService = accessor.get(IListService);
+		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+			withController(accessor, controller => controller.revealReference(focus[0]));
+		}
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',

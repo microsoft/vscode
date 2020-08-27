@@ -13,14 +13,13 @@ import { OS, isLinux, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IBulkEditOptions, IBulkEditResult, IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from 'vs/editor/common/config/commonEditorConfig';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position as Pos } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
-import { TextEdit, WorkspaceEdit, WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { IIdentifiedSingleEditOperation, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService, ITextResourceConfigurationChangeEvent } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -108,12 +107,11 @@ function withTypedEditor<T>(widget: IEditor, codeEditorCallback: (editor: ICodeE
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: undefined;
 
-	private readonly modelService: IModelService | undefined;
 	private editor?: IEditor;
 
-	constructor(modelService: IModelService | undefined) {
-		this.modelService = modelService;
-	}
+	constructor(
+		@IModelService private readonly modelService: IModelService
+	) { }
 
 	public setEditor(editor: IEditor): void {
 		this.editor = editor;
@@ -146,7 +144,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 	}
 
 	private findModel(editor: ICodeEditor, resource: URI): ITextModel | null {
-		let model = this.modelService ? this.modelService.getModel(resource) : editor.getModel();
+		let model = this.modelService.getModel(resource);
 		if (model && model.uri.toString() !== resource.toString()) {
 			return null;
 		}
@@ -156,7 +154,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 }
 
 export class SimpleEditorProgressService implements IEditorProgressService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static NULL_PROGRESS_RUNNER: IProgressRunner = {
 		done: () => { },
@@ -252,7 +250,7 @@ export class SimpleNotificationService implements INotificationService {
 }
 
 export class StandaloneCommandService implements ICommandService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _instantiationService: IInstantiationService;
 
@@ -421,7 +419,7 @@ function isConfigurationOverrides(thing: any): thing is IConfigurationOverrides 
 
 export class SimpleConfigurationService implements IConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<IConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration: Event<IConfigurationChangeEvent> = this._onDidChangeConfiguration.event;
@@ -499,7 +497,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 
 export class SimpleResourceConfigurationService implements ITextResourceConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
@@ -528,7 +526,7 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 
 export class SimpleResourcePropertiesService implements ITextResourcePropertiesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -545,12 +543,15 @@ export class SimpleResourcePropertiesService implements ITextResourcePropertiesS
 }
 
 export class StandaloneTelemetryService implements ITelemetryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public isOptedIn = false;
 	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
+	}
+
+	public setExperimentProperty(name: string, value: string): void {
 	}
 
 	public publicLog(eventName: string, data?: any): Promise<void> {
@@ -649,7 +650,7 @@ export function applyConfigurationValues(configurationService: IConfigurationSer
 }
 
 export class SimpleBulkEditService implements IBulkEditService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(private readonly _modelService: IModelService) {
 		//
@@ -663,48 +664,49 @@ export class SimpleBulkEditService implements IBulkEditService {
 		return Disposable.None;
 	}
 
-	apply(workspaceEdit: WorkspaceEdit, options?: IBulkEditOptions): Promise<IBulkEditResult> {
+	async apply(edits: ResourceEdit[], _options?: IBulkEditOptions): Promise<IBulkEditResult> {
 
-		let edits = new Map<ITextModel, TextEdit[]>();
+		const textEdits = new Map<ITextModel, IIdentifiedSingleEditOperation[]>();
 
-		if (workspaceEdit.edits) {
-			for (let edit of workspaceEdit.edits) {
-				if (!WorkspaceTextEdit.is(edit)) {
-					return Promise.reject(new Error('bad edit - only text edits are supported'));
-				}
-				let model = this._modelService.getModel(edit.resource);
-				if (!model) {
-					return Promise.reject(new Error('bad edit - model not found'));
-				}
-				let array = edits.get(model);
-				if (!array) {
-					array = [];
-					edits.set(model, array);
-				}
-				array.push(edit.edit);
+		for (let edit of edits) {
+			if (!(edit instanceof ResourceTextEdit)) {
+				throw new Error('bad edit - only text edits are supported');
 			}
+			const model = this._modelService.getModel(edit.resource);
+			if (!model) {
+				throw new Error('bad edit - model not found');
+			}
+			if (typeof edit.versionId === 'number' && model.getVersionId() !== edit.versionId) {
+				throw new Error('bad state - model changed in the meantime');
+			}
+			let array = textEdits.get(model);
+			if (!array) {
+				array = [];
+				textEdits.set(model, array);
+			}
+			array.push(EditOperation.replaceMove(Range.lift(edit.textEdit.range), edit.textEdit.text));
 		}
+
 
 		let totalEdits = 0;
 		let totalFiles = 0;
-		edits.forEach((edits, model) => {
+		for (const [model, edits] of textEdits) {
 			model.pushStackElement();
-			model.pushEditOperations([], edits.map((e) => EditOperation.replaceMove(Range.lift(e.range), e.text)), () => []);
+			model.pushEditOperations([], edits, () => []);
 			model.pushStackElement();
 			totalFiles += 1;
 			totalEdits += edits.length;
-		});
+		}
 
-		return Promise.resolve({
-			selection: undefined,
+		return {
 			ariaSummary: strings.format(SimpleServicesNLS.bulkEditServiceSummary, totalEdits, totalFiles)
-		});
+		};
 	}
 }
 
 export class SimpleUriLabelService implements ILabelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeFormatters: Event<IFormatterChangeEvent> = Event.None;
 
@@ -737,7 +739,7 @@ export class SimpleUriLabelService implements ILabelService {
 }
 
 export class SimpleLayoutService implements ILayoutService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public onLayout = Event.None;
 

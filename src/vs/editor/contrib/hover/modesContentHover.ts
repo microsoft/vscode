@@ -41,6 +41,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Progress } from 'vs/platform/progress/common/progress';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -212,13 +213,14 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	constructor(
 		editor: ICodeEditor,
+		_hoverVisibleKey: IContextKey<boolean>,
 		markerDecorationsService: IMarkerDecorationsService,
 		keybindingService: IKeybindingService,
 		private readonly _themeService: IThemeService,
 		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
-		super(ModesContentHoverWidget.ID, editor, keybindingService);
+		super(ModesContentHoverWidget.ID, editor, _hoverVisibleKey, keybindingService);
 
 		this._messages = [];
 		this._lastRange = null;

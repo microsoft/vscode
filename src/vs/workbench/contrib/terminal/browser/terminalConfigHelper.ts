@@ -35,13 +35,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
+	private _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 	public config!: ITerminalConfiguration;
 
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
-		private readonly _linuxDistro: LinuxDistro,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -60,6 +60,10 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// opt-in to syncing
 		storageKeysSyncRegistryService.registerStorageKey({ key: 'terminalConfigHelper/launchRecommendationsIgnore', version: 1 });
+	}
+
+	public setLinuxDistro(linuxDistro: LinuxDistro) {
+		this._linuxDistro = linuxDistro;
 	}
 
 	private _updateConfig(): void {
@@ -214,7 +218,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
 
-		// Check if workspace setting exists and whether it's whitelisted
+		// Check if workspace setting exists and whether it's allowed
 		let isWorkspaceShellAllowed: boolean | undefined = false;
 		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
 			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
@@ -226,7 +230,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			isWorkspaceShellAllowed = true;
 		}
 
-		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
+		// Check if the value is neither on the blocklist (false) or allowlist (true) and ask for
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
 			let shellString: string | undefined;
@@ -294,7 +298,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
 				return;
 			}
-			const extId = exeBasedExtensionTips.wsl.recommendations[0];
+			const extId = Object.keys(exeBasedExtensionTips.wsl.recommendations).find(extId => exeBasedExtensionTips.wsl.recommendations[extId].important);
 			if (extId && ! await this.isExtensionInstalled(extId)) {
 				this._notificationService.prompt(
 					Severity.Info,

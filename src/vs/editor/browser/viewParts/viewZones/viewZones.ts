@@ -222,8 +222,6 @@ export class ViewZones extends ViewPart {
 			changeAccessor.addZone = invalidFunc;
 			changeAccessor.removeZone = invalidFunc;
 			changeAccessor.layoutZone = invalidFunc;
-
-			return zonesHaveChanged;
 		});
 
 		return zonesHaveChanged;

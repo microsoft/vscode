@@ -14,9 +14,8 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -30,7 +29,7 @@ import { TestMenuService } from 'vs/workbench/test/browser/workbenchTestServices
 import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { URLService } from 'vs/platform/url/node/urlService';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { SinonStub } from 'sinon';
@@ -40,7 +39,6 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browse
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -89,21 +87,25 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 		instantiationService.stub(IExperimentService, ExperimentService);
 
-		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
-		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+			onInstallExtension: installEvent.event,
+			onDidInstallExtension: didInstallEvent.event,
+			onUninstallExtension: uninstallEvent.event,
+			onDidUninstallExtension: didUninstallEvent.event,
+			async getInstalled() { return []; },
+			async canInstall() { return true; },
+			async getExtensionsReport() { return []; },
+		});
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IMenuService, new TestMenuService());
 
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
-			private _localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', authority: 'vscode-local' };
+			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IConfigurationService), instantiationService.get(IProductService), instantiationService.get(ILogService), instantiationService.get(ILabelService));
+				super(instantiationService.get(ISharedProcessService), instantiationService, instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService));
 			}
-			get localExtensionManagementServer(): IExtensionManagementServer { return this._localExtensionManagementServer; }
+			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
 		}());
 
@@ -127,6 +129,9 @@ suite('ExtensionsListView Tests', () => {
 					{ extensionId: configBasedRecommendationA.identifier.id }
 				]);
 			},
+			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+				return Promise.resolve([]);
+			},
 			getFileBasedRecommendations() {
 				return [
 					{ extensionId: fileBasedRecommendationA.identifier.id },
@@ -142,7 +147,7 @@ suite('ExtensionsListView Tests', () => {
 				return reasons;
 			}
 		});
-		instantiationService.stub(IURLService, URLService);
+		instantiationService.stub(IURLService, NativeURLService);
 	});
 
 	setup(async () => {

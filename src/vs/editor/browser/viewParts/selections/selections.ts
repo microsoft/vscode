@@ -217,7 +217,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 					endStyle.top = CornerStyle.INTERN;
 				}
 			} else if (previousFrameTop) {
-				// Accept some hick-ups near the viewport edges to save on repaints
+				// Accept some hiccups near the viewport edges to save on repaints
 				startStyle.top = previousFrameTop.startStyle!.top;
 				endStyle.top = previousFrameTop.endStyle!.top;
 			}
@@ -239,7 +239,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 					endStyle.bottom = CornerStyle.INTERN;
 				}
 			} else if (previousFrameBottom) {
-				// Accept some hick-ups near the viewport edges to save on repaints
+				// Accept some hiccups near the viewport edges to save on repaints
 				startStyle.bottom = previousFrameBottom.startStyle!.bottom;
 				endStyle.bottom = previousFrameBottom.endStyle!.bottom;
 			}

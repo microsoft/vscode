@@ -308,7 +308,8 @@ export class SearchWidget extends Widget {
 			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
 			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
 			history: options.searchHistory,
-			flexibleHeight: true
+			flexibleHeight: true,
+			flexibleMaxHeight: 134
 		};
 
 		const searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
@@ -329,12 +330,12 @@ export class SearchWidget extends Widget {
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.onDidFocus(() => {
+		this._register(this.searchInputFocusTracker.onDidFocus(async () => {
 			this.searchInputBoxFocused.set(true);
 
 			const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
-				const globalBufferText = this.clipboardServce.readFindText();
+				const globalBufferText = await this.clipboardServce.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
 					this.searchInput.inputBox.addToHistory();
 					this.searchInput.setValue(globalBufferText);
@@ -355,7 +356,7 @@ export class SearchWidget extends Widget {
 		if (options.showContextToggle) {
 			this.contextLinesInput = new InputBox(searchInputContainer, this.contextViewService, { type: 'number' });
 			dom.addClass(this.contextLinesInput.element, 'context-lines-input');
-			this.contextLinesInput.value = '2';
+			this.contextLinesInput.value = '' + (this.configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor.defaultNumberOfContextLines ?? 1);
 			this._register(this.contextLinesInput.onDidChange(() => this.onContextLinesChanged()));
 			this._register(attachInputBoxStyler(this.contextLinesInput, this.themeService));
 			dom.append(searchInputContainer, this.showContextCheckbox.domNode);
@@ -614,7 +615,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(triggeredOnType = false, delay: number = 0): void {
+	private async submitSearch(triggeredOnType = false, delay: number = 0): Promise<void> {
 		this.searchInput.validate();
 		if (!this.searchInput.inputBox.isInputValid()) {
 			return;
@@ -623,7 +624,7 @@ export class SearchWidget extends Widget {
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 		if (value && useGlobalFindBuffer) {
-			this.clipboardServce.writeFindText(value);
+			await this.clipboardServce.writeFindText(value);
 		}
 		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}

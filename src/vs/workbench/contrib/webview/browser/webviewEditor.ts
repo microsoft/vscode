@@ -11,16 +11,17 @@ import { isWeb } from 'vs/base/common/platform';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
+import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
-export class WebviewEditor extends BaseEditor {
+export class WebviewEditor extends EditorPane {
 
 	public static readonly ID = 'WebviewEditor';
 
@@ -39,7 +40,8 @@ export class WebviewEditor extends BaseEditor {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
+		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@IHostService private readonly _hostService: IHostService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
@@ -76,7 +78,7 @@ export class WebviewEditor extends BaseEditor {
 		if (!this._onFocusWindowHandler.value && !isWeb) {
 			// Make sure we restore focus when switching back to a VS Code window
 			this._onFocusWindowHandler.value = this._hostService.onDidChangeFocus(focused => {
-				if (focused && this._editorService.activeEditorPane === this) {
+				if (focused && this._editorService.activeEditorPane === this && this._workbenchLayoutService.hasFocus(Parts.EDITOR_PART)) {
 					this.focus();
 				}
 			});
@@ -105,7 +107,7 @@ export class WebviewEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public async setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Promise<void> {
+	public async setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (input.matches(this.input)) {
 			return;
 		}
@@ -115,7 +117,7 @@ export class WebviewEditor extends BaseEditor {
 			this.webview.release(this);
 		}
 
-		await super.setInput(input, options, token);
+		await super.setInput(input, options, context, token);
 		await input.resolve();
 
 		if (token.isCancellationRequested) {
@@ -146,11 +148,9 @@ export class WebviewEditor extends BaseEditor {
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
-		if (this._editorGroupsService instanceof EditorPart) {
-			this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
-				groupContainsPredicate: (group) => this.group?.id === group.group.id
-			}));
-		}
+		this._webviewVisibleDisposables.add(this._editorDropService.createEditorDropTarget(input.webview.container, {
+			containsGroup: (group) => this.group?.id === group.group.id
+		}));
 
 		this._webviewVisibleDisposables.add(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
 			this.webview?.windowDidDragStart();

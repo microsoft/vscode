@@ -17,8 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,7 +28,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.format',
-			title: localize('format.title', 'Format Notebook'),
+			title: { value: localize('format.title', "Format Notebook"), original: 'Format Notebook' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE),
 			keybinding: {
@@ -63,9 +62,9 @@ registerAction2(class extends Action2 {
 		const dispoables = new DisposableStore();
 		try {
 
-			const edits: WorkspaceTextEdit[] = [];
+			const edits: ResourceTextEdit[] = [];
 
-			for (let cell of notebook.cells) {
+			for (const cell of notebook.cells) {
 
 				const ref = await textModelService.createModelReference(cell.uri);
 				dispoables.add(ref);
@@ -78,18 +77,13 @@ registerAction2(class extends Action2 {
 				);
 
 				if (formatEdits) {
-					formatEdits.forEach(edit => edits.push({
-						edit,
-						resource: model.uri,
-						modelVersionId: model.getVersionId()
-					}));
+					for (let edit of formatEdits) {
+						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
+					}
 				}
 			}
 
-			await bulkEditService.apply(
-				{ edits },
-				{ label: localize('label', "Format Notebook") }
-			);
+			await bulkEditService.apply(edits, { label: localize('label', "Format Notebook") });
 
 		} finally {
 			dispoables.dispose();

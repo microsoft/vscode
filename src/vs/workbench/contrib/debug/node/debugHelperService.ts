@@ -14,7 +14,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export class NodeDebugHelperService implements IDebugHelperService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -47,4 +47,4 @@ export class NodeDebugHelperService implements IDebugHelperService {
 	}
 }
 
-registerSingleton(IDebugHelperService, NodeDebugHelperService);
+registerSingleton(IDebugHelperService, NodeDebugHelperService, true);

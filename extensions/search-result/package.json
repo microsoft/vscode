@@ -12,6 +12,7 @@
     "Programming Languages"
   ],
   "main": "./out/extension.js",
+  "browser": "./dist/extension.js",
   "activationEvents": [
     "*"
   ],

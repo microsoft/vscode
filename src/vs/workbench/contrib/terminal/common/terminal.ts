@@ -7,13 +7,12 @@ import * as nls from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { IExtensionPointDescriptor } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
+export const TERMINAL_VIEW_ID = 'terminal';
 
 /** A context key that is set when there is at least one opened integrated terminal. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_OPEN = new RawContextKey<boolean>('terminalIsOpen', false);
@@ -47,6 +46,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolea
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
 export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
+export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<boolean>('terminalProcessSupported', false);
+
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
@@ -54,8 +55,6 @@ export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverM
 // this delay is to allow the terminal instance to initialize correctly and have its ID set before
 // trying to create the corressponding object on the ext host.
 export const EXT_HOST_CREATION_DELAY = 100;
-
-export const ITerminalNativeService = createDecorator<ITerminalNativeService>('terminalNativeService');
 
 export const TerminalCursorStyle = {
 	BLOCK: 'block',
@@ -70,10 +69,6 @@ export const TERMINAL_ACTION_CATEGORY = nls.localize('terminalCategory', "Termin
 export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
-export const SHELL_PATH_INVALID_EXIT_CODE = -1;
-export const SHELL_PATH_DIRECTORY_EXIT_CODE = -2;
-export const SHELL_CWD_INVALID_EXIT_CODE = -3;
-export const LEGACY_CONSOLE_MODE_EXIT_CODE = 3221225786; // microsoft/vscode#73790
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -234,18 +229,17 @@ export interface IShellLaunchConfig {
 }
 
 /**
- * Provides access to native or electron APIs to other terminal services.
+ * Provides access to native Windows calls that can be injected into non-native layers.
  */
-export interface ITerminalNativeService {
-	_serviceBrand: undefined;
-
-	readonly linuxDistro: LinuxDistro;
-
-	readonly onOpenFileRequest: Event<IOpenFileRequest>;
-	readonly onOsResume: Event<void>;
-
+export interface ITerminalNativeWindowsDelegate {
+	/**
+	 * Gets the Windows build number, eg. this would be `19041` for Windows 10 version 2004
+	 */
 	getWindowsBuildNumber(): number;
-	whenFileDeleted(path: URI): Promise<void>;
+	/**
+	 * Converts a regular Windows path into the WSL path equivalent, eg. `C:\` -> `/mnt/c`
+	 * @param path The Windows path.
+	 */
 	getWslPath(path: string): Promise<string>;
 }
 
@@ -308,7 +302,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
-	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
 	setDimensions(cols: number, rows: number): void;
 
@@ -364,12 +358,14 @@ export interface ISpawnExtHostProcessRequest {
 	cols: number;
 	rows: number;
 	isWorkspaceShellAllowed: boolean;
+	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IStartExtensionTerminalRequest {
 	proxy: ITerminalProcessExtHostProxy;
 	cols: number;
 	rows: number;
+	callback: (error: ITerminalLaunchError | undefined) => void;
 }
 
 export interface IAvailableShellsRequest {
@@ -402,6 +398,11 @@ export interface IWindowsShellHelper extends IDisposable {
 	getShellName(): Promise<string>;
 }
 
+export interface ITerminalLaunchError {
+	message: string;
+	code?: number;
+}
+
 /**
  * An interface representing a raw terminal child process, this contains a subset of the
  * child_process.ChildProcess node.js interface.
@@ -413,6 +414,14 @@ export interface ITerminalChildProcess {
 	onProcessTitleChanged: Event<string>;
 	onProcessOverrideDimensions?: Event<ITerminalDimensions | undefined>;
 	onProcessResolvedShellLaunchConfig?: Event<IShellLaunchConfig>;
+
+	/**
+	 * Starts the process.
+	 *
+	 * @returns undefined when the process was successfully started, otherwise an object containing
+	 * information on what went wrong.
+	 */
+	start(): Promise<ITerminalLaunchError | undefined>;
 
 	/**
 	 * Shutdown the terminal process.
@@ -614,3 +623,41 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel'
 ];
+
+export interface ITerminalContributions {
+	types?: ITerminalTypeContribution[];
+}
+
+export interface ITerminalTypeContribution {
+	title: string;
+	command: string;
+}
+
+export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
+	extensionPoint: 'terminal',
+	defaultExtensionKind: 'workspace',
+	jsonSchema: {
+		description: nls.localize('vscode.extension.contributes.terminal', 'Contributes terminal functionality.'),
+		type: 'object',
+		properties: {
+			types: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.types', "Defines additional terminal types that the user can create."),
+				items: {
+					type: 'object',
+					required: ['command', 'title'],
+					properties: {
+						command: {
+							description: nls.localize('vscode.extension.contributes.terminal.types.command', "Command to execute when the user creates this type of terminal."),
+							type: 'string',
+						},
+						title: {
+							description: nls.localize('vscode.extension.contributes.terminal.types.title', "Title for this type of terminal."),
+							type: 'string',
+						},
+					},
+				},
+			},
+		},
+	},
+};

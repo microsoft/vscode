@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/views';
 import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewsService, IViewPaneContainer, getVisbileViewContextKey } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -34,7 +33,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>;
@@ -159,7 +158,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				constructor() {
 					super({
 						id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize('focus view', "Focus on {0} View", viewDescriptor.name) },
+						title: { original: `Focus on ${viewDescriptor.name} View`, value: localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name) },
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
@@ -276,6 +275,11 @@ export class ViewsService extends Disposable implements IViewsService {
 		return viewContainerId ? this.viewDescriptorService.getViewContainerById(viewContainerId) : null;
 	}
 
+	getActiveViewPaneContainerWithId(viewContainerId: string): IViewPaneContainer | null {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(viewContainerId);
+		return viewContainer ? this.getActiveViewPaneContainer(viewContainer) : null;
+	}
+
 	async openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(id);
 		if (viewContainer) {
@@ -298,9 +302,9 @@ export class ViewsService extends Disposable implements IViewsService {
 			const viewContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			switch (viewContainerLocation) {
 				case ViewContainerLocation.Panel:
-					return this.panelService.getActivePanel()?.getId() === id ? this.panelService.hideActivePanel() : undefined;
+					return this.panelService.getActivePanel()?.getId() === id ? this.layoutService.setPanelHidden(true) : undefined;
 				case ViewContainerLocation.Sidebar:
-					return this.viewletService.getActiveViewlet()?.getId() === id ? this.viewletService.hideActiveViewlet() : undefined;
+					return this.viewletService.getActiveViewlet()?.getId() === id ? this.layoutService.setSideBarHidden(true) : undefined;
 			}
 		}
 	}
@@ -445,6 +449,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			viewContainer.name,
 			undefined,
 			viewContainer.order,
+			viewContainer.requestedIndex,
 			viewContainer.focusCommand?.id,
 		));
 	}
@@ -480,6 +485,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			viewContainer.name,
 			isString(viewContainer.icon) ? viewContainer.icon : undefined,
 			viewContainer.order,
+			viewContainer.requestedIndex,
 			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
 		));
 	}

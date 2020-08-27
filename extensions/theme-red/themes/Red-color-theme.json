@@ -351,6 +351,20 @@
 			}
 		},
 		{
+			"name": "Markup: Strong",
+			"scope": "markup.bold",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup: Emphasis",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -359,17 +373,15 @@
 			}
 		},
 		{
-			"name": "Markup Headings",
-			"scope": "markup.heading",
+			"name": "Headings",
+			"scope": [
+				"markup.heading",
+				"markup.heading.setext",
+				"punctuation.definition.heading",
+				"entity.name.section"
+			],
 			"settings": {
-				"foreground": "#fec758ff"
-			}
-		},
-		{
-			"name": "Markup Setext Header",
-			"scope": "markup.heading.setext",
-			"settings": {
-				"fontStyle": "",
+				"fontStyle": "bold",
 				"foreground": "#fec758ff"
 			}
 		},

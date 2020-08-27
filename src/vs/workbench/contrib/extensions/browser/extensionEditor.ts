@@ -15,7 +15,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show, addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +25,7 @@ import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CombinedInstallAction, UpdateAction, ExtensionEditorDropDownAction, ReloadAction, MaliciousStatusLabelAction, IgnoreExtensionRecommendationAction, UndoIgnoreExtensionRecommendationAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction, RemoteInstallAction, ExtensionToolTipAction, SystemDisabledWarningAction, LocalInstallAction, SyncIgnoredIconAction, SetProductIconThemeAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -164,7 +164,7 @@ interface IExtensionEditorTemplate {
 	header: HTMLElement;
 }
 
-export class ExtensionEditor extends BaseEditor {
+export class ExtensionEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.extension';
 
@@ -224,23 +224,23 @@ export class ExtensionEditor extends BaseEditor {
 		builtin.textContent = localize('builtin', "Built-in");
 
 		const subtitle = append(details, $('.subtitle'));
-		const publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
+		const publisher = append(append(subtitle, $('.subtitle-entry')), $('span.publisher.clickable', { title: localize('publisher', "Publisher name"), tabIndex: 0 }));
 
-		const installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
+		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { title: localize('install count', "Install count"), tabIndex: 0 }));
 
-		const rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
+		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { title: localize('rating', "Rating"), tabIndex: 0 }));
 
-		const repository = append(subtitle, $('span.repository.clickable'));
+		const repository = append(append(subtitle, $('.subtitle-entry')), $('span.repository.clickable'));
 		repository.textContent = localize('repository', 'Repository');
 		repository.style.display = 'none';
 		repository.tabIndex = 0;
 
-		const license = append(subtitle, $('span.license.clickable'));
+		const license = append(append(subtitle, $('.subtitle-entry')), $('span.license.clickable'));
 		license.textContent = localize('license', 'License');
 		license.style.display = 'none';
 		license.tabIndex = 0;
 
-		const version = append(subtitle, $('span.version'));
+		const version = append(append(subtitle, $('.subtitle-entry')), $('span.version'));
 		version.textContent = localize('version', 'Version');
 
 		const description = append(details, $('.description'));
@@ -313,8 +313,8 @@ export class ExtensionEditor extends BaseEditor {
 		return disposables;
 	}
 
-	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		await super.setInput(input, options, token);
+	async setInput(input: ExtensionsInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
 		if (this.template) {
 			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
 		}
@@ -429,7 +429,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.setSubText(extension, reloadAction, template);
-		template.content.innerHTML = ''; // Clear content before setting navbar actions.
+		template.content.innerText = ''; // Clear content before setting navbar actions.
 
 		template.navbar.clear();
 
@@ -528,21 +528,22 @@ export class ExtensionEditor extends BaseEditor {
 	}
 
 	focus(): void {
-		if (this.activeElement) {
-			this.activeElement.focus();
-		}
+		this.activeElement?.focus();
 	}
 
 	showFind(): void {
-		if (this.activeElement && (<Webview>this.activeElement).showFind) {
-			(<Webview>this.activeElement).showFind();
-		}
+		this.activeWebview?.showFind();
 	}
 
 	runFindAction(previous: boolean): void {
-		if (this.activeElement && (<Webview>this.activeElement).runFindAction) {
-			(<Webview>this.activeElement).runFindAction(previous);
+		this.activeWebview?.runFindAction(previous);
+	}
+
+	public get activeWebview(): Webview | undefined {
+		if (!this.activeElement || !(this.activeElement as Webview).runFindAction) {
+			return undefined;
 		}
+		return this.activeElement as Webview;
 	}
 
 	private onNavbarChange(extension: IExtension, { id, focus }: { id: string | null, focus: boolean }, template: IExtensionEditorTemplate): void {
@@ -559,7 +560,7 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		this.contentDisposables.clear();
-		template.content.innerHTML = '';
+		template.content.innerText = '';
 		this.activeElement = null;
 		if (id) {
 			this.open(id, extension, template)
@@ -617,7 +618,7 @@ export class ExtensionEditor extends BaseEditor {
 				if (!link) {
 					return;
 				}
-				// Whitelist supported schemes for links
+				// Only allow links with specific schemes
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
 					|| (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId)
 				) {
@@ -903,6 +904,7 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout),
 					this.renderCustomEditors(content, manifest, layout),
+					this.renderAuthentication(content, manifest, layout),
 				];
 
 				scrollableContent.scanDomNode();
@@ -1143,6 +1145,32 @@ export class ExtensionEditor extends BaseEditor {
 						$('td', undefined, $('code', undefined, action.kind)),
 						$('td', undefined, action.description ?? ''),
 						$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderAuthentication(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const authentication = manifest.contributes?.authentication || [];
+		if (!authentication.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', { tabindex: '0' }, localize('authentication', "Authentication ({0})", authentication.length)),
+			$('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, localize('authentication.label', "Label")),
+					$('th', undefined, localize('authentication.id', "Id"))
+				),
+				...authentication.map(action =>
+					$('tr', undefined,
+						$('td', undefined, action.label),
+						$('td', undefined, action.id)
+					)
+				)
 			)
 		);
 

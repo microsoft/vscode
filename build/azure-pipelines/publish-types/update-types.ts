@@ -36,6 +36,18 @@ function updateDTSFile(outPath: string, tag: string) {
 	fs.writeFileSync(outPath, newContent);
 }
 
+function repeat(str: string, times: number): string {
+	const result = new Array(times);
+	for (let i = 0; i < times; i++) {
+		result[i] = str;
+	}
+	return result.join('');
+}
+
+function convertTabsToSpaces(str: string): string {
+	return str.replace(/\t/gm, value => repeat('    ', value.length));
+}
+
 function getNewFileContent(content: string, tag: string) {
 	const oldheader = [
 		`/*---------------------------------------------------------------------------------------------`,
@@ -44,7 +56,7 @@ function getNewFileContent(content: string, tag: string) {
 		` *--------------------------------------------------------------------------------------------*/`
 	].join('\n');
 
-	return getNewFileHeader(tag) + content.slice(oldheader.length);
+	return convertTabsToSpaces(getNewFileHeader(tag) + content.slice(oldheader.length));
 }
 
 function getNewFileHeader(tag: string) {

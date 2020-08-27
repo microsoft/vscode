@@ -228,10 +228,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
+		const parentSession = this.getSession(options.parentSessionID);
 		const debugOptions: IDebugSessionOptions = {
-			noDebug: false,
-			parentSession: this.getSession(options.parentSessionID),
-			repl: options.repl
+			noDebug: options.noDebug,
+			parentSession,
+			repl: options.repl,
+			compact: options.compact,
+			compoundRoot: parentSession?.compoundRoot
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;
@@ -257,6 +260,26 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					return Promise.reject(new Error(response ? response.message : 'custom request failed'));
 				}
 			});
+		}
+		return Promise.reject(new Error('debug session not found'));
+	}
+
+	public $getDebugProtocolBreakpoint(sessionId: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined> {
+		const session = this.debugService.getModel().getSession(sessionId, true);
+		if (session) {
+			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
+		}
+		return Promise.reject(new Error('debug session not found'));
+	}
+
+	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
+		if (sessionId) {
+			const session = this.debugService.getModel().getSession(sessionId, true);
+			if (session) {
+				return this.debugService.stopSession(session);
+			}
+		} else {	// stop all
+			return this.debugService.stopSession(undefined);
 		}
 		return Promise.reject(new Error('debug session not found'));
 	}

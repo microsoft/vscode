@@ -6,14 +6,14 @@
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource, ServerResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataManifest, ALL_SYNC_RESOURCES, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSyncUtilService, IUserDataSyncResourceEnablementService, IUserDataSyncService, getDefaultIgnoredSettings, IUserDataSyncBackupStoreService, SyncResource, ServerResource, IUserDataSyncStoreManagementService, registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { generateUuid } from 'vs/base/common/uuid';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NullLogService, ILogService } from 'vs/platform/log/common/log';
-import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -25,14 +25,14 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
+import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
 import { IGlobalExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IAuthenticationTokenService, IUserDataSyncAuthToken } from 'vs/platform/authentication/common/authentication';
+import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
@@ -49,14 +49,17 @@ export class UserDataSyncClient extends Disposable {
 	}
 
 	async setUp(empty: boolean = false): Promise<void> {
-		const userDataDirectory = URI.file('userdata').with({ scheme: Schemas.inMemory });
-		const userDataSyncHome = joinPath(userDataDirectory, '.sync');
+		registerConfiguration();
+		const userRoamingDataHome = URI.file('userdata').with({ scheme: Schemas.inMemory });
+		const userDataSyncHome = joinPath(userRoamingDataHome, '.sync');
 		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
 			userDataSyncHome,
-			settingsResource: joinPath(userDataDirectory, 'settings.json'),
-			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
-			snippetsHome: joinPath(userDataDirectory, 'snippets'),
-			argvResource: joinPath(userDataDirectory, 'argv.json')
+			userRoamingDataHome,
+			settingsResource: joinPath(userRoamingDataHome, 'settings.json'),
+			keybindingsResource: joinPath(userRoamingDataHome, 'keybindings.json'),
+			snippetsHome: joinPath(userRoamingDataHome, 'snippets'),
+			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
+			sync: 'on',
 		});
 
 		const logService = new NullLogService();
@@ -82,18 +85,20 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IConfigurationService, configurationService);
 
 		this.instantiationService.stub(IRequestService, this.testServer);
-		this.instantiationService.stub(IAuthenticationTokenService, <Partial<IAuthenticationTokenService>>{
-			onDidChangeToken: new Emitter<IUserDataSyncAuthToken | undefined>().event,
-			token: { authenticationProviderId: 'id', token: 'token' }
-		});
 
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
 		this.instantiationService.stub(ITelemetryService, NullTelemetryService);
+		this.instantiationService.stub(IUserDataSyncStoreManagementService, this.instantiationService.createInstance(UserDataSyncStoreManagementService));
 		this.instantiationService.stub(IUserDataSyncStoreService, this.instantiationService.createInstance(UserDataSyncStoreService));
+
+		const userDataSyncAccountService: IUserDataSyncAccountService = this.instantiationService.createInstance(UserDataSyncAccountService);
+		await userDataSyncAccountService.updateAccount({ authenticationProviderId: 'authenticationProviderId', token: 'token' });
+		this.instantiationService.stub(IUserDataSyncAccountService, userDataSyncAccountService);
+
 		this.instantiationService.stub(IUserDataSyncMachinesService, this.instantiationService.createInstance(UserDataSyncMachinesService));
 		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
-		this.instantiationService.stub(IUserDataSyncEnablementService, this.instantiationService.createInstance(UserDataSyncEnablementService));
+		this.instantiationService.stub(IUserDataSyncResourceEnablementService, this.instantiationService.createInstance(UserDataSyncResourceEnablementService));
 		this.instantiationService.stub(IStorageKeysSyncRegistryService, this.instantiationService.createInstance(StorageKeysSyncRegistryService));
 
 		this.instantiationService.stub(IGlobalExtensionEnablementService, this.instantiationService.createInstance(GlobalExtensionEnablementService));
@@ -118,8 +123,8 @@ export class UserDataSyncClient extends Disposable {
 		await configurationService.reloadConfiguration();
 	}
 
-	sync(): Promise<void> {
-		return this.instantiationService.get(IUserDataSyncService).sync();
+	async sync(): Promise<void> {
+		await (await this.instantiationService.get(IUserDataSyncService).createSyncTask()).run();
 	}
 
 	read(resource: SyncResource): Promise<IUserData> {
@@ -152,9 +157,14 @@ export class UserDataSyncTestServer implements IRequestService {
 	get responses(): { status: number }[] { return this._responses; }
 	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
+	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
+
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (this._requests.length === this.rateLimit) {
+			return this.toResponse(429, this.retryAfter ? { 'retry-after': `${this.retryAfter}` } : undefined);
+		}
 		const headers: IHeaders = {};
 		if (options.headers) {
 			if (options.headers['If-None-Match']) {

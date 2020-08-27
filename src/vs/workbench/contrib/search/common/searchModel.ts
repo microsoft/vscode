@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ResourceMap, TernarySearchTree, values } from 'vs/base/common/map';
+import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
 import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -293,7 +293,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			endLineNumber: lineNumber,
 			endColumn: this._model.getLineMaxColumn(lineNumber)
 		};
-		const oldMatches = values(this._matches).filter(match => match.range().startLineNumber === lineNumber);
+		const oldMatches = Array.from(this._matches.values()).filter(match => match.range().startLineNumber === lineNumber);
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
@@ -351,7 +351,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	matches(): Match[] {
-		return values(this._matches);
+		return Array.from(this._matches.values());
 	}
 
 	remove(match: Match): void {
@@ -360,9 +360,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._onChange.fire({ didRemove: true });
 	}
 
-	replace(toReplace: Match): Promise<void> {
-		return this.replaceService.replace(toReplace)
-			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
+	private replaceQ = Promise.resolve();
+	async replace(toReplace: Match): Promise<void> {
+		return this.replaceQ = this.replaceQ.finally(async () => {
+			await this.replaceService.replace(toReplace);
+			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
+		});
 	}
 
 	setSelectedMatch(match: Match | null): void {
@@ -605,7 +608,7 @@ export class FolderMatch extends Disposable {
 			fileMatches = [fileMatches];
 		}
 
-		for (let match of fileMatches as FileMatch[]) {
+		for (const match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();
@@ -1181,7 +1184,7 @@ export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch 
 
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private _searchModel: SearchModel | null = null;
 
 	constructor(@IInstantiationService private readonly instantiationService: IInstantiationService) {
@@ -1198,7 +1201,7 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
 
 export interface ISearchWorkbenchService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;
 }

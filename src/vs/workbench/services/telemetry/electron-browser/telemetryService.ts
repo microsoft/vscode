@@ -21,7 +21,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
 	public readonly sendErrorTelemetry: boolean;
@@ -55,6 +55,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	setEnabled(value: boolean): void {
 		return this.impl.setEnabled(value);
+	}
+
+	setExperimentProperty(name: string, value: string): void {
+		return this.impl.setExperimentProperty(name, value);
 	}
 
 	get isOptedIn(): boolean {

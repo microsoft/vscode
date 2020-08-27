@@ -181,7 +181,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
-		templateData.source.title = element.sourceData ? this.labelService.getUriLabel(element.sourceData.source.uri) : '';
+		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
 		templateData.getReplElementSource = () => element.sourceData;
 	}
 
@@ -362,10 +362,10 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 			return localize('replValueOutputAriaLabel', "{0}", element.value);
 		}
 		if (element instanceof RawObjectReplElement) {
-			return localize('replRawObjectAriaLabel', "Repl variable {0}, value {1}", element.name, element.value);
+			return localize('replRawObjectAriaLabel', "Debug console variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof ReplGroup) {
-			return localize('replGroup', "Repl group {0}, read eval print loop, debug", element.name);
+			return localize('replGroup', "Debug console group {0}, read eval print loop, debug", element.name);
 		}
 
 		return '';

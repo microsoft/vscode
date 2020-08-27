@@ -28,7 +28,7 @@
 				"type": "other",
 				"other": {
 					"name": "Unicode",
-					"downloadUrl": "http://www.unicode.org/",
+					"downloadUrl": "https://home.unicode.org/",
 					"version": "12.0.0"
 				}
 			},

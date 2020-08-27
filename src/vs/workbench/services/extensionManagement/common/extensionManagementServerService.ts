@@ -4,42 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { isWeb } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { WebExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/webExtensionManagementService';
+import { IExtension } from 'vs/platform/extensions/common/extensions';
+import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly localExtensionManagementServer: IExtensionManagementServer | null = null;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
+	readonly webExtensionManagementServer: IExtensionManagementServer | null = null;
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new ExtensionManagementChannelClient(remoteAgentConnection!.getChannel<IChannel>('extensions'));
+			const extensionManagementService = instantiationService.createInstance(WebRemoteExtensionManagementService, remoteAgentConnection!.getChannel<IChannel>('extensions'));
 			this.remoteExtensionManagementServer = {
-				authority: remoteAgentConnection.remoteAuthority,
+				id: 'remote',
 				extensionManagementService,
 				get label() { return labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
 			};
 		}
+		if (isWeb) {
+			const extensionManagementService = instantiationService.createInstance(WebExtensionManagementService);
+			this.webExtensionManagementServer = {
+				id: 'web',
+				extensionManagementService,
+				label: localize('web', "Web")
+			};
+		}
 	}
 
-	getExtensionManagementServer(location: URI): IExtensionManagementServer | null {
-		if (location.scheme === REMOTE_HOST_SCHEME) {
-			return this.remoteExtensionManagementServer;
+	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer {
+		if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+			return this.remoteExtensionManagementServer!;
 		}
-		return null;
+		if (this.webExtensionManagementServer) {
+			return this.webExtensionManagementServer;
+		}
+		throw new Error(`Invalid Extension ${extension.location}`);
 	}
 }
 

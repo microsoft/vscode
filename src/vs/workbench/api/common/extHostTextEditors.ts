@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as arrays from 'vs/base/common/arrays';
 import { ExtHostEditorsShape, IEditorPropertiesChangeData, IMainContext, ITextDocumentShowOptions, ITextEditorPositionData, MainContext, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostTextEditor, TextEditorDecorationType } from 'vs/workbench/api/common/extHostTextEditor';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { TextEditorSelectionChangeKind } from 'vs/workbench/api/common/extHostTypes';
@@ -28,16 +29,15 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
-
-	private _proxy: MainThreadTextEditorsShape;
-	private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
+	private readonly _proxy: MainThreadTextEditorsShape;
 
 	constructor(
 		mainContext: IMainContext,
-		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _extHostNotebooks: ExtHostNotebookController,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
-		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
+
 
 		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
@@ -54,7 +54,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	showTextDocument(document: vscode.TextDocument, column: vscode.ViewColumn, preserveFocus: boolean): Promise<vscode.TextEditor>;
 	showTextDocument(document: vscode.TextDocument, options: { column: vscode.ViewColumn, preserveFocus: boolean, pinned: boolean }): Promise<vscode.TextEditor>;
 	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor>;
-	showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor> {
+	async showTextDocument(document: vscode.TextDocument, columnOrOptions: vscode.ViewColumn | vscode.TextDocumentShowOptions | undefined, preserveFocus?: boolean): Promise<vscode.TextEditor> {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
@@ -74,14 +74,18 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			};
 		}
 
-		return this._proxy.$tryShowTextDocument(document.uri, options).then(id => {
-			const editor = id && this._extHostDocumentsAndEditors.getEditor(id);
-			if (editor) {
-				return editor;
-			} else {
-				throw new Error(`Failed to show text document ${document.uri.toString()}, should show in editor #${id}`);
-			}
-		});
+		const editorId = await this._proxy.$tryShowTextDocument(document.uri, options);
+		const editor = editorId && this._extHostDocumentsAndEditors.getEditor(editorId);
+		if (editor) {
+			return editor;
+		}
+		// we have no editor... having an id means that we had an editor
+		// on the main side and that it isn't the current editor anymore...
+		if (editorId) {
+			throw new Error(`Could NOT open editor for "${document.uri.toString()}" because another editor opened in the meantime.`);
+		} else {
+			throw new Error(`Could NOT open editor for "${document.uri.toString()}".`);
+		}
 	}
 
 	createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
@@ -89,7 +93,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	}
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
-		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors, this._extHostNotebooks);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
 

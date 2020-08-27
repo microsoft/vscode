@@ -17,6 +17,8 @@ import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, 
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
 import { IRemoteSourceProviderRegistry } from './remoteProvider';
+import { IPushErrorHandlerRegistry } from './pushError';
+import { ApiRepository } from './api/api1';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -537,7 +539,7 @@ class DotGitWatcher implements IFileWatcher {
 			upstreamWatcher.event(this.emitter.fire, this.emitter, this.transientDisposables);
 		} catch (err) {
 			if (Log.logLevel <= LogLevel.Error) {
-				this.outputChannel.appendLine(`Failed to watch ref '${upstreamPath}', is most likely packed.\n${err.stack || err}`);
+				this.outputChannel.appendLine(`Warning: Failed to watch ref '${upstreamPath}', is most likely packed.`);
 			}
 		}
 	}
@@ -683,6 +685,7 @@ export class Repository implements Disposable {
 	constructor(
 		private readonly repository: BaseRepository,
 		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
+		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		globalState: Memento,
 		outputChannel: OutputChannel
 	) {
@@ -729,10 +732,10 @@ export class Repository implements Disposable {
 		this.updateInputBoxPlaceholder();
 		this.disposables.push(this.onDidRunGitStatus(() => this.updateInputBoxPlaceholder()));
 
-		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "MERGE CHANGES"));
-		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "STAGED CHANGES"));
-		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "CHANGES"));
-		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "UNTRACKED CHANGES"));
+		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
+		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
+		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
+		this._untrackedGroup = this._sourceControl.createResourceGroup('untracked', localize('untracked changes', "Untracked Changes"));
 
 		const updateIndexGroupVisibility = () => {
 			const config = workspace.getConfiguration('git', root);
@@ -865,10 +868,10 @@ export class Repository implements Disposable {
 	}
 
 	async getInputTemplate(): Promise<string> {
-		const mergeMessage = await this.repository.getMergeMessage();
+		const commitMessage = (await Promise.all([this.repository.getMergeMessage(), this.repository.getSquashMessage()])).find(msg => !!msg);
 
-		if (mergeMessage) {
-			return mergeMessage;
+		if (commitMessage) {
+			return commitMessage;
 		}
 
 		return await this.repository.getCommitTemplate();
@@ -1181,15 +1184,15 @@ export class Repository implements Disposable {
 			branch = `${head.name}:${head.upstream.name}`;
 		}
 
-		await this.run(Operation.Push, () => this.repository.push(remote, branch, undefined, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, branch, undefined, undefined, forcePushMode));
 	}
 
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream, undefined, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
+		await this.run(Operation.Push, () => this._push(remote, undefined, false, true, forcePushMode));
 	}
 
 	async blame(path: string): Promise<string> {
@@ -1249,7 +1252,7 @@ export class Repository implements Disposable {
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this.repository.push(remoteName, pushBranch);
+					await this._push(remoteName, pushBranch);
 				}
 			});
 		});
@@ -1409,6 +1412,31 @@ export class Repository implements Disposable {
 			}
 		}
 		return ignored;
+	}
+
+	private async _push(remote?: string, refspec?: string, setUpstream: boolean = false, tags = false, forcePushMode?: ForcePushMode): Promise<void> {
+		try {
+			await this.repository.push(remote, refspec, setUpstream, tags, forcePushMode);
+		} catch (err) {
+			if (!remote || !refspec) {
+				throw err;
+			}
+
+			const repository = new ApiRepository(this);
+			const remoteObj = repository.state.remotes.find(r => r.name === remote);
+
+			if (!remoteObj) {
+				throw err;
+			}
+
+			for (const handler of this.pushErrorHandlerRegistry.getPushErrorHandlers()) {
+				if (await handler.handlePushError(repository, remoteObj, refspec, err)) {
+					return;
+				}
+			}
+
+			throw err;
+		}
 	}
 
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {

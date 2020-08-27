@@ -13,7 +13,6 @@ import { IRequestService, asJson, asText } from 'vs/platform/request/common/requ
 import { IRequestOptions, IRequestContext, IHeaders } from 'vs/base/parts/request/common/request';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { values } from 'vs/base/common/map';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
@@ -116,7 +115,8 @@ const PropertyType = {
 	Dependency: 'Microsoft.VisualStudio.Code.ExtensionDependencies',
 	ExtensionPack: 'Microsoft.VisualStudio.Code.ExtensionPack',
 	Engine: 'Microsoft.VisualStudio.Code.Engine',
-	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages'
+	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
+	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension'
 };
 
 interface ICriterium {
@@ -163,7 +163,7 @@ class Query {
 	withFilter(filterType: FilterType, ...values: string[]): Query {
 		const criteria = [
 			...this.state.criteria,
-			...values.map(value => ({ filterType, value }))
+			...values.length ? values.map(value => ({ filterType, value })) : [{ filterType }]
 		];
 
 		return new Query(assign({}, this.state, { criteria }));
@@ -217,7 +217,7 @@ function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): [string
 function getRepositoryAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAsset | null {
 	if (version.properties) {
 		const results = version.properties.filter(p => p.key === AssetType.Repository);
-		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w.]+))(:(//)?)([\w.@\:/\-~]+)(.git)(/)?');
 
 		const uri = results.filter(r => gitRegExp.test(r.value))[0];
 		return uri ? { uri: uri.value, fallbackUri: uri.value } : null;
@@ -267,6 +267,11 @@ function getIsPreview(flags: string): boolean {
 	return flags.indexOf('preview') !== -1;
 }
 
+function getIsWebExtension(version: IRawGalleryExtensionVersion): boolean {
+	const webExtensionProperty = version.properties ? version.properties.find(p => p.key === PropertyType.WebExtension) : undefined;
+	return !!webExtensionProperty && webExtensionProperty.value === 'true';
+}
+
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const assets = <IGalleryExtensionAssets>{
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -295,12 +300,15 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		installCount: getStatistic(galleryExtension.statistics, 'install'),
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
+		assetUri: URI.parse(version.assetUri),
+		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,
 		properties: {
 			dependencies: getExtensions(version, PropertyType.Dependency),
 			extensionPack: getExtensions(version, PropertyType.ExtensionPack),
 			engine: getEngine(version),
-			localizedLanguages: getLocalizedLanguages(version)
+			localizedLanguages: getLocalizedLanguages(version),
+			webExtension: getIsWebExtension(version)
 		},
 		/* __GDPR__FRAGMENT__
 			"GalleryExtensionTelemetryData2" : {
@@ -325,7 +333,7 @@ interface IRawExtensionsReport {
 
 export class ExtensionGalleryService implements IExtensionGalleryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private extensionsGalleryUrl: string | undefined;
 	private extensionsControlUrl: string | undefined;
@@ -362,10 +370,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 		const { id, uuid } = extension ? extension.identifier : <IExtensionIdentifier>arg1;
 		let query = new Query()
-			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.ExcludeNonValidated)
+			.withFlags(Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (uuid) {
 			query = query.withFilter(FilterType.ExtensionId, uuid);
@@ -426,8 +433,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		let query = new Query()
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, pageSize)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (text) {
 			// Use category filter instead of "category:themes"
@@ -439,6 +445,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			// Use tag filter instead of "tag:debuggers"
 			text = text.replace(/\btag:("([^"]*)"|([^"]\S*))(\s+|\b|$)/g, (_, quotedTag, tag) => {
 				query = query.withFilter(FilterType.Tag, tag || quotedTag);
+				return '';
+			});
+
+			// Use featured filter
+			text = text.replace(/\bfeatured(\s+|\b|$)/g, () => {
+				query = query.withFilter(FilterType.Featured);
 				return '';
 			});
 
@@ -484,6 +496,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	private queryGallery(query: Query, token: CancellationToken): Promise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		// Always exclude non validated and unpublished extensions
+		query = query
+			.withFlags(query.flags, Flags.ExcludeNonValidated)
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+
 		if (!this.isEnabled()) {
 			return Promise.reject(new Error('No extension gallery service configured.'));
 		}
@@ -600,12 +617,11 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return Promise.resolve('');
 	}
 
-	getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
+	async getAllVersions(extension: IGalleryExtension, compatible: boolean): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
-			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties, Flags.ExcludeNonValidated)
+			.withFlags(Flags.IncludeVersions, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1)
-			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
+			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code');
 
 		if (extension.identifier.uuid) {
 			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
@@ -613,19 +629,24 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
 		}
 
-		return this.queryGallery(query, CancellationToken.None).then(({ galleryExtensions }) => {
-			if (galleryExtensions.length) {
-				if (compatible) {
-					return Promise.all(galleryExtensions[0].versions.map(v => this.getEngine(v).then(engine => isEngineValid(engine, this.productService.version) ? v : null)))
-						.then(versions => versions
-							.filter(v => !!v)
-							.map(v => ({ version: v!.version, date: v!.lastUpdated })));
-				} else {
-					return galleryExtensions[0].versions.map(v => ({ version: v.version, date: v.lastUpdated }));
-				}
+		const result: IGalleryExtensionVersion[] = [];
+		const { galleryExtensions } = await this.queryGallery(query, CancellationToken.None);
+		if (galleryExtensions.length) {
+			if (compatible) {
+				await Promise.all(galleryExtensions[0].versions.map(async v => {
+					let engine: string | undefined;
+					try {
+						engine = await this.getEngine(v);
+					} catch (error) { /* Ignore error and skip version */ }
+					if (engine && isEngineValid(engine, this.productService.version)) {
+						result.push({ version: v!.version, date: v!.lastUpdated });
+					}
+				}));
+			} else {
+				result.push(...galleryExtensions[0].versions.map(v => ({ version: v.version, date: v.lastUpdated })));
 			}
-			return [];
-		});
+		}
+		return result;
 	}
 
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
@@ -750,7 +771,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					}
 				}
 
-				return Promise.resolve(values(map));
+				return [...map.values()];
 			});
 		});
 	}

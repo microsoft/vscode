@@ -31,6 +31,7 @@ import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 
 export interface PositionLike {
 	line: number;
@@ -131,8 +132,9 @@ export namespace DiagnosticTag {
 				return types.DiagnosticTag.Unnecessary;
 			case MarkerTag.Deprecated:
 				return types.DiagnosticTag.Deprecated;
+			default:
+				return undefined;
 		}
-		return undefined;
 	}
 }
 
@@ -210,8 +212,9 @@ export namespace DiagnosticSeverity {
 				return types.DiagnosticSeverity.Error;
 			case MarkerSeverity.Hint:
 				return types.DiagnosticSeverity.Hint;
+			default:
+				return types.DiagnosticSeverity.Error;
 		}
-		return types.DiagnosticSeverity.Error;
 	}
 }
 
@@ -503,31 +506,41 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors, notebooks?: ExtHostNotebookController): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value.allEntries()) {
+			for (let entry of value._allEntries()) {
 
-				if (entry._type === 1) {
+				if (entry._type === types.FileEditType.File) {
 					// file operation
 					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.File,
 						oldUri: entry.from,
 						newUri: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
-				} else {
+				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
 					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: doc?.version,
 						metadata: entry.metadata
+					});
+				} else if (entry._type === types.FileEditType.Cell) {
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						resource: entry.uri,
+						edit: entry.edit,
+						metadata: entry.metadata,
+						modelVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}
@@ -646,7 +659,7 @@ export namespace DocumentSymbol {
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind),
-			tags: info.tags ? info.tags.map(SymbolTag.from) : []
+			tags: info.tags?.map(SymbolTag.from) ?? []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -911,7 +924,7 @@ export namespace CompletionItem {
 
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
-		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
+		result.tags = suggestion.tags?.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
@@ -1164,15 +1177,20 @@ export namespace FoldingRangeKind {
 	}
 }
 
-export namespace TextEditorOptions {
+export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
+	background?: boolean;
+}
 
-	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions | undefined {
+export namespace TextEditorOpenOptions {
+
+	export function from(options?: TextEditorOpenOptions): ITextEditorOptions | undefined {
 		if (options) {
 			return {
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				inactive: options.background,
 				preserveFocus: options.preserveFocus,
-				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
-			} as ITextEditorOptions;
+				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+			};
 		}
 
 		return undefined;
@@ -1248,9 +1266,9 @@ export namespace LogLevel {
 				return _MainLogLevel.Critical;
 			case types.LogLevel.Off:
 				return _MainLogLevel.Off;
+			default:
+				return _MainLogLevel.Info;
 		}
-
-		return _MainLogLevel.Info;
 	}
 
 	export function to(mainLevel: _MainLogLevel): types.LogLevel {
@@ -1269,8 +1287,8 @@ export namespace LogLevel {
 				return types.LogLevel.Critical;
 			case _MainLogLevel.Off:
 				return types.LogLevel.Off;
+			default:
+				return types.LogLevel.Info;
 		}
-
-		return types.LogLevel.Info;
 	}
 }

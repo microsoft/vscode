@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -22,6 +22,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isLowSurrogate, isHighSurrogate } from 'vs/base/common/strings';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -116,7 +117,8 @@ export class SuggestModel implements IDisposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _editorWorker: IEditorWorkerService
+		private readonly _editorWorkerService: IEditorWorkerService,
+		private readonly _clipboardService: IClipboardService
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -227,7 +229,7 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: CompletionItem[] | undefined = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				const items = this._completionModel?.adopt(supports);
 				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
 			}
 		};
@@ -422,9 +424,9 @@ export class SuggestModel implements IDisposable {
 		}
 
 		let itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
-		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
+		let wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
-		let items = provideSuggestionItems(
+		let completions = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
 			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom),
@@ -432,7 +434,7 @@ export class SuggestModel implements IDisposable {
 			this._requestToken.token
 		);
 
-		Promise.all([items, wordDistance]).then(([items, wordDistance]) => {
+		Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
 
 			dispose(this._requestToken);
 
@@ -444,7 +446,13 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			let clipboardText: string | undefined;
+			if (completions.needsClipboard || isNonEmptyArray(existingItems)) {
+				clipboardText = await this._clipboardService.readText();
+			}
+
 			const model = this._editor.getModel();
+			let items = completions.items;
 
 			if (isNonEmptyArray(existingItems)) {
 				const cmpFn = getSuggestionComparator(snippetSortOrder);
@@ -458,15 +466,12 @@ export class SuggestModel implements IDisposable {
 			},
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
-				this._editor.getOption(EditorOption.snippetSuggestions)
+				this._editor.getOption(EditorOption.snippetSuggestions),
+				clipboardText
 			);
 
 			// store containers so that they can be disposed later
-			for (const item of items) {
-				if (isDisposable(item.container)) {
-					this._completionDisposables.add(item.container);
-				}
-			}
+			this._completionDisposables.add(completions.dispoables);
 
 			this._onNewContext(ctx);
 
@@ -548,6 +553,12 @@ export class SuggestModel implements IDisposable {
 
 		if (!this._completionModel) {
 			// happens when IntelliSense is not yet computed
+			return;
+		}
+
+		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
+			// started a new word while IntelliSense shows -> retrigger
+			this.trigger({ auto: this._context.auto, shy: false }, true);
 			return;
 		}
 

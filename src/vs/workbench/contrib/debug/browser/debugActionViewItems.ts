@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner, IActionViewItem } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
-import { SelectActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
@@ -20,6 +19,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const $ = dom.$;
 
@@ -252,7 +252,9 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		}));
 
 		this._register(this.debugService.onDidNewSession(session => {
-			this._register(session.onDidChangeName(() => this.update()));
+			const sessionListeners: IDisposable[] = [];
+			sessionListeners.push(session.onDidChangeName(() => this.update()));
+			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 			this.update();
 		}));
 		this.getSessions().forEach(session => {

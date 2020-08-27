@@ -19,38 +19,43 @@ const EditorOpenPositioning = {
 };
 
 export interface EditorCloseEvent extends IEditorCloseEvent {
-	editor: EditorInput;
+	readonly editor: EditorInput;
 }
 
 export interface EditorIdentifier extends IEditorIdentifier {
-	groupId: GroupIdentifier;
-	editor: EditorInput;
+	readonly groupId: GroupIdentifier;
+	readonly editor: EditorInput;
 }
 
 export interface IEditorOpenOptions {
-	pinned?: boolean;
+	readonly pinned?: boolean;
 	sticky?: boolean;
 	active?: boolean;
-	index?: number;
+	readonly index?: number;
+}
+
+export interface IEditorOpenResult {
+	readonly editor: EditorInput;
+	readonly isNew: boolean;
 }
 
 export interface ISerializedEditorInput {
-	id: string;
-	value: string;
+	readonly id: string;
+	readonly value: string;
 }
 
 export interface ISerializedEditorGroup {
-	id: number;
-	editors: ISerializedEditorInput[];
-	mru: number[];
-	preview?: number;
+	readonly id: number;
+	readonly editors: ISerializedEditorInput[];
+	readonly mru: number[];
+	readonly preview?: number;
 	sticky?: number;
 }
 
 export function isSerializedEditorGroup(obj?: unknown): obj is ISerializedEditorGroup {
 	const group = obj as ISerializedEditorGroup;
 
-	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
+	return !!(obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru));
 }
 
 export class EditorGroup extends Disposable {
@@ -174,7 +179,7 @@ export class EditorGroup extends Disposable {
 		return this.preview;
 	}
 
-	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): EditorInput {
+	openEditor(candidate: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult {
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
@@ -274,7 +279,10 @@ export class EditorGroup extends Disposable {
 				this.doSetActive(newEditor);
 			}
 
-			return newEditor;
+			return {
+				editor: newEditor,
+				isNew: true
+			};
 		}
 
 		// Existing editor
@@ -302,7 +310,10 @@ export class EditorGroup extends Disposable {
 				this.doStick(existingEditor, this.indexOf(existingEditor));
 			}
 
-			return existingEditor;
+			return {
+				editor: existingEditor,
+				isNew: false
+			};
 		}
 	}
 
@@ -689,14 +700,14 @@ export class EditorGroup extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput, searchInSideBySideEditors?: boolean): boolean {
+	contains(candidate: EditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
 		for (const editor of this.editors) {
-			if (this.matches(editor, candidate)) {
+			if (this.matches(editor, candidate, options?.strictEquals)) {
 				return true;
 			}
 
-			if (searchInSideBySideEditors && editor instanceof SideBySideEditorInput) {
-				if (this.matches(editor.master, candidate) || this.matches(editor.details, candidate)) {
+			if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+				if (this.matches(editor.primary, candidate, options?.strictEquals) || this.matches(editor.secondary, candidate, options?.strictEquals)) {
 					return true;
 				}
 			}
@@ -705,9 +716,13 @@ export class EditorGroup extends Disposable {
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | null): boolean {
+	private matches(editor: IEditorInput | null, candidate: IEditorInput | null, strictEquals?: boolean): boolean {
 		if (!editor || !candidate) {
 			return false;
+		}
+
+		if (strictEquals) {
+			return editor === candidate;
 		}
 
 		return editor.matches(candidate);

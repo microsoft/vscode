@@ -6,15 +6,18 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as os from 'os';
-import { join } from 'path';
 import * as vscode from 'vscode';
-import { closeAllEditors, conditionalTest, delay, disposeAll } from '../utils';
+import { closeAllEditors, delay, disposeAll } from '../utils';
 
 const webviewId = 'myWebview';
 
-const testDocument = join(vscode.workspace.rootPath || '', './bower.json');
+function workspaceFile(...segments: string[]) {
+	return vscode.Uri.joinPath(vscode.workspace.workspaceFolders![0].uri, ...segments);
+}
 
-suite('vscode API - webview', () => {
+const testDocument = workspaceFile('bower.json');
+
+suite.skip('vscode API - webview', () => {
 	const disposables: vscode.Disposable[] = [];
 
 	function _register<T extends vscode.Disposable>(disposable: T) {
@@ -83,7 +86,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	conditionalTest('webviews should preserve vscode API state when they are hidden', async () => {
+	test.skip('webviews should preserve vscode API state when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -126,7 +129,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	conditionalTest('webviews should preserve their context when they are moved between view columns', async () => {
+	test('webviews should preserve their context when they are moved between view columns', async () => {
 		const doc = await vscode.workspace.openTextDocument(testDocument);
 		await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 
@@ -147,7 +150,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	conditionalTest('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
+	test('webviews with retainContextWhenHidden should preserve their context when they are hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 
@@ -169,7 +172,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(secondResponse.value, 1);
 	});
 
-	conditionalTest('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
+	test('webviews with retainContextWhenHidden should preserve their page position when hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -190,7 +193,6 @@ suite('vscode API - webview', () => {
 					}
 				});
 				vscode.postMessage({ type: 'ready' });
-
 			</script>`);
 		await ready;
 
@@ -210,7 +212,7 @@ suite('vscode API - webview', () => {
 		assert.strictEqual(Math.round(secondResponse.value), 100);
 	});
 
-	conditionalTest('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => {
+	test('webviews with retainContextWhenHidden should be able to recive messages while hidden', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
 		const ready = getMesssage(webview);
 
@@ -237,47 +239,67 @@ suite('vscode API - webview', () => {
 	});
 
 
-	conditionalTest('webviews should only be able to load resources from workspace by default', async () => {
-		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true }));
+	test.skip('webviews should only be able to load resources from workspace by default', async () => {
+		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', {
+			viewColumn: vscode.ViewColumn.One
+		}, {
+			enableScripts: true
+		}));
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<script>
 				const vscode = acquireVsCodeApi();
 				window.addEventListener('message', (message) => {
 					const img = document.createElement('img');
-					img.addEventListener('load', () => { vscode.postMessage({ value: true }); });
-					img.addEventListener('error', () => { vscode.postMessage({ value: false }); });
+					img.addEventListener('load', () => {
+						vscode.postMessage({ value: true });
+					});
+					img.addEventListener('error', () => {
+						vscode.postMessage({ value: false });
+					});
 					img.src = message.data.src;
 					document.body.appendChild(img);
 				});
+
+				vscode.postMessage({ type: 'ready' });
 			</script>`);
 
-		function asWebviewUri(path: string) {
-			const root = webview.webview.asWebviewUri(vscode.Uri.file(vscode.workspace.rootPath!));
-			return root.toString() + path;
-		}
+		const ready = getMesssage(webview);
+		await ready;
 
 		{
-			const imagePath = asWebviewUri('/image.png');
-			const response = sendRecieveMessage(webview, { src: imagePath });
-			assert.strictEqual((await response).value, true);
+			const imagePath = webview.webview.asWebviewUri(workspaceFile('image.png'));
+			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual(response.value, true);
+		}
+		// {
+		// 	// #102188. Resource filename containing special characters like '%', '#', '?'.
+		// 	const imagePath = webview.webview.asWebviewUri(workspaceFile('image%02.png'));
+		// 	const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		// 	assert.strictEqual(response.value, true);
+		// }
+		// {
+		// 	// #102188. Resource filename containing special characters like '%', '#', '?'.
+		// 	const imagePath = webview.webview.asWebviewUri(workspaceFile('image%.png'));
+		// 	const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+		// 	assert.strictEqual(response.value, true);
+		// }
+		{
+			const imagePath = webview.webview.asWebviewUri(workspaceFile('no-such-image.png'));
+			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual(response.value, false);
 		}
 		{
-			const imagePath = asWebviewUri('/no-such-image.png');
-			const response = sendRecieveMessage(webview, { src: imagePath });
-			assert.strictEqual((await response).value, false);
-		}
-		{
-			const imagePath = webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, '..', '..', '..', 'resources', 'linux', 'code.png')));
-			const response = sendRecieveMessage(webview, { src: imagePath.toString() });
-			assert.strictEqual((await response).value, false);
+			const imagePath = webview.webview.asWebviewUri(workspaceFile('..', '..', '..', 'resources', 'linux', 'code.png'));
+			const response = await sendRecieveMessage(webview, { src: imagePath.toString() });
+			assert.strictEqual(response.value, false);
 		}
 	});
 
-	conditionalTest('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
+	test.skip('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
+			localResourceRoots: [workspaceFile('sub')]
 		}));
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
@@ -293,22 +315,22 @@ suite('vscode API - webview', () => {
 			</script>`);
 
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png'))).toString() });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('sub', 'image.png')).toString() });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'image.png'))).toString() });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(workspaceFile('image.png')).toString() });
 			assert.strictEqual((await response).value, false);
 		}
 	});
 
-	conditionalTest('webviews using hard-coded old style vscode-resource uri should work', async () => {
+	test.skip('webviews using hard-coded old style vscode-resource uri should work', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
+			localResourceRoots: [workspaceFile('sub')]
 		}));
 
-		const imagePath = vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png')).with({ scheme: 'vscode-resource' }).toString();
+		const imagePath = workspaceFile('sub', 'image.png').with({ scheme: 'vscode-resource' }).toString();
 
 		webview.webview.html = createHtmlDocumentWithBody(/*html*/`
 			<img src="${imagePath}">
@@ -356,7 +378,7 @@ suite('vscode API - webview', () => {
 	});
 
 	if (os.platform() === 'darwin') {
-		conditionalTest('webview can copy text from webview', async () => {
+		test.skip('webview can copy text from webview', async () => {
 			const expectedText = `webview text from: ${Date.now()}!`;
 
 			const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, { enableScripts: true, retainContextWhenHidden: true }));
@@ -372,7 +394,7 @@ suite('vscode API - webview', () => {
 			</script>`);
 			await ready;
 
-			await vscode.commands.executeCommand('editor.action.webvieweditor.copy');
+			await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
 			await delay(200); // Make sure copy has time to reach webview
 			assert.strictEqual(await vscode.env.clipboard.readText(), expectedText);
 		});

@@ -36,6 +36,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export class DebugSession implements IDebugSession {
 
@@ -52,7 +53,7 @@ export class DebugSession implements IDebugSession {
 	private repl: ReplModel;
 
 	private readonly _onDidChangeState = new Emitter<void>();
-	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent>();
+	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
 
 	private readonly _onDidLoadedSource = new Emitter<LoadedSourceEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
@@ -129,6 +130,14 @@ export class DebugSession implements IDebugSession {
 		return this._options.parentSession;
 	}
 
+	get compact(): boolean {
+		return !!this._options.compact;
+	}
+
+	get compoundRoot(): DebugCompoundRoot | undefined {
+		return this._options.compoundRoot;
+	}
+
 	setConfiguration(configuration: { resolved: IConfig, unresolved: IConfig | undefined }) {
 		this._configuration = configuration;
 	}
@@ -172,7 +181,7 @@ export class DebugSession implements IDebugSession {
 		return this._onDidChangeState.event;
 	}
 
-	get onDidEndAdapter(): Event<AdapterEndEvent> {
+	get onDidEndAdapter(): Event<AdapterEndEvent | undefined> {
 		return this._onDidEndAdapter.event;
 	}
 
@@ -276,14 +285,17 @@ export class DebugSession implements IDebugSession {
 	 */
 	async terminate(restart = false): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'terminate'));
+			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
+			this.onDidExitAdapter();
 		}
 
 		this.cancelAllRequests();
-		if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
-			await this.raw.terminate(restart);
-		} else {
-			await this.raw.disconnect(restart);
+		if (this.raw) {
+			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
+				await this.raw.terminate(restart);
+			} else {
+				await this.raw.disconnect(restart);
+			}
 		}
 
 		if (!restart) {
@@ -296,11 +308,14 @@ export class DebugSession implements IDebugSession {
 	 */
 	async disconnect(restart = false): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'disconnect'));
+			// Adapter went down but it did not send a 'terminated' event, simulate like the event has been sent
+			this.onDidExitAdapter();
 		}
 
 		this.cancelAllRequests();
-		await this.raw.disconnect(restart);
+		if (this.raw) {
+			await this.raw.disconnect(restart);
+		}
 
 		if (!restart) {
 			this._options.compoundRoot?.sessionStopped();
@@ -425,6 +440,10 @@ export class DebugSession implements IDebugSession {
 		return distinct(positions, p => `${p.lineNumber}:${p.column}`);
 	}
 
+	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined {
+		return this.model.getDebugProtocolBreakpoint(breakpointId, this.getId());
+	}
+
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", request));
@@ -433,13 +452,13 @@ export class DebugSession implements IDebugSession {
 		return this.raw.custom(request, args);
 	}
 
-	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse> {
+	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stackTrace'));
 		}
 
-		const token = this.getNewCancellationToken(threadId);
-		return this.raw.stackTrace({ threadId, startFrame, levels }, token);
+		const sessionToken = this.getNewCancellationToken(threadId, token);
+		return this.raw.stackTrace({ threadId, startFrame, levels }, sessionToken);
 	}
 
 	async exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined> {
@@ -613,17 +632,18 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
+	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'completions')));
 		}
+		const sessionCancelationToken = this.getNewCancellationToken(threadId, token);
 
 		return this.raw.completions({
 			frameId,
 			text,
 			column: position.column,
 			line: position.lineNumber,
-		}, token);
+		}, sessionCancelationToken);
 	}
 
 	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[]> {
@@ -980,12 +1000,14 @@ export class DebugSession implements IDebugSession {
 			this._onDidProgressEnd.fire(event);
 		}));
 
-		this.rawListeners.push(this.raw.onDidExitAdapter(event => {
-			this.initialized = true;
-			this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
-			this.shutdown();
-			this._onDidEndAdapter.fire(event);
-		}));
+		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
+	}
+
+	private onDidExitAdapter(event?: AdapterEndEvent): void {
+		this.initialized = true;
+		this.model.setBreakpointSessionData(this.getId(), this.capabilities, undefined);
+		this.shutdown();
+		this._onDidEndAdapter.fire(event);
 	}
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.
@@ -1036,8 +1058,8 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	private getNewCancellationToken(threadId: number): CancellationToken {
-		const tokenSource = new CancellationTokenSource();
+	private getNewCancellationToken(threadId: number, token?: CancellationToken): CancellationToken {
+		const tokenSource = new CancellationTokenSource(token);
 		const tokens = this.cancellationMap.get(threadId) || [];
 		tokens.push(tokenSource);
 		this.cancellationMap.set(threadId, tokens);

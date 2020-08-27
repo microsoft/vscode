@@ -7,7 +7,7 @@ import 'vs/css!./media/markers';
 
 import { URI } from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
-import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
+import { IAction, IActionViewItem, Action, Separator } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
@@ -26,14 +26,14 @@ import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr }
 import { Iterable } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, TreeResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, TreeElement, MarkersTreeAccessibilityProvider, MarkersViewModel, ResourceDragAndDrop } from 'vs/workbench/contrib/markers/browser/markersTreeViewer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Separator, ActionViewItem, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMenuService, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -50,6 +50,7 @@ import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/vie
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Codicon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -198,7 +199,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		if (this.hasNoProblems() && this.messageBoxContainer) {
 			this.messageBoxContainer.focus();
 		} else if (this.tree) {
-			this.tree.getHTMLElement().focus();
+			this.tree.domFocus();
+			this.setTreeSelection();
 		}
 	}
 
@@ -295,6 +297,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private refreshPanel(markerOrChange?: Marker | MarkerChangesEvent): void {
 		if (this.isVisible() && this.tree) {
+			const hasSelection = this.tree.getSelection().length > 0;
 			this.cachedFilterStats = undefined;
 
 			if (markerOrChange) {
@@ -321,6 +324,20 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			this.tree.toggleVisibility(total === 0 || filtered === 0);
 			this.renderMessage();
 			this._onDidChangeFilterStats.fire(this.getFilterStats());
+
+			if (hasSelection) {
+				this.setTreeSelection();
+			}
+		}
+	}
+
+	private setTreeSelection(): void {
+		if (this.tree && this.tree.getSelection().length === 0) {
+			const firstMarker = this.markersWorkbenchService.markersModel.resourceMarkers[0]?.markers[0];
+			if (firstMarker) {
+				this.tree.setFocus([firstMarker]);
+				this.tree.setSelection([firstMarker]);
+			}
 		}
 	}
 
@@ -424,7 +441,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				expandOnlyOnTwistieClick: (e: TreeElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
-				}
+				},
+				openOnFocus: true
 			},
 		));
 
@@ -437,8 +455,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 
-		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
-		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
+		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
 		this._register(this.tree.onDidChangeCollapseState(({ node }) => {
@@ -675,18 +692,20 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		if (typeof autoReveal === 'boolean' && autoReveal) {
 			let currentActiveResource = this.getResourceForCurrentActiveResource();
 			if (currentActiveResource) {
-				if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
-					this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
-					if (focus) {
-						this.tree.setFocus(this.tree.getSelection());
-					}
-				} else {
-					this.tree.expand(currentActiveResource);
-					this.tree.reveal(currentActiveResource, 0);
+				if (this.tree.hasElement(currentActiveResource)) {
+					if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+						this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+						if (focus) {
+							this.tree.setFocus(this.tree.getSelection());
+						}
+					} else {
+						this.tree.expand(currentActiveResource);
+						this.tree.reveal(currentActiveResource, 0);
 
-					if (focus) {
-						this.tree.setFocus([currentActiveResource]);
-						this.tree.setSelection([currentActiveResource]);
+						if (focus) {
+							this.tree.setFocus([currentActiveResource]);
+							this.tree.setSelection([currentActiveResource]);
+						}
 					}
 				}
 			} else if (focus) {
