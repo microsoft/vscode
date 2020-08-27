@@ -789,6 +789,7 @@ export interface INotebookCellStatusBarEntry {
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
 export const ShowCellStatusbarKey = 'notebook.showCellStatusbar';
+export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 
 export const enum CellStatusbarAlignment {
 	LEFT,

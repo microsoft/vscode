@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
@@ -249,7 +249,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue('notebook.diff.enablePreview')) {
+		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview)) {
 			return this._handleDiffEditorInput(originalInput, options, group);
 		}
 
@@ -544,6 +544,11 @@ configurationRegistry.registerConfiguration({
 		},
 		[ShowCellStatusbarKey]: {
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell statusbar should be shown."),
+			type: 'boolean',
+			default: true
+		},
+		[NotebookTextDiffEditorPreview]: {
+			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
 			type: 'boolean',
 			default: true
 		}
