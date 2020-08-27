@@ -22,7 +22,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellDeleteEdit, ICellDto2, ICellEditOperation, ICellInsertEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellEditOperation, ICellReplaceEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ResourceMap } from 'vs/base/common/map';
@@ -539,29 +539,17 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
 
-		// deletion
-		if (to > from) {
-			this._collectedEdits.push({
-				editType: CellEditType.Delete,
-				index: from,
-				count: to - from
-			});
-		}
-		// insert
-		if (cells.length > 0) {
-			this._collectedEdits.push({
-				editType: CellEditType.Insert,
-				index: from,
-				cells: cells.map(data => {
-					return <ICellDto2>{
-						cellKind: data.cellKind,
-						language: data.language,
-						outputs: data.outputs.map(output => addIdToOutput(output)),
-						source: data.source
-					};
-				})
-			});
-		}
+		this._collectedEdits.push({
+			editType: CellEditType.Replace,
+			index: from,
+			count: to - from,
+			cells: cells.map(data => {
+				return {
+					...data,
+					outputs: data.outputs.map(output => addIdToOutput(output)),
+				};
+			})
+		});
 	}
 
 	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
@@ -716,16 +704,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			const prevIndex = compressedEditsIndex;
 			const prev = compressedEdits[prevIndex];
 
-			if (prev.editType === CellEditType.Insert && editData.edits[i].editType === CellEditType.Insert) {
+			if (prev.editType === CellEditType.Replace && editData.edits[i].editType === CellEditType.Replace) {
 				if (prev.index === editData.edits[i].index) {
-					prev.cells.push(...(editData.edits[i] as ICellInsertEdit).cells);
-					continue;
-				}
-			}
-
-			if (prev.editType === CellEditType.Delete && editData.edits[i].editType === CellEditType.Delete) {
-				if (prev.index === editData.edits[i].index) {
-					prev.count += (editData.edits[i] as ICellDeleteEdit).count;
+					prev.cells.push(...(editData.edits[i] as ICellReplaceEdit).cells);
+					prev.count += (editData.edits[i] as ICellReplaceEdit).count;
 					continue;
 				}
 			}

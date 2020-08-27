@@ -392,8 +392,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				mainthreadTextModel.transientOptions = options;
 
 				const edits: ICellEditOperation[] = [
-					{ editType: CellEditType.Delete, count: mainthreadTextModel.cells.length, index: 0 },
-					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
+					{ editType: CellEditType.Replace, index: 0, count: mainthreadTextModel.cells.length, cells: data.cells }
 				];
 
 				this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);

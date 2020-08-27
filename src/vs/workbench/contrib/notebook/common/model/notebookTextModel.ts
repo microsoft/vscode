@@ -232,7 +232,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const edits = rawEdits.map((edit, index) => {
 			return {
 				edit,
-				end: edit.editType === CellEditType.Delete ? edit.index + edit.count : edit.index,
+				end: edit.editType === CellEditType.Replace ? edit.index + edit.count : edit.index,
 				originalIndex: index,
 			};
 		}).sort((a, b) => {
@@ -241,16 +241,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		for (const { edit } of edits) {
 			switch (edit.editType) {
-				case CellEditType.Insert:
-					const mainCells = edit.cells.map(cell => {
-						const cellHandle = this._cellhandlePool++;
-						const cellUri = CellUri.generate(this.uri, cellHandle);
-						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata, this.transientOptions, this._modelService);
-					});
-					this.insertNewCell(edit.index, mainCells, false);
-					break;
-				case CellEditType.Delete:
-					this.removeCell(edit.index, edit.count, false);
+				case CellEditType.Replace:
+					this._replaceCells(edit.index, edit.count, edit.cells);
 					break;
 				case CellEditType.Output:
 					//TODO@joh,@rebornix no event, no undo stop (?)
@@ -300,6 +292,47 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._onDidChangeCells.fire({ synchronous: synchronous, splices: diffs });
 		return true;
+	}
+
+	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[]): void {
+
+		if (count === 0 && cellDtos.length === 0) {
+			return;
+		}
+
+		this._isUntitled = false; //TODO@rebornix fishy?
+
+		// prepare remove
+		for (let i = index; i < index + count; i++) {
+			const cell = this.cells[i];
+			this._cellListeners.get(cell.handle)?.dispose();
+			this._cellListeners.delete(cell.handle);
+		}
+
+		// prepare add
+		const cells = cellDtos.map(cellDto => {
+			const cellHandle = this._cellhandlePool++;
+			const cellUri = CellUri.generate(this.uri, cellHandle);
+			const cell = new NotebookCellTextModel(
+				cellUri, cellHandle,
+				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, this.transientOptions,
+				this._modelService
+			);
+			const dirtyStateListener = cell.onDidChangeContent(() => {
+				this.setDirty(true);
+				this._increaseVersionId();
+				this._onDidChangeContent.fire();
+			});
+			this._cellListeners.set(cell.handle, dirtyStateListener);
+			this._mapping.set(cell.handle, cell);
+			return cell;
+		});
+
+		// make change
+		this.cells.splice(index, count, ...cells);
+		this.setDirty(true);
+		this._increaseVersionId();
+		this._onDidChangeContent.fire();
 	}
 
 	handleEdit(label: string | undefined, undo: () => void, redo: () => void): void {

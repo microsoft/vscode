@@ -416,10 +416,9 @@ export interface NotebookCellsChangeMetadataEvent {
 export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 
 export const enum CellEditType {
-	Insert = 1,
-	Delete = 2,
-	Output = 3,
-	Metadata = 4,
+	Replace = 1,
+	Output = 2,
+	Metadata = 3,
 }
 
 export interface ICellDto2 {
@@ -430,16 +429,11 @@ export interface ICellDto2 {
 	metadata?: NotebookCellMetadata;
 }
 
-export interface ICellInsertEdit {
-	editType: CellEditType.Insert;
-	index: number;
-	cells: ICellDto2[];
-}
-
-export interface ICellDeleteEdit {
-	editType: CellEditType.Delete;
+export interface ICellReplaceEdit {
+	editType: CellEditType.Replace;
 	index: number;
 	count: number;
+	cells: ICellDto2[];
 }
 
 export interface ICellOutputEdit {
@@ -454,7 +448,7 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
-export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit | ICellOutputEdit | ICellMetadataEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;

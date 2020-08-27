@@ -720,7 +720,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]) {
 		edits.forEach((edit) => {
-			if (edit.editType === CellEditType.Insert) {
+			if (edit.editType === CellEditType.Replace) {
 				edit.cells.forEach((cell) => {
 					const outputs = cell.outputs;
 					outputs.map((output) => {
