@@ -656,9 +656,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined> {
+
+		await this.canResolve(viewType);
+
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
-			return undefined;
+			throw new Error(`CANNOT load notebook, no provider for '${viewType}'`);
 		}
 
 		let notebookModel: NotebookTextModel | undefined = undefined;
