@@ -1055,6 +1055,7 @@ export interface ExtHostAuthenticationShape {
 	$logout(id: string, sessionId: string): Promise<void>;
 	$onDidChangeAuthenticationSessions(id: string, label: string, event: modes.AuthenticationSessionsChangeEvent): Promise<void>;
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]): Promise<void>;
+	$setProviders(providers: modes.AuthenticationProviderInformation[]): Promise<void>;
 }
 
 export interface ExtHostSearchShape {
