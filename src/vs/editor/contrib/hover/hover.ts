@@ -351,10 +351,10 @@ class ShowHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		const position = args.position || finalEditor.getPosition();
+		const position = args.position ?? finalEditor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = args.sticky || finalEditor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-		const mode = args.mode || HoverStartMode.Immediate;
+		const focus = args.sticky ?? finalEditor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
+		const mode = args.mode ?? HoverStartMode.Immediate;
 		controller.showContentHover(range, mode, focus, args.sticky);
 	}
 }
