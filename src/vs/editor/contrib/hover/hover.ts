@@ -326,7 +326,10 @@ class ShowHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: { position?: IPosition, uri?: string, sticky?: boolean }): void {
+	public run(
+		accessor: ServicesAccessor, editor: ICodeEditor,
+		args: { position?: IPosition, uri?: string, sticky?: boolean, mode?: HoverStartMode }
+	): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -351,7 +354,8 @@ class ShowHoverAction extends EditorAction {
 		const position = args.position || finalEditor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const focus = args.sticky || finalEditor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
-		controller.showContentHover(range, HoverStartMode.Immediate, focus, args.sticky);
+		const mode = args.mode || HoverStartMode.Immediate;
+		controller.showContentHover(range, mode, focus, args.sticky);
 	}
 }
 
