@@ -450,6 +450,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$stopSendingDataEvents(): void;
 	$startLinkProvider(): void;
 	$stopLinkProvider(): void;
+	$registerProcessSupport(isSupported: boolean): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 
 	// Process

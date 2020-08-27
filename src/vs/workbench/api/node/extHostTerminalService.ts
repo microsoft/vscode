@@ -39,7 +39,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		@ILogService private _logService: ILogService
 	) {
-		super(extHostRpc);
+		super(true, extHostRpc);
 		this._updateLastActiveWorkspace();
 		this._updateVariableResolver();
 		this._registerListeners();
