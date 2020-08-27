@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { randomTestActivate } from './notebookRandomTestMain';
 import { smokeTestActivate } from './notebookSmokeTestMain';
 
 export function activate(context: vscode.ExtensionContext): any {
 	smokeTestActivate(context);
+	randomTestActivate(context);
 
 	const _onDidChangeNotebook = new vscode.EventEmitter<vscode.NotebookDocumentEditEvent | vscode.NotebookDocumentContentChangeEvent>();
 	context.subscriptions.push(_onDidChangeNotebook);

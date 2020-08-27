@@ -52,9 +52,9 @@ export function setup() {
 				}
 			} catch (e) {
 				console.error('Failed: ' + actionRunner.id);
-				const notebookPath = path.join(app.workspacePathOrFolder, 'random_smoketest.smoke-nb');
+				const notebookPath = path.join(app.workspacePathOrFolder, 'random_smoketest.random-nb');
 				if (app.screenshotsPath) {
-					const savedNotebookDest = path.join(app.screenshotsPath, actionRunner.id, 'random_smoketest.smoke-nb.txt');
+					const savedNotebookDest = path.join(app.screenshotsPath, actionRunner.id, 'random_smoketest.random-nb.txt');
 					await util.promisify(fs.copyFile)(notebookPath, savedNotebookDest);
 				}
 
@@ -131,8 +131,11 @@ class NotebookActionRunner {
 		try {
 			await this.app.workbench.notebook.getFocusedRow();
 		} catch (e) {
-			console.error('Failed invariant: a row must always be focused');
-			throw e;
+			const count = await this.app.workbench.notebook.getRowCount();
+			if (count) {
+				console.error(`Failed invariant: a row must always be focused.`);
+				throw e;
+			}
 		}
 	}
 
@@ -222,7 +225,7 @@ function getActions(app: Application): INotebookActions {
 		moveUp: () => app.code.dispatchKeybinding('alt+up'),
 		moveDown: () => app.code.dispatchKeybinding('alt+down'),
 		copyCell: () => qa.runCommand('notebook.cell.copy'),
-		// cutCell: () => qa.runCommand('notebook.cell.cut'), // #102156
+		cutCell: () => qa.runCommand('notebook.cell.cut'),
 		pasteCell: () => qa.runCommand('notebook.cell.paste'),
 		pasteAboveCell: () => qa.runCommand('notebook.cell.pasteAbove'),
 		splitCell: async () => {
@@ -246,6 +249,7 @@ function getActions(app: Application): INotebookActions {
 		},
 		changeCellToMarkdown: () => app.code.dispatchKeybinding('m'),
 		changeCellToCode: () => app.code.dispatchKeybinding('y'),
-		putCellInEditMode: () => n.editCell()
+		putCellInEditMode: () => n.editCell(),
+		deleteCell: () => n.deleteActiveCell()
 	};
 }

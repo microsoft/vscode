@@ -8,6 +8,7 @@ import { QuickAccess } from './quickaccess';
 import { IElement } from './driver';
 
 const notebookEditorSelector = `.notebook-editor`;
+const rowSelector = `${notebookEditorSelector} .monaco-list-row`;
 const activeRowSelector = `${notebookEditorSelector} .monaco-list-row.focused`;
 
 export interface ICellData {
@@ -75,7 +76,7 @@ export class Notebook {
 	}
 
 	async createRealNotebook() {
-		await this.quickAccess.runCommand('vscode-notebook-tests.createRealNotebook');
+		await this.quickAccess.runCommand('notebook-random-tests.createNotebook');
 		await this.code.waitForElement(notebookEditorSelector);
 		await this.code.dispatchKeybinding('down');
 		await this.code.dispatchKeybinding('up');
@@ -84,7 +85,7 @@ export class Notebook {
 	}
 
 	async reopenNotebook() {
-		await this.quickAccess.openFile('random_smoketest.smoke-nb', false);
+		await this.quickAccess.openFile('random_smoketest.random-nb', false);
 		await this.code.waitForElement(activeRowSelector);
 	}
 
@@ -144,6 +145,10 @@ export class Notebook {
 	async waitForMarkdownContents(markdownSelector: string, text: string): Promise<void> {
 		const selector = `${activeRowSelector} .markdown ${markdownSelector}`;
 		await this.code.waitForTextContent(selector, text);
+	}
+
+	async getRowCount(): Promise<number> {
+		return (await this.code.waitForElements(activeRowSelector, false)).length;
 	}
 
 	async getFocusedRow(): Promise<IElement> {

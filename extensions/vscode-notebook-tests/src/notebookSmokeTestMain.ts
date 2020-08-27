@@ -11,27 +11,19 @@ function wait(ms: number): Promise<void> {
 	return new Promise(r => setTimeout(r, ms));
 }
 
-async function createNotebook(name: string) {
-	const workspacePath = vscode.workspace.workspaceFolders![0].uri.fsPath;
-	const notebookPath = path.join(workspacePath, name);
-	child_process.execSync('echo \'\' > ' + notebookPath);
-	await wait(500);
-	await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(notebookPath));
-}
-
 export function smokeTestActivate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.createNewNotebook', async () => {
-		await createNotebook('test.smoke-nb');
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('vscode-notebook-tests.createRealNotebook', async () => {
-		await createNotebook('random_smoketest.smoke-nb');
+		const workspacePath = vscode.workspace.workspaceFolders![0].uri.fsPath;
+		const notebookPath = path.join(workspacePath, 'test.smoke-nb');
+		child_process.execSync('echo \'\' > ' + notebookPath);
+		await wait(500);
+		await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(notebookPath));
 	}));
 
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
 		onDidChangeNotebook: new vscode.EventEmitter<vscode.NotebookDocumentEditEvent>().event,
-		openNotebook: async (resource: vscode.Uri) => {
-			const defaultData = <vscode.NotebookData>{
+		openNotebook: async (_resource: vscode.Uri) => {
+			const dto: vscode.NotebookData = {
 				languages: ['typescript'],
 				metadata: {},
 				cells: [
@@ -56,49 +48,13 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 				]
 			};
 
-			if (resource.fsPath.replace(/\\/g, '/').includes('/test.smoke-nb')) {
-				return defaultData;
-			}
-
-			const content = await vscode.workspace.fs.readFile(resource);
-			try {
-				const data: vscode.NotebookData = JSON.parse(content.toString());
-				return data;
-			} catch {
-				return defaultData;
-			}
+			return dto;
 		},
 		resolveNotebook: async (_document: vscode.NotebookDocument) => {
 			return;
 		},
-		saveNotebook: async (document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			const notebookData: vscode.NotebookData = {
-				languages: document.languages,
-				metadata: document.metadata,
-				cells: document.cells.map(docCell => (<vscode.NotebookCellData>{
-					source: docCell.document.getText(),
-					language: docCell.language,
-					cellKind: docCell.cellKind,
-					outputs: docCell.outputs.map(o => {
-						if (o.outputKind === vscode.CellOutputKind.Rich) {
-							return {
-								outputKind: o.outputKind,
-								data: o.data
-							};
-						} else if (o.outputKind === vscode.CellOutputKind.Text) {
-							return {
-								outputKind: o.outputKind,
-								text: o.text
-							};
-						}
-
-						return undefined;
-					}),
-					metadata: docCell.metadata
-				}))
-			};
-
-			await vscode.workspace.fs.writeFile(document.uri, Buffer.from(JSON.stringify(notebookData, undefined, '  ')));
+		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
 		},
 		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
@@ -111,24 +67,16 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	function getRandomOutput(): vscode.CellOutput {
-		const r = Math.random() > 0.5;
-		return r ? {
-			outputKind: vscode.CellOutputKind.Rich,
-			data: {
-				'text/html': ['<div>html output</div>\n<img src="https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png" />']
-			}
-		} : {
-				outputKind: vscode.CellOutputKind.Text,
-				text: 'text output'
-			};
-	}
-
 	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookSmokeTest', ['*.smoke-nb'], {
 		label: 'notebookSmokeTest',
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			for (let i = 0; i < _document.cells.length; i++) {
-				_document.cells[i].outputs = [getRandomOutput()];
+				_document.cells[i].outputs = [{
+					outputKind: vscode.CellOutputKind.Rich,
+					data: {
+						'text/html': ['test output']
+					}
+				}];
 			}
 		},
 		cancelAllCellsExecution: async () => { },
@@ -137,7 +85,12 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 				_cell = _document.cells[0];
 			}
 
-			_cell.outputs = [getRandomOutput()];
+			_cell.outputs = [{
+				outputKind: vscode.CellOutputKind.Rich,
+				data: {
+					'text/html': ['test output']
+				}
+			}];
 			return;
 		},
 		cancelCellExecution: async () => { }

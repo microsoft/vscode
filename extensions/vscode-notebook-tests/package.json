@@ -38,8 +38,8 @@
         "icon": "$(debug)"
       },
       {
-        "command": "vscode-notebook-tests.createRealNotebook",
-        "title": "Create Real Notebook"
+        "command": "notebook-random-tests.createNotebook",
+        "title": "Create Notebook"
       }
     ],
     "notebookProvider": [
@@ -59,6 +59,16 @@
         "selector": [
           {
             "filenamePattern": "*.smoke-nb",
+            "excludeFileNamePattern": ""
+          }
+        ]
+      },
+      {
+        "viewType": "notebookRandomTest",
+        "displayName": "Notebook Random Test",
+        "selector": [
+          {
+            "filenamePattern": "*.random-nb",
             "excludeFileNamePattern": ""
           }
         ]
