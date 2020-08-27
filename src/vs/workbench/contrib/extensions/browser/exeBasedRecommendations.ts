@@ -141,7 +141,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 			}
 
-			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install support for it?", tips[0].exeFriendlyName);
+			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install recommendations for it?", tips[0].exeFriendlyName);
 			this.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
 		}
 	}

@@ -232,7 +232,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install support for {0}?", languageName), `@id:${extensionId}`);
+		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install recommendations for {0}?", languageName), `@id:${extensionId}`);
 		return true;
 	}
 
