@@ -1637,7 +1637,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.state.menuBar.visibility = visibility;
 
 			// Layout
-			if (!skipLayout) {
+			if (!skipLayout && this.workbenchGrid) {
 				this.workbenchGrid.setViewVisible(this.titleBarPartView, this.isVisible(Parts.TITLEBAR_PART));
 			}
 		}
