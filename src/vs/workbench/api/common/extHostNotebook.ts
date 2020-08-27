@@ -893,10 +893,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._activeNotebookEditor;
 	}
 
-	get notebookDocuments() {
-		return [...this._documents.values()];
-	}
-
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
@@ -939,6 +935,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				return arg;
 			}
 		});
+	}
+
+	get notebookDocuments() {
+		return [...this._documents.values()];
+	}
+
+	lookupNotebookDocument(uri: URI): ExtHostNotebookDocument | undefined {
+		return this._documents.get(uri);
 	}
 
 	registerNotebookContentProvider(
