@@ -778,7 +778,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (windowConfig?.autoDetectHighContrast === false) {
 			autoDetectHighContrast = false;
 		}
-		windowConfiguration.highContrast = isWindows && autoDetectHighContrast && nativeTheme.shouldUseInvertedColorScheme;
+		windowConfiguration.highContrast = (isWindows || isMacintosh) && autoDetectHighContrast && nativeTheme.shouldUseInvertedColorScheme;
 		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 
 		// Title style related

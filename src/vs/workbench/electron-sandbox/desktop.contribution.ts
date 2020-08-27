@@ -258,9 +258,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			'window.autoDetectHighContrast': {
 				'type': 'boolean',
 				'default': true,
-				'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
+				'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme, and to dark theme when switching away from a high contrast theme."),
 				'scope': ConfigurationScope.APPLICATION,
-				'included': isWindows
+				'included': isWindows || isMacintosh
 			},
 			'window.doubleClickIconToClose': {
 				'type': 'boolean',
