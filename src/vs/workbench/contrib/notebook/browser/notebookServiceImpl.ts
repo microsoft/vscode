@@ -548,7 +548,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
-		this.notebookProviderInfoStore.get(viewType)!.kernel = controller.kernel;
 		this._onDidChangeViewTypes.fire();
 	}
 
@@ -818,40 +817,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	private _findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
 		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
-	}
-
-	async executeNotebook(viewType: string, uri: URI): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.executeNotebookByAttachedKernel(viewType, uri);
-		}
-
-		return;
-	}
-
-	async executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
-		if (provider) {
-			await provider.controller.executeNotebookCell(uri, handle);
-		}
-	}
-
-	async cancelNotebook(viewType: string, uri: URI): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			return provider.controller.cancelNotebookByAttachedKernel(viewType, uri);
-		}
-
-		return;
-	}
-
-	async cancelNotebookCell(viewType: string, uri: URI, handle: number): Promise<void> {
-		const provider = this._notebookProviders.get(viewType);
-		if (provider) {
-			await provider.controller.cancelNotebookCell(uri, handle);
-		}
 	}
 
 	async executeNotebook2(viewType: string, uri: URI, kernelId: string): Promise<void> {

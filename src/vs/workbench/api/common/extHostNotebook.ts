@@ -862,7 +862,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private static _notebookKernelProviderHandlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider & { kernel?: vscode.NotebookKernel }, readonly extension: IExtensionDescription; }>();
+	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
@@ -948,7 +948,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	registerNotebookContentProvider(
 		extension: IExtensionDescription,
 		viewType: string,
-		provider: vscode.NotebookContentProvider & { kernel?: vscode.NotebookKernel },
+		provider: vscode.NotebookContentProvider,
 		options?: {
 			transientOutputs: boolean;
 			transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
@@ -958,10 +958,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (this._notebookContentProviders.has(viewType)) {
 			throw new Error(`Notebook provider for '${viewType}' already registered`);
 		}
-
-		// if ((<any>provider).executeCell) {
-		// 	throw new Error('NotebookContentKernel.executeCell is removed, please use vscode.notebook.registerNotebookKernel instead.');
-		// }
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
 
@@ -984,7 +980,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		const supportBackup = !!provider.backupNotebook;
 
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined, { transientOutputs: options?.transientOutputs || false, transientMetadata: options?.transientMetadata || {} });
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, { transientOutputs: options?.transientOutputs || false, transientMetadata: options?.transientMetadata || {} });
 
 		return new extHostTypes.Disposable(() => {
 			listener.dispose();
@@ -1121,48 +1117,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		await provider.provider.resolveNotebook(document.notebookDocument, webComm.contentProviderComm);
-	}
-
-	async $executeNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-
-		if (!document) {
-			return;
-		}
-
-		if (this._notebookContentProviders.has(viewType)) {
-			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-			const provider = this._notebookContentProviders.get(viewType)!.provider;
-
-			if (provider.kernel) {
-				if (cell) {
-					return withToken(token => (provider.kernel!.executeCell as any)(document, cell, token));
-				} else {
-					return withToken(token => (provider.kernel!.executeAllCells as any)(document, token));
-				}
-			}
-		}
-	}
-
-	async $cancelNotebookByAttachedKernel(viewType: string, uri: UriComponents, cellHandle: number | undefined): Promise<void> {
-		const document = this._documents.get(URI.revive(uri));
-
-		if (!document) {
-			return;
-		}
-
-		if (this._notebookContentProviders.has(viewType)) {
-			const cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-			const provider = this._notebookContentProviders.get(viewType)!.provider;
-
-			if (provider.kernel) {
-				if (cell) {
-					return provider.kernel.cancelCellExecution(document.notebookDocument, cell.cell);
-				} else {
-					return provider.kernel.cancelAllCellsExecution(document.notebookDocument);
-				}
-			}
-		}
 	}
 
 	async $executeNotebookKernelFromProvider(handle: number, uri: UriComponents, kernelId: string, cellHandle: number | undefined): Promise<void> {

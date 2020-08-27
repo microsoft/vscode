@@ -9,7 +9,7 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
 import {
-	INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo, INotebookKernelInfoDto,
+	INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo,
 	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -22,17 +22,12 @@ import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
-	kernel: INotebookKernelInfoDto | undefined;
 	supportBackup: boolean;
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
 	createNotebook(textModel: NotebookTextModel, editorId?: string, backupId?: string): Promise<void>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
-	executeNotebookByAttachedKernel(viewType: string, uri: URI): Promise<void>;
-	cancelNotebookByAttachedKernel(viewType: string, uri: URI): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
-	executeNotebookCell(uri: URI, handle: number): Promise<void>;
-	cancelNotebookCell(uri: URI, handle: number): Promise<void>;
 	removeNotebookDocument(uri: URI): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
@@ -65,10 +60,6 @@ export interface INotebookService {
 
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
-	executeNotebook(viewType: string, uri: URI): Promise<void>;
-	cancelNotebook(viewType: string, uri: URI): Promise<void>;
-	executeNotebookCell(viewType: string, uri: URI, handle: number): Promise<void>;
-	cancelNotebookCell(viewType: string, uri: URI, handle: number): Promise<void>;
 	executeNotebook2(viewType: string, uri: URI, kernelId: string): Promise<void>;
 	executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string): Promise<void>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];

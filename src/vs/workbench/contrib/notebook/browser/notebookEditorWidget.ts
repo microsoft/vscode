@@ -56,9 +56,6 @@ import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { isMacintosh, isNative } from 'vs/base/common/platform';
-import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/dnd';
 
 const $ = DOM.$;
@@ -222,7 +219,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IStorageService storageService: IStorageService,
 		@INotebookService private notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -704,23 +700,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		if (provider.kernel && (availableKernels.length + availableKernels2.length) > 0) {
-			this._notebookHasMultipleKernels!.set(true);
-			this.multipleKernelsAvailable = true;
-		} else if ((availableKernels.length + availableKernels2.length) > 1) {
+		if ((availableKernels.length + availableKernels2.length) > 1) {
 			this._notebookHasMultipleKernels!.set(true);
 			this.multipleKernelsAvailable = true;
 		} else {
 			this._notebookHasMultipleKernels!.set(false);
 			this.multipleKernelsAvailable = false;
-		}
-
-		// @deprecated
-		if (provider && provider.kernel) {
-			// it has a builtin kernel, don't automatically choose a kernel
-			await this._loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
-			tokenSource.dispose();
-			return;
 		}
 
 		const activeKernelStillExist = [...availableKernels2, ...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
@@ -1429,15 +1414,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _cancelNotebookExecution(): Promise<void> {
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider) {
-			const viewType = provider.id;
-			const notebookUri = this._notebookViewModel!.uri;
-
-			if (this._activeKernel) {
-				await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
-			} else if (provider.kernel) {
-				return await this.notebookService.cancelNotebook(viewType, notebookUri);
-			}
+		if (provider && this._activeKernel) {
+			await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
 		}
 	}
 
@@ -1451,23 +1429,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _executeNotebook(): Promise<void> {
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider) {
-			const viewType = provider.id;
-			const notebookUri = this._notebookViewModel!.uri;
-
-			if (this._activeKernel) {
-				// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-				if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
-					if (this._activeKernelResolvePromise) {
-						await this._activeKernelResolvePromise;
-					}
-
-					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
-				} else {
-					await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
+		if (provider && this._activeKernel) {
+			// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
+			if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
+				if (this._activeKernelResolvePromise) {
+					await this._activeKernelResolvePromise;
 				}
-			} else if (provider.kernel) {
-				return await this.notebookService.executeNotebook(viewType, notebookUri);
+
+				await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
+			} else {
+				await this.notebookService.executeNotebook2(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
 			}
 		}
 	}
@@ -1491,15 +1462,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _cancelNotebookCell(cell: ICellViewModel): Promise<void> {
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider) {
-			const viewType = provider.id;
-			const notebookUri = this._notebookViewModel!.uri;
-
-			if (this._activeKernel) {
-				return await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
-			} else if (provider.kernel) {
-				return await this.notebookService.cancelNotebookCell(viewType, notebookUri, cell.handle);
-			}
+		if (provider && this._activeKernel) {
+			return await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
 		}
 	}
 
@@ -1530,9 +1494,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 					return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id);
 				}
-			} else if (provider.kernel) {
-				return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle);
 			}
+
 		}
 	}
 
