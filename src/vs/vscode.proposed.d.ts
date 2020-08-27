@@ -1343,8 +1343,8 @@ declare module 'vscode' {
 
 	export interface NotebookEditorCellEdit {
 
-		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;
-		replaceOutputs(index: number, outputs: CellOutput[]): void;
+		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
+		replaceOutput(index: number, outputs: CellOutput[]): void;
 		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 
 		/** @deprecated */
