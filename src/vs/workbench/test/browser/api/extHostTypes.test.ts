@@ -384,7 +384,7 @@ suite('ExtHostTypes', function () {
 		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
 		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
 
-		const all = edit.allEntries();
+		const all = edit._allEntries();
 		assert.equal(all.length, 4);
 
 		const [first, second, third, fourth] = all;
@@ -408,8 +408,8 @@ suite('ExtHostTypes', function () {
 		edit.insert(uri, new types.Position(0, 0), 'Hello');
 		edit.insert(uri, new types.Position(0, 0), 'Foo');
 
-		assert.equal(edit.allEntries().length, 2);
-		let [first, second] = edit.allEntries();
+		assert.equal(edit._allEntries().length, 2);
+		let [first, second] = edit._allEntries();
 
 		assertType(first._type === types.FileEditType.Text);
 		assertType(second._type === types.FileEditType.Text);

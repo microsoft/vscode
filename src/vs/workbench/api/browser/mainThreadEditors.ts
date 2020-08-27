@@ -30,6 +30,7 @@ import { openEditorWith } from 'vs/workbench/services/editor/common/editorOpenWi
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { revive } from 'vs/base/common/marshalling';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -42,6 +43,8 @@ function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceE
 			result.push(new ResourceFileEdit(edit.oldUri, edit.newUri, edit.options, edit.metadata));
 		} else if (edit._type === WorkspaceEditType.Text) {
 			result.push(new ResourceTextEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
+		} else if (edit._type === WorkspaceEditType.Cell) {
+			result.push(new ResourceNotebookCellEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
 		}
 	}
 	return result;

@@ -15,6 +15,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { addIdToOutput, CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -578,7 +579,8 @@ export interface IFileOperationOptions {
 
 export const enum FileEditType {
 	File = 1,
-	Text = 2
+	Text = 2,
+	Cell = 3
 }
 
 export interface IFileOperation {
@@ -596,13 +598,20 @@ export interface IFileTextEdit {
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
+export interface IFileCellEdit {
+	_type: FileEditType.Cell;
+	uri: URI;
+	edit: ICellEditOperation;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private readonly _edits = new Array<IFileOperation | IFileTextEdit>();
+	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit>();
 
 
-	allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation> {
+	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit> {
 		return this._edits;
 	}
 
@@ -618,6 +627,21 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
+	}
+
+	// --- cell
+
+	replaceCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Delete, index: start, count: end - start } });
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Insert, index: start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+	}
+
+	replaceCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Output, index, outputs: outputs.map(output => addIdToOutput(output)) } });
+	}
+
+	replaceCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
 	}
 
 	// --- text

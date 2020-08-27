@@ -1335,6 +1335,12 @@ declare module 'vscode' {
 		contains(uri: Uri): boolean
 	}
 
+	export interface WorkspaceEdit {
+		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+	}
+
 	export interface NotebookEditorCellEdit {
 
 		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;

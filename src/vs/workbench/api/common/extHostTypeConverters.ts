@@ -511,7 +511,7 @@ export namespace WorkspaceEdit {
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value.allEntries()) {
+			for (let entry of value._allEntries()) {
 
 				if (entry._type === types.FileEditType.File) {
 					// file operation
@@ -523,7 +523,7 @@ export namespace WorkspaceEdit {
 						metadata: entry.metadata
 					});
 
-				} else {
+				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
 					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
@@ -532,6 +532,14 @@ export namespace WorkspaceEdit {
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: doc?.version,
 						metadata: entry.metadata
+					});
+				} else if (entry._type === types.FileEditType.Cell) {
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						resource: entry.uri,
+						edit: entry.edit,
+						metadata: entry.metadata,
+						modelVersionId: undefined, // todo@jrieken
 					});
 				}
 			}

@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import * as UUID from 'vs/base/common/uuid';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -21,6 +21,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export enum CellKind {
 	Markdown = 1,
@@ -220,6 +221,11 @@ export interface IGenericOutput {
 	pickedRenderer?: number;
 	transformedOutput?: { [key: string]: IDisplayOutput };
 }
+
+
+export const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
+	? ({ ...output, outputId: id }) : output;
+
 
 export type IProcessedOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
 
