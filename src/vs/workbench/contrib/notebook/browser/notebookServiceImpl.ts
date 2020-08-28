@@ -706,6 +706,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this._models.get(uri)?.model;
 	}
 
+	getNotebookTextModels(): Iterable<NotebookTextModel> {
+		return Iterable.map(this._models.values(), data => data.model);
+	}
+
 	private async transformTextModelOutputs(textModel: NotebookTextModel) {
 		for (let i = 0; i < textModel.cells.length; i++) {
 			const cell = textModel.cells[i];

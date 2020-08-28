@@ -50,6 +50,8 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/notebookCellStatusBarServiceImpl';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { Event } from 'vs/base/common/event';
 
 // Editor Contribution
 
@@ -511,10 +513,46 @@ class RegisterSchemasContribution extends Disposable implements IWorkbenchContri
 	}
 }
 
+// makes sure that every dirty notebook gets an editor
+class NotebookFileTracker implements IWorkbenchContribution {
+
+	private readonly _dirtyListener: IDisposable;
+
+	constructor(
+		@INotebookService private readonly _notebookService: INotebookService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+	) {
+		this._dirtyListener = Event.debounce(workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
+			const inputs = this._createMissingNotebookEditors();
+			this._editorService.openEditors(inputs);
+		});
+	}
+
+	dispose(): void {
+		this._dirtyListener.dispose();
+	}
+
+	private _createMissingNotebookEditors(): IResourceEditorInput[] {
+		const result: IResourceEditorInput[] = [];
+
+		for (const notebook of this._notebookService.getNotebookTextModels()) {
+			if (notebook.isDirty && !this._editorService.isOpen({ resource: notebook.uri })) {
+				result.push({
+					resource: notebook.uri,
+					options: { inactive: true, preserveFocus: true, pinned: true }
+				});
+			}
+		}
+		return result;
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(NotebookContribution, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(CellContentProvider, LifecyclePhase.Starting);
 workbenchContributionsRegistry.registerWorkbenchContribution(RegisterSchemasContribution, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookFileTracker, LifecyclePhase.Ready);
 
 registerSingleton(INotebookService, NotebookService);
 registerSingleton(INotebookEditorWorkerService, NotebookEditorWorkerServiceImpl);

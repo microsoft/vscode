@@ -60,6 +60,7 @@ export interface INotebookService {
 
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
+	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	executeNotebook(viewType: string, uri: URI, kernelId: string): Promise<void>;
 	executeNotebookCell(viewType: string, uri: URI, handle: number, kernelId: string): Promise<void>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
