@@ -34,6 +34,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withUndefinedAsNull } from 'vs/base/common/types';
+import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -47,6 +49,7 @@ export class VariablesView extends ViewPane {
 	private tree!: WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>;
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
 	private autoExpandedScopes = new Set<string>();
+	private menu: IMenu;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -61,8 +64,12 @@ export class VariablesView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IMenuService menuService: IMenuService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+
+		this.menu = menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
+		this._register(this.menu);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
@@ -213,11 +220,17 @@ export class VariablesView extends ViewPane {
 				}
 			}
 
+			const context = {
+				container: (variable.parent as (Variable | Scope)).toDebugProtocolObject(),
+				variable: variable.toDebugProtocolObject()
+			};
+			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions, this.contextMenuService);
+
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
 				getActionsContext: () => variable,
-				onHide: () => dispose(actions)
+				onHide: () => dispose(actionsDisposable)
 			});
 		}
 	}

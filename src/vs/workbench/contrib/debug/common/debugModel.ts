@@ -247,6 +247,14 @@ export class Variable extends ExpressionContainer implements IExpression {
 	toString(): string {
 		return `${this.name}: ${this.value}`;
 	}
+
+	toDebugProtocolObject(): DebugProtocol.Variable {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			value: this.value
+		};
+	}
 }
 
 export class Scope extends ExpressionContainer implements IScope {
@@ -266,6 +274,14 @@ export class Scope extends ExpressionContainer implements IScope {
 
 	toString(): string {
 		return this.name;
+	}
+
+	toDebugProtocolObject(): DebugProtocol.Scope {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			expensive: this.expensive
+		};
 	}
 }
 
