@@ -1040,6 +1040,21 @@ suite('Fuzzy Scorer', () => {
 		}
 	});
 
+	test('compareFilesByScore - boost shorter prefix match if multiple queries are used', function () {
+		const resourceA = URI.file('src/vs/workbench/browser/actions/windowActions.ts');
+		const resourceB = URI.file('src/vs/workbench/electron-browser/window.ts');
+
+		for (const query of ['window browser', 'window.ts browser']) {
+			let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceB);
+			assert.equal(res[1], resourceA);
+
+			res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+			assert.equal(res[0], resourceB);
+			assert.equal(res[1], resourceA);
+		}
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
