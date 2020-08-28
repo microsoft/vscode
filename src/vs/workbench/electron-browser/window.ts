@@ -13,9 +13,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, IDesktopRunActionInWindowRequest, IDesktopRunKeybindingInWindowRequest, IDesktopOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, IDesktopRunActionInWindowRequest, IDesktopRunKeybindingInWindowRequest, IDesktopOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -201,19 +201,13 @@ export class NativeWindow extends Disposable {
 
 		// High Contrast Events
 		ipcRenderer.on('vscode:enterHighContrast', async () => {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig?.autoDetectHighContrast) {
-				await this.lifecycleService.when(LifecyclePhase.Ready);
-				this.themeService.setColorTheme(VS_HC_THEME, undefined);
-			}
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			this.themeService.setOSHighContrast(true);
 		});
 
 		ipcRenderer.on('vscode:leaveHighContrast', async () => {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig?.autoDetectHighContrast) {
-				await this.lifecycleService.when(LifecyclePhase.Ready);
-				this.themeService.restoreColorTheme();
-			}
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			this.themeService.setOSHighContrast(false);
 		});
 
 		// keyboard layout changed event
