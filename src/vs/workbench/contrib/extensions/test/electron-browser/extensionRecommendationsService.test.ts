@@ -58,6 +58,7 @@ import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/work
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -207,6 +208,9 @@ suite('ExtensionRecommendationsService Test', () => {
 			async getInstalled() { return []; },
 			async canInstall() { return true; },
 			async getExtensionsReport() { return []; },
+		});
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			async whenInstalledExtensionsRegistered() { return true; }
 		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
