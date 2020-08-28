@@ -569,7 +569,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
+	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {

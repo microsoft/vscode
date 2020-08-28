@@ -9,6 +9,7 @@ import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
@@ -17,7 +18,7 @@ import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/
 import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { BUILTIN_RENDERER_ID, CellOutputKind, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { BUILTIN_RENDERER_ID, CellOutputKind, CellUri, IInsetRenderOutput, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, outputHasDynamicHeight, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -436,6 +437,10 @@ export class CodeCell extends Disposable {
 		);
 	}
 
+	private getNotebookUri(): URI | undefined {
+		return CellUri.parse(this.viewCell.uri)?.notebook;
+	}
+
 	private renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {
 		if (this.viewCell.metadata.outputCollapsed) {
 			return;
@@ -486,16 +491,16 @@ export class CodeCell extends Disposable {
 				const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
 				result = renderer
 					? { type: RenderOutputType.Extension, renderer, source: currOutput, mimeType: pickedMimeTypeRenderer.mimeType }
-					: this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType);
+					: this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
 			} else {
-				result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType);
+				result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, pickedMimeTypeRenderer.mimeType, this.getNotebookUri(),);
 			}
 		} else {
 			// for text and error, there is no mimetype
 			const innerContainer = DOM.$('.output-inner-container');
 			DOM.append(outputItemDiv, innerContainer);
 
-			result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, undefined);
+			result = this.notebookEditor.getOutputRenderer().render(currOutput, innerContainer, undefined, this.getNotebookUri(),);
 		}
 
 		if (!result) {
