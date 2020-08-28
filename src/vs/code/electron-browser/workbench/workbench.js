@@ -77,6 +77,7 @@ bootstrapWindow.load([
  * @param {{
  *	partsSplashPath?: string,
  *	highContrast?: boolean,
+ *	autoDetectHighContrast?: boolean,
  *	extensionDevelopmentPath?: string[],
  *	folderUri?: object,
  *	workspace?: object
@@ -95,7 +96,8 @@ function showPartsSplash(configuration) {
 	}
 
 	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
-	if (data && configuration.highContrast && data.baseTheme !== 'hc-black') {
+	const isHighContrast = configuration.highContrast && configuration.autoDetectHighContrast;
+	if (data && isHighContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}
 
@@ -110,7 +112,7 @@ function showPartsSplash(configuration) {
 		baseTheme = data.baseTheme;
 		shellBackground = data.colorInfo.editorBackground;
 		shellForeground = data.colorInfo.foreground;
-	} else if (configuration.highContrast) {
+	} else if (isHighContrast) {
 		baseTheme = 'hc-black';
 		shellBackground = '#000000';
 		shellForeground = '#FFFFFF';

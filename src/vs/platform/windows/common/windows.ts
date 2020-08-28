@@ -209,6 +209,7 @@ export interface IWindowConfiguration {
 	remoteAuthority?: string;
 
 	highContrast?: boolean;
+	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
