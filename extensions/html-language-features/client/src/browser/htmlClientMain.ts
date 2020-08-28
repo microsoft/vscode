@@ -17,7 +17,7 @@ declare const TextDecoder: {
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
-	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/cssServerMain.js');
+	const serverMain = Uri.joinPath(context.extensionUri, 'server/dist/browser/htmlServerMain.js');
 	try {
 		const worker = new Worker(serverMain.toString());
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
