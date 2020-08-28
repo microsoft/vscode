@@ -123,14 +123,37 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
+		let mouseIndicatorColor: string;
+		const updateMouseIndicatorColor = () => {
+			mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
+
+			let style = new Option().style;
+			style.color = mouseIndicatorColor;
+			if (mouseIndicatorColor === '' || !style.color) {
+				mouseIndicatorColor = 'red';
+			}
+		};
+
+		let mouseIndicatorSize: number;
+		const updateMouseIndicatorSize = () => {
+			mouseIndicatorSize = clamp(configurationService.getValue<number>('screencastMode.mouseIndicatorSize') || 20, 20, 100);
+		};
+
+		updateMouseIndicatorColor();
+		updateMouseIndicatorSize();
+
 		disposables.add(onMouseDown(e => {
-			mouseMarker.style.top = `${e.clientY - 10}px`;
-			mouseMarker.style.left = `${e.clientX - 10}px`;
+			mouseMarker.style.height = `${mouseIndicatorSize}px`;
+			mouseMarker.style.width = `${mouseIndicatorSize}px`;
+			mouseMarker.style.borderRadius = '50%';
+			mouseMarker.style.borderColor = mouseIndicatorColor;
+			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove(e => {
-				mouseMarker.style.top = `${e.clientY - 10}px`;
-				mouseMarker.style.left = `${e.clientX - 10}px`;
+				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			});
 
 			Event.once(onMouseUp)(() => {
@@ -170,6 +193,14 @@ class ToggleScreencastModeAction extends Action2 {
 
 			if (e.affectsConfiguration('screencastMode.keyboardOverlayTimeout')) {
 				updateKeyboardMarkerTimeout();
+			}
+
+			if (e.affectsConfiguration('screencastMode.mouseIndicatorColor')) {
+				updateMouseIndicatorColor();
+			}
+
+			if (e.affectsConfiguration('screencastMode.mouseIndicatorSize')) {
+				updateMouseIndicatorSize();
 			}
 		}));
 
@@ -295,6 +326,18 @@ configurationRegistry.registerConfiguration({
 			minimum: 500,
 			maximum: 5000,
 			description: nls.localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
-		}
+		},
+		'screencastMode.mouseIndicatorColor': {
+			type: 'string',
+			default: 'red',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (string or Hex) of the mouse indicator in screencast mode.")
+		},
+		'screencastMode.mouseIndicatorSize': {
+			type: 'number',
+			default: 20,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
+		},
 	}
 });
