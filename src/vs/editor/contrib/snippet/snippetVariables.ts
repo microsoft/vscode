@@ -85,15 +85,18 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
+			let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
 
 			// If there was no selected text, try to get last overtyped text
-			let overtyped = false;
 			if (!value && this._overtypingCapturer) {
-				value = this._overtypingCapturer.getLastOvertypedText(this._selectionIdx);
-				overtyped = true;
+				const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
+				if (info) {
+					value = info.value;
+					isMultiline = info.multiline;
+				}
 			}
 
-			if (value && (overtyped || this._selection.startLineNumber !== this._selection.endLineNumber) && variable.snippet) {
+			if (value && isMultiline && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
