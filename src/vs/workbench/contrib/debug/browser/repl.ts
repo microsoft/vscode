@@ -59,7 +59,7 @@ import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
-import { ReplFilter, TreeFilterState, TreeFilterPanelActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
+import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbench/contrib/debug/browser/replFilter';
 
 const $ = dom.$;
 
@@ -95,8 +95,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private completionItemProvider: IDisposable | undefined;
 	private modelChangeListener: IDisposable = Disposable.None;
 	private filter: ReplFilter;
-	private filterState: TreeFilterState;
-	private filterActionViewItem: TreeFilterPanelActionViewItem | undefined;
+	private filterState: ReplFilterState;
+	private filterActionViewItem: ReplFilterActionViewItem | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -121,11 +121,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
-		this.filterState = this._register(new TreeFilterState({
-			filterText: '',
-			filterHistory: [],
-			layout: new dom.Dimension(0, 0),
-		}));
+		this.filterState = new ReplFilterState();
 
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -249,13 +245,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.setMode();
 		}));
 
-		this._register(this.filterState.onDidChange((e) => {
-			if (e.filterText) {
-				this.filter.filterQuery = this.filterState.filterText;
-				if (this.tree) {
-					this.tree.refilter();
-				}
-			}
+		this._register(this.filterState.onDidChange(() => {
+			this.filter.filterQuery = this.filterState.filterText;
+			this.tree.refilter();
+			revealLastElement(this.tree);
 		}));
 	}
 
@@ -448,7 +441,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
 		this.replInput.layout({ width: width - 30, height: replInputHeight });
-		this.filterState.layout = new dom.Dimension(width, height);
 	}
 
 	focus(): void {
@@ -459,7 +451,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		} else if (action.id === FILTER_ACTION_ID) {
-			this.filterActionViewItem = this.instantiationService.createInstance(TreeFilterPanelActionViewItem, action, localize('workbench.debug.filter.placeholder', "Filter. E.g.: text, !exclude"), this.filterState);
+			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action, localize('workbench.debug.filter.placeholder', "Filter (e.g. text, !exclude)"), this.filterState);
 			return this.filterActionViewItem;
 		}
 
