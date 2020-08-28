@@ -330,7 +330,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		const searchValue = '@recommended ';
 		this.notificationService.prompt(
 			Severity.Info,
-			localize('workspaceRecommended', "Do you want to install recommended extensions for this repository?"),
+			localize('workspaceRecommended', "Do you want to install the recommended extensions for this repository?"),
 			[{
 				label: localize('install', "Install"),
 				run: async () => {
