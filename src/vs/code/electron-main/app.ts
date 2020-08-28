@@ -50,7 +50,7 @@ import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/err
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
 import { join, sep, posix } from 'vs/base/common/path';
@@ -272,6 +272,12 @@ export class CodeApplication extends Disposable {
 
 			try {
 				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
+
+				// TODO@sandbox workaround for https://github.com/electron/electron/issues/25119
+				if (this.environmentService.sandbox) {
+					await timeout(100);
+				}
+
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
 				}
@@ -364,17 +370,17 @@ export class CodeApplication extends Disposable {
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
 			this.logService.trace('Shared process: IPC ready');
+
 			return connect(this.environmentService.sharedIPCHandle, 'main');
 		});
 		const sharedProcessReady = sharedProcess.whenReady().then(() => {
 			this.logService.trace('Shared process: init ready');
+
 			return sharedProcessClient;
 		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
-
-				sharedProcess.spawn(userEnv);
+				sharedProcess.spawn(await getShellEnvironment(this.logService, this.environmentService));
 			}, 3000)).schedule();
 		});
 
@@ -847,6 +853,9 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+
+		// Start to fetch shell environment after window has opened
+		getShellEnvironment(this.logService, this.environmentService);
 	}
 
 	private handleRemoteAuthorities(): void {

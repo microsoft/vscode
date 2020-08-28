@@ -29,7 +29,9 @@ if (optimist.argv.help) {
 const width = 1200;
 const height = 800;
 
-async function runTestsInBrowser(browserType: 'chromium' | 'firefox' | 'webkit', endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
+type BrowserType = 'chromium' | 'firefox' | 'webkit';
+
+async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), args });
 	const context = await browser.newContext();
@@ -78,7 +80,7 @@ function pkill(pid: number): Promise<void> {
 	});
 }
 
-async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
+async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.UrlWithStringQuery, server: cp.ChildProcess }> {
 
 	// Ensure a tmp user-data-dir is used for the tests
 	const tmpDir = tmp.dirSync({ prefix: 't' });
@@ -89,6 +91,7 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 
 	const env = {
 		VSCODE_AGENT_FOLDER: userDataDir,
+		VSCODE_BROWSER: browserType,
 		...process.env
 	};
 
@@ -130,7 +133,7 @@ async function launchServer(): Promise<{ endpoint: url.UrlWithStringQuery, serve
 	});
 }
 
-launchServer().then(async ({ endpoint, server }) => {
+launchServer(optimist.argv.browser).then(async ({ endpoint, server }) => {
 	return runTestsInBrowser(optimist.argv.browser, endpoint, server);
 }, error => {
 	console.error(error);

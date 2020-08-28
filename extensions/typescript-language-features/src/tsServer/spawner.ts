@@ -6,7 +6,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { OngoingRequestCancellerFactory } from '../tsServer/cancellation';
-import { ClientCapabilities, ClientCapability } from '../typescriptService';
+import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptService';
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
@@ -143,12 +143,26 @@ export class TypeScriptServerSpawner {
 
 		return new ProcessBasedTsServer(
 			kind,
+			this.kindToServerType(kind),
 			process!,
 			tsServerLogFile,
 			canceller,
 			version,
 			this._telemetryReporter,
 			this._tracer);
+	}
+
+	private kindToServerType(kind: TsServerProcessKind): ServerType {
+		switch (kind) {
+			case TsServerProcessKind.Syntax:
+				return ServerType.Syntax;
+
+			case TsServerProcessKind.Main:
+			case TsServerProcessKind.Semantic:
+			case TsServerProcessKind.Diagnostics:
+			default:
+				return ServerType.Semantic;
+		}
 	}
 
 	private getTsServerArgs(

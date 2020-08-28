@@ -10,7 +10,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export interface IRangeHighlightDecoration {
@@ -44,9 +44,11 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
-		editor = editor ? editor : this.getEditor(range);
+		editor = editor ?? this.getEditor(range);
 		if (isCodeEditor(editor)) {
 			this.doHighlightRange(editor, range);
+		} else if (isCompositeEditor(editor) && isCodeEditor(editor.activeCodeEditor)) {
+			this.doHighlightRange(editor.activeCodeEditor, range);
 		}
 	}
 

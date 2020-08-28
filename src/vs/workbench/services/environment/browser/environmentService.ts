@@ -14,7 +14,6 @@ import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { LIGHT } from 'vs/platform/theme/common/themeService';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 
 export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguration {
@@ -77,10 +76,6 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 
 	get highContrast() {
 		return false; // could investigate to detect high contrast theme automatically
-	}
-
-	get defaultThemeType() {
-		return LIGHT;
 	}
 }
 

@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, WATCH_VIEW_ID, CONTEXT_DEBUGGERS_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
@@ -27,7 +27,7 @@ class ToggleBreakpointAction extends EditorAction {
 			id: TOGGLE_BREAKPOINT_ID,
 			label: nls.localize('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 			alias: 'Debug: Toggle Breakpoint',
-			precondition: undefined,
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
 				primary: KeyCode.F9,
@@ -66,7 +66,7 @@ class ConditionalBreakpointAction extends EditorAction {
 			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
 			label: nls.localize('conditionalBreakpointEditorAction', "Debug: Add Conditional Breakpoint..."),
 			alias: 'Debug: Add Conditional Breakpoint...',
-			precondition: undefined
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
 
@@ -88,7 +88,7 @@ class LogPointAction extends EditorAction {
 			id: ADD_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
-			precondition: undefined
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
 
@@ -339,7 +339,7 @@ class GoToNextBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToNextBreakpoint',
 			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
 			alias: 'Debug: Go To Next Breakpoint',
-			precondition: undefined
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
 }
@@ -350,7 +350,7 @@ class GoToPreviousBreakpointAction extends GoToBreakpointAction {
 			id: 'editor.debug.action.goToPreviousBreakpoint',
 			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
 			alias: 'Debug: Go To Previous Breakpoint',
-			precondition: undefined
+			precondition: CONTEXT_DEBUGGERS_AVAILABLE
 		});
 	}
 }

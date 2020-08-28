@@ -15,8 +15,8 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions, IEditorInput, IEditorMemento } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { EditorOptions, IEditorInput, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IBorrowValue, INotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidgetService';
@@ -28,7 +28,7 @@ import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/not
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
-export class NotebookEditor extends BaseEditor {
+export class NotebookEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.notebook';
 
 	private readonly _editorMemento: IEditorMemento<INotebookEditorViewState>;
@@ -74,7 +74,7 @@ export class NotebookEditor extends BaseEditor {
 	get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
@@ -126,12 +126,12 @@ export class NotebookEditor extends BaseEditor {
 		this._widget.value?.focus();
 	}
 
-	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		const group = this.group!;
 
 		this._saveEditorViewState(this.input);
-		await super.setInput(input, options, token);
+		await super.setInput(input, options, context, token);
 
 		// Check for cancellation
 		if (token.isCancellationRequested) {

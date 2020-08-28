@@ -2,7 +2,7 @@
 # yarn lockfile v1
 
 
-typescript@^4.0.1-insiders.20200813:
-  version "4.0.1-insiders.20200813"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.0.1-insiders.20200813.tgz#0b17335a7517023be0f1ce947052662ab2bde1f0"
-  integrity sha512-mTQPs9uyxv6jLEO5Z+LJpFUSQwx9KI3ZD+2Uv9e5O32Oz/16snCB5skBHw5k1PchsXOZCG6xcB902qmgjI0tWQ==
+typescript@4.0.2:
+  version "4.0.2"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.0.2.tgz#7ea7c88777c723c681e33bf7988be5d008d05ac2"
+  integrity sha512-e4ERvRV2wb+rRZ/IQeb3jm2VxBsirQLpQhdxplZ2MEzGvDkkMmPglecnNDfSUBivMjP93vRbngYYDQqQ/78bcQ==

@@ -269,8 +269,8 @@ export namespace TaskDTO {
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
-			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
-			detail: (<vscode.Task2>value).detail
+			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
+			detail: value.detail
 		};
 		return result;
 	}
@@ -475,7 +475,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return this._onDidExecuteTask.event;
 	}
 
-	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition?: tasks.TaskDefinitionDTO): Promise<void> {
+	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): Promise<void> {
 		const customExecution: types.CustomExecution | undefined = this._providedCustomExecutions2.get(execution.id);
 		if (customExecution) {
 			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {

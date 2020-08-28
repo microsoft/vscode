@@ -54,7 +54,7 @@ import './mainThreadTreeViews';
 import './mainThreadDownloadService';
 import './mainThreadUrls';
 import './mainThreadWindow';
-import './mainThreadWebview';
+import './mainThreadWebviewManager';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadNotebook';

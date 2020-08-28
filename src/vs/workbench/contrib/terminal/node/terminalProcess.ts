@@ -5,7 +5,7 @@
 
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import * as pty from 'node-pty';
+import type * as pty from 'node-pty';
 import * as fs from 'fs';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getWindowsBuildNumber } from 'vs/workbench/contrib/terminal/node/terminal';
@@ -90,7 +90,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		try {
-			this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
+			await this.setupPtyProcess(this._shellLaunchConfig, this._ptyOptions);
 			return undefined;
 		} catch (err) {
 			this._logService.trace('IPty#spawn native exception', err);
@@ -136,10 +136,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return undefined;
 	}
 
-	private setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): void {
+	private async setupPtyProcess(shellLaunchConfig: IShellLaunchConfig, options: pty.IPtyForkOptions): Promise<void> {
 		const args = shellLaunchConfig.args || [];
 		this._logService.trace('IPty#spawn', shellLaunchConfig.executable, args, options);
-		const ptyProcess = pty.spawn(shellLaunchConfig.executable!, args, options);
+		const ptyProcess = (await import('node-pty')).spawn(shellLaunchConfig.executable!, args, options);
 		this._ptyProcess = ptyProcess;
 		this._processStartupComplete = new Promise<void>(c => {
 			this.onProcessReady(() => c());

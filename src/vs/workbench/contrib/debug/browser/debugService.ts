@@ -47,6 +47,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -90,7 +91,8 @@ export class DebugService implements IDebugService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		this.toDispose = [];
 
@@ -732,7 +734,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	stopSession(session: IDebugSession | undefined): Promise<any> {
+	async stopSession(session: IDebugSession | undefined): Promise<any> {
 		if (session) {
 			return session.terminate();
 		}
@@ -740,6 +742,8 @@ export class DebugService implements IDebugService {
 		const sessions = this.model.getSessions();
 		if (sessions.length === 0) {
 			this.taskRunner.cancel();
+			// User might have cancelled starting of a debug session, and in some cases the quick pick is left open
+			await this.quickInputService.cancel();
 			this.endInitializingState();
 			this.cancelTokens(undefined);
 		}

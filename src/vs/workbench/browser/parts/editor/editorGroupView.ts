@@ -459,7 +459,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const activeElement = document.activeElement;
 
 		// Show active editor
-		await this.doShowEditor(activeEditor, true, options);
+		await this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options);
 
 		// Set focused now if this is the active group and focus has
 		// not changed meanwhile. This prevents focus from being
@@ -954,10 +954,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Update model and make sure to continue to use the editor we get from
 		// the model. It is possible that the editor was already opened and we
 		// want to ensure that we use the existing instance in that case.
-		const openedEditor = this._group.openEditor(editor, openEditorOptions);
+		const { editor: openedEditor, isNew } = this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		const showEditorResult = this.doShowEditor(openedEditor, !!openEditorOptions.active, options);
+		const showEditorResult = this.doShowEditor(openedEditor, { active: !!openEditorOptions.active, isNew }, options);
 
 		// Finally make sure the group is active or restored as instructed
 		if (activateGroup) {
@@ -969,14 +969,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return showEditorResult;
 	}
 
-	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditorPane | undefined> {
+	private async doShowEditor(editor: EditorInput, context: { active: boolean, isNew: boolean }, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
 		let openEditorPromise: Promise<IEditorPane | undefined> | undefined;
-		if (active) {
+		if (context.active) {
 			openEditorPromise = (async () => {
 				try {
-					const result = await this.editorControl.openEditor(editor, options);
+					const result = await this.editorControl.openEditor(editor, options, { newInGroup: context.isNew });
 
 					// Editor change event
 					if (result.editorChanged) {

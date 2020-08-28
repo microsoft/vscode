@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/MagicStack/MagicPython/commit/b4b2e6eb16fee36aea0788bf0aa1853c25f7d276",
+	"version": "https://github.com/MagicStack/MagicPython/commit/b2b4f4ae7b4e6284e80bda8080106b93bd588f9e",
 	"name": "MagicPython",
 	"scopeName": "source.python",
 	"patterns": [
@@ -633,9 +633,6 @@
 					"name": "storage.type.imaginary.number.python"
 				},
 				"2": {
-					"name": "invalid.illegal.dec.python"
-				},
-				"3": {
 					"name": "invalid.illegal.dec.python"
 				}
 			}
