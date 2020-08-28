@@ -15,7 +15,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { DesktopRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-browser/remoteExtensionManagementService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -28,16 +31,19 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ILogService logService: ILogService,
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
 		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = instantiationService.createInstance(DesktopRemoteExtensionManagementService, remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer);
+			const extensionManagementService = new DesktopRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer, logService, galleryService, configurationService, productService);
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
