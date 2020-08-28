@@ -150,8 +150,14 @@ class ToggleScreencastModeAction extends Action2 {
 			keyboardMarker.style.bottom = `${clamp(configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
+		let keyboardMarkerTimeout: number;
+		const updateKeyboardMarkerTimeout = () => {
+			keyboardMarkerTimeout = clamp(configurationService.getValue<number>('screencastMode.keyboardOverlayTimeout') || 800, 500, 5000);
+		};
+
 		updateKeyboardFontSize();
 		updateKeyboardMarker();
+		updateKeyboardMarkerTimeout();
 
 		disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
@@ -160,6 +166,10 @@ class ToggleScreencastModeAction extends Action2 {
 
 			if (e.affectsConfiguration('screencastMode.fontSize')) {
 				updateKeyboardFontSize();
+			}
+
+			if (e.affectsConfiguration('screencastMode.keyboardOverlayTimeout')) {
+				updateKeyboardMarkerTimeout();
 			}
 		}));
 
@@ -190,7 +200,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, key);
 			}
 
-			const promise = timeout(configurationService.getValue<number>('screencastMode.overlayTimeout'));
+			const promise = timeout(keyboardMarkerTimeout);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
@@ -276,15 +286,15 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
-			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
 			default: false
 		},
-		'screencastMode.overlayTimeout': {
+		'screencastMode.keyboardOverlayTimeout': {
 			type: 'number',
 			default: 800,
 			minimum: 500,
-			maximum: 6000,
-			description: nls.localize('screencastMode.overlayTimeout', "Controls how long (in milliseconds) the screencast mode overlay is shown.")
+			maximum: 5000,
+			description: nls.localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
 		}
 	}
 });
