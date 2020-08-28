@@ -166,15 +166,15 @@ export interface IErrorOutput {
 	/**
 	 * Exception Name
 	 */
-	ename?: string;
+	ename: string;
 	/**
 	 * Exception Value
 	 */
-	evalue?: string;
+	evalue: string;
 	/**
 	 * Exception call stacks
 	 */
-	traceback?: string[];
+	traceback: string[];
 }
 
 export interface NotebookCellOutputMetadata {
@@ -366,7 +366,8 @@ export enum NotebookCellsChangeType {
 	CellsClearOutput = 4,
 	ChangeLanguage = 5,
 	Initialize = 6,
-	ChangeMetadata = 7
+	ChangeMetadata = 7,
+	Output = 8,
 }
 
 export interface NotebookCellsInitializeEvent {
@@ -386,6 +387,13 @@ export interface NotebookCellsModelMoveEvent {
 	readonly index: number;
 	readonly newIdx: number;
 	readonly versionId: number;
+}
+
+export interface NotebookOutputChangedEvent {
+	readonly kind: NotebookCellsChangeType.Output;
+	readonly index: number;
+	readonly versionId: number;
+	readonly outputs: IProcessedOutput[];
 }
 
 export interface NotebookCellClearOutputEvent {
@@ -413,7 +421,7 @@ export interface NotebookCellsChangeMetadataEvent {
 	readonly metadata: NotebookCellMetadata | undefined;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookOutputChangedEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 
 export const enum CellEditType {
 	Replace = 1,

@@ -178,7 +178,7 @@ suite('NotebookCell#Document', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		await p;
 
@@ -234,7 +234,7 @@ suite('NotebookCell#Document', function () {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 2,
 			changes: [[0, 1, []]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1);
 		assert.equal(cell1.document.isClosed, true); // ref still alive!

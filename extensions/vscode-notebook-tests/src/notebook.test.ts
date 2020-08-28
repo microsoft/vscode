@@ -418,9 +418,6 @@ suite('Notebook API tests', () => {
 	});
 
 	test('edit API (replaceOutput)', async function () {
-		// no output events yet...
-		this.skip();
-
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -430,7 +427,7 @@ suite('Notebook API tests', () => {
 		});
 
 		const document = vscode.notebook.activeNotebookEditor?.document!;
-		assert.strictEqual(document.isDirty, false);
+		assert.strictEqual(document.isDirty, true);
 		assert.strictEqual(document.cells.length, 1);
 		assert.strictEqual(document.cells[0].outputs.length, 1);
 		assert.strictEqual(document.cells[0].outputs[0].outputKind, vscode.CellOutputKind.Rich);
@@ -439,9 +436,6 @@ suite('Notebook API tests', () => {
 	});
 
 	test('edit API (replaceOutput, event)', async function () {
-		// no output events yet...
-		this.skip();
-
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -453,6 +447,7 @@ suite('Notebook API tests', () => {
 
 		const value = await outputChangeEvent;
 		assert.strictEqual(value.document === vscode.notebook.activeNotebookEditor?.document, true);
+		assert.strictEqual(value.document.isDirty, true);
 		assert.strictEqual(value.cells.length, 1);
 		assert.strictEqual(value.cells[0].outputs.length, 1);
 		assert.strictEqual(value.cells[0].outputs[0].outputKind, vscode.CellOutputKind.Rich);

@@ -143,7 +143,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
@@ -177,7 +177,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
@@ -210,7 +210,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 1);
 		assert.equal(doc.version, 1);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
@@ -233,7 +233,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2);
 		assert.equal(doc.version, 2);
@@ -249,7 +249,7 @@ suite('NotebookConcatDocument', function () {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.notebookDocument.version + 1,
 			changes: [[1, 1, []]]
-		});
+		}, false);
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 1);
 		assert.equal(doc.version, 3);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
@@ -283,7 +283,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2);
 		assert.equal(doc.version, 1);
 
@@ -337,7 +337,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		const mixedDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, undefined);
 		const fooLangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook.notebookDocument, 'fooLang');
@@ -359,7 +359,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		assertLines(mixedDoc, 'fooLang-document', 'barLang-document', 'barLang-document2');
 		assertLines(fooLangDoc, 'fooLang-document');
@@ -401,7 +401,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
@@ -454,7 +454,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
@@ -491,7 +491,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 
@@ -525,7 +525,7 @@ suite('NotebookConcatDocument', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1 + 2); // markdown and code
 

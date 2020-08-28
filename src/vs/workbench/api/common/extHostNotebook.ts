@@ -139,6 +139,10 @@ export class ExtHostCell extends Disposable {
 		this._onDidDispose.fire();
 	}
 
+	setOutputs(newOutputs: vscode.CellOutput[]): void {
+		this._outputs = newOutputs;
+	}
+
 	private _updateOutputs(newOutputs: vscode.CellOutput[]) {
 		const rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
 			return this._outputMapping.has(a);
@@ -321,6 +325,8 @@ export class ExtHostNotebookDocument extends Disposable {
 			this._spliceNotebookCells(event.changes, false);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
 			this._moveCell(event.index, event.newIdx);
+		} else if (event.kind === NotebookCellsChangeType.Output) {
+			this._setCellOutputs(event.index, event.outputs);
 		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
 			this._clearCellOutputs(event.index);
 		} else if (event.kind === NotebookCellsChangeType.CellsClearOutput) {
@@ -410,6 +416,12 @@ export class ExtHostNotebookDocument extends Disposable {
 			document: this.notebookDocument,
 			changes
 		});
+	}
+
+	private _setCellOutputs(index: number, outputs: IProcessedOutput[]): void {
+		const cell = this._cells[index];
+		cell.setOutputs(outputs);
+		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
 	}
 
 	private _clearCellOutputs(index: number): void {
