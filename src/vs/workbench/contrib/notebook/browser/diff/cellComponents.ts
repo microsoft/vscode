@@ -291,7 +291,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
 				checkIfModified: (cell) => {
-					return hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
+					return cell.type !== 'delete' && cell.type !== 'insert' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
 				},
 				getFoldingState: (cell) => {
 					return cell.metadataFoldingState;
@@ -319,7 +319,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
 				checkIfModified: (cell) => {
-					return !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+					return cell.type !== 'delete' && cell.type !== 'insert' && !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
 				},
 				getFoldingState: (cell) => {
 					return this.cell.outputFoldingState;
