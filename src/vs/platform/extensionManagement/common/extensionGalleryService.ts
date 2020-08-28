@@ -347,7 +347,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@optional(IStorageService) storageService: IStorageService,
+		@optional(IStorageService) storageService: IStorageService | undefined,
 	) {
 		const config = productService.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
