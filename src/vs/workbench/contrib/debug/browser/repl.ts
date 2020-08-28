@@ -96,6 +96,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private modelChangeListener: IDisposable = Disposable.None;
 	private filter: ReplFilter;
 	private filterState: TreeFilterState;
+	private filterActionViewItem: TreeFilterPanelActionViewItem | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -276,8 +277,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.navigateHistory(false);
 	}
 
-	focusRepl(): void {
-		this.tree.domFocus();
+	focusFilter(): void {
+		this.filterActionViewItem?.focus();
 	}
 
 	private setMode(): void {
@@ -458,7 +459,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		if (action.id === SelectReplAction.ID) {
 			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		} else if (action.id === FILTER_ACTION_ID) {
-			return this.instantiationService.createInstance(TreeFilterPanelActionViewItem, action, localize('workbench.debug.filter.placeholder', "Filter. E.g.: text, !exclude"), this.filterState);
+			this.filterActionViewItem = this.instantiationService.createInstance(TreeFilterPanelActionViewItem, action, localize('workbench.debug.filter.placeholder', "Filter. E.g.: text, !exclude"), this.filterState);
+			return this.filterActionViewItem;
 		}
 
 		return super.getActionViewItem(action);
@@ -764,7 +766,7 @@ class FilterReplAction extends EditorAction {
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		const repl = getReplView(accessor.get(IViewsService));
-		repl?.focusRepl();
+		repl?.focusFilter();
 	}
 }
 
