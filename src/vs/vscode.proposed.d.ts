@@ -1363,6 +1363,11 @@ declare module 'vscode' {
 		delete(index: number): void;
 	}
 
+	export interface NotebookCellRange {
+		readonly start: number;
+		readonly end: number;
+	}
+
 	export interface NotebookEditor {
 		/**
 		 * The document associated with this notebook editor.
@@ -1373,6 +1378,12 @@ declare module 'vscode' {
 		 * The primary selected cell on this notebook editor.
 		 */
 		readonly selection?: NotebookCell;
+
+
+		/**
+		 * The current visible ranges in the editor (vertically).
+		 */
+		readonly visibleRanges: NotebookCellRange[];
 
 		/**
 		 * The column in which this editor shows.
@@ -1483,6 +1494,11 @@ declare module 'vscode' {
 	export interface NotebookEditorSelectionChangeEvent {
 		readonly notebookEditor: NotebookEditor;
 		readonly selection?: NotebookCell;
+	}
+
+	export interface NotebookEditorVisibleRangesChangeEvent {
+		readonly notebookEditor: NotebookEditor;
+		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
 	export interface NotebookCellData {
@@ -1707,6 +1723,7 @@ declare module 'vscode' {
 		export const activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;

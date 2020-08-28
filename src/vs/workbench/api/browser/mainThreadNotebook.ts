@@ -60,7 +60,7 @@ class DocumentAndEditorState {
 			const apiEditors = [];
 			for (let id in after.textEditors) {
 				const editor = after.textEditors.get(id)!;
-				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.textModel!.selections });
+				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.textModel!.selections, visibleRanges: editor.visibleRanges });
 			}
 
 			return {
@@ -74,7 +74,8 @@ class DocumentAndEditorState {
 		const addedAPIEditors = editorDelta.added.map(add => ({
 			id: add.getId(),
 			documentUri: add.uri!,
-			selections: add.textModel!.selections || []
+			selections: add.textModel!.selections || [],
+			visibleRanges: add.visibleRanges
 		}));
 
 		const removedAPIEditors = editorDelta.removed.map(removed => removed.getId());
@@ -137,6 +138,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
 	private _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
+	private _documentEventListenersMapping: Map<string, DisposableStore> = new Map();
 	private readonly _cellStatusBarEntries: Map<number, IDisposable> = new Map();
 
 	constructor(
@@ -166,9 +168,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async removeNotebookTextModel(uri: URI): Promise<void> {
 		// TODO@rebornix, remove cell should use emitDelta as well to ensure document/editor events are sent together
 		this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
-		let textModelDisposableStore = this._editorEventListenersMapping.get(uri.toString());
+		let textModelDisposableStore = this._documentEventListenersMapping.get(uri.toString());
 		textModelDisposableStore?.dispose();
-		this._editorEventListenersMapping.delete(URI.from(uri).toString());
+		this._documentEventListenersMapping.delete(URI.from(uri).toString());
 	}
 
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
@@ -228,38 +230,67 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			}
 		}));
 
+		const notebookEditorAddedHandler = (editor: IEditor) => {
+			if (!this._editorEventListenersMapping.has(editor.getId())) {
+				const disposableStore = new DisposableStore();
+				disposableStore.add(editor.onDidChangeVisibleRanges(() => {
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges } });
+				}));
+
+				this._editorEventListenersMapping.set(editor.getId(), disposableStore);
+			}
+		};
+
 		this._register(this._notebookService.onNotebookEditorAdd(editor => {
+			notebookEditorAddedHandler(editor);
 			this._addNotebookEditor(editor);
 		}));
 
 		this._register(this._notebookService.onNotebookEditorsRemove(editors => {
 			this._removeNotebookEditor(editors);
+
+			editors.forEach(editor => {
+				this._editorEventListenersMapping.get(editor.getId())?.dispose();
+				this._editorEventListenersMapping.delete(editor.getId());
+			});
 		}));
+
+		this._notebookService.listNotebookEditors().forEach(editor => {
+			notebookEditorAddedHandler(editor);
+		});
+
+		const notebookDocumentAddedHandler = (doc: URI) => {
+			if (!this._editorEventListenersMapping.has(doc.toString())) {
+				const disposableStore = new DisposableStore();
+				const textModel = this._notebookService.getNotebookTextModel(doc);
+				disposableStore.add(textModel!.onDidModelChangeProxy(e => {
+					this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
+					this._proxy.$acceptDocumentPropertiesChanged(doc, { selections: { selections: textModel!.selections }, metadata: null });
+				}));
+				disposableStore.add(textModel!.onDidSelectionChange(e => {
+					const selectionsChange = e ? { selections: e } : null;
+					this._proxy.$acceptDocumentPropertiesChanged(doc, { selections: selectionsChange, metadata: null });
+				}));
+
+				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
+			}
+		};
 
 		this._register(this._notebookService.onNotebookDocumentAdd((documents) => {
 			documents.forEach(doc => {
-				if (!this._editorEventListenersMapping.has(doc.toString())) {
-					const disposableStore = new DisposableStore();
-					const textModel = this._notebookService.getNotebookTextModel(doc);
-					disposableStore.add(textModel!.onDidModelChangeProxy(e => {
-						this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
-						this._proxy.$acceptEditorPropertiesChanged(doc, { selections: { selections: textModel!.selections }, metadata: null });
-					}));
-					disposableStore.add(textModel!.onDidSelectionChange(e => {
-						const selectionsChange = e ? { selections: e } : null;
-						this._proxy.$acceptEditorPropertiesChanged(doc, { selections: selectionsChange, metadata: null });
-					}));
-
-					this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
-				}
+				notebookDocumentAddedHandler(doc);
 			});
 			this._updateState();
 		}));
 
+		this._notebookService.listNotebookDocuments().forEach((doc) => {
+			notebookDocumentAddedHandler(doc.uri);
+		});
+
 		this._register(this._notebookService.onNotebookDocumentRemove((documents) => {
 			documents.forEach(doc => {
-				this._editorEventListenersMapping.get(doc.toString())?.dispose();
-				this._editorEventListenersMapping.delete(doc.toString());
+				this._documentEventListenersMapping.get(doc.toString())?.dispose();
+				this._documentEventListenersMapping.delete(doc.toString());
 			});
 
 			this._updateState();
@@ -420,7 +451,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					textModel.insertTemplateCell(mainCell);
 				}
 
-				this._proxy.$acceptEditorPropertiesChanged(textModel.uri, { selections: null, metadata: textModel.metadata });
+				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: null, metadata: textModel.metadata });
 				return;
 			},
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {

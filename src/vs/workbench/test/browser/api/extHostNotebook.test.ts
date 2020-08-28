@@ -81,7 +81,8 @@ suite('NotebookCell#Document', function () {
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
-				selections: [0]
+				selections: [0],
+				visibleRanges: []
 			}]
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });

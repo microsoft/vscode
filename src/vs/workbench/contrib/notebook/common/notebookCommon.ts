@@ -685,10 +685,27 @@ export interface NotebookDocumentBackupData {
 	readonly mtime?: number;
 }
 
+/**
+ * [start, end]
+ */
+export interface ICellRange {
+	/**
+	 * zero based index
+	 */
+	start: number;
+
+	/**
+	 * zero based index
+	 */
+	end: number;
+}
+
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
+	readonly onDidChangeVisibleRanges: Event<void>;
 	isNotebookEditor: boolean;
+	visibleRanges: ICellRange[];
 	uri?: URI;
 	textModel?: NotebookTextModel;
 	getId(): string;

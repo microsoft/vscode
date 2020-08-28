@@ -74,7 +74,8 @@ suite('NotebookConcatDocument', function () {
 				{
 					documentUri: notebookUri,
 					id: '_notebook_editor_0',
-					selections: [0]
+					selections: [0],
+					visibleRanges: []
 				}
 			]
 		});

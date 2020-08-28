@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2, IInsetRenderOutput, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -465,6 +465,8 @@ export interface INotebookCellList {
 	onDidScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
 	onDidChangeContentHeight: Event<number>;
+	onDidChangeVisibleRanges: Event<void>;
+	visibleRanges: ICellRange[];
 	scrollTop: number;
 	scrollHeight: number;
 	scrollLeft: number;
@@ -517,6 +519,7 @@ export interface BaseCellRenderTemplate {
 	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
+	decorationContainer: HTMLElement;
 	toolbar: ToolBar;
 	deleteToolbar: ToolBar;
 	betweenCellToolbar: ToolBar;
@@ -622,19 +625,20 @@ export interface CellViewModelStateChangeEvent {
 	outputIsHoveredChanged?: boolean;
 }
 
-/**
- * [start, end]
- */
-export interface ICellRange {
-	/**
-	 * zero based index
-	 */
-	start: number;
+export function cellRangesEqual(a: ICellRange[], b: ICellRange[]) {
+	a = reduceCellRanges(a);
+	b = reduceCellRanges(b);
+	if (a.length !== b.length) {
+		return false;
+	}
 
-	/**
-	 * zero based index
-	 */
-	end: number;
+	for (let i = 0; i < a.length; i++) {
+		if (a[i].start !== b[i].start || a[i].end !== b[i].end) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 
