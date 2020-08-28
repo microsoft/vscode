@@ -45,7 +45,7 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 
 		const isPrimary = isPrimaryGroup(group);
 		if (isPrimary) {
-			const to = Array.isArray<IAction>(target) ? target : target.primary;
+			const to = Array.isArray(target) ? target : target.primary;
 
 			if (to.length > 0) {
 				to.push(new VerticalSeparator());
@@ -55,7 +55,7 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 		}
 
 		if (!isPrimary || alwaysFillSecondary) {
-			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+			const to = Array.isArray(target) ? target : target.secondary;
 
 			if (to.length > 0) {
 				to.push(new Separator());

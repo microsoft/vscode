@@ -17,7 +17,7 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtensionActivationError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError, checkProposedApiEnabled, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as errors from 'vs/base/common/errors';
 import type * as vscode from 'vscode';
@@ -686,7 +686,11 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return this._startExtensionHost();
 	}
 
-	public $activateByEvent(activationEvent: string): Promise<void> {
+	public $activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		if (activationKind === ActivationKind.Immediate) {
+			return this._activateByEvent(activationEvent, false);
+		}
+
 		return (
 			this._readyToRunExtensions.wait()
 				.then(_ => this._activateByEvent(activationEvent, false))

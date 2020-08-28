@@ -269,8 +269,8 @@ export namespace TaskDTO {
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
-			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
-			detail: (<vscode.Task2>value).detail
+			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
+			detail: value.detail
 		};
 		return result;
 	}

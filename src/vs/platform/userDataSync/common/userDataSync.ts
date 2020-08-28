@@ -437,7 +437,7 @@ export interface IUserDataSyncService {
 	readonly onDidResetRemote: Event<void>;
 	readonly onDidResetLocal: Event<void>;
 
-	createSyncTask(): Promise<ISyncTask>;
+	createSyncTask(disableCache?: boolean): Promise<ISyncTask>;
 	createManualSyncTask(): Promise<IManualSyncTask>;
 
 	replace(uri: URI): Promise<void>;
@@ -465,7 +465,7 @@ export interface IUserDataAutoSyncService {
 	canToggleEnablement(): boolean;
 	turnOn(): Promise<void>;
 	turnOff(everywhere: boolean): Promise<void>;
-	triggerSync(sources: string[], hasToLimitSync: boolean): Promise<void>;
+	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void>;
 }
 
 export const IUserDataSyncUtilService = createDecorator<IUserDataSyncUtilService>('IUserDataSyncUtilService');

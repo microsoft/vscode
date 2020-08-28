@@ -17,7 +17,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { CellDiffRenderTemplate, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { isMacintosh } from 'vs/base/common/platform';
-import { UnchangedCell, DeletedCell, InsertCell, ModifiedCell } from 'vs/workbench/contrib/notebook/browser/diff/cellComponents';
+import { DeletedCell, InsertCell, ModifiedCell } from 'vs/workbench/contrib/notebook/browser/diff/cellComponents';
 
 export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<CellDiffViewModel> {
 	// private readonly lineHeight: number;
@@ -64,7 +64,7 @@ export class CellDiffRenderer implements IListRenderer<CellDiffViewModel, CellDi
 		templateData.container.innerText = '';
 		switch (element.type) {
 			case 'unchanged':
-				templateData.elementDisposables.add(this.instantiationService.createInstance(UnchangedCell, this.notebookEditor, element, templateData));
+				templateData.elementDisposables.add(this.instantiationService.createInstance(ModifiedCell, this.notebookEditor, element, templateData));
 				return;
 			case 'delete':
 				templateData.elementDisposables.add(this.instantiationService.createInstance(DeletedCell, this.notebookEditor, element, templateData));

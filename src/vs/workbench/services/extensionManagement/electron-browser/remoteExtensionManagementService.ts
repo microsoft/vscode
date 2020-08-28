@@ -12,28 +12,30 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { prefersExecuteOnUI } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { isNonEmptyArray, toArray } from 'vs/base/common/arrays';
+import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { generateUuid } from 'vs/base/common/uuid';
 import { joinPath } from 'vs/base/common/resources';
+import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
+import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
-export class RemoteExtensionManagementChannelClient extends ExtensionManagementChannelClient {
+export class DesktopRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
-	declare readonly _serviceBrand: undefined;
+	private readonly localExtensionManagementService: IExtensionManagementService;
 
 	constructor(
 		channel: IChannel,
-		private readonly localExtensionManagementService: IExtensionManagementService,
-		private readonly galleryService: IExtensionGalleryService,
-		private readonly logService: ILogService,
-		private readonly configurationService: IConfigurationService,
-		private readonly productService: IProductService
+		localExtensionManagementServer: IExtensionManagementServer,
+		@ILogService private readonly logService: ILogService,
+		@IExtensionGalleryService galleryService: IExtensionGalleryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IProductService productService: IProductService
 	) {
-		super(channel);
+		super(channel, galleryService, configurationService, productService);
+		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
 	}
 
 	async install(vsix: URI): Promise<ILocalExtension> {
@@ -101,14 +103,14 @@ export class RemoteExtensionManagementChannelClient extends ExtensionManagementC
 		const result = new Map<string, IGalleryExtension>();
 		const extensions = [...(manifest.extensionPack || []), ...(manifest.extensionDependencies || [])];
 		await this.getDependenciesAndPackedExtensionsRecursively(extensions, result, true, token);
-		return toArray(result.values());
+		return [...result.values()];
 	}
 
 	private async getAllWorkspaceDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancellationToken): Promise<IGalleryExtension[]> {
 		const result = new Map<string, IGalleryExtension>();
 		const extensions = [...(manifest.extensionPack || []), ...(manifest.extensionDependencies || [])];
 		await this.getDependenciesAndPackedExtensionsRecursively(extensions, result, false, token);
-		return toArray(result.values());
+		return [...result.values()];
 	}
 
 	private async getDependenciesAndPackedExtensionsRecursively(toGet: string[], result: Map<string, IGalleryExtension>, uiExtension: boolean, token: CancellationToken): Promise<void> {

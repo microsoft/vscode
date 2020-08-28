@@ -76,27 +76,6 @@ registerAction2(class extends Action2 {
 			};
 		});
 
-		const provider = notebookService.getContributedNotebookProviders(editor.viewModel!.uri)[0];
-
-		if (provider.kernel) {
-			picks.unshift({
-				id: provider.id,
-				label: provider.displayName,
-				picked: !activeKernel, // no active kernel, the builtin kernel of the provider is used
-				description: activeKernel === undefined
-					? nls.localize('currentActiveBuiltinKernel', " (Currently Active)")
-					: '',
-				kernelProviderId: provider.providerExtensionId,
-				run: () => {
-					editor.activeKernel = undefined;
-				},
-				buttons: [{
-					iconClass: 'codicon-settings-gear',
-					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", editor.viewModel!.viewType)
-				}]
-			});
-		}
-
 		const picker = quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
 		picker.items = picks;
 		picker.activeItems = picks.filter(pick => (pick as IQuickPickItem).picked) as (IQuickPickItem & { run(): void; kernelProviderId?: string; })[];

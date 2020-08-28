@@ -45,7 +45,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IProcessedOutput[],
 		modelService: ITextModelService
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, modelService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, { transientMetadata: {}, transientOutputs: false }, modelService);
 	}
 }
 

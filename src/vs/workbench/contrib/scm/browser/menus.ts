@@ -180,6 +180,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	) {
 		this.contextKeyService = contextKeyService.createScoped();
 		this.contextKeyService.createKey<string | undefined>('scmProvider', provider.contextValue);
+		this.contextKeyService.createKey<string | undefined>('scmProviderRootUri', provider.rootUri?.toString());
 		this.contextKeyService.createKey<boolean>('scmProviderHasRootUri', !!provider.rootUri);
 
 		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);

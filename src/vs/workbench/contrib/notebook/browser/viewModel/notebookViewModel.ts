@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, IReadonlyTextBuffer } from 'vs/editor/common/model';
@@ -1027,7 +1027,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const viewCell = cell as CellViewModel;
 		this._lastNotebookEditResource.push(viewCell.uri);
 		return viewCell.resolveTextModel().then(() => {
-			this._bulkEditService.apply({ edits: [{ edit: { range: range, text: text }, resource: cell.uri }] }, { quotableLabel: 'Notebook Replace' });
+			this._bulkEditService.apply(
+				[new ResourceTextEdit(cell.uri, { range, text })],
+				{ quotableLabel: 'Notebook Replace' }
+			);
 		});
 	}
 
@@ -1051,7 +1054,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return Promise.all(matches.map(match => {
 			return match.cell.resolveTextModel();
 		})).then(async () => {
-			this._bulkEditService.apply({ edits: textEdits }, { quotableLabel: 'Notebook Replace All' });
+			this._bulkEditService.apply(ResourceEdit.convert({ edits: textEdits }), { quotableLabel: 'Notebook Replace All' });
 			return;
 		});
 	}

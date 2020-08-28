@@ -8,7 +8,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
-import { IStringDictionary } from 'vs/base/common/collections';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { basename } from 'vs/base/common/path';
@@ -17,6 +16,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -24,7 +24,6 @@ type ExeExtensionRecommendationsClassification = {
 };
 
 export class ExeBasedRecommendations extends ExtensionRecommendations {
-
 
 	private _otherTips: IExecutableBasedExtensionTip[] = [];
 	private _importantTips: IExecutableBasedExtensionTip[] = [];
@@ -39,7 +38,8 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 	constructor(
 		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -48,7 +48,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		@IStorageService storageService: IStorageService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, storageKeysSyncRegistryService);
+		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, extensionsWorkbenchService, extensionManagementService, storageKeysSyncRegistryService);
 		this.tasExperimentService = tasExperimentService;
 
 		/*
@@ -75,18 +75,18 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		await this.fetchImportantExeBasedRecommendations();
 	}
 
-	private _importantExeBasedRecommendations: Promise<IStringDictionary<IExecutableBasedExtensionTip>> | undefined;
-	private async fetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
+	private _importantExeBasedRecommendations: Promise<Map<string, IExecutableBasedExtensionTip>> | undefined;
+	private async fetchImportantExeBasedRecommendations(): Promise<Map<string, IExecutableBasedExtensionTip>> {
 		if (!this._importantExeBasedRecommendations) {
 			this._importantExeBasedRecommendations = this.doFetchImportantExeBasedRecommendations();
 		}
 		return this._importantExeBasedRecommendations;
 	}
 
-	private async doFetchImportantExeBasedRecommendations(): Promise<IStringDictionary<IExecutableBasedExtensionTip>> {
-		const importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip> = {};
+	private async doFetchImportantExeBasedRecommendations(): Promise<Map<string, IExecutableBasedExtensionTip>> {
+		const importantExeBasedRecommendations = new Map<string, IExecutableBasedExtensionTip>();
 		this._importantTips = await this.extensionTipsService.getImportantExecutableBasedTips();
-		this._importantTips.forEach(tip => importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip);
+		this._importantTips.forEach(tip => importantExeBasedRecommendations.set(tip.extensionId.toLowerCase(), tip));
 		return importantExeBasedRecommendations;
 	}
 
@@ -94,22 +94,26 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		const importantExeBasedRecommendations = await this.fetchImportantExeBasedRecommendations();
 
 		const local = await this.extensionManagementService.getInstalled();
-		const { installed, uninstalled } = this.groupByInstalled(Object.keys(importantExeBasedRecommendations), local);
+		const { installed, uninstalled } = this.groupByInstalled([...importantExeBasedRecommendations.keys()], local);
 
 		/* Log installed and uninstalled exe based recommendations */
 		for (const extensionId of installed) {
-			const tip = importantExeBasedRecommendations[extensionId];
-			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			const tip = importantExeBasedRecommendations.get(extensionId);
+			if (tip) {
+				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			}
 		}
 		for (const extensionId of uninstalled) {
-			const tip = importantExeBasedRecommendations[extensionId];
-			this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			const tip = importantExeBasedRecommendations.get(extensionId);
+			if (tip) {
+				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			}
 		}
 
 		this.promptImportantExeBasedRecommendations(uninstalled, importantExeBasedRecommendations);
 	}
 
-	private async promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: IStringDictionary<IExecutableBasedExtensionTip>): Promise<void> {
+	private async promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: Map<string, IExecutableBasedExtensionTip>): Promise<void> {
 		if (this.hasToIgnoreRecommendationNotifications()) {
 			return;
 		}
@@ -120,13 +124,15 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 		const recommendationsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
 		for (const extensionId of recommendations) {
-			const tip = importantExeBasedRecommendations[extensionId];
-			let tips = recommendationsByExe.get(tip.exeFriendlyName);
-			if (!tips) {
-				tips = [];
-				recommendationsByExe.set(tip.exeFriendlyName, tips);
+			const tip = importantExeBasedRecommendations.get(extensionId);
+			if (tip) {
+				let tips = recommendationsByExe.get(tip.exeFriendlyName);
+				if (!tips) {
+					tips = [];
+					recommendationsByExe.set(tip.exeFriendlyName, tips);
+				}
+				tips.push(tip);
 			}
-			tips.push(tip);
 		}
 
 		for (const [, tips] of recommendationsByExe) {
@@ -135,7 +141,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 				await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 			}
 
-			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install support for it?", tips[0].exeFriendlyName);
+			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install recommendations for it?", tips[0].exeFriendlyName);
 			this.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
 		}
 	}

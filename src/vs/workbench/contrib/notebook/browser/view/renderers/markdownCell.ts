@@ -190,7 +190,7 @@ export class StatefulMarkdownCell extends Disposable {
 					width: width,
 					height: editorHeight
 				},
-				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+				// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
 			}, {});
 			this.templateData.currentEditor = this.editor;
 
@@ -282,7 +282,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private layoutEditor(dimension: DOM.IDimension): void {
 		this.editor?.layout(dimension);
-		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
+		this.templateData.statusBar.layout(dimension.width);
 	}
 
 	private onCellEditorWidthChange(): void {

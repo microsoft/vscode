@@ -7,7 +7,7 @@ import { JSONVisitor, visit } from 'jsonc-parser';
 import * as path from 'path';
 import {
 	commands, Event, EventEmitter, ExtensionContext,
-	Selection, Task2 as Task,
+	Selection, Task,
 	TaskGroup, tasks, TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
 	window, workspace, WorkspaceFolder
 } from 'vscode';

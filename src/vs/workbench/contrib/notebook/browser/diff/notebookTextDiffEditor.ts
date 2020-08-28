@@ -17,7 +17,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,6 +30,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -37,6 +38,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
 
 	private _rootElement!: HTMLElement;
+	private _overflowContainer!: HTMLElement;
 	private _dimension: DOM.Dimension | null = null;
 	private _list!: WorkbenchList<CellDiffViewModel>;
 	private _fontInfo: BareFontInfo | undefined;
@@ -45,7 +47,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	public readonly onMouseUp = this._onMouseUp.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
-	private _inNotebookTextDiffEditor: IContextKey<boolean> | null = null;
+	private _model: INotebookDiffEditorModel | null = null;
+	get textModel() {
+		return this._model?.modified.notebook;
+	}
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -64,9 +69,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
-		// this._scopeContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		this._inNotebookTextDiffEditor = IN_NOTEBOOK_TEXT_DIFF_EDITOR.bindTo(this.contextKeyService);
-		this._inNotebookTextDiffEditor.set(true);
+		this._overflowContainer = document.createElement('div');
+		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
+		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		DOM.append(parent, this._overflowContainer);
 
 		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
 
@@ -131,19 +137,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
-		const model = await input.resolve();
-		if (model === null) {
+		this._model = await input.resolve();
+		if (this._model === null) {
 			return;
 		}
 
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
 
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(model.original.resource, model.modified.resource);
+		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
 
 		const cellDiffViewModels: CellDiffViewModel[] = [];
-		const originalModel = model.original.notebook;
-		const modifiedModel = model.modified.notebook;
+		const originalModel = this._model.original.notebook;
+		const modifiedModel = this._model.modified.notebook;
 		let originalCellIndex = 0;
 		let modifiedCellIndex = 0;
 
@@ -157,7 +163,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					cellDiffViewModels.push(new CellDiffViewModel(
 						originalCell,
-						undefined,
+						modifiedCell,
 						'unchanged',
 						this._eventDispatcher!
 					));
@@ -260,6 +266,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	getDomNode() {
 		return this._rootElement;
+	}
+
+	getOverflowContainerDomNode(): HTMLElement {
+		return this._overflowContainer;
 	}
 
 	getControl(): NotebookEditorWidget | undefined {

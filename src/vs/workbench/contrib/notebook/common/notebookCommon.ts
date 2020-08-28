@@ -3,22 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import * as UUID from 'vs/base/common/uuid';
+import { Schemas } from 'vs/base/common/network';
+import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { Command } from 'vs/editor/common/modes';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Schemas } from 'vs/base/common/network';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions } from 'vs/workbench/common/editor';
-import { basename } from 'vs/base/common/path';
-import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export enum CellKind {
 	Markdown = 1,
@@ -101,6 +104,13 @@ export interface NotebookCellMetadata {
 	inputCollapsed?: boolean;
 	outputCollapsed?: boolean;
 	custom?: { [key: string]: unknown };
+}
+
+export type TransientMetadata = { [K in keyof NotebookCellMetadata]?: boolean };
+
+export interface TransientOptions {
+	transientOutputs: boolean;
+	transientMetadata: TransientMetadata;
 }
 
 export interface INotebookDisplayOrder {
@@ -211,6 +221,11 @@ export interface IGenericOutput {
 	pickedRenderer?: number;
 	transformedOutput?: { [key: string]: IDisplayOutput };
 }
+
+
+export const addIdToOutput = (output: IRawOutput, id = UUID.generateUuid()): IProcessedOutput => output.outputKind === CellOutputKind.Rich
+	? ({ ...output, outputId: id }) : output;
+
 
 export type IProcessedOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
 
@@ -395,16 +410,15 @@ export interface NotebookCellsChangeMetadataEvent {
 	readonly kind: NotebookCellsChangeType.ChangeMetadata;
 	readonly versionId: number;
 	readonly index: number;
-	readonly metadata: NotebookCellMetadata;
+	readonly metadata: NotebookCellMetadata | undefined;
 }
 
 export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 
 export const enum CellEditType {
-	Insert = 1,
-	Delete = 2,
-	Output = 3,
-	Metadata = 4,
+	Replace = 1,
+	Output = 2,
+	Metadata = 3,
 }
 
 export interface ICellDto2 {
@@ -415,16 +429,11 @@ export interface ICellDto2 {
 	metadata?: NotebookCellMetadata;
 }
 
-export interface ICellInsertEdit {
-	editType: CellEditType.Insert;
-	index: number;
-	cells: ICellDto2[];
-}
-
-export interface ICellDeleteEdit {
-	editType: CellEditType.Delete;
+export interface ICellReplaceEdit {
+	editType: CellEditType.Replace;
 	index: number;
 	count: number;
+	cells: ICellDto2[];
 }
 
 export interface ICellOutputEdit {
@@ -439,7 +448,7 @@ export interface ICellMetadataEdit {
 	metadata: NotebookCellMetadata;
 }
 
-export type ICellEditOperation = ICellInsertEdit | ICellDeleteEdit | ICellOutputEdit | ICellMetadataEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
@@ -465,11 +474,20 @@ export function getCellUndoRedoComparisonKey(uri: URI) {
 export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
+
 	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
+			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+		});
+	}
+
+	export function generateCellMetadataUri(notebook: URI, handle: number): URI {
+		return notebook.with({
+			scheme: Schemas.vscode,
+			authority: 'vscode-notebook-cell-metadata',
 			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
@@ -737,7 +755,6 @@ export interface INotebookKernelProvider {
 	cancelNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
 }
 
-
 export class CellSequence implements ISequence {
 
 	constructor(readonly textModel: NotebookTextModel) {
@@ -757,5 +774,24 @@ export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
 	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
 }
+
+export interface INotebookCellStatusBarEntry {
+	readonly cellResource: URI;
+	readonly alignment: CellStatusbarAlignment;
+	readonly priority?: number;
+	readonly text: string;
+	readonly tooltip: string | undefined;
+	readonly command: string | Command | undefined;
+	readonly accessibilityInformation?: IAccessibilityInformation;
+	readonly visible: boolean;
+}
+
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
+export const ShowCellStatusbarKey = 'notebook.showCellStatusbar';
+export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
+
+export const enum CellStatusbarAlignment {
+	LEFT,
+	RIGHT
+}

@@ -36,7 +36,7 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
 			Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),
 			instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync,
-		), (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, true)));
+		), (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, true, false)));
 	}
 
 }
