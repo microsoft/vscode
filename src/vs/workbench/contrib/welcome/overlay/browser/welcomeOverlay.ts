@@ -38,43 +38,43 @@ interface Key {
 const keys: Key[] = [
 	{
 		id: 'explorer',
-		arrow: '&larr;',
+		arrow: '←',
 		label: localize('welcomeOverlay.explorer', "File explorer"),
 		command: 'workbench.view.explorer'
 	},
 	{
 		id: 'search',
-		arrow: '&larr;',
+		arrow: '←',
 		label: localize('welcomeOverlay.search', "Search across files"),
 		command: 'workbench.view.search'
 	},
 	{
 		id: 'git',
-		arrow: '&larr;',
+		arrow: '←',
 		label: localize('welcomeOverlay.git', "Source code management"),
 		command: 'workbench.view.scm'
 	},
 	{
 		id: 'debug',
-		arrow: '&larr;',
+		arrow: '←',
 		label: localize('welcomeOverlay.debug', "Launch and debug"),
 		command: 'workbench.view.debug'
 	},
 	{
 		id: 'extensions',
-		arrow: '&larr;',
+		arrow: '←',
 		label: localize('welcomeOverlay.extensions', "Manage extensions"),
 		command: 'workbench.view.extensions'
 	},
 	// {
 	// 	id: 'watermark',
-	// 	arrow: '&larrpl;',
+	// 	arrow: '⤹',
 	// 	label: localize('welcomeOverlay.watermark', "Command Hints"),
 	// 	withEditor: false
 	// },
 	{
 		id: 'problems',
-		arrow: '&larrpl;',
+		arrow: '⤹',
 		label: localize('welcomeOverlay.problems', "View errors and warnings"),
 		command: 'workbench.actions.view.problems'
 	},
@@ -85,20 +85,20 @@ const keys: Key[] = [
 	},
 	// {
 	// 	id: 'openfile',
-	// 	arrow: '&cudarrl;',
+	// 	arrow: '⤸',
 	// 	label: localize('welcomeOverlay.openfile', "File Properties"),
 	// 	arrowLast: true,
 	// 	withEditor: true
 	// },
 	{
 		id: 'commandPalette',
-		arrow: '&nwarr;',
+		arrow: '↖',
 		label: localize('welcomeOverlay.commandPalette', "Find and run all commands"),
 		command: ShowAllCommandsAction.ID
 	},
 	{
 		id: 'notifications',
-		arrow: '&cudarrr;',
+		arrow: '⤵',
 		arrowLast: true,
 		label: localize('welcomeOverlay.notifications', "Show notifications"),
 		command: 'notifications.showList'
@@ -186,7 +186,7 @@ class WelcomeOverlay extends Disposable {
 			.forEach(({ id, arrow, label, command, arrowLast }) => {
 				const div = dom.append(this._overlay, $(`.key.${id}`));
 				if (arrow && !arrowLast) {
-					dom.append(div, $('span.arrow')).innerHTML = arrow;
+					dom.append(div, $('span.arrow', {}, arrow));
 				}
 				dom.append(div, $('span.label')).textContent = label;
 				if (command) {
@@ -196,7 +196,7 @@ class WelcomeOverlay extends Disposable {
 					}
 				}
 				if (arrow && arrowLast) {
-					dom.append(div, $('span.arrow')).innerHTML = arrow;
+					dom.append(div, $('span.arrow', {}, arrow));
 				}
 			});
 	}

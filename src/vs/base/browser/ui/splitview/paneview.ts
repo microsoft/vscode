@@ -24,6 +24,7 @@ export interface IPaneOptions {
 	expanded?: boolean;
 	orientation?: Orientation;
 	title: string;
+	titleDescription?: string;
 }
 
 export interface IPaneStyles {

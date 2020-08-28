@@ -112,6 +112,7 @@ declare module 'vscode' {
 		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
 
 		/**
+		 * @deprecated - getSession should now trigger extension activation.
 		 * Fires with the provider id that was registered or unregistered.
 		 */
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
@@ -1179,7 +1180,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellMetadata {
 		/**
-		 * Controls if the content of a cell is editable or not.
+		 * Controls whether a cell's editor is editable/readonly.
 		 */
 		editable?: boolean;
 
@@ -1463,6 +1464,11 @@ declare module 'vscode' {
 		readonly cell: NotebookCell;
 	}
 
+	export interface NotebookEditorSelectionChangeEvent {
+		readonly notebookEditor: NotebookEditor;
+		readonly selection?: NotebookCell;
+	}
+
 	export interface NotebookCellData {
 		readonly cellKind: CellKind;
 		readonly source: string;
@@ -1679,11 +1685,12 @@ declare module 'vscode' {
 		 */
 		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
 
-		export let visibleNotebookEditors: NotebookEditor[];
+		export const visibleNotebookEditors: NotebookEditor[];
 		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
-		export let activeNotebookEditor: NotebookEditor | undefined;
+		export const activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;

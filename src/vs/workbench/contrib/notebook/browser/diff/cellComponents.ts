@@ -17,8 +17,17 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { hash } from 'vs/base/common/hash';
+import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/commonViewComponents';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IAction } from 'vs/base/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const fixedEditorOptions: IEditorOptions = {
 	padding: {
@@ -61,6 +70,8 @@ const fixedDiffEditorOptions: IDiffEditorOptions = {
 class PropertyHeader extends Disposable {
 	protected _foldingIndicator!: HTMLElement;
 	protected _statusSpan!: HTMLElement;
+	protected _toolbar!: ToolBar;
+	protected _menu!: IMenu;
 
 	constructor(
 		readonly cell: CellDiffViewModel,
@@ -74,7 +85,13 @@ class PropertyHeader extends Disposable {
 			unChangedLabel: string;
 			changedLabel: string;
 			prefix: string;
-		}
+			menuId: MenuId;
+		},
+		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IKeybindingService readonly keybindingService: IKeybindingService,
+		@INotificationService readonly notificationService: INotificationService,
+		@IMenuService readonly menuService: IMenuService,
+		@IContextKeyService readonly contextKeyService: IContextKeyService
 	) {
 		super();
 	}
@@ -83,8 +100,6 @@ class PropertyHeader extends Disposable {
 		let metadataChanged = this.accessor.checkIfModified(this.cell);
 		this._foldingIndicator = DOM.append(this.metadataHeaderContainer, DOM.$('.property-folding-indicator'));
 		DOM.addClass(this._foldingIndicator, this.accessor.prefix);
-
-
 		this._updateFoldingIcon();
 		const metadataStatus = DOM.append(this.metadataHeaderContainer, DOM.$('div.property-status'));
 		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
@@ -95,6 +110,29 @@ class PropertyHeader extends Disposable {
 			DOM.addClass(this.metadataHeaderContainer, 'modified');
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
+		}
+
+		const cellToolbarContainer = DOM.append(this.metadataHeaderContainer, DOM.$('div.property-toolbar'));
+		this._toolbar = new ToolBar(cellToolbarContainer, this.contextMenuService, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+					return item;
+				}
+
+				return undefined;
+			}
+		});
+		this._toolbar.context = {
+			cell: this.cell
+		};
+
+		this._menu = this.menuService.createMenu(this.accessor.menuId, this.contextKeyService);
+
+		if (metadataChanged) {
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(this._menu, { shouldForwardArgs: true }, actions);
+			this._toolbar.setActions(actions);
 		}
 
 		this._register(this.notebookEditor.onMouseUp(e => {
@@ -136,6 +174,22 @@ class PropertyHeader extends Disposable {
 
 		this._updateFoldingIcon();
 		this.accessor.updateInfoRendering();
+	}
+
+	refresh() {
+		let metadataChanged = this.accessor.checkIfModified(this.cell);
+		if (metadataChanged) {
+			this._statusSpan.textContent = this.accessor.changedLabel;
+			this._statusSpan.style.fontWeight = 'bold';
+			DOM.addClass(this.metadataHeaderContainer, 'modified');
+			const actions: IAction[] = [];
+			createAndFillInActionBarActions(this._menu, undefined, actions);
+			this._toolbar.setActions(actions);
+		} else {
+			this._statusSpan.textContent = this.accessor.unChangedLabel;
+			this._statusSpan.style.fontWeight = 'normal';
+			this._toolbar.setActions([]);
+		}
 	}
 
 	private _updateFoldingIcon() {
@@ -229,14 +283,15 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._metadataHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-header-container'));
 		this._metadataInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-info-container'));
 
-		this._metadataHeader = new PropertyHeader(
+		this._metadataHeader = this.instantiationService.createInstance(
+			PropertyHeader,
 			this.cell,
 			this._metadataHeaderContainer,
 			this.notebookEditor,
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type === 'modified' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {})) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}));
+					return hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
 				},
 				getFoldingState: (cell) => {
 					return cell.metadataFoldingState;
@@ -246,7 +301,8 @@ abstract class AbstractCellRenderer extends Disposable {
 				},
 				unChangedLabel: 'Metadata',
 				changedLabel: 'Metadata changed',
-				prefix: 'metadata'
+				prefix: 'metadata',
+				menuId: MenuId.NotebookDiffCellMetadataTitle
 			}
 		);
 		this._register(this._metadataHeader);
@@ -255,7 +311,8 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._outputHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-header-container'));
 		this._outputInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-info-container'));
 
-		this._outputHeader = new PropertyHeader(
+		this._outputHeader = this.instantiationService.createInstance(
+			PropertyHeader,
 			this.cell,
 			this._outputHeaderContainer,
 			this.notebookEditor,
@@ -272,7 +329,8 @@ abstract class AbstractCellRenderer extends Disposable {
 				},
 				unChangedLabel: 'Outputs',
 				changedLabel: 'Outputs changed',
-				prefix: 'output'
+				prefix: 'output',
+				menuId: MenuId.NotebookDiffCellOutputsTitle
 			}
 		);
 		this._register(this._outputHeader);
@@ -310,7 +368,6 @@ abstract class AbstractCellRenderer extends Disposable {
 				this._outputEditorContainer = DOM.append(this._outputInfoContainer, DOM.$('.output-editor-container'));
 				this._buildOutputEditor();
 			} else {
-				console.log(this.cell);
 				this._layoutInfo.outputHeight = this._outputEditor.getContentHeight();
 				this.layout({ outputEditor: true });
 			}
@@ -323,21 +380,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	protected _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
-		let filteredMetadata: { [key: string]: any } = {};
-		if (this.notebookEditor.textModel) {
-			const transientMetadata = this.notebookEditor.textModel!.transientOptions.transientMetadata;
-
-			const keys = new Set([...Object.keys(metadata)]);
-			for (let key of keys) {
-				if (!(transientMetadata[key as keyof NotebookCellMetadata])
-				) {
-					filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
-				}
-			}
-		} else {
-			filteredMetadata = metadata;
-		}
-
+		const filteredMetadata: { [key: string]: any } = metadata;
 		const content = JSON.stringify({
 			language,
 			...filteredMetadata
@@ -349,39 +392,124 @@ abstract class AbstractCellRenderer extends Disposable {
 		return metadataSource;
 	}
 
+	private _applySanitizedMetadataChanges(currentMetadata: NotebookCellMetadata, newMetadata: any) {
+		let result: { [key: string]: any } = {};
+		let newLangauge: string | undefined = undefined;
+		try {
+			const newMetadataObj = JSON.parse(newMetadata);
+			const keys = new Set([...Object.keys(newMetadataObj)]);
+			for (let key of keys) {
+				switch (key as keyof NotebookCellMetadata) {
+					case 'breakpointMargin':
+					case 'editable':
+					case 'hasExecutionOrder':
+					case 'inputCollapsed':
+					case 'outputCollapsed':
+					case 'runnable':
+						// boolean
+						if (typeof newMetadataObj[key] === 'boolean') {
+							result[key] = newMetadataObj[key];
+						} else {
+							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
+						}
+						break;
+
+					case 'executionOrder':
+					case 'lastRunDuration':
+						// number
+						if (typeof newMetadataObj[key] === 'number') {
+							result[key] = newMetadataObj[key];
+						} else {
+							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
+						}
+						break;
+					case 'runState':
+						// enum
+						if (typeof newMetadataObj[key] === 'number' && [1, 2, 3, 4].indexOf(newMetadataObj[key]) >= 0) {
+							result[key] = newMetadataObj[key];
+						} else {
+							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
+						}
+						break;
+					case 'statusMessage':
+						// string
+						if (typeof newMetadataObj[key] === 'string') {
+							result[key] = newMetadataObj[key];
+						} else {
+							result[key] = currentMetadata[key as keyof NotebookCellMetadata];
+						}
+						break;
+					default:
+						if (key === 'language') {
+							newLangauge = newMetadataObj[key];
+						}
+						result[key] = newMetadataObj[key];
+						break;
+				}
+			}
+
+			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
+				this.notebookEditor.textModel!.changeCellLanguage(this.cell.modified!.handle, newLangauge);
+			}
+			this.notebookEditor.textModel!.changeCellMetadata(this.cell.modified!.handle, result, false);
+		} catch {
+		}
+	}
+
 	private _buildMetadataEditor() {
-		if (this.cell.type === 'modified') {
+		if (this.cell.type === 'modified' || this.cell.type === 'unchanged') {
 			const originalMetadataSource = this._getFormatedMetadataJSON(this.cell.original?.metadata || {}, this.cell.original?.language);
 			const modifiedMetadataSource = this._getFormatedMetadataJSON(this.cell.modified?.metadata || {}, this.cell.modified?.language);
-			if (originalMetadataSource !== modifiedMetadataSource) {
-				this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
-					...fixedDiffEditorOptions,
-					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-					readOnly: true
-				});
+			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
+				...fixedDiffEditorOptions,
+				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+				readOnly: false,
+				originalEditable: false
+			});
 
-				DOM.addClass(this._metadataEditorContainer!, 'diff');
+			DOM.addClass(this._metadataEditorContainer!, 'diff');
 
-				const mode = this.modeService.create('json');
-				const originalMetadataModel = this.modelService.createModel(originalMetadataSource, mode, undefined, true);
-				const modifiedMetadataModel = this.modelService.createModel(modifiedMetadataSource, mode, undefined, true);
-				this._metadataEditor.setModel({
-					original: originalMetadataModel,
-					modified: modifiedMetadataModel
-				});
+			const mode = this.modeService.create('json');
+			const originalMetadataModel = this.modelService.createModel(originalMetadataSource, mode, CellUri.generateCellMetadataUri(this.cell.original!.uri, this.cell.original!.handle), false);
+			const modifiedMetadataModel = this.modelService.createModel(modifiedMetadataSource, mode, CellUri.generateCellMetadataUri(this.cell.modified!.uri, this.cell.modified!.handle), false);
+			this._metadataEditor.setModel({
+				original: originalMetadataModel,
+				modified: modifiedMetadataModel
+			});
 
-				this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
-				this.layout({ metadataEditor: true });
+			this._register(originalMetadataModel);
+			this._register(modifiedMetadataModel);
 
-				this._register(this._metadataEditor.onDidContentSizeChange((e) => {
-					if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
-						this._layoutInfo.metadataHeight = e.contentHeight;
-						this.layout({ metadataEditor: true });
-					}
-				}));
+			this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
+			this.layout({ metadataEditor: true });
 
-				return;
-			}
+			this._register(this._metadataEditor.onDidContentSizeChange((e) => {
+				if (e.contentHeightChanged && this.cell.metadataFoldingState === PropertyFoldingState.Expanded) {
+					this._layoutInfo.metadataHeight = e.contentHeight;
+					this.layout({ metadataEditor: true });
+				}
+			}));
+
+			let respondingToContentChange = false;
+
+			this._register(modifiedMetadataModel.onDidChangeContent(() => {
+				respondingToContentChange = true;
+				const value = modifiedMetadataModel.getValue();
+				this._applySanitizedMetadataChanges(this.cell.modified!.metadata, value);
+				this._metadataHeader.refresh();
+				respondingToContentChange = false;
+			}));
+
+			this._register(this.cell.modified!.onDidChangeMetadata(() => {
+				if (respondingToContentChange) {
+					return;
+				}
+
+				const modifiedMetadataSource = this._getFormatedMetadataJSON(this.cell.modified?.metadata || {}, this.cell.modified?.language);
+				modifiedMetadataModel.setValue(modifiedMetadataSource);
+			}));
+
+			return;
 		}
 
 		this._metadataEditor = this.instantiationService.createInstance(CodeEditorWidget, this._metadataEditorContainer!, {
@@ -390,16 +518,26 @@ abstract class AbstractCellRenderer extends Disposable {
 				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
 				height: 0
 			},
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
+			readOnly: false
 		}, {});
 
-		const mode = this.modeService.create('json');
+		const mode = this.modeService.create('jsonc');
 		const originalMetadataSource = this._getFormatedMetadataJSON(
 			this.cell.type === 'insert'
 				? this.cell.modified!.metadata || {}
 				: this.cell.original!.metadata || {});
-		const metadataModel = this.modelService.createModel(originalMetadataSource, mode, undefined, true);
+		const uri = this.cell.type === 'insert'
+			? this.cell.modified!.uri
+			: this.cell.original!.uri;
+		const handle = this.cell.type === 'insert'
+			? this.cell.modified!.handle
+			: this.cell.original!.handle;
+
+		const modelUri = CellUri.generateCellMetadataUri(uri, handle);
+		const metadataModel = this.modelService.createModel(originalMetadataSource, mode, modelUri, false);
 		this._metadataEditor.setModel(metadataModel);
+		this._register(metadataModel);
 
 		this._layoutInfo.metadataHeight = this._metadataEditor.getContentHeight();
 		this.layout({ metadataEditor: true });
@@ -422,7 +560,7 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	private _buildOutputEditor() {
-		if (this.cell.type === 'modified' && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
+		if ((this.cell.type === 'modified' || this.cell.type === 'unchanged') && !this.notebookEditor.textModel!.transientOptions.transientOutputs) {
 			const originalOutputsSource = this._getFormatedOutputJSON(this.cell.original?.outputs || []);
 			const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
 			if (originalOutputsSource !== modifiedOutputsSource) {
@@ -450,6 +588,12 @@ abstract class AbstractCellRenderer extends Disposable {
 						this._layoutInfo.outputHeight = e.contentHeight;
 						this.layout({ outputEditor: true });
 					}
+				}));
+
+				this._register(this.cell.modified!.onDidChangeOutputs(() => {
+					const modifiedOutputsSource = this._getFormatedOutputJSON(this.cell.modified?.outputs || []);
+					modifiedModel.setValue(modifiedOutputsSource);
+					this._outputHeader.refresh();
 				}));
 
 				return;

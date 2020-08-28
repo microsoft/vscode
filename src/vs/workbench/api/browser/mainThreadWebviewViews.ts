@@ -13,19 +13,19 @@ import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewVi
 
 export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
 
-	private readonly _proxyViews: extHostProtocol.ExtHostWebviewViewsShape;
+	private readonly _proxy: extHostProtocol.ExtHostWebviewViewsShape;
 
 	private readonly _webviewViews = new Map<string, WebviewView>();
 	private readonly _webviewViewProviders = new Map<string, IDisposable>();
 
 	constructor(
-		private readonly mainThreadWebviews: MainThreadWebviews,
 		context: extHostProtocol.IExtHostContext,
+		private readonly mainThreadWebviews: MainThreadWebviews,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();
 
-		this._proxyViews = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
+		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
 	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
@@ -62,16 +62,16 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 				}
 
 				webviewView.onDidChangeVisibility(visible => {
-					this._proxyViews.$onDidChangeWebviewViewVisibility(handle, visible);
+					this._proxy.$onDidChangeWebviewViewVisibility(handle, visible);
 				});
 
 				webviewView.onDispose(() => {
-					this._proxyViews.$disposeWebviewView(handle);
+					this._proxy.$disposeWebviewView(handle);
 					this._webviewViews.delete(handle);
 				});
 
 				try {
-					await this._proxyViews.$resolveWebviewView(handle, viewType, state, cancellation);
+					await this._proxy.$resolveWebviewView(handle, viewType, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewView.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType);

@@ -76,6 +76,7 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
+	isProcessSupportRegistered: boolean;
 
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
@@ -90,6 +91,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
+	onDidRegisterProcessSupport: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -136,6 +138,7 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
+	registerProcessSupport(isSupported: boolean): void;
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered

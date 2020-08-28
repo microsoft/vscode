@@ -184,6 +184,11 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._title;
 	}
 
+	private _titleDescription: string | undefined;
+	public get titleDescription(): string | undefined {
+		return this._titleDescription;
+	}
+
 	private readonly menuActions: ViewMenuActions;
 	private progressBar!: ProgressBar;
 	private progressIndicator!: IProgressIndicator;
@@ -192,6 +197,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
+	private titleDescriptionContainer?: HTMLElement;
 	private iconContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
 
@@ -216,6 +222,7 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this.id = options.id;
 		this._title = options.title;
+		this._titleDescription = options.titleDescription;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
@@ -360,6 +367,11 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const calculatedTitle = this.calculateTitle(title);
 		this.titleContainer = append(container, $('h3.title', undefined, calculatedTitle));
+
+		if (this._titleDescription) {
+			this.setTitleDescription(this._titleDescription, container);
+		}
+
 		this.iconContainer.title = calculatedTitle;
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
@@ -376,6 +388,22 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		this._title = title;
+		this._onDidChangeTitleArea.fire();
+	}
+
+	private setTitleDescription(description: string | undefined, headerContainer: HTMLElement | undefined = this.headerContainer) {
+		if (this.titleDescriptionContainer) {
+			this.titleDescriptionContainer.textContent = description ?? '';
+		}
+		else if (description && headerContainer) {
+			this.titleDescriptionContainer = append(headerContainer, $('span.description', undefined, description));
+		}
+	}
+
+	protected updateTitleDescription(description?: string | undefined): void {
+		this.setTitleDescription(description);
+
+		this._titleDescription = description;
 		this._onDidChangeTitleArea.fire();
 	}
 

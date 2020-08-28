@@ -36,7 +36,6 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	readonly providerDescription?: string;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
-	kernel?: INotebookKernelInfoDto;
 
 	constructor(descriptor: NotebookEditorDescriptor) {
 		this.id = descriptor.id;

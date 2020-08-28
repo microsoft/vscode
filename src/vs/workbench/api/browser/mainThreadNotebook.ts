@@ -17,7 +17,7 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, IEditor, INotebookDocumentFilter, INotebookKernelInfo, INotebookKernelInfoDto, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, IEditor, INotebookDocumentFilter, INotebookKernelInfo, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
@@ -376,9 +376,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, _kernel: INotebookKernelInfoDto | undefined, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void> {
+	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void> {
 		const controller: IMainNotebookController = {
-			kernel: _kernel,
 			supportBackup: _supportBackup,
 			options: options,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
@@ -427,23 +426,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
 				await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
 			},
-			executeNotebookByAttachedKernel: async (viewType: string, uri: URI) => {
-				return this.executeNotebookByAttachedKernel(viewType, uri, undefined);
-			},
-			cancelNotebookByAttachedKernel: async (viewType: string, uri: URI) => {
-				return this.cancelNotebookByAttachedKernel(viewType, uri, undefined);
-			},
 			onDidReceiveMessage: (editorId: string, rendererType: string | undefined, message: unknown) => {
 				this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
 			},
 			removeNotebookDocument: async (uri: URI) => {
 				return this.removeNotebookTextModel(uri);
-			},
-			executeNotebookCell: async (uri: URI, handle: number) => {
-				return this.executeNotebookByAttachedKernel(_viewType, uri, handle);
-			},
-			cancelNotebookCell: async (uri: URI, handle: number) => {
-				return this.cancelNotebookByAttachedKernel(_viewType, uri, handle);
 			},
 			save: async (uri: URI, token: CancellationToken) => {
 				return this._proxy.$saveNotebook(_viewType, uri, token);
@@ -565,16 +552,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._notebookService.transformSpliceOutputs(textModel, splices);
 			textModel.spliceNotebookCellOutputs(cellHandle, splices);
 		}
-	}
-
-	async executeNotebookByAttachedKernel(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
-		this.logService.debug('MainthreadNotebooks#executeNotebookByAttachedKernel', uri.path, handle);
-		return this._proxy.$executeNotebookByAttachedKernel(viewType, uri, handle);
-	}
-
-	async cancelNotebookByAttachedKernel(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
-		this.logService.debug('MainthreadNotebooks#cancelNotebookByAttachedKernel', uri.path, handle);
-		return this._proxy.$cancelNotebookByAttachedKernel(viewType, uri, handle);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {

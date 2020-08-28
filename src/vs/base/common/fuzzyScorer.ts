@@ -463,6 +463,7 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 	if (preferLabelMatches || !description) {
 		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelScore) {
+
 			// If we have a prefix match on the label, we give a much
 			// higher baseScore to elevate these matches over others
 			// This ensures that typing a file name wins over results
@@ -472,6 +473,14 @@ function doScoreItemFuzzySingle(label: string, description: string | undefined, 
 			let baseScore: number;
 			if (labelPrefixMatch) {
 				baseScore = LABEL_PREFIX_SCORE_THRESHOLD;
+
+				// We give another boost to labels that are short, e.g. given
+				// files "window.ts" and "windowActions.ts" and a query of
+				// "window", we want "window.ts" to receive a higher score.
+				// As such we compute the percentage the query has within the
+				// label and add that to the baseScore.
+				const prefixLengthBoost = Math.round((query.normalized.length / label.length) * 100);
+				baseScore += prefixLengthBoost;
 			} else {
 				baseScore = LABEL_SCORE_THRESHOLD;
 			}
