@@ -8,6 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IAction, Separator } from 'vs/base/common/actions';
+import { SequencerByKey } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -51,7 +52,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellToolbarLocKey, ICellRange, IInsetRenderOutput, INotebookKernelInfo, INotebookKernelInfo2, INotebookKernelInfoDto, IProcessedOutput, NotebookCellRunState, NotebookRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, ICellRange, IInsetRenderOutput, INotebookKernelInfo, INotebookKernelInfo2, INotebookKernelInfoDto, IProcessedOutput, isTransformedDisplayOutput, NotebookCellRunState, NotebookRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
@@ -100,6 +101,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	public readonly onWillScroll: Event<ScrollEvent> = this._onWillScroll.event;
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
+
+	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
 	set scrollTop(top: number) {
 		if (this._list) {
@@ -1577,30 +1580,37 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number) {
-		if (!this._webview) {
-			return;
-		}
+	async createInset(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
+		this._insetModifyQueueByOutputId.queue(output.source.outputId, async () => {
+			if (!this._webview) {
+				return;
+			}
 
-		await this._resolveWebview();
+			await this._resolveWebview();
 
-		if (!this._webview!.insetMapping.has(output.source)) {
-			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
-			await this._webview!.createInset(cell, output, cellTop, offset);
-		} else {
-			const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
-			const scrollTop = this._list?.scrollTop || 0;
+			if (!this._webview!.insetMapping.has(output.source)) {
+				const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
+				await this._webview!.createInset(cell, output, cellTop, offset);
+			} else {
+				const cellTop = this._list?.getAbsoluteTopOfElement(cell) || 0;
+				const scrollTop = this._list?.scrollTop || 0;
 
-			this._webview!.updateViewScrollTop(-scrollTop, true, [{ cell, output: output.source, cellTop }]);
-		}
+				this._webview!.updateViewScrollTop(-scrollTop, true, [{ cell, output: output.source, cellTop }]);
+			}
+		});
 	}
 
 	removeInset(output: IProcessedOutput) {
-		if (!this._webview || !this._webviewResolved) {
+		if (!isTransformedDisplayOutput(output)) {
 			return;
 		}
 
-		this._webview!.removeInset(output);
+		this._insetModifyQueueByOutputId.queue(output.outputId, async () => {
+			if (!this._webview || !this._webviewResolved) {
+				return;
+			}
+			this._webview!.removeInset(output);
+		});
 	}
 
 	hideInset(output: IProcessedOutput) {
@@ -1608,7 +1618,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		this._webview!.hideInset(output);
+		if (!isTransformedDisplayOutput(output)) {
+			return;
+		}
+
+		this._insetModifyQueueByOutputId.queue(output.outputId, async () => {
+			this._webview!.hideInset(output);
+		});
 	}
 
 	getOutputRenderer(): OutputRenderer {

@@ -33,8 +33,6 @@ export class CodeCell extends Disposable {
 	private outputResizeListeners = new Map<IProcessedOutput, DisposableStore>();
 	private outputElements = new Map<IProcessedOutput, IRenderedOutput>();
 
-	private modifyInsetQueue = Promise.resolve();
-
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
@@ -173,7 +171,7 @@ export class CodeCell extends Disposable {
 					removedKeys.push(key);
 					// remove element from DOM
 					this.templateData?.outputContainer?.removeChild(value.element);
-					this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.removeInset(key));
+					this.notebookEditor.removeInset(key);
 				}
 			});
 
@@ -326,7 +324,7 @@ export class CodeCell extends Disposable {
 			const renderedOutput = this.outputElements.get(currOutput);
 			if (renderedOutput) {
 				if (renderedOutput.renderResult.type !== RenderOutputType.None) {
-					this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.createInset(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index)));
+					this.notebookEditor.createInset(this.viewCell, renderedOutput.renderResult as IInsetRenderOutput, this.viewCell.getOutputOffset(index));
 				} else {
 					// Anything else, just update the height
 					this.viewCell.updateOutputHeight(index, renderedOutput.element.clientHeight);
@@ -515,7 +513,7 @@ export class CodeCell extends Disposable {
 
 		if (result.type !== RenderOutputType.None) {
 			this.viewCell.selfSizeMonitoring = true;
-			this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index)));
+			this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index));
 		} else {
 			DOM.addClass(outputItemDiv, 'foreground');
 			DOM.addClass(outputItemDiv, 'output-element');
@@ -610,7 +608,7 @@ export class CodeCell extends Disposable {
 			const element = this.outputElements.get(output)?.element;
 			if (element) {
 				this.templateData?.outputContainer?.removeChild(element);
-				await (this.modifyInsetQueue = this.modifyInsetQueue.finally(() => this.notebookEditor.removeInset(output)));
+				this.notebookEditor.removeInset(output);
 			}
 
 			output.pickedMimeTypeIndex = pick;

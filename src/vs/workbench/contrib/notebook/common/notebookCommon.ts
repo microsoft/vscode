@@ -215,6 +215,10 @@ export interface ITransformedDisplayOutputDto {
 	pickedMimeTypeIndex?: number;
 }
 
+export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
+	return (thing as ITransformedDisplayOutputDto).outputKind === CellOutputKind.Rich && !!(thing as ITransformedDisplayOutputDto).outputId;
+}
+
 export interface IGenericOutput {
 	outputKind: CellOutputKind;
 	pickedMimeType?: string;
@@ -313,14 +317,14 @@ export interface IRenderNoOutput {
 
 export interface IRenderPlainHtmlOutput {
 	type: RenderOutputType.Html;
-	source: IProcessedOutput;
+	source: ITransformedDisplayOutputDto;
 	htmlContent: string;
 	hasDynamicHeight: boolean;
 }
 
 export interface IRenderOutputViaExtension {
 	type: RenderOutputType.Extension;
-	source: IProcessedOutput;
+	source: ITransformedDisplayOutputDto;
 	mimeType: string;
 	renderer: INotebookRendererInfo;
 }
