@@ -13,16 +13,14 @@ export class OvertypingCapturer implements IDisposable {
 	private readonly _disposables = new DisposableStore();
 
 	private _lastOvertyped: string[];
-	private _holdCurrent: boolean;
 	private _empty: boolean;
 
 	constructor(editor: ICodeEditor, suggestModel: SuggestModel) {
 		this._lastOvertyped = new Array<string>(0);
-		this._holdCurrent = false;
 		this._empty = true;
 
 		this._disposables.add(editor.onWillType(text => {
-			if (this._holdCurrent) {
+			if (!this._empty) {
 				return;
 			}
 			const selections = editor.getSelections();
@@ -63,15 +61,10 @@ export class OvertypingCapturer implements IDisposable {
 			this._empty = false;
 		}));
 
-		this._disposables.add(suggestModel.onDidSuggest(e => {
-			this._holdCurrent = true;
-		}));
-
 		this._disposables.add(suggestModel.onDidCancel(e => {
 			if (!this._empty) {
 				this._empty = true;
 			}
-			this._holdCurrent = false;
 		}));
 	}
 
