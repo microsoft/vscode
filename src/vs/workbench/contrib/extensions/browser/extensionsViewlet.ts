@@ -59,6 +59,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -349,6 +350,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -519,14 +522,19 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		]);
 
 		if (this.extensionGalleryService.isEnabled()) {
-			filterActions.splice(0, 0, ...[
+			const galleryFilterActions = [
 				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.featured', localize('featured filter', "Featured"), '@featured'),
 				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.popular', localize('most popular filter', "Most Popular"), '@popular'),
 				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.recommended', localize('most popular recommended', "Recommended"), '@recommended'),
 				this.instantiationService.createInstance(RecentlyPublishedExtensionsAction, RecentlyPublishedExtensionsAction.ID, localize('recently published filter', "Recently Published")),
+				new Separator(),
 				new SubmenuAction('workbench.extensions.action.filterExtensionsByCategory', localize('filter by category', "Category"), EXTENSION_CATEGORIES.map(category => this.instantiationService.createInstance(SearchCategoryAction, `extensions.actions.searchByCategory.${category}`, category, category))),
 				new Separator(),
-			]);
+			];
+			if (this.extensionManagementServerService.webExtensionManagementServer || !this.environmentService.isBuilt) {
+				galleryFilterActions.splice(4, 0, this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.web', localize('web filter', "Web"), '@web'));
+			}
+			filterActions.splice(0, 0, ...galleryFilterActions);
 			filterActions.push(...[
 				new Separator(),
 				new SubmenuAction('workbench.extensions.action.sortBy', localize('sorty by', "Sort By"), this.sortActions),
@@ -580,6 +588,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				.replace(/@tag:/g, 'tag:')
 				.replace(/@ext:/g, 'ext:')
 				.replace(/@featured/g, 'featured')
+				.replace(/@web/g, 'tag:"__web_extension"')
 				.replace(/@popular/g, '@sort:installs')
 			: '';
 	}
