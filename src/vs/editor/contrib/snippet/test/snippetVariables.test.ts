@@ -34,7 +34,7 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new CompositeSnippetVariableResolver([
 			new ModelBasedVariableResolver(labelService, model),
-			new SelectionBasedVariableResolver(model, new Selection(1, 1, 1, 1)),
+			new SelectionBasedVariableResolver(model, new Selection(1, 1, 1, 1), 0, undefined),
 		]);
 	});
 
@@ -102,24 +102,24 @@ suite('Snippet Variables Resolver', function () {
 
 	test('editor variables, selection', function () {
 
-		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 2, 3));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 2, 3), 0, undefined);
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', 'his is line one\nth');
 		assertVariableResolve(resolver, 'TM_CURRENT_LINE', 'this is line two');
 		assertVariableResolve(resolver, 'TM_LINE_INDEX', '1');
 		assertVariableResolve(resolver, 'TM_LINE_NUMBER', '2');
 
-		resolver = new SelectionBasedVariableResolver(model, new Selection(2, 3, 1, 2));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(2, 3, 1, 2), 0, undefined);
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', 'his is line one\nth');
 		assertVariableResolve(resolver, 'TM_CURRENT_LINE', 'this is line one');
 		assertVariableResolve(resolver, 'TM_LINE_INDEX', '0');
 		assertVariableResolve(resolver, 'TM_LINE_NUMBER', '1');
 
-		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 1, 2));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(1, 2, 1, 2), 0, undefined);
 		assertVariableResolve(resolver, 'TM_SELECTED_TEXT', undefined);
 
 		assertVariableResolve(resolver, 'TM_CURRENT_WORD', 'this');
 
-		resolver = new SelectionBasedVariableResolver(model, new Selection(3, 1, 3, 1));
+		resolver = new SelectionBasedVariableResolver(model, new Selection(3, 1, 3, 1), 0, undefined);
 		assertVariableResolve(resolver, 'TM_CURRENT_WORD', undefined);
 
 	});
