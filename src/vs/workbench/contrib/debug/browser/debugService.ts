@@ -111,7 +111,7 @@ export class DebugService implements IDebugService {
 			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set(!!this.configurationManager.selectedConfiguration.name ? 'default' : 'simple');
+			this.debugUx.set((this.configurationManager.hasDebuggers() && !!this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		});
 
@@ -161,7 +161,7 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 		this.toDispose.push(this.configurationManager.onDidSelectConfiguration(() => {
-			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+			this.debugUx.set(!!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.configurationManager.hasDebuggers())) ? 'default' : 'simple');
 		}));
 		this.toDispose.push(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
@@ -243,7 +243,7 @@ export class DebugService implements IDebugService {
 				this.debugState.set(getStateLabel(state));
 				this.inDebugMode.set(state !== State.Inactive);
 				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || (this.configurationManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple');
 			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
