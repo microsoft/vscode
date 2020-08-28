@@ -213,6 +213,7 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _metadataChangeListener: IDisposable;
 	private _displayOrder: string[] = [];
 	private _versionId = 0;
+	private _isDirty: boolean = false;
 	private _backupCounter = 1;
 	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed = false;
@@ -274,7 +275,7 @@ export class ExtHostNotebookDocument extends Disposable {
 				get version() { return that._versionId; },
 				get fileName() { return that.uri.fsPath; },
 				get viewType() { return that._viewType; },
-				get isDirty() { return false; },
+				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
 				get languages() { return that._languages; },
@@ -311,8 +312,9 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._backup = undefined;
 	}
 
-	acceptModelChanged(event: NotebookCellsChangedEvent): void {
+	acceptModelChanged(event: NotebookCellsChangedEvent, isDirty: boolean): void {
 		this._versionId = event.versionId;
+		this._isDirty = isDirty;
 		if (event.kind === NotebookCellsChangeType.Initialize) {
 			this._spliceNotebookCells(event.changes, true);
 		} if (event.kind === NotebookCellsChangeType.ModelChange) {
@@ -1255,12 +1257,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._webviewComm.get(editorId)?.onDidReceiveMessage(forRendererType, message);
 	}
 
-	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void {
-
+	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent, isDirty: boolean): void {
 		const document = this._documents.get(URI.revive(uriComponents));
-
 		if (document) {
-			document.acceptModelChanged(event);
+			document.acceptModelChanged(event, isDirty);
 		}
 	}
 
@@ -1401,7 +1401,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 							0,
 							modelData.cells
 						]]
-					});
+					}, false);
 
 					// add cell document as vscode.TextDocument
 					addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.notebookDocument, cell)));

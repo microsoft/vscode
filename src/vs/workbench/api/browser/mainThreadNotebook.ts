@@ -242,7 +242,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					const disposableStore = new DisposableStore();
 					const textModel = this._notebookService.getNotebookTextModel(doc);
 					disposableStore.add(textModel!.onDidModelChangeProxy(e => {
-						this._proxy.$acceptModelChanged(textModel!.uri, e);
+						this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
 						this._proxy.$acceptEditorPropertiesChanged(doc, { selections: { selections: textModel!.selections }, metadata: null });
 					}));
 					disposableStore.add(textModel!.onDidSelectionChange(e => {
