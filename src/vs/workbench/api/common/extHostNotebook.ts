@@ -462,6 +462,10 @@ export class ExtHostNotebookDocument extends Disposable {
 			return [diff.start, diff.deleteCount, outputs];
 		});
 
+		if (!outputDtos.length) {
+			return;
+		}
+
 		await this._proxy.$spliceNotebookCellOutputs(this._viewType, this.uri, cell.handle, outputDtos);
 		this._emitter.emitCellOutputsChange({
 			document: this.notebookDocument,
