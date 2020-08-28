@@ -17,10 +17,10 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, IEditor, INotebookDocumentFilter, INotebookKernelInfo, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, INotebookDocumentFilter, INotebookKernelInfo, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
 	static ofSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
@@ -610,6 +610,32 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	$onContentChange(resource: UriComponents, viewType: string): void {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.handleUnknownChange();
+	}
+
+	async $tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType) {
+		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id);
+		if (editor && editor.isNotebookEditor) {
+			const notebookEditor = editor as INotebookEditor;
+			const viewModel = notebookEditor.viewModel;
+			const cell = viewModel?.viewCells[range.start];
+			if (!cell) {
+				return;
+			}
+
+			switch (revealType) {
+				case NotebookEditorRevealType.Default:
+					notebookEditor.revealInView(cell);
+					break;
+				case NotebookEditorRevealType.InCenter:
+					notebookEditor.revealInCenter(cell);
+					break;
+				case NotebookEditorRevealType.InCenterIfOutsideViewport:
+					notebookEditor.revealInCenterIfOutsideViewport(cell);
+					break;
+				default:
+					break;
+			}
+		}
 	}
 
 	async $setStatusBarEntry(id: number, rawStatusBarEntry: INotebookCellStatusBarEntryDto): Promise<void> {

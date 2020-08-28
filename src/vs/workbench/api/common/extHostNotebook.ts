@@ -747,6 +747,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits);
 	}
 
+	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {
+		this._proxy.$tryRevealRange(this.id, range, revealType || extHostTypes.NotebookEditorRevealType.Default);
+	}
+
 	get viewColumn(): vscode.ViewColumn | undefined {
 		return this._viewColumn;
 	}

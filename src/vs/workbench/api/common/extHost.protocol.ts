@@ -720,6 +720,12 @@ export type NotebookCellOutputsSplice = [
 	IProcessedOutput[]
 ];
 
+export enum NotebookEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2,
+}
+
 export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;
 
 export interface MainThreadNotebookShape extends IDisposable {
@@ -738,7 +744,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
-
+	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
 }

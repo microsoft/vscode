@@ -1368,6 +1368,22 @@ declare module 'vscode' {
 		readonly end: number;
 	}
 
+	export enum NotebookEditorRevealType {
+		/**
+		 * The range will be revealed with as little scrolling as possible.
+		 */
+		Default = 0,
+		/**
+		 * The range will always be revealed in the center of the viewport.
+		 */
+		InCenter = 1,
+		/**
+		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
+		 * Otherwise, it will be revealed with as little scrolling as possible.
+		 */
+		InCenterIfOutsideViewport = 2,
+	}
+
 	export interface NotebookEditor {
 		/**
 		 * The document associated with this notebook editor.
@@ -1429,6 +1445,8 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+
+		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
 
 	export interface NotebookOutputSelector {
