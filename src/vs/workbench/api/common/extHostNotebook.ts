@@ -870,6 +870,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
 	private readonly _commandsConverter: CommandsConverter;
+	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>();
+	readonly onDidChangeNotebookEditorSelection = this._onDidChangeNotebookEditorSelection.event;
 	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
 	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
 	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
@@ -1285,6 +1287,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			} else {
 				editor.editor.selection = undefined;
 			}
+
+			this._onDidChangeNotebookEditorSelection.fire({
+				notebookEditor: editor.editor,
+				selection: editor.editor.selection
+			});
 		}
 
 		if (data.metadata) {
