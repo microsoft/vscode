@@ -128,14 +128,18 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			servers.push(this.extensionManagementServerService.webExtensionManagementServer);
+		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			servers.push(this.extensionManagementServerService.remoteExtensionManagementServer);
 		}
-		if (servers.length === 0 && this.extensionManagementServerService.webExtensionManagementServer) {
-			servers.push(this.extensionManagementServerService.webExtensionManagementServer);
-		}
 		const getViewName = (viewTitle: string, server: IExtensionManagementServer): string => {
-			return servers.length > 1 ? `${server.label} - ${viewTitle}` : viewTitle;
+			if (servers.length) {
+				const serverLabel = server === this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer ? localize('local', "Local") : server.label;
+				return servers.length > 1 ? `${serverLabel} - ${viewTitle}` : viewTitle;
+			}
+			return viewTitle;
 		};
 		for (const server of servers) {
 			const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
