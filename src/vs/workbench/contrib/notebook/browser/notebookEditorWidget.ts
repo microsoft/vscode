@@ -1875,10 +1875,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
-	collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:before,
-			.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.focused:after {
+	collector.addRule(`.monaco-workbench .notebookOverlay .monaco-list:focus .monaco-list-row.focused .cell-focus-indicator-top:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus .monaco-list-row.focused .cell-focus-indicator-bottom:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus .markdown-cell-row.focused:before,
+			.monaco-workbench .notebookOverlay .monaco-list:focus .markdown-cell-row.focused:after {
 				border-color: ${focusedCellBorderColor} !important;
 			}`);
 
