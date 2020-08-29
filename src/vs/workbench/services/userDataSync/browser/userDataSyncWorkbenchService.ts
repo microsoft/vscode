@@ -143,10 +143,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			await Promise.all(unregisteredProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
 		}
 
-		/* wait until all providers are availabe */
-		if (this._authenticationProviders.some(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id))) {
-			await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, () => this._authenticationProviders.every(({ id }) => this.authenticationService.isAuthenticationProviderRegistered(id))));
-		}
+		/* wait until one of the providers is availabe */
+		await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, ({ id }) => this.isSupportedAuthenticationProviderId(id)));
 
 		/* initialize */
 		await this.initialize();
