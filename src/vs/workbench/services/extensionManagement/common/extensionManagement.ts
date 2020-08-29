@@ -59,6 +59,11 @@ export interface IWorkbenchExtensionEnablementService {
 	canChangeEnablement(extension: IExtension): boolean;
 
 	/**
+	 * Returns `true` if the enablement can be changed.
+	 */
+	canChangeWorkspaceEnablement(extension: IExtension): boolean;
+
+	/**
 	 * Returns `true` if the given extension identifier is enabled.
 	 */
 	isEnabled(extension: IExtension): boolean;
