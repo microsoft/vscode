@@ -24,6 +24,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -53,6 +54,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
 			productService,
+			instantiationService.get(IUserDataAutoSyncService) || instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return false; } }),
 			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService)
 		);
 	}
@@ -385,7 +387,16 @@ suite('ExtensionEnablementService Test', () => {
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
 	});
 
-	test('test canChangeEnablement return false for auth extension and user data sync account depends on it', () => {
+	test('test canChangeEnablement return true for auth extension when user data sync account depends on it but auto sync is off', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return false for auth extension and user data sync account depends on it and auto sync is on', () => {
+		instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return true; } });
 		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
 			account: { authenticationProviderId: 'a' }
 		});
