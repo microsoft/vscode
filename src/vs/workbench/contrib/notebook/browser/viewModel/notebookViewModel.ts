@@ -609,8 +609,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return result;
 	}
 
-	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true) {
-		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, undefined, undefined);
+	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []) {
+		const beforeSelections = previouslyFocused.map(e => e.handle);
+		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, beforeSelections, undefined);
 		// TODO, rely on createCell to be sync
 		return this.viewCells[index];
 	}

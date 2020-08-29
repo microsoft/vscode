@@ -475,7 +475,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
+		const focusInside = DOM.isAncestor(document.activeElement, this.rowsContainer);
 		super.splice(start, deleteCount, elements);
+		if (focusInside) {
+			this.domFocus();
+		}
 
 		const selectionsLeft = [];
 		this._viewModel!.selectionHandles.forEach(handle => {
