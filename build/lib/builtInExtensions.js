@@ -18,7 +18,9 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 
 const root = path.dirname(path.dirname(__dirname));
-const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productjson.builtInExtensions;
+const webBuiltInExtensions = productjson.webBuiltInExtensions;
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
@@ -100,14 +102,14 @@ function writeControlFile(control) {
 	fs.writeFileSync(controlFilePath, JSON.stringify(control, null, 2));
 }
 
-function main() {
+exports.getBuiltInExtensions = function getBuiltInExtensions() {
 	log('Syncronizing built-in extensions...');
 	log(`You can manage built-in extensions with the ${ansiColors.cyan('--builtin')} flag`);
 
 	const control = readControlFile();
 	const streams = [];
 
-	for (const extension of builtInExtensions) {
+	for (const extension of [...builtInExtensions, ...webBuiltInExtensions]) {
 		let controlState = control[extension.name] || 'marketplace';
 		control[extension.name] = controlState;
 
@@ -116,14 +118,16 @@ function main() {
 
 	writeControlFile(control);
 
-	es.merge(streams)
-		.on('error', err => {
-			console.error(err);
-			process.exit(1);
-		})
-		.on('end', () => {
-			process.exit(0);
-		});
-}
+	return new Promise((resolve, reject) => {
+		es.merge(streams)
+			.on('error', reject)
+			.on('end', resolve);
+	});
+};
 
-main();
+if (require.main === module) {
+	exports.getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
+		console.error(err);
+		process.exit(1);
+	});
+}

@@ -58,6 +58,7 @@ table {
 	width: 100%;
 	table-layout: fixed;
 }
+
 th[scope='col'] {
 	vertical-align: bottom;
 	border-bottom: 1px solid #cccccc;
@@ -65,6 +66,7 @@ th[scope='col'] {
 	border-top: 1px solid #cccccc;
 	cursor: default;
 }
+
 td {
 	padding: .25rem;
 	vertical-align: top;
@@ -100,7 +102,6 @@ tbody > tr:hover {
 	display: none;
 }
 
-img {
-	width: 16px;
-	margin-right: 4px;
+.header {
+	display: flex;
 }

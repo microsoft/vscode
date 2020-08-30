@@ -12,7 +12,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { formatDocumentRangeWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode } from 'vs/editor/contrib/format/format';
+import { formatDocumentRangesWithProvider, formatDocumentWithProvider, getRealAndSyntheticDocumentFormattersOrdered, FormattingConflicts, FormattingMode } from 'vs/editor/contrib/format/format';
 import { Range } from 'vs/editor/common/core/range';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -308,7 +308,7 @@ registerEditorAction(class FormatSelectionMultipleAction extends EditorAction {
 		const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 		const pick = await instaService.invokeFunction(showFormatterPick, model, provider);
 		if (typeof pick === 'number') {
-			await instaService.invokeFunction(formatDocumentRangeWithProvider, provider[pick], editor, range, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentRangesWithProvider, provider[pick], editor, range, CancellationToken.None);
 		}
 
 		logFormatterTelemetry(telemetryService, 'range', provider, typeof pick === 'number' && provider[pick] || undefined);

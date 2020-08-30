@@ -696,10 +696,10 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-vscode-css-languageservice@^4.3.0:
-  version "4.3.0"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.3.0.tgz#40c797d664ab6188cace33cfbb19b037580a9318"
-  integrity sha512-BkQAMz4oVHjr0oOAz5PdeE72txlLQK7NIwzmclfr+b6fj6I8POwB+VoXvrZLTbWt9hWRgfvgiQRkh5JwrjPJ5A==
+vscode-css-languageservice@^4.3.3:
+  version "4.3.3"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.3.3.tgz#fcb8c7442ae7bb8fbe6ff1d3a514be8248bfb52f"
+  integrity sha512-b2b+0oHvPmBHygDtOXX3xBvpQCa6eIQSvXnGDNSDmIC1894ZTJ2yX10vjplOO/PvV7mwhyvGPwHyY4X2HGxtKw==
   dependencies:
     vscode-languageserver-textdocument "^1.0.1"
     vscode-languageserver-types "3.16.0-next.2"

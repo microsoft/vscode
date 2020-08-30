@@ -29,7 +29,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensionsNumeric, compareFileNamesNumeric } from 'vs/base/common/comparers';
+import { compareFileNamesDefault, compareFileExtensionsDefault } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -665,7 +665,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				if (statA.isDirectory && statB.isDirectory) {
-					return compareFileNamesNumeric(statA.name, statB.name);
+					return compareFileNamesDefault(statA.name, statB.name);
 				}
 
 				break;
@@ -699,17 +699,17 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		// Sort Files
 		switch (sortOrder) {
 			case 'type':
-				return compareFileExtensionsNumeric(statA.name, statB.name);
+				return compareFileExtensionsDefault(statA.name, statB.name);
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
-				return compareFileNamesNumeric(statA.name, statB.name);
+				return compareFileNamesDefault(statA.name, statB.name);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
-				return compareFileNamesNumeric(statA.name, statB.name);
+				return compareFileNamesDefault(statA.name, statB.name);
 		}
 	}
 }

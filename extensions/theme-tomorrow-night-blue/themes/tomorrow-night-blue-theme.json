@@ -224,11 +224,32 @@
 			}
 		},
 		{
+			"name": "Markup: Strong",
+			"scope": "markup.bold",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup: Emphasis",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#FF9DA4"
+			}
+		},
+		{
+			"name": "Markup Headings",
+			"scope": "markup.heading",
+			"settings": {
+				"fontStyle": "bold"
 			}
 		},
 		{

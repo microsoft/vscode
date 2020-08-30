@@ -64,9 +64,7 @@ export class ProxyAuthHandler extends Disposable {
 				contextIsolation: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
-				spellcheck: false,
-				devTools: false,
-				v8CacheOptions: 'bypassHeatCheck'
+				devTools: false
 			}
 		};
 

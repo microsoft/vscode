@@ -191,22 +191,21 @@ function fromMarketplace(extensionName, version, metadata) {
         .pipe(packageJsonFilter.restore);
 }
 exports.fromMarketplace = fromMarketplace;
-const excludedCommonExtensions = [
+const excludedExtensions = [
     'vscode-api-tests',
     'vscode-colorize-tests',
     'vscode-test-resolver',
     'ms-vscode.node-debug',
     'ms-vscode.node-debug2',
-    'vscode-notebook-tests'
+    'vscode-notebook-tests',
+    'vscode-custom-editor-tests',
 ];
-const excludedDesktopExtensions = excludedCommonExtensions.concat([
-    'vscode-web-playground',
-]);
-const excludedWebExtensions = excludedCommonExtensions.concat([]);
 const marketplaceWebExtensions = [
     'ms-vscode.references-view'
 ];
-const builtInExtensions = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
+const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productJson.builtInExtensions || [];
+const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
 /**
  * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
  */
@@ -218,7 +217,6 @@ function isWebExtension(manifest) {
     return (!Boolean(manifest.main) || Boolean(manifest.browser));
 }
 function packageLocalExtensionsStream(forWeb) {
-    const excludedLocalExtensions = (forWeb ? excludedWebExtensions : excludedDesktopExtensions);
     const localExtensionsDescriptions = (glob.sync('extensions/*/package.json')
         .map(manifestPath => {
         const absoluteManifestPath = path.join(root, manifestPath);
@@ -226,7 +224,7 @@ function packageLocalExtensionsStream(forWeb) {
         const extensionName = path.basename(extensionPath);
         return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
     })
-        .filter(({ name }) => excludedLocalExtensions.indexOf(name) === -1)
+        .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
         .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
     const localExtensionsStream = minifyExtensionResources(es.merge(...localExtensionsDescriptions.map(extension => {
@@ -246,8 +244,10 @@ function packageLocalExtensionsStream(forWeb) {
 }
 exports.packageLocalExtensionsStream = packageLocalExtensionsStream;
 function packageMarketplaceExtensionsStream(forWeb) {
-    const marketplaceExtensionsDescriptions = (builtInExtensions
-        .filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)));
+    const marketplaceExtensionsDescriptions = [
+        ...builtInExtensions.filter(({ name }) => (forWeb ? marketplaceWebExtensions.indexOf(name) >= 0 : true)),
+        ...(forWeb ? webBuiltInExtensions : [])
+    ];
     const marketplaceExtensionsStream = minifyExtensionResources(es.merge(...marketplaceExtensionsDescriptions
         .map(extension => {
         const input = fromMarketplace(extension.name, extension.version, extension.metadata)
@@ -263,35 +263,40 @@ function packageMarketplaceExtensionsStream(forWeb) {
         .pipe(util2.setExecutableBit(['**/*.sh'])));
 }
 exports.packageMarketplaceExtensionsStream = packageMarketplaceExtensionsStream;
-function scanBuiltinExtensions(extensionsRoot, forWeb) {
+function scanBuiltinExtensions(extensionsRoot, exclude = []) {
     const scannedExtensions = [];
-    const extensionsFolders = fs.readdirSync(extensionsRoot);
-    for (const extensionFolder of extensionsFolders) {
-        const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
-        if (!fs.existsSync(packageJSONPath)) {
-            continue;
+    try {
+        const extensionsFolders = fs.readdirSync(extensionsRoot);
+        for (const extensionFolder of extensionsFolders) {
+            if (exclude.indexOf(extensionFolder) >= 0) {
+                continue;
+            }
+            const packageJSONPath = path.join(extensionsRoot, extensionFolder, 'package.json');
+            if (!fs.existsSync(packageJSONPath)) {
+                continue;
+            }
+            let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
+            if (!isWebExtension(packageJSON)) {
+                continue;
+            }
+            const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
+            const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+            const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsRoot, extensionFolder, packageNLSPath)).toString()) : undefined;
+            const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+            const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+            scannedExtensions.push({
+                extensionPath: extensionFolder,
+                packageJSON,
+                packageNLS,
+                readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+                changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+            });
         }
-        let packageJSON = JSON.parse(fs.readFileSync(packageJSONPath).toString('utf8'));
-        if (forWeb && !isWebExtension(packageJSON)) {
-            continue;
-        }
-        const children = fs.readdirSync(path.join(extensionsRoot, extensionFolder));
-        const packageNLS = children.filter(child => child === 'package.nls.json')[0];
-        const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
-        const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
-        if (packageNLS) {
-            // temporary
-            packageJSON = translatePackageJSON(packageJSON, path.join(extensionsRoot, extensionFolder, packageNLS));
-        }
-        scannedExtensions.push({
-            extensionPath: extensionFolder,
-            packageJSON,
-            packageNLSPath: packageNLS ? path.join(extensionFolder, packageNLS) : undefined,
-            readmePath: readme ? path.join(extensionFolder, readme) : undefined,
-            changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
-        });
+        return scannedExtensions;
     }
-    return scannedExtensions;
+    catch (ex) {
+        return scannedExtensions;
+    }
 }
 exports.scanBuiltinExtensions = scanBuiltinExtensions;
 function translatePackageJSON(packageJSON, packageNLSPath) {

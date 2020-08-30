@@ -57,7 +57,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 
 - powershell: |
-    yarn test-browser --browser chromium --browser firefox
+    yarn test-browser --browser chromium --browser firefox --tfs "Browser Unit Tests"
   displayName: Run Unit Tests (Browser)
 
 - powershell: |

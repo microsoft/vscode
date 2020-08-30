@@ -41,6 +41,7 @@ import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlobFileExists, checkActivateWorkspaceContainsExtension } from 'vs/workbench/api/common/shared/workspaceContains';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { exists } from 'vs/base/node/pfs';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -76,6 +77,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super(
 			instantiationService,
@@ -372,7 +374,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
 		return flatten(await Promise.all([
 			this._extensionScanner.scannedExtensions,
-			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension))
+			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension))
 		]));
 	}
 
@@ -431,6 +433,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values());
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
@@ -450,6 +453,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				);
 				return;
 			}
+
+			const message = `Extension host terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`;
+			this._logService.error(message);
 
 			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
 				[{
@@ -500,6 +506,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
 		let remoteEnv: IRemoteAgentEnvironment | null = null;
+		let remoteExtensions: IExtensionDescription[] = [];
 
 		if (remoteAuthority) {
 			let resolverResult: ResolverResult;
@@ -538,7 +545,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 
 			// fetch the remote environment
-			remoteEnv = await this._remoteAgentService.getEnvironment();
+			[remoteEnv, remoteExtensions] = await Promise.all([
+				this._remoteAgentService.getEnvironment(),
+				this._remoteAgentService.scanExtensions()
+			]);
+			remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
@@ -548,12 +559,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 		}
 
-		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv);
+		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(localExtensions: IExtensionDescription[], remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null): Promise<void> {
-
-		let remoteExtensions = remoteEnv ? this._checkEnabledAndProposedAPI(remoteEnv.extensions) : [];
+	private async _startLocalExtensionHost(localExtensions: IExtensionDescription[], remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
 
 		this._runningLocation = _determineRunningLocation(this._productService, this._configurationService, localExtensions, remoteExtensions, Boolean(remoteAuthority), this._enableLocalWebWorker);
 

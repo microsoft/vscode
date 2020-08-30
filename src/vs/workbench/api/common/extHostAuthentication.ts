@@ -28,6 +28,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
+	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
+		this._providers = providers;
+		return Promise.resolve();
+	}
+
 	getProviderIds(): Promise<ReadonlyArray<string>> {
 		return this._proxy.$getProviderIds();
 	}
@@ -41,7 +46,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		await this._proxy.$ensureProvider(providerId);
 		const provider = this._authenticationProviders.get(providerId);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;

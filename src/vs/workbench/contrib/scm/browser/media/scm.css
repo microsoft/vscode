@@ -232,3 +232,14 @@
 .scm-view .scm-editor-container .mtk1 {
 	color: inherit;
 }
+
+/* Repositories */
+
+.scm-repositories-view .scm-provider {
+	margin: 0 12px 0 20px;
+	overflow: hidden;
+}
+
+.scm-repositories-view .scm-provider > .label > .name {
+	font-weight: normal;
+}

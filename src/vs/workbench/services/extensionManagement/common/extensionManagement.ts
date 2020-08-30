@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, IScannedExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -57,6 +57,11 @@ export interface IWorkbenchExtensionEnablementService {
 	 * Returns `true` if the enablement can be changed.
 	 */
 	canChangeEnablement(extension: IExtension): boolean;
+
+	/**
+	 * Returns `true` if the enablement can be changed.
+	 */
+	canChangeWorkspaceEnablement(extension: IExtension): boolean;
 
 	/**
 	 * Returns `true` if the given extension identifier is enabled.
@@ -128,6 +133,8 @@ export interface IExtensionRecommendationsService {
 
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
 	getFileBasedRecommendations(): IExtensionRecommendation[];
+	getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }>;
+	getImportantRecommendations(): Promise<IExtensionRecommendation[]>;
 	getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]>;
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
@@ -142,6 +149,7 @@ export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScanne
 export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
+	scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]>;
 	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 }

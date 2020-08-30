@@ -193,7 +193,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								this._onInstallExtension.fire({ identifier, zipPath });
 								return this.getGalleryMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
 									.then(
-										metadata => this.installFromZipPath(identifierWithVersion, zipPath, { ...metadata, isMachineScoped }, operation, token),
+										metadata => this.installFromZipPath(identifierWithVersion, zipPath, isMachineScoped ? { ...metadata, isMachineScoped } : metadata, operation, token),
 										() => this.installFromZipPath(identifierWithVersion, zipPath, isMachineScoped ? { isMachineScoped } : undefined, operation, token))
 									.then(
 										local => { this.logService.info('Successfully installed the extension:', identifier.id); return local; },
@@ -236,6 +236,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				local => { this._onDidInstallExtension.fire({ identifier: identifierWithVersion.identifier, zipPath, local, operation }); return local; },
 				error => { this._onDidInstallExtension.fire({ identifier: identifierWithVersion.identifier, zipPath, operation, error }); return Promise.reject(error); }
 			));
+	}
+
+	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+		return true;
 	}
 
 	async installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension> {

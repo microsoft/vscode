@@ -38,7 +38,7 @@ import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IHoverService, IHoverOptions } from 'vs/workbench/services/hover/browser/hover';
+import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 class Root implements ITreeItem {
@@ -766,7 +766,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
 				fileKind: this.getFileKind(node),
-				title,
+				title: undefined,
 				hideIcon: !!iconUrl,
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
@@ -775,7 +775,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
-				title,
+				title: undefined,
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -811,10 +811,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
-		if (!(node instanceof ResolvableTreeItem) || (node.tooltip && isString(node.tooltip)) || (!node.tooltip && !node.hasResolve)) {
-			return;
-		}
-		const resolvableNode: ResolvableTreeItem = node;
 		const hoverService = this.hoverService;
 		const hoverDelay = this.hoverDelay;
 		let hoverOptions: IHoverOptions | undefined;
@@ -825,12 +821,19 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
 			setTimeout(async () => {
-				await resolvableNode.resolve();
-				const tooltip = resolvableNode.tooltip ?? label;
+				if (node instanceof ResolvableTreeItem) {
+					await node.resolve();
+				}
+				const tooltip = node.tooltip ?? label;
 				if (isHovering && tooltip) {
 					if (!hoverOptions) {
-						hoverOptions = { text: isString(tooltip) ? { value: tooltip } : tooltip, target: this };
+						const target: IHoverTarget = {
+							targetElements: [this],
+							dispose: () => { }
+						};
+						hoverOptions = { text: isString(tooltip) ? { value: tooltip } : tooltip, target };
 					}
+					(<IHoverTarget>hoverOptions.target).x = e.x;
 					hoverService.showHover(hoverOptions);
 				}
 				this.removeEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave);
@@ -901,7 +904,7 @@ class Aligner extends Disposable {
 		if (this._tree) {
 			const parent: ITreeItem = this._tree.getParentElement(treeItem) || this._tree.getInput();
 			if (this.hasIcon(parent)) {
-				return false;
+				return !!parent.children && parent.children.some(c => c.collapsibleState !== TreeItemCollapsibleState.None && !this.hasIcon(c));
 			}
 			return !!parent.children && parent.children.every(c => c.collapsibleState === TreeItemCollapsibleState.None || !this.hasIcon(c));
 		} else {

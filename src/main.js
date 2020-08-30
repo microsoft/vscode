@@ -313,21 +313,10 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			fs.mkdirSync(argvConfigPathDirname);
 		}
 
-		// Migrate over legacy locale
-		const localeConfigPath = path.join(userDataPath, 'User', 'locale.json');
-		const legacyLocale = getLegacyUserDefinedLocaleSync(localeConfigPath);
-		if (legacyLocale) {
-			try {
-				fs.unlinkSync(localeConfigPath);
-			} catch (error) {
-				//ignore
-			}
-		}
-
 		// Default argv content
 		const defaultArgvConfigContent = [
 			'// This configuration file allows you to pass permanent command line arguments to VS Code.',
-			'// Only a subset of arguments is currently supported to reduce the likelyhood of breaking',
+			'// Only a subset of arguments is currently supported to reduce the likelihood of breaking',
 			'// the installation.',
 			'//',
 			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',
@@ -340,18 +329,9 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'',
 			'	// Enabled by default by VS Code to resolve color issues in the renderer',
 			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true'
+			'	"disable-color-correct-rendering": true',
+			'}'
 		];
-
-		if (legacyLocale) {
-			defaultArgvConfigContent[defaultArgvConfigContent.length - 1] = `${defaultArgvConfigContent[defaultArgvConfigContent.length - 1]},`; // append trailing ","
-
-			defaultArgvConfigContent.push('');
-			defaultArgvConfigContent.push('	// Display language of VS Code');
-			defaultArgvConfigContent.push(`	"locale": "${legacyLocale}"`);
-		}
-
-		defaultArgvConfigContent.push('}');
 
 		// Create initial argv.json with default content
 		fs.writeFileSync(argvConfigPath, defaultArgvConfigContent.join('\n'));
@@ -608,21 +588,6 @@ function getUserDefinedLocale(argvConfig) {
 	}
 
 	return argvConfig.locale && typeof argvConfig.locale === 'string' ? argvConfig.locale.toLowerCase() : undefined;
-}
-
-/**
- * @param {string} localeConfigPath
- * @returns {string | undefined}
- */
-function getLegacyUserDefinedLocaleSync(localeConfigPath) {
-	try {
-		const content = stripComments(fs.readFileSync(localeConfigPath).toString());
-
-		const value = JSON.parse(content).locale;
-		return value && typeof value === 'string' ? value.toLowerCase() : undefined;
-	} catch (error) {
-		// ignore
-	}
 }
 
 //#endregion

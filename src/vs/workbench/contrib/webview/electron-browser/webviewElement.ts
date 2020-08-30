@@ -18,6 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
@@ -26,7 +27,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { WebviewResourceRequestManager, rewriteVsCodeResourceUrls } from './resourceLoading';
+import { rewriteVsCodeResourceUrls, WebviewResourceRequestManager } from './resourceLoading';
 
 class WebviewKeyboardHandler {
 
@@ -124,8 +125,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
+		@INotificationService noficationService: INotificationService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, _myLogService, telemetryService, environmentService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, noficationService, _myLogService, telemetryService, environmentService, workbenchEnvironmentService);
 
 		/* __GDPR__
 			"webview.createWebview" : {
@@ -140,17 +142,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 		this._myLogService.debug(`Webview(${this.id}): init`);
 
-		const webviewId = new Promise<number | undefined>((resolve, reject) => {
-			const sub = this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
-				if (!this.element) {
-					reject();
-					throw new Error('No element');
-				}
-				resolve(this.element.getWebContentsId());
-				sub.dispose();
-			})));
-		});
-		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options, webviewId));
+		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
 
 		this._register(addDisposableListener(this.element!, 'dom-ready', once(() => {
 			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
@@ -164,7 +156,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			this._myLogService.debug(`Webview(${this.id}): dom-ready`);
 
 			// Workaround for https://github.com/electron/electron/issues/14474
-			if (this.element && (this.focused || document.activeElement === this.element)) {
+			if (this.element && (this.isFocused || document.activeElement === this.element)) {
 				this.element.blur();
 				this.element.focus();
 			}
@@ -310,7 +302,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// Workaround this by debouncing the focus and making sure we are not focused on an input
 		// when we try to re-focus.
 		this._focusDelayer.trigger(async () => {
-			if (!this.focused || !this.element) {
+			if (!this.isFocused || !this.element) {
 				return;
 			}
 

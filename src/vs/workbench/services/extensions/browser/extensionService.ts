@@ -24,6 +24,8 @@ import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browse
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -43,6 +45,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
 		super(
 			instantiationService,
@@ -56,7 +60,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
-		this._initialize();
+		// Initialize extensions first and do it only after workbench is ready
+		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
+			await this._userDataInitializationService.initializeExtensions(this._instantiationService);
+			this._initialize();
+		});
+
 		this._initFetchFileSystem();
 	}
 
@@ -111,12 +120,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
-		let [localExtensions, remoteEnv] = await Promise.all([
-			this._webExtensionsScannerService.scanExtensions().then(extensions => extensions.map(parseScannedExtension)),
-			this._remoteAgentService.getEnvironment()
+		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
+			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension)),
+			this._remoteAgentService.getEnvironment(),
+			this._remoteAgentService.scanExtensions()
 		]);
 		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
-		let remoteExtensions = remoteEnv ? this._checkEnabledAndProposedAPI(remoteEnv.extensions) : [];
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		this._runningLocation = _determineRunningLocation(this._productService, this._configService, localExtensions, remoteExtensions, Boolean(remoteEnv && remoteAgentConnection));

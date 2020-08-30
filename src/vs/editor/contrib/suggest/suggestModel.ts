@@ -229,7 +229,7 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: CompletionItem[] | undefined = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				const items = this._completionModel?.adopt(supports);
 				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
 			}
 		};
@@ -553,6 +553,12 @@ export class SuggestModel implements IDisposable {
 
 		if (!this._completionModel) {
 			// happens when IntelliSense is not yet computed
+			return;
+		}
+
+		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
+			// started a new word while IntelliSense shows -> retrigger
+			this.trigger({ auto: this._context.auto, shy: false }, true);
 			return;
 		}
 

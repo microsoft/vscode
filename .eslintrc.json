@@ -654,6 +654,20 @@
                 ]
             },
             {
+                "target": "**/vs/workbench/contrib/notebook/common/**",
+                "restrictions": [
+                    "vs/nls",
+                    "vs/css!./**/*",
+                    "**/vs/base/**/{common,worker}/**",
+                    "**/vs/platform/**/common/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/common/**",
+                    "**/vs/workbench/api/common/**",
+                    "**/vs/workbench/services/**/common/**",
+                    "**/vs/workbench/contrib/**/common/**"
+                ]
+            },
+            {
                 "target": "**/vs/workbench/contrib/**/common/**",
                 "restrictions": [
                     "vs/nls",

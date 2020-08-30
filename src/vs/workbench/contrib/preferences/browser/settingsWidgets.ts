@@ -16,7 +16,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/settingsWidgets';
 import { localize } from 'vs/nls';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { foreground, inputBackground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, textPreformatForeground, editorWidgetBorder, textLinkActiveForeground, simpleCheckboxBackground, simpleCheckboxForeground, simpleCheckboxBorder } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, inputBorder, inputForeground, listActiveSelectionBackground, listActiveSelectionForeground, listHoverBackground, listHoverForeground, listInactiveSelectionBackground, listInactiveSelectionForeground, registerColor, selectBackground, selectBorder, selectForeground, textLinkForeground, textPreformatForeground, editorWidgetBorder, textLinkActiveForeground, simpleCheckboxBackground, simpleCheckboxForeground, simpleCheckboxBorder, listFocusBackground, transparent, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { disposableTimeout } from 'vs/base/common/async';
@@ -25,6 +25,7 @@ import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/pr
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isIOS } from 'vs/base/common/platform';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "The foreground color for a section header or active title."));
@@ -46,43 +47,61 @@ export const settingsCheckboxForeground = registerColor('settings.checkboxForegr
 export const settingsCheckboxBorder = registerColor('settings.checkboxBorder', { dark: simpleCheckboxBorder, light: simpleCheckboxBorder, hc: simpleCheckboxBorder }, localize('settingsCheckboxBorder', "Settings editor checkbox border."));
 
 // Text control colors
-export const settingsTextInputBackground = registerColor('settings.textInputBackground', { dark: inputBackground, light: inputBackground, hc: inputBackground }, localize('textInputBoxBackground', "Settings editor text input box background."));
+export const settingsTextInputBackground = settingsSelectBackground; //registerColor('settings.textInputBackground', { dark: inputBackground, light: inputBackground, hc: inputBackground }, localize('textInputBoxBackground', "Settings editor text input box background."));
 export const settingsTextInputForeground = registerColor('settings.textInputForeground', { dark: inputForeground, light: inputForeground, hc: inputForeground }, localize('textInputBoxForeground', "Settings editor text input box foreground."));
 export const settingsTextInputBorder = registerColor('settings.textInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('textInputBoxBorder', "Settings editor text input box border."));
 
 // Number control colors
-export const settingsNumberInputBackground = registerColor('settings.numberInputBackground', { dark: inputBackground, light: inputBackground, hc: inputBackground }, localize('numberInputBoxBackground', "Settings editor number input box background."));
+export const settingsNumberInputBackground = settingsSelectBackground; // registerColor('settings.numberInputBackground', { dark: inputBackground, light: inputBackground, hc: inputBackground }, localize('numberInputBoxBackground', "Settings editor number input box background."));
 export const settingsNumberInputForeground = registerColor('settings.numberInputForeground', { dark: inputForeground, light: inputForeground, hc: inputForeground }, localize('numberInputBoxForeground', "Settings editor number input box foreground."));
 export const settingsNumberInputBorder = registerColor('settings.numberInputBorder', { dark: inputBorder, light: inputBorder, hc: inputBorder }, localize('numberInputBoxBorder', "Settings editor number input box border."));
+
+export const focusedRowBackground = registerColor('settings.focusedRowBackground', {
+	dark: transparent(PANEL_BORDER, .4),
+	light: transparent(listFocusBackground, .4),
+	hc: null
+}, localize('focusedRowBackground', "The background color of a cell when the row is focused."));
+
+export const rowHoverBackground = registerColor('notebook.rowHoverBackground', {
+	dark: transparent(focusedRowBackground, .5),
+	light: transparent(focusedRowBackground, .7),
+	hc: null
+}, localize('notebook.rowHoverBackground', "The background color of a row when the row is hovered."));
+
+export const focusedRowBorder = registerColor('notebook.focusedRowBorder', {
+	dark: Color.white.transparent(0.12),
+	light: Color.black.transparent(0.12),
+	hc: focusBorder
+}, localize('notebook.focusedRowBorder', "The color of the row's top and bottom border when the row is focused."));
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);
 	if (checkboxBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${checkboxBackgroundColor} !important; }`);
 	}
 
 	const checkboxForegroundColor = theme.getColor(settingsCheckboxForeground);
 	if (checkboxForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-bool .setting-value-checkbox { color: ${checkboxForegroundColor} !important; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { color: ${checkboxForegroundColor} !important; }`);
 	}
 
 	const checkboxBorderColor = theme.getColor(settingsCheckboxBorder);
 	if (checkboxBorderColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-bool .setting-value-checkbox { border-color: ${checkboxBorderColor} !important; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${checkboxBorderColor} !important; }`);
 	}
 
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a { color: ${link}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a > code { color: ${link}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a { color: ${link}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a > code { color: ${link}; }`);
 		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a { color: ${link}; }`);
 		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a > code { color: ${link}; }`);
 	}
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:hover, .settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:active { color: ${activeLink}; }`);
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:hover > code, .settings-editor > .settings-body > .settings-list-container .setting-item-contents .setting-item-markdown a:active > code { color: ${activeLink}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:hover, .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:active { color: ${activeLink}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:hover > code, .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:active > code { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:hover, .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:active { color: ${activeLink}; }`);
 		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:hover > code, .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a:active > code { color: ${activeLink}; }`);
 	}
@@ -100,44 +119,44 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// List control
 	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
 	if (listHoverBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.setting-item-list .setting-list-row:hover { background-color: ${listHoverBackgroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover { background-color: ${listHoverBackgroundColor}; }`);
 	}
 
 	const listHoverForegroundColor = theme.getColor(listHoverForeground);
 	if (listHoverForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.setting-item-list .setting-list-row:hover { color: ${listHoverForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover { color: ${listHoverForegroundColor}; }`);
 	}
 
 	const listSelectBackgroundColor = theme.getColor(listActiveSelectionBackground);
 	if (listSelectBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.setting-item-list .setting-list-row.selected:focus { background-color: ${listSelectBackgroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus { background-color: ${listSelectBackgroundColor}; }`);
 	}
 
 	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
 	if (listInactiveSelectionBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) { background-color: ${listInactiveSelectionBackgroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) { background-color: ${listInactiveSelectionBackgroundColor}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
 	if (listInactiveSelectionForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) { color: ${listInactiveSelectionForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) { color: ${listInactiveSelectionForegroundColor}; }`);
 	}
 
 	const listSelectForegroundColor = theme.getColor(listActiveSelectionForeground);
 	if (listSelectForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item.setting-item-list .setting-list-row.selected:focus { color: ${listSelectForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus { color: ${listSelectForegroundColor}; }`);
 	}
 
 	const codeTextForegroundColor = theme.getColor(textPreformatForeground);
 	if (codeTextForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item .setting-item-markdown code { color: ${codeTextForegroundColor} }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-markdown code { color: ${codeTextForegroundColor} }`);
 		collector.addRule(`.monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code { color: ${codeTextForegroundColor} }`);
 
 	}
 
 	const modifiedItemIndicatorColor = theme.getColor(modifiedItemIndicator);
 	if (modifiedItemIndicatorColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .setting-item-contents > .setting-item-modified-indicator { border-color: ${modifiedItemIndicatorColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents > .setting-item-modified-indicator { border-color: ${modifiedItemIndicatorColor}; }`);
 	}
 });
 
@@ -527,7 +546,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 
 		valueInput.element.classList.add('setting-list-valueInput');
 		this.listDisposables.add(attachInputBoxStyler(valueInput, this.themeService, {
-			inputBackground: settingsTextInputBackground,
+			inputBackground: settingsSelectBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
@@ -546,7 +565,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			siblingInput.element.classList.add('setting-list-siblingInput');
 			this.listDisposables.add(siblingInput);
 			this.listDisposables.add(attachInputBoxStyler(siblingInput, this.themeService, {
-				inputBackground: settingsTextInputBackground,
+				inputBackground: settingsSelectBackground,
 				inputForeground: settingsTextInputForeground,
 				inputBorder: settingsTextInputBorder
 			}));
@@ -780,6 +799,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		const changedItem = { ...item };
 		const onKeyChange = (key: ObjectKey) => {
 			changedItem.key = key;
+			okButton.enabled = key.data !== '';
 
 			const suggestedValue = this.valueSuggester(key.data) ?? item.value;
 
@@ -843,6 +863,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		rowElement.append(keyElement, valueContainer);
 
 		const okButton = this._register(new Button(rowElement));
+		okButton.enabled = changedItem.key.data !== '';
 		okButton.label = localize('okButton', "OK");
 		okButton.element.classList.add('setting-list-ok-button');
 
@@ -906,7 +927,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		inputBox.element.classList.add('setting-list-object-input');
 
 		this.listDisposables.add(attachInputBoxStyler(inputBox, this.themeService, {
-			inputBackground: settingsTextInputBackground,
+			inputBackground: settingsSelectBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));

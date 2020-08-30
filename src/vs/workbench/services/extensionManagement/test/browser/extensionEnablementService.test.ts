@@ -23,6 +23,8 @@ import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -51,7 +53,9 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			extensionManagementService,
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
-			productService
+			productService,
+			instantiationService.get(IUserDataAutoSyncService) || instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return false; } }),
+			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService)
 		);
 	}
 
@@ -369,6 +373,48 @@ suite('ExtensionEnablementService Test', () => {
 
 	test('test canChangeEnablement return false for language packs', () => {
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languageId: 'gr', translations: [{ id: 'vscode', path: 'path' }] }] })), false);
+	});
+
+	test('test canChangeEnablement return true for auth extension', () => {
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return true for auth extension when user data sync account does not depends on it', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'b' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return true for auth extension when user data sync account depends on it but auto sync is off', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return false for auth extension and user data sync account depends on it and auto sync is on', () => {
+		instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return true; } });
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return true', () => {
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), true);
+	});
+
+	test('test canChangeWorkspaceEnablement return false if there is no workspace', () => {
+		instantiationService.stub(IWorkspaceContextService, 'getWorkbenchState', WorkbenchState.EMPTY);
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return false for auth extension', () => {
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
 	});
 
 	test('test canChangeEnablement return false when extensions are disabled in environment', () => {

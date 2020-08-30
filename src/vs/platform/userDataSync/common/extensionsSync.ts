@@ -15,7 +15,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { merge, getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, dirname, basename, isEqual } from 'vs/base/common/resources';
@@ -42,13 +42,45 @@ interface ILastSyncUserData extends IRemoteUserData {
 	skippedExtensions: ISyncExtension[] | undefined;
 }
 
+async function parseAndMigrateExtensions(syncData: ISyncData, extensionManagementService: IExtensionManagementService): Promise<ISyncExtension[]> {
+	const extensions = JSON.parse(syncData.content);
+	if (syncData.version === 1
+		|| syncData.version === 2
+	) {
+		const systemExtensions = await extensionManagementService.getInstalled(ExtensionType.System);
+		for (const extension of extensions) {
+			// #region Migration from v1 (enabled -> disabled)
+			if (syncData.version === 1) {
+				if ((<any>extension).enabled === false) {
+					extension.disabled = true;
+				}
+				delete (<any>extension).enabled;
+			}
+			// #endregion
+
+			// #region Migration from v2 (set installed property on extension)
+			if (syncData.version === 2) {
+				if (systemExtensions.every(installed => !areSameExtensions(installed.identifier, extension.identifier))) {
+					extension.installed = true;
+				}
+			}
+			// #endregion
+		}
+	}
+	return extensions;
+}
+
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/extensions.json` });
+
 	/*
 		Version 3 - Introduce installed property to skip installing built in extensions
+		protected readonly version: number = 3;
 	*/
-	protected readonly version: number = 3;
+	/* Version 4: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
+	protected readonly version: number = 4;
+
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'extensions.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
@@ -80,9 +112,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionResourcePreview[]> {
-		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await this.parseAndMigrateExtensions(remoteUserData.syncData) : null;
+		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await this.parseAndMigrateExtensions(lastSyncUserData.syncData!) : null;
+		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await parseAndMigrateExtensions(lastSyncUserData.syncData!, this.extensionManagementService) : null;
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const localExtensions = this.getLocalExtensions(installedExtensions);
@@ -239,11 +271,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
 		return [{ resource: joinPath(uri, 'extensions.json'), comparableResource: ExtensionsSynchroniser.EXTENSIONS_DATA_URI }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+			const localExtensions = this.getLocalExtensions(installedExtensions).filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)));
+			return this.format(localExtensions);
+		}
+
 		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
@@ -374,34 +413,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return newSkippedExtensions;
 	}
 
-	private async parseAndMigrateExtensions(syncData: ISyncData): Promise<ISyncExtension[]> {
-		const extensions = this.parseExtensions(syncData);
-		if (syncData.version === 1
-			|| syncData.version === 2
-		) {
-			const systemExtensions = await this.extensionManagementService.getInstalled(ExtensionType.System);
-			for (const extension of extensions) {
-				// #region Migration from v1 (enabled -> disabled)
-				if (syncData.version === 1) {
-					if ((<any>extension).enabled === false) {
-						extension.disabled = true;
-					}
-					delete (<any>extension).enabled;
-				}
-				// #endregion
-
-				// #region Migration from v2 (set installed property on extension)
-				if (syncData.version === 2) {
-					if (systemExtensions.every(installed => !areSameExtensions(installed.identifier, extension.identifier))) {
-						extension.installed = true;
-					}
-				}
-				// #endregion
-			}
-		}
-		return extensions;
-	}
-
 	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
 		return JSON.parse(syncData.content);
 	}
@@ -422,3 +433,68 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 }
+
+export class ExtensionsInitializer extends AbstractInitializer {
+
+	constructor(
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IGlobalExtensionEnablementService private readonly extensionEnablementService: IGlobalExtensionEnablementService,
+		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	) {
+		super(SyncResource.Extensions, environmentService, logService, fileService);
+	}
+
+	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await parseAndMigrateExtensions(remoteUserData.syncData, this.extensionManagementService) : null;
+		if (!remoteExtensions) {
+			this.logService.info('Skipping initializing extensions because remote extensions does not exist.');
+			return;
+		}
+
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const toInstall: { names: string[], uuids: string[] } = { names: [], uuids: [] };
+		const toDisable: IExtensionIdentifier[] = [];
+		for (const extension of remoteExtensions) {
+			if (installedExtensions.some(i => areSameExtensions(i.identifier, extension.identifier))) {
+				if (extension.disabled) {
+					toDisable.push(extension.identifier);
+				}
+			} else {
+				if (extension.installed) {
+					if (extension.identifier.uuid) {
+						toInstall.uuids.push(extension.identifier.uuid);
+					} else {
+						toInstall.names.push(extension.identifier.id);
+					}
+				}
+			}
+		}
+
+		if (toInstall.names.length || toInstall.uuids.length) {
+			const galleryExtensions = (await this.galleryService.query({ ids: toInstall.uuids, names: toInstall.names, pageSize: toInstall.uuids.length + toInstall.names.length }, CancellationToken.None)).firstPage;
+			for (const galleryExtension of galleryExtensions) {
+				try {
+					this.logService.trace(`Installing extension...`, galleryExtension.identifier.id);
+					await this.extensionManagementService.installFromGallery(galleryExtension);
+					this.logService.info(`Installed extension.`, galleryExtension.identifier.id);
+				} catch (error) {
+					this.logService.error(error);
+				}
+			}
+		}
+
+		if (toDisable.length) {
+			for (const identifier of toDisable) {
+				this.logService.trace(`Enabling extension...`, identifier.id);
+				await this.extensionEnablementService.disableExtension(identifier);
+				this.logService.info(`Enabled extension`, identifier.id);
+			}
+		}
+	}
+
+}
+
+

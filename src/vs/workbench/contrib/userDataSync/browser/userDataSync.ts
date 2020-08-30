@@ -120,6 +120,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -211,14 +212,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 								}
 							},
 							{
-								label: localize('accept merges', "Accept Merges"),
+								label: localize('accept local', "Accept Local"),
 								run: () => {
 									this.telemetryService.publicLog2<{ source: string, action: string }, SyncConflictsClassification>('sync/handleConflicts', { source: syncResource, action: 'acceptLocal' });
 									this.acceptLocal(syncResource, conflicts);
 								}
 							},
 							{
-								label: localize('show merges', "Show Merges"),
+								label: localize('show conflicts', "Show Conflicts"),
 								run: () => {
 									this.telemetryService.publicLog2<{ source: string, action?: string }, SyncConflictsClassification>('sync/showConflicts', { source: syncResource });
 									this.handleConflicts([syncResource, conflicts]);
@@ -265,7 +266,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async acceptLocal(syncResource: SyncResource, conflicts: IResourcePreview[]): Promise<void> {
 		try {
 			for (const conflict of conflicts) {
-				await this.userDataSyncService.accept(syncResource, conflict.previewResource, undefined, this.userDataAutoSyncService.isEnabled());
+				await this.userDataSyncService.accept(syncResource, conflict.localResource, undefined, this.userDataAutoSyncService.isEnabled());
 			}
 		} catch (e) {
 			this.notificationService.error(e);
@@ -320,6 +321,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						]
 					}
 				});
+				return;
+			case UserDataSyncErrorCode.DefaultServiceChanged:
+				if (isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.insidersUrl)) {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: localize('switched to insiders', "Settings sync now uses a separate service, more information is available in the [release notes](https://code.visualstudio.com/updates/v1_48#_settings-sync)."),
+					});
+				}
 				return;
 		}
 	}
@@ -544,7 +553,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			label: getSyncAreaLabel(SyncResource.Settings)
 		}, {
 			id: SyncResource.Keybindings,
-			label: getSyncAreaLabel(SyncResource.Keybindings)
+			label: getSyncAreaLabel(SyncResource.Keybindings),
+			description: this.configurationService.getValue('settingsSync.keybindingsPerPlatform') ? localize('per platform', "for each platform") : undefined
 		}, {
 			id: SyncResource.Snippets,
 			label: getSyncAreaLabel(SyncResource.Snippets)
@@ -667,7 +677,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			return new Promise<void>((c, e) => {
 				const disposables: DisposableStore = new DisposableStore();
 				const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
-				quickPick.title = localize('switchSyncService.title', "Switch Settings Sync Service...");
+				quickPick.title = localize('switchSyncService.title', "Select Settings Sync Service...");
 				quickPick.placeholder = localize('choose sync service', "Choose settings sync Service to use");
 				quickPick.description = isNative ?
 					localize('choose sync service description', "Switching settings sync service requires restarting {0}", this.productService.nameLong) :
@@ -987,7 +997,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerEnableSyncViewsAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
+		const when = ContextKeyExpr.and(CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
@@ -1021,7 +1031,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): Promise<any> {
-				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false);
+				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false, true);
 			}
 		}));
 	}
@@ -1112,7 +1122,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				constructor() {
 					super({
 						id: 'workbench.userDataSync.actions.switchSyncService',
-						title: { value: localize('workbench.userDataSync.actions.switchSyncService', "{0}: Switch Settings Sync Service...", SYNC_TITLE), original: 'Settings Sync: Switch Settings Sync Service...' },
+						title: { value: localize('workbench.userDataSync.actions.switchSyncService', "{0}: Select Service...", SYNC_TITLE), original: 'Settings Sync: Select Service...' },
 						menu: {
 							id: MenuId.CommandPalette,
 							when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),

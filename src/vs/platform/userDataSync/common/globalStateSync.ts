@@ -16,7 +16,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { parse } from 'vs/base/common/json';
-import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -204,11 +204,16 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		}
 	}
 
-	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
 		return [{ resource: joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
+			const localGlobalState = await this.getLocalGlobalState();
+			return this.format(localGlobalState);
+		}
+
 		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
@@ -336,3 +341,55 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		return [...this.storageKeysSyncRegistryService.storageKeys, ...argvProperties.map(argvProprety => (<IStorageKey>{ key: `${argvStoragePrefx}${argvProprety}`, version: 1 }))];
 	}
 }
+
+export class GlobalStateInitializer extends AbstractInitializer {
+
+	constructor(
+		@IStorageService private readonly storageService: IStorageService,
+		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	) {
+		super(SyncResource.GlobalState, environmentService, logService, fileService);
+	}
+
+	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+		if (!remoteGlobalState) {
+			this.logService.info('Skipping initializing global state because remote global state does not exist.');
+			return;
+		}
+
+		const argv: IStringDictionary<any> = {};
+		const storage: IStringDictionary<any> = {};
+		for (const key of Object.keys(remoteGlobalState.storage)) {
+			if (key.startsWith(argvStoragePrefx)) {
+				argv[key.substring(argvStoragePrefx.length)] = remoteGlobalState.storage[key].value;
+			} else {
+				if (this.storageService.get(key, StorageScope.GLOBAL) === undefined) {
+					storage[key] = remoteGlobalState.storage[key].value;
+				}
+			}
+		}
+
+		if (Object.keys(argv).length) {
+			let content = '{}';
+			try {
+				const fileContent = await this.fileService.readFile(this.environmentService.argvResource);
+				content = fileContent.value.toString();
+			} catch (error) { }
+			for (const argvProperty of Object.keys(argv)) {
+				content = edit(content, [argvProperty], argv[argvProperty], {});
+			}
+			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
+		}
+
+		if (Object.keys(storage).length) {
+			for (const key of Object.keys(storage)) {
+				this.storageService.store(key, storage[key], StorageScope.GLOBAL);
+			}
+		}
+	}
+
+}
+
