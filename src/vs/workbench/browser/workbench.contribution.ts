@@ -175,6 +175,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': false,
 				'description': nls.localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
+			'workbench.editor.readOnlyMode': {
+				'type': 'boolean',
+				'default': false,
+				'description': nls.localize('readOnlyMode', "Controls whether the editor should be read-only.")
+			},
 			'workbench.commandPalette.history': {
 				'type': 'number',
 				'description': nls.localize('commandHistory', "Controls the number of recently used commands to keep in history for the command palette. Set to 0 to disable command history."),

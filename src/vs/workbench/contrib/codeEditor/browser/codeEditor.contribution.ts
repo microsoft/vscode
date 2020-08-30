@@ -15,6 +15,7 @@ import './saveParticipants';
 import './toggleColumnSelection';
 import './toggleMinimap';
 import './toggleMultiCursorModifier';
+import './toggleReadOnlyMode';
 import './toggleRenderControlCharacter';
 import './toggleRenderWhitespace';
 import './toggleWordWrap';

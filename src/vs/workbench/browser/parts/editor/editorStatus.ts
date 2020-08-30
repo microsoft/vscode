@@ -145,6 +145,7 @@ class StateChange {
 	tabFocusMode: boolean = false;
 	columnSelectionMode: boolean = false;
 	screenReaderMode: boolean = false;
+	readOnlyMode: boolean = false;
 	metadata: boolean = false;
 
 	combine(other: StateChange) {
@@ -156,6 +157,7 @@ class StateChange {
 		this.tabFocusMode = this.tabFocusMode || other.tabFocusMode;
 		this.columnSelectionMode = this.columnSelectionMode || other.columnSelectionMode;
 		this.screenReaderMode = this.screenReaderMode || other.screenReaderMode;
+		this.readOnlyMode = this.readOnlyMode || other.readOnlyMode;
 		this.metadata = this.metadata || other.metadata;
 	}
 
@@ -168,6 +170,7 @@ class StateChange {
 			|| this.tabFocusMode
 			|| this.columnSelectionMode
 			|| this.screenReaderMode
+			|| this.readOnlyMode
 			|| this.metadata;
 	}
 }
@@ -181,6 +184,7 @@ type StateDelta = (
 	| { type: 'tabFocusMode'; tabFocusMode: boolean; }
 	| { type: 'columnSelectionMode'; columnSelectionMode: boolean; }
 	| { type: 'screenReaderMode'; screenReaderMode: boolean; }
+	| { type: 'readOnlyMode'; readOnlyMode: boolean; }
 	| { type: 'metadata'; metadata: string | undefined; }
 );
 
@@ -209,6 +213,9 @@ class State {
 
 	private _screenReaderMode: boolean | undefined;
 	get screenReaderMode(): boolean | undefined { return this._screenReaderMode; }
+
+	private _readOnlyMode: boolean | undefined;
+	get readOnlyMode(): boolean | undefined { return this._readOnlyMode; }
 
 	private _metadata: string | undefined;
 	get metadata(): string | undefined { return this._metadata; }
@@ -272,6 +279,13 @@ class State {
 			}
 		}
 
+		if (update.type === 'readOnlyMode') {
+			if (this._readOnlyMode !== update.readOnlyMode) {
+				this._readOnlyMode = update.readOnlyMode;
+				change.readOnlyMode = true;
+			}
+		}
+
 		if (update.type === 'metadata') {
 			if (this._metadata !== update.metadata) {
 				this._metadata = update.metadata;
@@ -294,6 +308,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly screenRedearModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+	private readonly readOnlyModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly indentationElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly selectionElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly encodingElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -450,6 +465,23 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
+	private updateReadOnlyModeElement(visible: boolean): void {
+		if (visible) {
+			if (!this.readOnlyModeElement.value) {
+				const text = nls.localize('readOnlyModeEnabled', "Read Only Mode");
+				this.readOnlyModeElement.value = this.statusbarService.addEntry({
+					text,
+					ariaLabel: text,
+					command: 'workbench.action.toggleReadOnlyMode',
+					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
+					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)
+				}, 'status.editor.readOnlyMode', nls.localize('status.editor.readOnlyMode', "Read Only Mode"), StatusbarAlignment.RIGHT, 100.9);
+			}
+		} else {
+			this.readOnlyModeElement.clear();
+		}
+	}
+
 	private updateSelectionElement(text: string | undefined): void {
 		if (!text) {
 			this.selectionElement.clear();
@@ -580,6 +612,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateScreenReaderModeElement(!!this.state.screenReaderMode);
+		this.updateReadOnlyModeElement(!!this.state.readOnlyMode);
 		this.updateIndentationElement(this.state.indentation);
 		this.updateSelectionElement(this.state.selectionStatus);
 		this.updateEncodingElement(this.state.encoding);
@@ -620,6 +653,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		// Update all states
 		this.onColumnSelectionModeChange(activeCodeEditor);
 		this.onScreenReaderModeChange(activeCodeEditor);
+		this.onReadOnlyModeChange(activeCodeEditor);
 		this.onSelectionChange(activeCodeEditor);
 		this.onModeChange(activeCodeEditor, activeInput);
 		this.onEOLChange(activeCodeEditor);
@@ -633,6 +667,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 		// Attach new listeners to active editor
 		if (activeCodeEditor) {
+
+			// Register listener for Read Only Mode
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('workbench.editor.readOnlyMode')) {
+					this.onReadOnlyModeChange(activeCodeEditor);
+				}
+			}));
 
 			// Hook Listener for Configuration changes
 			this.activeEditorListeners.add(activeCodeEditor.onDidChangeConfiguration((event: ConfigurationChangedEvent) => {
@@ -880,6 +921,17 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		const info: StateDelta = { type: 'tabFocusMode', tabFocusMode: TabFocus.getTabFocusMode() };
 
 		this.updateState(info);
+	}
+
+	private onReadOnlyModeChange(editorWidget: ICodeEditor | undefined): void {
+		let readOnlyMode = false;
+
+		if (editorWidget) {
+			readOnlyMode = this.configurationService.getValue<boolean>('workbench.editor.readOnlyMode');
+			editorWidget.updateOptions({ readOnly: readOnlyMode });
+		}
+
+		this.updateState({ type: 'readOnlyMode', readOnlyMode: readOnlyMode });
 	}
 
 	private isActiveEditor(control: IEditorPane): boolean {
