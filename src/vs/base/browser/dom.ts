@@ -997,6 +997,11 @@ export function trackFocus(element: HTMLElement | Window): IFocusTracker {
 	return new FocusTracker(element);
 }
 
+export function after<T extends Node>(sibling: HTMLElement, child: T): T {
+	sibling.after(child);
+	return child;
+}
+
 export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
 	children.forEach(child => parent.appendChild(child));
 	return children[children.length - 1];

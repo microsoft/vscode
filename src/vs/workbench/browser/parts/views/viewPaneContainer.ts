@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier, activeContrastBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
+import { after, append, prepend, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
@@ -369,7 +369,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.titleContainer = append(container, $('h3.title', undefined, calculatedTitle));
 
 		if (this._titleDescription) {
-			this.setTitleDescription(this._titleDescription, container);
+			this.setTitleDescription(this._titleDescription);
 		}
 
 		this.iconContainer.title = calculatedTitle;
@@ -391,12 +391,12 @@ export abstract class ViewPane extends Pane implements IView {
 		this._onDidChangeTitleArea.fire();
 	}
 
-	private setTitleDescription(description: string | undefined, headerContainer: HTMLElement | undefined = this.headerContainer) {
+	private setTitleDescription(description: string | undefined) {
 		if (this.titleDescriptionContainer) {
 			this.titleDescriptionContainer.textContent = description ?? '';
 		}
-		else if (description && headerContainer) {
-			this.titleDescriptionContainer = append(headerContainer, $('span.description', undefined, description));
+		else if (description && this.titleContainer) {
+			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', undefined, description));
 		}
 	}
 
