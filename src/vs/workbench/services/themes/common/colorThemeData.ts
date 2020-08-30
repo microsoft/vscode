@@ -430,7 +430,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		let themeSpecificColors;
 		for (let key in colors) {
 			let subColors = colors[key];
-			if (key.charAt(0) === '[' && key.charAt(key.length - 1) === ']' && types.isObject(subColors)) {
+			if (types.isObject(subColors) && key.charAt(0) === '[' && key.charAt(key.length - 1) === ']') {
 				const settingsIdList = key.slice(1, -1).split(/\]\s*\[/);
 				for (let id of settingsIdList) {
 					if (
@@ -440,7 +440,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						|| (id.slice(0, 3) === '...' && this.settingsId.endsWith(id.slice(-3)))
 					) {
 						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
-						if (types.isObject(subColors) && !types.isArray(subColors) && !types.isBoolean(subColors) && !types.isString(subColors)) {
+						if (types.isObject(subColors)) {
 							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
 							for (let subkey of themeSpecificSubColors) {
 								if (typeof subkey === 'string') {
