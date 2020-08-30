@@ -514,8 +514,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		const isInDiffLeftEditorKey = contextKeyService.createKey<boolean>('isInDiffLeftEditor', undefined);
-		this._register(Event.any(editor.onDidFocusEditorText, editor.onDidFocusEditorWidget)(() => isInDiffLeftEditorKey.set(true)));
-		this._register(Event.any(editor.onDidBlurEditorText, editor.onDidBlurEditorWidget)(() => isInDiffLeftEditorKey.set(false)));
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffLeftEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffLeftEditorKey.set(false)));
 
 		this._register(editor.onDidContentSizeChange(e => {
 			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
@@ -575,8 +575,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}));
 
 		const isInDiffRightEditorKey = contextKeyService.createKey<boolean>('isInDiffRightEditor', undefined);
-		this._register(Event.any(editor.onDidFocusEditorText, editor.onDidFocusEditorWidget)(() => isInDiffRightEditorKey.set(true)));
-		this._register(Event.any(editor.onDidBlurEditorText, editor.onDidBlurEditorWidget)(() => isInDiffRightEditorKey.set(false)));
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffRightEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffRightEditorKey.set(false)));
 
 		this._register(editor.onDidContentSizeChange(e => {
 			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
