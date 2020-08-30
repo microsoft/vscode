@@ -115,9 +115,9 @@ export async function getPackageManager(folder: WorkspaceFolder): Promise<string
 		const { name, multiplePMDetected } = await findPreferredPM(folder.uri.fsPath);
 		packageManagerName = name;
 
-		// TODO: localize warning text
 		if (multiplePMDetected) {
-			window.showWarningMessage(`Found multiple lockfiles. Using ${name} as the preferred package manager`);
+			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles. Using {0} as the preferred package manager.', packageManagerName);
+			window.showWarningMessage(multiplePMWarning);
 		}
 	}
 
