@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IThemeSpecificColorCustomizations, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -426,10 +426,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.textMateThemingRules = undefined;
 	}
 
-	private getThemeSpecificColors(colors: IColorCustomizations | ITokenColorCustomizations | IExperimentalSemanticTokenColorCustomizations | ISemanticTokenColorCustomizations) {
+	private getThemeSpecificColors(colors: IThemeSpecificColorCustomizations): IThemeSpecificColorCustomizations | undefined {
 		let themeSpecificColors;
 		for (let key in colors) {
-			if (key.charAt(0) === '[' && key.charAt(key.length - 1) === ']') {
+			let subColors = colors[key];
+			if (key.charAt(0) === '[' && key.charAt(key.length - 1) === ']' && types.isObject(subColors)) {
 				const settingsIdList = key.slice(1, -1).split(/\]\s*\[/);
 				for (let id of settingsIdList) {
 					if (
@@ -438,7 +439,21 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 						|| (id.slice(-3) === '...' && this.settingsId.startsWith(id.slice(0, -3)))
 						|| (id.slice(0, 3) === '...' && this.settingsId.endsWith(id.slice(-3)))
 					) {
-						themeSpecificColors = objects.assign(themeSpecificColors || {}, colors[key]);
+						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
+						if (types.isObject(subColors) && !types.isArray(subColors) && !types.isBoolean(subColors) && !types.isString(subColors)) {
+							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
+							for (let subkey of themeSpecificSubColors) {
+								if (typeof subkey === 'string') {
+									let overrideColors = themeSpecificSubColors[subkey];
+									if (types.isArray(overrideColors) && types.isArray(themeSpecificColors[subkey])) {
+										let originalColors = themeSpecificColors[subkey] as ITextMateThemingRule[];
+										themeSpecificColors[subkey] = originalColors.concat(overrideColors);
+									} else if (overrideColors) {
+										themeSpecificColors[subkey] = overrideColors;
+									}
+								}
+							}
+						}
 					}
 				}
 			}
