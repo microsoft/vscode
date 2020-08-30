@@ -1528,7 +1528,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
 					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this.notificationService.prompt(Severity.Info, message,
+					this.notificationService.prompt(Severity.Warning, message,
 						[{
 							label: nls.localize('terminateTask', "Terminate Task"),
 							run: () => this.terminate(lastInstance)
@@ -3059,7 +3059,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (selectedTask) {
 					selectedEntry = {
 						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', selectedTask.getQualifiedLabel()),
-						task: selectedTask
+						task: selectedTask,
+						detail: this.showDetail() ? selectedTask.configurationProperties.detail : undefined
 					};
 				}
 				this.showIgnoredFoldersMessage().then(() => {
@@ -3110,7 +3111,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (selectedTask) {
 					selectedEntry = {
 						label: nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', selectedTask.getQualifiedLabel()),
-						task: selectedTask
+						task: selectedTask,
+						detail: this.showDetail() ? selectedTask.configurationProperties.detail : undefined
 					};
 				}
 

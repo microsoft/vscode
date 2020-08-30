@@ -19,9 +19,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState, CellFocusMode, BaseCellRenderTemplate, NOTEBOOK_CELL_LIST_FOCUSED, cellRangesEqual } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
@@ -54,16 +54,37 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _hiddenRangeIds: string[] = [];
 	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
+	private readonly _onDidChangeVisibleRanges = new Emitter<void>();
+
+	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
+	private _visibleRanges: ICellRange[] = [];
+
+	get visibleRanges() {
+		return this._visibleRanges;
+	}
+
+	set visibleRanges(ranges: ICellRange[]) {
+		if (cellRangesEqual(this._visibleRanges, ranges)) {
+			return;
+		}
+
+		this._visibleRanges = ranges;
+		this._onDidChangeVisibleRanges.fire();
+	}
+
 	private _isDisposed = false;
 
 	get isDisposed() {
 		return this._isDisposed;
 	}
 
+	private _isInLayout: boolean = false;
+
 	private readonly _focusNextPreviousDelegate: IFocusNextPreviousDelegate;
 
 	constructor(
 		private listUser: string,
+		parentContainer: HTMLElement,
 		container: HTMLElement,
 		delegate: IListVirtualDelegate<CellViewModel>,
 		renderers: IListRenderer<CellViewModel, BaseCellRenderTemplate>[],
@@ -150,6 +171,86 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				focus.editState = CellEditState.Editing;
 				focus.focusMode = CellFocusMode.Editor;
 			}
+		}));
+
+		// update visibleRanges
+		const updateVisibleRanges = () => {
+			if (!this.view.length) {
+				return;
+			}
+
+			const top = this.getViewScrollTop();
+			const bottom = this.getViewScrollBottom();
+			const topViewIndex = clamp(this.view.indexAt(top), 0, this.view.length - 1);
+			const topElement = this.view.element(topViewIndex);
+			const topModelIndex = this._viewModel!.getCellIndex(topElement);
+			const bottomViewIndex = clamp(this.view.indexAt(bottom), 0, this.view.length - 1);
+			const bottomElement = this.view.element(bottomViewIndex);
+			const bottomModelIndex = this._viewModel!.getCellIndex(bottomElement);
+
+			if (bottomModelIndex - topModelIndex === bottomViewIndex - topViewIndex) {
+				this.visibleRanges = [{ start: topModelIndex, end: bottomModelIndex }];
+			} else {
+				let stack: number[] = [];
+				const ranges: ICellRange[] = [];
+				// there are hidden ranges
+				let index = topViewIndex;
+				let modelIndex = topModelIndex;
+
+				while (index <= bottomViewIndex) {
+					const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
+					if (accu === modelIndex + 1) {
+						// no hidden area after it
+						if (stack.length) {
+							if (stack[stack.length - 1] === modelIndex - 1) {
+								ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+							} else {
+								ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+							}
+						}
+
+						stack.push(modelIndex);
+						index++;
+						modelIndex++;
+					} else {
+						// there are hidden ranges after it
+						if (stack.length) {
+							if (stack[stack.length - 1] === modelIndex - 1) {
+								ranges.push({ start: stack[stack.length - 1], end: modelIndex });
+							} else {
+								ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+							}
+						}
+
+						stack.push(modelIndex);
+						index++;
+						modelIndex = accu;
+					}
+				}
+
+				if (stack.length) {
+					ranges.push({ start: stack[stack.length - 1], end: stack[stack.length - 1] });
+				}
+
+				this.visibleRanges = reduceCellRanges(ranges);
+			}
+		};
+
+		this._localDisposableStore.add(this.view.onDidChangeContentHeight(() => {
+			if (this._isInLayout) {
+				DOM.scheduleAtNextAnimationFrame(() => {
+					updateVisibleRanges();
+				});
+			}
+			updateVisibleRanges();
+		}));
+		this._localDisposableStore.add(this.view.onDidScroll(() => {
+			if (this._isInLayout) {
+				DOM.scheduleAtNextAnimationFrame(() => {
+					updateVisibleRanges();
+				});
+			}
+			updateVisibleRanges();
 		}));
 	}
 
@@ -374,7 +475,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
+		const focusInside = DOM.isAncestor(document.activeElement, this.rowsContainer);
 		super.splice(start, deleteCount, elements);
+		if (focusInside) {
+			this.domFocus();
+		}
 
 		const selectionsLeft = [];
 		this._viewModel!.selectionHandles.forEach(handle => {
@@ -930,6 +1035,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (newStyles !== this.styleElement.innerHTML) {
 			this.styleElement.innerHTML = newStyles;
 		}
+	}
+
+	layout(height?: number, width?: number): void {
+		this._isInLayout = true;
+		super.layout(height, width);
+		this._isInLayout = false;
 	}
 
 	dispose() {

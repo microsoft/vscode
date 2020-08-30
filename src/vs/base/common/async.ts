@@ -170,6 +170,25 @@ export class Sequencer {
 	}
 }
 
+export class SequencerByKey<TKey> {
+
+	private promiseMap = new Map<TKey, Promise<any>>();
+
+	queue<T>(key: TKey, promiseTask: ITask<Promise<T>>): Promise<T> {
+		const runningPromise = this.promiseMap.get(key) ?? Promise.resolve();
+		const newPromise = runningPromise
+			.catch(() => { })
+			.then(promiseTask)
+			.finally(() => {
+				if (this.promiseMap.get(key) === newPromise) {
+					this.promiseMap.delete(key);
+				}
+			});
+		this.promiseMap.set(key, newPromise);
+		return newPromise;
+	}
+}
+
 /**
  * A helper to delay execution of a task that is being requested often.
  *

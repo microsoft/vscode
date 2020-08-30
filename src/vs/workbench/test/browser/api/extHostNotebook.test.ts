@@ -81,7 +81,8 @@ suite('NotebookCell#Document', function () {
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
-				selections: [0]
+				selections: [0],
+				visibleRanges: []
 			}]
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
@@ -96,26 +97,26 @@ suite('NotebookCell#Document', function () {
 
 	test('cell document is vscode.TextDocument', async function () {
 
-		assert.strictEqual(notebook.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
 
-		const [c1, c2] = notebook.cells;
+		const [c1, c2] = notebook.notebookDocument.cells;
 		const d1 = extHostDocuments.getDocument(c1.uri);
 
 		assert.ok(d1);
 		assert.equal(d1.languageId, c1.language);
 		assert.equal(d1.version, 1);
-		assert.ok(d1.notebook === notebook);
+		assert.ok(d1.notebook === notebook.notebookDocument);
 
 		const d2 = extHostDocuments.getDocument(c2.uri);
 		assert.ok(d2);
 		assert.equal(d2.languageId, c2.language);
 		assert.equal(d2.version, 1);
-		assert.ok(d2.notebook === notebook);
+		assert.ok(d2.notebook === notebook.notebookDocument);
 	});
 
 	test('cell document goes when notebook closes', async function () {
 		const cellUris: string[] = [];
-		for (let cell of notebook.cells) {
+		for (let cell of notebook.notebookDocument.cells) {
 			assert.ok(extHostDocuments.getDocument(cell.uri));
 			cellUris.push(cell.uri.toString());
 		}
@@ -160,7 +161,7 @@ suite('NotebookCell#Document', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
-			versionId: notebook.versionId + 1,
+			versionId: notebook.notebookDocument.version + 1,
 			changes: [[0, 0, [{
 				handle: 2,
 				uri: CellUri.generate(notebookUri, 2),
@@ -178,7 +179,7 @@ suite('NotebookCell#Document', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		await p;
 
@@ -188,7 +189,7 @@ suite('NotebookCell#Document', function () {
 
 		const docs: vscode.TextDocument[] = [];
 		const addData: IModelAddedData[] = [];
-		for (let cell of notebook.cells) {
+		for (let cell of notebook.notebookDocument.cells) {
 			const doc = extHostDocuments.getDocument(cell.uri);
 			assert.ok(doc);
 			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
@@ -210,14 +211,14 @@ suite('NotebookCell#Document', function () {
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: docs.map(d => d.uri) });
 
 		// notebook is still open -> cell documents stay open
-		for (let cell of notebook.cells) {
+		for (let cell of notebook.notebookDocument.cells) {
 			assert.ok(extHostDocuments.getDocument(cell.uri));
 			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
 		}
 
 		// close notebook -> docs are closed
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
-		for (let cell of notebook.cells) {
+		for (let cell of notebook.notebookDocument.cells) {
 			assert.throws(() => extHostDocuments.getDocument(cell.uri));
 		}
 		for (let doc of docs) {
@@ -225,9 +226,27 @@ suite('NotebookCell#Document', function () {
 		}
 	});
 
+	test('cell document goes when cell is removed', async function () {
+
+		assert.equal(notebook.notebookDocument.cells.length, 2);
+		const [cell1, cell2] = notebook.notebookDocument.cells;
+
+		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+			kind: NotebookCellsChangeType.ModelChange,
+			versionId: 2,
+			changes: [[0, 1, []]]
+		}, false);
+
+		assert.equal(notebook.notebookDocument.cells.length, 1);
+		assert.equal(cell1.document.isClosed, true); // ref still alive!
+		assert.equal(cell2.document.isClosed, false);
+
+		assert.throws(() => extHostDocuments.getDocument(cell1.uri));
+	});
+
 	test('cell document knows notebook', function () {
-		for (let cells of notebook.cells) {
-			assert.equal(cells.document.notebook === notebook, true);
+		for (let cells of notebook.notebookDocument.cells) {
+			assert.equal(cells.document.notebook === notebook.notebookDocument, true);
 		}
 	});
 });

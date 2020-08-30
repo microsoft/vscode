@@ -18,18 +18,6 @@ import { DEFAULT_TERMINAL_OSX } from 'vs/workbench/contrib/externalTerminal/node
 
 const TERMINAL_TITLE = nls.localize('console.title', "VS Code Console");
 
-type LazyProcess = {
-
-	/**
-	 * The lazy environment is a promise that resolves to `process.env`
-	 * once the process is resolved. The use-case is VS Code running
-	 * on Linux/macOS when being launched via a launcher. Then the env
-	 * (as defined in .bashrc etc) isn't properly set and needs to be
-	 * resolved lazy.
-	 */
-	lazyEnv: Promise<typeof process.env> | undefined;
-};
-
 export class WindowsExternalTerminalService implements IExternalTerminalService {
 	public _serviceBrand: undefined;
 
@@ -318,7 +306,6 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
 				if (env.isLinux) {
 					const isDebian = await pfs.exists('/etc/debian_version');
-					await (process as unknown as LazyProcess).lazyEnv;
 					if (isDebian) {
 						r('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {

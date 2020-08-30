@@ -18,6 +18,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SnippetSession } from './snippetSession';
+import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -26,6 +27,7 @@ export interface ISnippetInsertOptions {
 	undoStopBefore: boolean;
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
+	overtypingCapturer: OvertypingCapturer | undefined;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -34,7 +36,8 @@ const _defaultOptions: ISnippetInsertOptions = {
 	undoStopBefore: true,
 	undoStopAfter: true,
 	adjustWhitespace: true,
-	clipboardText: undefined
+	clipboardText: undefined,
+	overtypingCapturer: undefined
 };
 
 export class SnippetController2 implements IEditorContribution {

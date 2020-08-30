@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
+import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, registerEditorAction, Command, MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -16,6 +16,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Handler } from 'vs/editor/common/editorCommon';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -23,10 +25,9 @@ const supportsCut = (platform.isNative || document.queryCommandSupported('cut'))
 const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
 // IE and Edge have trouble with setting html content in clipboard
 const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdge);
-// Chrome incorrectly returns true for document.queryCommandSupported('paste')
-// when the paste feature is available but the calling script has insufficient
-// privileges to actually perform the action
-const supportsPaste = (platform.isNative || (!browser.isChrome && document.queryCommandSupported('paste')));
+// Firefox only supports navigator.clipboard.readText() in browser extensions.
+// See https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#Browser_compatibility
+const supportsPaste = (browser.isFirefox ? document.queryCommandSupported('paste') : true);
 
 function registerCommand<T extends Command>(command: T): T {
 	command.register();
@@ -160,7 +161,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 	}
 }
 
-function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy' | 'paste'): void {
+function registerExecCommandImpl(target: MultiCommand | undefined, browserCommand: 'cut' | 'copy'): void {
 	if (!target) {
 		return;
 	}
@@ -170,13 +171,11 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		if (focusedEditor && focusedEditor.hasTextFocus()) {
-			if (browserCommand === 'cut' || browserCommand === 'copy') {
-				// Do not execute if there is no selection and empty selection clipboard is off
-				const emptySelectionClipboard = focusedEditor.getOption(EditorOption.emptySelectionClipboard);
-				const selection = focusedEditor.getSelection();
-				if (selection && selection.isEmpty() && !emptySelectionClipboard) {
-					return true;
-				}
+			// Do not execute if there is no selection and empty selection clipboard is off
+			const emptySelectionClipboard = focusedEditor.getOption(EditorOption.emptySelectionClipboard);
+			const selection = focusedEditor.getSelection();
+			if (selection && selection.isEmpty() && !emptySelectionClipboard) {
+				return true;
 			}
 			document.execCommand(browserCommand);
 			return true;
@@ -186,7 +185,6 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 
 	// 2. (default) handle case when focus is somewhere else.
 	target.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
-		// Only if editor text focus (i.e. not if editor has widget focus).
 		document.execCommand(browserCommand);
 		return true;
 	});
@@ -194,7 +192,52 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 
 registerExecCommandImpl(CutAction, 'cut');
 registerExecCommandImpl(CopyAction, 'copy');
-registerExecCommandImpl(PasteAction, 'paste');
+
+if (PasteAction) {
+	// 1. Paste: handle case when focus is in editor.
+	PasteAction.addImplementation(10000, (accessor: ServicesAccessor, args: any) => {
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const clipboardService = accessor.get(IClipboardService);
+
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		const focusedEditor = codeEditorService.getFocusedCodeEditor();
+		if (focusedEditor && focusedEditor.hasTextFocus()) {
+			const result = document.execCommand('paste');
+			// Use the clipboard service if document.execCommand('paste') was not successful
+			if (!result && platform.isWeb) {
+				(async () => {
+					const clipboardText = await clipboardService.readText();
+					if (clipboardText !== '') {
+						const metadata = InMemoryClipboardMetadataManager.INSTANCE.get(clipboardText);
+						let pasteOnNewLine = false;
+						let multicursorText: string[] | null = null;
+						let mode: string | null = null;
+						if (metadata) {
+							pasteOnNewLine = (focusedEditor.getOption(EditorOption.emptySelectionClipboard) && !!metadata.isFromEmptySelection);
+							multicursorText = (typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null);
+							mode = metadata.mode;
+						}
+						focusedEditor.trigger('keyboard', Handler.Paste, {
+							text: clipboardText,
+							pasteOnNewLine,
+							multicursorText,
+							mode
+						});
+					}
+				})();
+				return true;
+			}
+			return true;
+		}
+		return false;
+	});
+
+	// 2. Paste: (default) handle case when focus is somewhere else.
+	PasteAction.addImplementation(0, (accessor: ServicesAccessor, args: any) => {
+		document.execCommand('paste');
+		return true;
+	});
+}
 
 if (supportsCopyWithSyntaxHighlighting) {
 	registerEditorAction(ExecCommandCopyWithSyntaxHighlightingAction);

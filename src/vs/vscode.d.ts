@@ -1112,7 +1112,7 @@ declare module 'vscode' {
 		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
-		viewColumn?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Perform an edit on the document associated with this text editor.
@@ -3086,6 +3086,8 @@ declare module 'vscode' {
 		 * @param uri Uri of the new file..
 		 * @param options Defines if an existing file should be overwritten or be
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * When both are unset and when the file already exists then the edit cannot
+		 * be applied successfully.
 		 * @param metadata Optional metadata for the entry.
 		 */
 		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
@@ -6123,9 +6125,10 @@ declare module 'vscode' {
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
-		 * @param callback The callback that will be called when the task is started by a user.
+		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
+		 * were in the task definition will be resolved and passed into the callback.
 		 */
-		constructor(callback: () => Thenable<Pseudoterminal>);
+		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
 
 	/**
@@ -6201,6 +6204,11 @@ declare module 'vscode' {
 		 * The task's name
 		 */
 		name: string;
+
+		/**
+		 * A detail to show for the task on a second line in places where the task's name is displayed.
+		 */
+		detail?: string;
 
 		/**
 		 * The task's execution engine
@@ -10697,6 +10705,27 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolMessage {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+	}
+
+	/**
+	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolSource {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	}
+
+	/**
+	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolBreakpoint {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
+	}
+
+	/**
 	 * Configuration for a debug session.
 	 */
 	export interface DebugConfiguration {
@@ -10759,6 +10788,15 @@ declare module 'vscode' {
 		 * Send a custom request to the debug adapter.
 		 */
 		customRequest(command: string, args?: any): Thenable<any>;
+
+		/**
+		 * Maps a VS Code breakpoint to the corresponding Debug Adapter Protocol (DAP) breakpoint that is managed by the debug adapter of the debug session.
+		 * If no DAP breakpoint exists (either because the VS Code breakpoint was not yet registered or because the debug adapter is not interested in the breakpoint), the value `undefined` is returned.
+		 *
+		 * @param breakpoint A VS Code [breakpoint](#Breakpoint).
+		 * @return A promise that resolves to the Debug Adapter Protocol breakpoint or `undefined`.
+		 */
+		getDebugProtocolBreakpoint(breakpoint: Breakpoint): Thenable<DebugProtocolBreakpoint | undefined>;
 	}
 
 	/**
@@ -10900,6 +10938,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
+	 */
+	export class DebugAdapterNamedPipeServer {
+		/**
+		 * The path to the NamedPipe/UNIX Domain Socket.
+		 */
+		readonly path: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(path: string);
+	}
+
+	/**
 	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
 	 */
 	export interface DebugAdapter extends Disposable {
@@ -10920,13 +10973,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
-	}
-
-	/**
 	 * A debug adapter descriptor for an inline implementation.
 	 */
 	export class DebugAdapterInlineImplementation {
@@ -10937,7 +10983,7 @@ declare module 'vscode' {
 		constructor(implementation: DebugAdapter);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterInlineImplementation;
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -11132,13 +11178,19 @@ declare module 'vscode' {
 		 * Defaults to Separate.
 		 */
 		consoleMode?: DebugConsoleMode;
-	}
 
-	/**
-	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugProtocolSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+		/**
+		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
+		 */
+		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 */
+		compact?: boolean;
 	}
 
 	/**

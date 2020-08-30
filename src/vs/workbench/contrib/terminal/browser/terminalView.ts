@@ -19,7 +19,6 @@ import { URI } from 'vs/base/common/uri';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -56,14 +55,25 @@ export class TerminalViewPane extends ViewPane {
 		@IThemeService protected readonly themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IStorageService storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
 	) {
 		super(options, keybindingService, _contextMenuService, configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
+		this._terminalService.onDidRegisterProcessSupport(() => {
+			if (this._actions) {
+				for (const action of this._actions) {
+					action.enabled = true;
+				}
+			}
+			this._onDidChangeViewWelcomeState.fire();
+		});
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+		if (this.shouldShowWelcome()) {
+			return;
+		}
+
 		this._parentDomElement = container;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
 		this._fontStyleElement = document.createElement('style');
@@ -120,6 +130,10 @@ export class TerminalViewPane extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
+		if (this.shouldShowWelcome()) {
+			return;
+		}
+
 		this._bodyDimensions.width = width;
 		this._bodyDimensions.height = height;
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
@@ -138,9 +152,12 @@ export class TerminalViewPane extends ViewPane {
 				this._splitTerminalAction,
 				this._instantiationService.createInstance(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.PANEL_LABEL)
 			];
-			this._actions.forEach(a => {
-				this._register(a);
-			});
+			for (const action of this._actions) {
+				if (!this._terminalService.isProcessSupportRegistered) {
+					action.enabled = false;
+				}
+				this._register(action);
+			}
 		}
 		return this._actions;
 	}
@@ -188,10 +205,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	public focus(): void {
-		const activeInstance = this._terminalService.getActiveInstance();
-		if (activeInstance) {
-			activeInstance.focusWhenReady(true);
-		}
+		this._terminalService.getActiveInstance()?.focusWhenReady(true);
 	}
 
 	public focusFindWidget() {
@@ -331,9 +345,11 @@ export class TerminalViewPane extends ViewPane {
 			theme = this.themeService.getColorTheme();
 		}
 
-		if (this._findWidget) {
-			this._findWidget.updateTheme(theme);
-		}
+		this._findWidget?.updateTheme(theme);
+	}
+
+	shouldShowWelcome(): boolean {
+		return !this._terminalService.isProcessSupportRegistered;
 	}
 }
 

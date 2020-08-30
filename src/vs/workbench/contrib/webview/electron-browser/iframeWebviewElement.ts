@@ -52,7 +52,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
 			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, _workbenchEnvironmentService, _remoteAuthorityResolverService, logService);
 
-		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options, Promise.resolve(undefined)));
+		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
 	}
 
 	protected createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
