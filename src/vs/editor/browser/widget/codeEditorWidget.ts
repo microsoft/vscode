@@ -379,6 +379,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._configuration.getRawOptions();
 	}
 
+	public getOverflowWidgetsDomNode(): HTMLElement | undefined {
+		return this._overflowWidgetsDomNode;
+	}
+
 	public getConfiguredWordAtPosition(position: Position): IWordAtPosition | null {
 		if (!this._modelData) {
 			return null;

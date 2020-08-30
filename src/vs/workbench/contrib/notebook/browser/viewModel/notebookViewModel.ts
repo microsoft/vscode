@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, IReadonlyTextBuffer } from 'vs/editor/common/model';
@@ -17,13 +17,13 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo, IEditableCellViewModel, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, IEditableCellViewModel, INotebookDeltaDecoration } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -168,10 +168,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	get notebookDocument() {
 		return this._notebook;
-	}
-
-	get renderers() {
-		return this._notebook!.renderers;
 	}
 
 	get handle() {
@@ -613,8 +609,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return result;
 	}
 
-	createCell(index: number, source: string | string[], language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true) {
-		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, undefined, undefined);
+	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []) {
+		const beforeSelections = previouslyFocused.map(e => e.handle);
+		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, beforeSelections, undefined);
 		// TODO, rely on createCell to be sync
 		return this.viewCells[index];
 	}
@@ -759,7 +756,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					language,
 					kind,
 					{
-						createCell: (index: number, source: string | string[], language: string, type: CellKind) => {
+						createCell: (index: number, source: string, language: string, type: CellKind) => {
 							return this.createCell(index, source, language, type, undefined, true, false) as BaseCellViewModel;
 						},
 						deleteCell: (index: number) => {
@@ -1031,7 +1028,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const viewCell = cell as CellViewModel;
 		this._lastNotebookEditResource.push(viewCell.uri);
 		return viewCell.resolveTextModel().then(() => {
-			this._bulkEditService.apply({ edits: [{ edit: { range: range, text: text }, resource: cell.uri }] }, { quotableLabel: 'Notebook Replace' });
+			this._bulkEditService.apply(
+				[new ResourceTextEdit(cell.uri, { range, text })],
+				{ quotableLabel: 'Notebook Replace' }
+			);
 		});
 	}
 
@@ -1055,7 +1055,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return Promise.all(matches.map(match => {
 			return match.cell.resolveTextModel();
 		})).then(async () => {
-			this._bulkEditService.apply({ edits: textEdits }, { quotableLabel: 'Notebook Replace All' });
+			this._bulkEditService.apply(ResourceEdit.convert({ edits: textEdits }), { quotableLabel: 'Notebook Replace All' });
 			return;
 		});
 	}

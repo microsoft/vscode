@@ -33,8 +33,7 @@ import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ConfigurationKey, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
@@ -58,6 +57,8 @@ import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -199,11 +200,18 @@ suite('ExtensionRecommendationsService Test', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
-		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+			onInstallExtension: installEvent.event,
+			onDidInstallExtension: didInstallEvent.event,
+			onUninstallExtension: uninstallEvent.event,
+			onDidUninstallExtension: didUninstallEvent.event,
+			async getInstalled() { return []; },
+			async canInstall() { return true; },
+			async getExtensionsReport() { return []; },
+		});
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			async whenInstalledExtensionsRegistered() { return true; }
+		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, NativeURLService);
@@ -231,6 +239,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		experimentService = instantiationService.createInstance(TestExperimentService);
 		instantiationService.stub(IExperimentService, experimentService);
+		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 
 		onModelAddedEvent = new Emitter<ITextModel>();
@@ -302,7 +311,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	function testNoPromptForValidRecommendations(recommendations: string[]) {
 		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				assert.equal(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
 				assert.ok(!prompted);
 			});
@@ -338,20 +347,18 @@ suite('ExtensionRecommendationsService Test', () => {
 		return testNoPromptForValidRecommendations([]);
 	});
 
-	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', () => {
-		return setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
-				const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', async () => {
+		await setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions);
+		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		await testObject.activationPromise;
 
-				assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
-				mockTestData.validRecommendedExtensions.forEach(x => {
-					assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
-				});
-
-				assert.ok(prompted);
-			});
+		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+		assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
+		mockTestData.validRecommendedExtensions.forEach(x => {
+			assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
 		});
+
+		assert.ok(prompted);
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if they are already installed', () => {
@@ -373,7 +380,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { showRecommendationsOnlyOnDemand: true });
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				assert.ok(!prompted);
 			});
 		});
@@ -391,7 +398,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
 				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been globally ignored
 				assert.ok(recommendations['ms-python.python']); // stored recommendation
@@ -409,7 +416,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, ignoredRecommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
 				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been workspace ignored
 				assert.ok(recommendations['ms-python.python']); // stored recommendation
@@ -430,7 +437,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, workspaceIgnoredRecommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
 				assert.ok(recommendations['ms-python.python']);
 
@@ -449,7 +456,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
 				assert.ok(recommendations['ms-python.python']);
 				assert.ok(recommendations['mockpublisher1.mockextension1']);
@@ -486,7 +493,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
 		testObject.onRecommendationChange(changeHandlerTarget);
 		testObject.toggleIgnoredRecommendation(ignoredExtensionId, true);
-		await testObject.loadWorkspaceConfigPromise;
+		await testObject.activationPromise;
 
 		assert.ok(changeHandlerTarget.calledOnce);
 		assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ extensionId: ignoredExtensionId.toLowerCase(), isRecommended: false }));
@@ -498,7 +505,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
@@ -517,7 +524,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.loadWorkspaceConfigPromise.then(() => {
+			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
 				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips

@@ -275,7 +275,6 @@ export function packageLocalExtensionsStream(forWeb: boolean): Stream {
 				const extensionName = path.basename(extensionPath);
 				return { name: extensionName, path: extensionPath, manifestPath: absoluteManifestPath };
 			})
-			.filter(({ name }) => (name === 'vscode-web-playground' ? forWeb : true)) // package vscode-web-playground only for web
 			.filter(({ name }) => excludedExtensions.indexOf(name) === -1)
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name))
 			.filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true))

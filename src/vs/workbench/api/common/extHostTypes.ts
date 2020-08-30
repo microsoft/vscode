@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals } from 'vs/base/common/arrays';
+import { coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { ResourceMap } from 'vs/base/common/map';
 import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { addIdToOutput, CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -575,8 +577,14 @@ export interface IFileOperationOptions {
 	recursive?: boolean;
 }
 
+export const enum FileEditType {
+	File = 1,
+	Text = 2,
+	Cell = 3
+}
+
 export interface IFileOperation {
-	_type: 1;
+	_type: FileEditType.File;
 	from?: URI;
 	to?: URI;
 	options?: IFileOperationOptions;
@@ -584,31 +592,61 @@ export interface IFileOperation {
 }
 
 export interface IFileTextEdit {
-	_type: 2;
+	_type: FileEditType.Text;
 	uri: URI;
 	edit: TextEdit;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface IFileCellEdit {
+	_type: FileEditType.Cell;
+	uri: URI;
+	edit: ICellEditOperation;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _edits = new Array<IFileOperation | IFileTextEdit>();
+	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit>();
+
+
+	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit> {
+		return this._edits;
+	}
+
+	// --- file
 
 	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from, to, options, metadata });
+		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
 	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
+		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
 	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
+		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
+	// --- cell
+
+	replaceCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+	}
+
+	replaceCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Output, index, outputs: outputs.map(output => addIdToOutput(output)) } });
+	}
+
+	replaceCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
+	}
+
+	// --- text
+
 	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText), metadata });
+		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -619,8 +657,10 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this.replace(resource, range, '', metadata);
 	}
 
+	// --- text (Maplike)
+
 	has(uri: URI): boolean {
-		return this._edits.some(edit => edit._type === 2 && edit.uri.toString() === uri.toString());
+		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
@@ -628,16 +668,16 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
-				if (element._type === 2 && element.uri.toString() === uri.toString()) {
+				if (element._type === FileEditType.Text && element.uri.toString() === uri.toString()) {
 					this._edits[i] = undefined!; // will be coalesced down below
 				}
 			}
-			this._edits = coalesce(this._edits);
+			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
 			for (const edit of edits) {
 				if (edit) {
-					this._edits.push({ _type: 2, uri, edit });
+					this._edits.push({ _type: FileEditType.Text, uri, edit });
 				}
 			}
 		}
@@ -646,7 +686,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
 		for (let candidate of this._edits) {
-			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
+			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
 		}
@@ -654,35 +694,19 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		const textEdits = new Map<string, [URI, TextEdit[]]>();
+		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
 		for (let candidate of this._edits) {
-			if (candidate._type === 2) {
-				let textEdit = textEdits.get(candidate.uri.toString());
+			if (candidate._type === FileEditType.Text) {
+				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
 					textEdit = [candidate.uri, []];
-					textEdits.set(candidate.uri.toString(), textEdit);
+					textEdits.set(candidate.uri, textEdit);
 				}
 				textEdit[1].push(candidate.edit);
 			}
 		}
 		return [...textEdits.values()];
 	}
-
-	allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation> {
-		return this._edits;
-	}
-
-	// _allEntries(): ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] {
-	// 	const res: ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] = [];
-	// 	for (let edit of this._edits) {
-	// 		if (edit._type === 1) {
-	// 			res.push([edit.from, edit.to, edit.options]);
-	// 		} else {
-	// 			res.push([edit.uri, edit.edit]);
-	// 		}
-	// 	}
-	// 	return res;
-	// }
 
 	get size(): number {
 		return this.entries().length;
@@ -1831,26 +1855,26 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class CustomExecution implements vscode.CustomExecution2 {
-	private _callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+export class CustomExecution implements vscode.CustomExecution {
+	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
 
 @es5ClassCompat
-export class Task implements vscode.Task2 {
+export class Task implements vscode.Task {
 
 	private static ExtensionCallbackType: string = 'customExecution';
 	private static ProcessType: string = 'process';
@@ -2291,6 +2315,12 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 	constructor(port: number, host?: string) {
 		this.port = port;
 		this.host = host;
+	}
+}
+
+@es5ClassCompat
+export class DebugAdapterNamedPipeServer implements vscode.DebugAdapterNamedPipeServer {
+	constructor(public readonly path: string) {
 	}
 }
 
@@ -2749,6 +2779,18 @@ export enum NotebookRunState {
 	Running = 1,
 	Idle = 2
 }
+
+export enum NotebookCellStatusBarAlignment {
+	Left = 1,
+	Right = 2
+}
+
+export enum NotebookEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2
+}
+
 
 //#endregion
 

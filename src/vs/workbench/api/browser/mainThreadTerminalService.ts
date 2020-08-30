@@ -178,6 +178,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._linkProvider = undefined;
 	}
 
+	public $registerProcessSupport(isSupported: boolean): void {
+		this._terminalService.registerProcessSupport(isSupported);
+	}
+
 	private _onActiveTerminalChanged(terminalId: number | null): void {
 		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}

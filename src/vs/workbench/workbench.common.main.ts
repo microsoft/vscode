@@ -55,7 +55,6 @@ import 'vs/workbench/browser/parts/views/viewsService';
 import 'vs/platform/undoRedo/common/undoRedoService';
 import 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
-import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
 import 'vs/workbench/services/decorations/browser/decorationsService';
 import 'vs/workbench/services/progress/browser/progressService';
@@ -165,7 +164,8 @@ import 'vs/workbench/contrib/files/browser/files.contribution';
 import 'vs/workbench/contrib/backup/common/backup.contribution';
 
 // bulkEdit
-import 'vs/workbench/contrib/bulkEdit/browser/bulkEdit.contribution';
+import 'vs/workbench/contrib/bulkEdit/browser/bulkEditService';
+import 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution';
 
 // Search
 import 'vs/workbench/contrib/search/browser/search.contribution';
@@ -199,6 +199,7 @@ import 'vs/workbench/contrib/url/browser/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';
+import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
 import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
 // Extensions Management

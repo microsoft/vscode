@@ -86,7 +86,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this.tunnelLocalPort = address.port;
 
 		await this._barrier.wait();
-		this.localAddress = 'localhost:' + address.port;
+		this.localAddress = `${this.tunnelRemoteHost === '127.0.0.1' ? '127.0.0.1' : 'localhost'}:${address.port}`;
 		return this;
 	}
 
@@ -132,8 +132,7 @@ export class TunnelService extends AbstractTunnelService {
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
-		const portMap = this._tunnels.get(remoteHost);
-		const existing = portMap ? portMap.get(remotePort) : undefined;
+		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
 			return existing.value;

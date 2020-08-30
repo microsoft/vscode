@@ -87,8 +87,7 @@ const enum CellToolbarOrder {
 	EditCell,
 	SplitCell,
 	SaveCell,
-	ClearCellOutput,
-	DeleteCell
+	ClearCellOutput
 }
 
 const enum CellOverflowToolbarGroups {
@@ -261,6 +260,23 @@ export class CancelCellAction extends MenuItemAction {
 	}
 }
 
+export class DeleteCellAction extends MenuItemAction {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService
+	) {
+		super(
+			{
+				id: DELETE_CELL_COMMAND_ID,
+				title: localize('notebookActions.deleteCell', "Delete Cell"),
+				icon: { id: 'codicon/trash' }
+			},
+			undefined,
+			{ shouldForwardArgs: true },
+			contextKeyService,
+			commandService);
+	}
+}
 
 registerAction2(class extends NotebookCellAction {
 	constructor() {
@@ -775,9 +791,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebookActions.deleteCell', "Delete Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.DeleteCell,
-					when: NOTEBOOK_EDITOR_EDITABLE,
-					group: CELL_TITLE_CELL_GROUP_ID
+					when: NOTEBOOK_EDITOR_EDITABLE
 				},
 				keybinding: {
 					primary: KeyCode.Delete,
@@ -1254,7 +1268,7 @@ registerAction2(class extends NotebookCellAction {
 	constructor() {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
-			title: localize('clearActiveCellOutputs', 'Clear Active Cell Outputs'),
+			title: localize('clearCellOutputs', 'Clear Cell Outputs'),
 			menu: {
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_CELL_HAS_OUTPUTS),
@@ -1277,6 +1291,14 @@ registerAction2(class extends NotebookCellAction {
 		}
 
 		editor.viewModel.notebookDocument.clearCellOutput(context.cell.handle);
+		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
+			context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, {
+				runState: NotebookCellRunState.Idle,
+				runStartTime: undefined,
+				lastRunDuration: undefined,
+				statusMessage: undefined
+			});
+		}
 	}
 });
 
@@ -1464,7 +1486,8 @@ registerAction2(class extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-					group: '2_edit',
+					group: CellOverflowToolbarGroups.Edit,
+					order: 10
 				}
 			});
 	}
@@ -1489,6 +1512,7 @@ registerAction2(class extends NotebookCellAction {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 					group: CellOverflowToolbarGroups.Edit,
+					order: 11
 				}
 			});
 	}
@@ -1526,7 +1550,7 @@ registerAction2(class extends NotebookCellAction {
 			title: localize('notebookActions.collapseCellInput', "Collapse Cell Input"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated()),
-				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -1538,7 +1562,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { inputCollapsed: true });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { inputCollapsed: true });
 	}
 });
 
@@ -1549,7 +1573,7 @@ registerAction2(class extends NotebookCellAction {
 			title: localize('notebookActions.expandCellContent', "Expand Cell Content"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_INPUT_COLLAPSED),
-				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_C),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_C),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -1561,7 +1585,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { inputCollapsed: false });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { inputCollapsed: false });
 	}
 });
 
@@ -1572,7 +1596,7 @@ registerAction2(class extends NotebookCellAction {
 			title: localize('notebookActions.collapseCellOutput', "Collapse Cell Output"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED.toNegated(), InputFocusedContext.toNegated(), NOTEBOOK_CELL_HAS_OUTPUTS),
-				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_O),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -1584,7 +1608,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { outputCollapsed: true });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { outputCollapsed: true });
 	}
 });
 
@@ -1595,7 +1619,7 @@ registerAction2(class extends NotebookCellAction {
 			title: localize('notebookActions.expandCellOutput', "Expand Cell Output"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_OUTPUT_COLLAPSED),
-				primary: KeyChord(KeyCode.KEY_C, KeyCode.KEY_O),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_T),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			menu: {
@@ -1607,7 +1631,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { outputCollapsed: false });
+		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { outputCollapsed: false });
 	}
 });
 

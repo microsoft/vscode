@@ -247,6 +247,14 @@ export class Variable extends ExpressionContainer implements IExpression {
 	toString(): string {
 		return `${this.name}: ${this.value}`;
 	}
+
+	toDebugProtocolObject(): DebugProtocol.Variable {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			value: this.value
+		};
+	}
 }
 
 export class Scope extends ExpressionContainer implements IScope {
@@ -266,6 +274,14 @@ export class Scope extends ExpressionContainer implements IScope {
 
 	toString(): string {
 		return this.name;
+	}
+
+	toDebugProtocolObject(): DebugProtocol.Scope {
+		return {
+			name: this.name,
+			variablesReference: this.reference || 0,
+			expensive: this.expensive
+		};
 	}
 }
 
@@ -595,6 +611,26 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 	getIdFromAdapter(sessionId: string): number | undefined {
 		const data = this.sessionData.get(sessionId);
 		return data ? data.id : undefined;
+	}
+
+	getDebugProtocolBreakpoint(sessionId: string): DebugProtocol.Breakpoint | undefined {
+		const data = this.sessionData.get(sessionId);
+		if (data) {
+			const bp: DebugProtocol.Breakpoint = {
+				id: data.id,
+				verified: data.verified,
+				message: data.message,
+				source: data.source,
+				line: data.line,
+				column: data.column,
+				endLine: data.endLine,
+				endColumn: data.endColumn,
+				instructionReference: data.instructionReference,
+				offset: data.offset
+			};
+			return bp;
+		}
+		return undefined;
 	}
 
 	toJSON(): any {
@@ -1092,6 +1128,14 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({
 			sessionOnly: true
 		});
+	}
+
+	getDebugProtocolBreakpoint(breakpointId: string, sessionId: string): DebugProtocol.Breakpoint | undefined {
+		const bp = this.breakpoints.find(bp => bp.getId() === breakpointId);
+		if (bp) {
+			return bp.getDebugProtocolBreakpoint(sessionId);
+		}
+		return undefined;
 	}
 
 	private sortAndDeDup(): void {

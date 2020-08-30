@@ -40,7 +40,7 @@ export interface ISettingsGroup {
 	title: string;
 	titleRange: IRange;
 	sections: ISettingsSection[];
-	contributedByExtension: boolean;
+	extensionInfo?: IConfigurationExtensionInfo;
 }
 
 export interface ISettingsSection {

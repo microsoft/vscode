@@ -42,14 +42,14 @@ export class ThemeMainService implements IThemeMainService {
 	}
 
 	getBackgroundColor(): string {
-		if (isWindows && nativeTheme.shouldUseInvertedColorScheme) {
+		if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
 			return DEFAULT_BG_HC_BLACK;
 		}
 
 		let background = this.stateService.getItem<string | null>(THEME_BG_STORAGE_KEY, null);
 		if (!background) {
 			let baseTheme: string;
-			if (isWindows && nativeTheme.shouldUseInvertedColorScheme) {
+			if ((isWindows || isMacintosh) && nativeTheme.shouldUseInvertedColorScheme) {
 				baseTheme = 'hc-black';
 			} else {
 				baseTheme = this.stateService.getItem<string>(THEME_STORAGE_KEY, 'vs-dark').split(' ')[0];

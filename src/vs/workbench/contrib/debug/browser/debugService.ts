@@ -47,6 +47,7 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -90,7 +91,8 @@ export class DebugService implements IDebugService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IActivityService private readonly activityService: IActivityService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		this.toDispose = [];
 
@@ -109,7 +111,7 @@ export class DebugService implements IDebugService {
 			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set(!!this.configurationManager.selectedConfiguration.name ? 'default' : 'simple');
+			this.debugUx.set((this.configurationManager.hasDebuggers() && !!this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
 			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		});
 
@@ -158,8 +160,8 @@ export class DebugService implements IDebugService {
 		this.toDispose.push(this.viewModel.onDidFocusSession(() => {
 			this.onStateChange();
 		}));
-		this.toDispose.push(this.configurationManager.onDidSelectConfiguration(() => {
-			this.debugUx.set(!!(this.state !== State.Inactive || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+		this.toDispose.push(Event.any(this.configurationManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
+			this.debugUx.set(!!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.configurationManager.hasDebuggers())) ? 'default' : 'simple');
 		}));
 		this.toDispose.push(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
@@ -241,7 +243,7 @@ export class DebugService implements IDebugService {
 				this.debugState.set(getStateLabel(state));
 				this.inDebugMode.set(state !== State.Inactive);
 				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || (this.configurationManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple');
 			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
@@ -732,7 +734,7 @@ export class DebugService implements IDebugService {
 		});
 	}
 
-	stopSession(session: IDebugSession | undefined): Promise<any> {
+	async stopSession(session: IDebugSession | undefined): Promise<any> {
 		if (session) {
 			return session.terminate();
 		}
@@ -740,6 +742,8 @@ export class DebugService implements IDebugService {
 		const sessions = this.model.getSessions();
 		if (sessions.length === 0) {
 			this.taskRunner.cancel();
+			// User might have cancelled starting of a debug session, and in some cases the quick pick is left open
+			await this.quickInputService.cancel();
 			this.endInitializingState();
 			this.cancelTokens(undefined);
 		}

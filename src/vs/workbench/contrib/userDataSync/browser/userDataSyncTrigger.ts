@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SettingsEditor2Input, KeybindingsEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -12,24 +12,36 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { isWeb } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
-export class UserDataSyncTrigger extends Disposable {
-
-	private readonly _onDidTriggerSync: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidTriggerSync: Event<string> = this._onDidTriggerSync.event;
+export class UserDataSyncTrigger extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorService editorService: IEditorService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IViewsService viewsService: IViewsService,
+		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
-		this._register(
-			Event.filter(
-				Event.any<string | undefined>(
-					Event.map(editorService.onDidActiveEditorChange, () => this.getUserDataEditorInputSource(editorService.activeEditor)),
-					Event.map(Event.filter(viewsService.onDidChangeViewContainerVisibility, e => e.id === VIEWLET_ID && e.visible), e => e.id)
-				), source => source !== undefined)(source => this._onDidTriggerSync.fire(source!)));
+		const event = Event.filter(
+			Event.any<string | undefined>(
+				Event.map(editorService.onDidActiveEditorChange, () => this.getUserDataEditorInputSource(editorService.activeEditor)),
+				Event.map(Event.filter(viewsService.onDidChangeViewContainerVisibility, e => e.id === VIEWLET_ID && e.visible), e => e.id)
+			), source => source !== undefined);
+		if (isWeb) {
+			this._register(Event.debounce<string, string[]>(
+				Event.any<string>(
+					Event.map(hostService.onDidChangeFocus, () => 'windowFocus'),
+					Event.map(event, source => source!),
+				), (last, source) => last ? [...last, source] : [source], 1000)
+				(sources => userDataAutoSyncService.triggerSync(sources, true, false)));
+		} else {
+			this._register(event(source => userDataAutoSyncService.triggerSync([source!], true, false)));
+		}
 	}
 
 	private getUserDataEditorInputSource(editorInput: IEditorInput | undefined): string | undefined {

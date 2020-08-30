@@ -440,6 +440,10 @@ export class DebugSession implements IDebugSession {
 		return distinct(positions, p => `${p.lineNumber}:${p.column}`);
 	}
 
+	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined {
+		return this.model.getDebugProtocolBreakpoint(breakpointId, this.getId());
+	}
+
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", request));

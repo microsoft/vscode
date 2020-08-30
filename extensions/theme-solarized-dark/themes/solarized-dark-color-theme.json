@@ -271,6 +271,20 @@
 			}
 		},
 		{
+			"name": "Markup: Strong",
+			"scope": "markup.bold",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup: Emphasis",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -282,6 +296,7 @@
 			"name": "Markup Headings",
 			"scope": "markup.heading",
 			"settings": {
+				"fontStyle": "bold",
 				"foreground": "#268BD2"
 			}
 		},

@@ -8,12 +8,11 @@ import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IWorkspaceFileEditDto, IWorkspaceTextEditDto, SourceTargetPair } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, SourceTargetPair, IWorkspaceEditDto } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileOperation } from 'vs/platform/files/common/files';
-import { flatten } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -217,14 +216,13 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		}
 
 		if (edits.length > 0) {
-			// flatten all WorkspaceEdits collected via waitUntil-call
-			// and apply them in one go.
-			const allEdits = new Array<Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto>>();
+			// concat all WorkspaceEdits collected via waitUntil-call and apply them in one go.
+			const dto: IWorkspaceEditDto = { edits: [] };
 			for (let edit of edits) {
 				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-				allEdits.push(edits);
+				dto.edits = dto.edits.concat(edits);
 			}
-			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
+			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit(dto);
 		}
 	}
 }
