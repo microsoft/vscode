@@ -100,6 +100,9 @@ export class TreeView extends Disposable implements ITreeView {
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
 
+	private readonly _onDidChangeTitleDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
+	readonly onDidChangeTitleDescription: Event<string | undefined> = this._onDidChangeTitleDescription.event;
+
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
@@ -218,6 +221,16 @@ export class TreeView extends Disposable implements ITreeView {
 	set title(name: string) {
 		this._title = name;
 		this._onDidChangeTitle.fire(this._title);
+	}
+
+	private _titleDescription: string | undefined;
+	get titleDescription(): string | undefined {
+		return this._titleDescription;
+	}
+
+	set titleDescription(description: string | undefined) {
+		this._titleDescription = description;
+		this._onDidChangeTitleDescription.fire(this._titleDescription);
 	}
 
 	get canSelectMany(): boolean {
