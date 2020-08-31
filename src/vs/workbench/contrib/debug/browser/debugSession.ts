@@ -440,6 +440,10 @@ export class DebugSession implements IDebugSession {
 		return distinct(positions, p => `${p.lineNumber}:${p.column}`);
 	}
 
+	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined {
+		return this.model.getDebugProtocolBreakpoint(breakpointId, this.getId());
+	}
+
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", request));
@@ -448,13 +452,13 @@ export class DebugSession implements IDebugSession {
 		return this.raw.custom(request, args);
 	}
 
-	stackTrace(threadId: number, startFrame: number, levels: number): Promise<DebugProtocol.StackTraceResponse> {
+	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stackTrace'));
 		}
 
-		const token = this.getNewCancellationToken(threadId);
-		return this.raw.stackTrace({ threadId, startFrame, levels }, token);
+		const sessionToken = this.getNewCancellationToken(threadId, token);
+		return this.raw.stackTrace({ threadId, startFrame, levels }, sessionToken);
 	}
 
 	async exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined> {
@@ -628,17 +632,18 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
+	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'completions')));
 		}
+		const sessionCancelationToken = this.getNewCancellationToken(threadId, token);
 
 		return this.raw.completions({
 			frameId,
 			text,
 			column: position.column,
 			line: position.lineNumber,
-		}, token);
+		}, sessionCancelationToken);
 	}
 
 	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[]> {
@@ -1053,8 +1058,8 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	private getNewCancellationToken(threadId: number): CancellationToken {
-		const tokenSource = new CancellationTokenSource();
+	private getNewCancellationToken(threadId: number, token?: CancellationToken): CancellationToken {
+		const tokenSource = new CancellationTokenSource(token);
 		const tokens = this.cancellationMap.get(threadId) || [];
 		tokens.push(tokenSource);
 		this.cancellationMap.set(threadId, tokens);

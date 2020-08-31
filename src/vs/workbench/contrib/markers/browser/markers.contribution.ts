@@ -37,6 +37,21 @@ import { Codicon } from 'vs/base/common/codicons';
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: Constants.MARKER_OPEN_ACTION_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(Constants.MarkerFocusContextKey),
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+	},
+	handler: (accessor, args: any) => {
+		const markersView = accessor.get(IViewsService).getActiveViewWithId<MarkersView>(Constants.MARKERS_VIEW_ID)!;
+		markersView.openFileAtElement(markersView.getFocusElement(), false, false, true);
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.MARKER_OPEN_SIDE_ACTION_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(Constants.MarkerFocusContextKey),

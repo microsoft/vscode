@@ -50,7 +50,7 @@ import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/err
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
 import { join, sep, posix } from 'vs/base/common/path';
@@ -82,6 +82,10 @@ import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMai
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { createServer, AddressInfo } from 'net';
 import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
+import { IFileService } from 'vs/platform/files/common/files';
+import { stripComments } from 'vs/base/common/json';
+import { generateUuid } from 'vs/base/common/uuid';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -134,11 +138,6 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		app.on('remote-get-guest-web-contents', event => {
-			this.logService.trace('App#on(remote-get-guest-web-contents): prevented');
-
-			event.preventDefault();
-		});
 		app.on('remote-require', (event, sender, module) => {
 			this.logService.trace('App#on(remote-require): prevented');
 
@@ -273,6 +272,12 @@ export class CodeApplication extends Disposable {
 
 			try {
 				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
+
+				// TODO@sandbox workaround for https://github.com/electron/electron/issues/25119
+				if (this.environmentService.sandbox) {
+					await timeout(100);
+				}
+
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
 				}
@@ -365,17 +370,17 @@ export class CodeApplication extends Disposable {
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
 			this.logService.trace('Shared process: IPC ready');
+
 			return connect(this.environmentService.sharedIPCHandle, 'main');
 		});
 		const sharedProcessReady = sharedProcess.whenReady().then(() => {
 			this.logService.trace('Shared process: init ready');
+
 			return sharedProcessClient;
 		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
-
-				sharedProcess.spawn(userEnv);
+				sharedProcess.spawn(await getShellEnvironment(this.logService, this.environmentService));
 			}, 3000)).schedule();
 		});
 
@@ -807,7 +812,7 @@ export class CodeApplication extends Disposable {
 		return { fileUri: URI.file(path) };
 	}
 
-	private afterWindowOpen(accessor: ServicesAccessor): void {
+	private async afterWindowOpen(accessor: ServicesAccessor): Promise<void> {
 
 		// Signal phase: after window open
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
@@ -820,6 +825,37 @@ export class CodeApplication extends Disposable {
 		if (updateService instanceof Win32UpdateService || updateService instanceof LinuxUpdateService || updateService instanceof DarwinUpdateService) {
 			updateService.initialize();
 		}
+
+		// If enable-crash-reporter argv is undefined then this is a fresh start,
+		// based on telemetry.enableCrashreporter settings, generate a UUID which
+		// will be used as crash reporter id and also update the json file.
+		try {
+			const fileService = accessor.get(IFileService);
+			const argvContent = await fileService.readFile(this.environmentService.argvResource);
+			const argvString = argvContent.value.toString();
+			const argvJSON = JSON.parse(stripComments(argvString));
+			if (argvJSON['enable-crash-reporter'] === undefined) {
+				const enableCrashReporter = this.configurationService.getValue<boolean>('telemetry.enableCrashReporter') ?? true;
+				const additionalArgvContent = [
+					'',
+					'	// Allows to disable crash reporting.',
+					'	// Should restart the app if the value is changed.',
+					`	"enable-crash-reporter": ${enableCrashReporter},`,
+					'',
+					'	// Unique id used for correlating crash reports sent from this instance.',
+					'	// Do not edit this value.',
+					`	"crash-reporter-id": "${generateUuid()}"`,
+					'}'
+				];
+				const newArgvString = argvString.substring(0, argvString.length - 2).concat(',\n', additionalArgvContent.join('\n'));
+				await fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(newArgvString));
+			}
+		} catch (error) {
+			this.logService.error(error);
+		}
+
+		// Start to fetch shell environment after window has opened
+		getShellEnvironment(this.logService, this.environmentService);
 	}
 
 	private handleRemoteAuthorities(): void {

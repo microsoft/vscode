@@ -16,6 +16,7 @@ import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/brows
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 const $ = dom.$;
 
@@ -48,7 +49,8 @@ export class HoverWidget extends Widget {
 		options: IHoverOptions,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -136,11 +138,12 @@ export class HoverWidget extends Widget {
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
 
-		// Get horizontal alignment and position
 		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
-		const targetLeft = Math.min(...targetBounds.map(e => e.left));
+
+		// Get horizontal alignment and position
+		let targetLeft = this._target.x !== undefined ? this._target.x : Math.min(...targetBounds.map(e => e.left));
 		if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-			this._x = document.documentElement.clientWidth;
+			this._x = document.documentElement.clientWidth - (this._workbenchLayoutService.hasWindowBorder() ? 3 : 1);
 			this._hover.containerDomNode.classList.add('right-aligned');
 		} else {
 			this._x = targetLeft;

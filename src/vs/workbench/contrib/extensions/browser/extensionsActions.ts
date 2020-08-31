@@ -909,7 +909,7 @@ export class EnableForWorkspaceAction extends ExtensionAction {
 		if (this.extension && this.extension.local) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& !this.extensionEnablementService.isEnabled(this.extension.local)
-				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
+				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
 		}
 	}
 
@@ -970,7 +970,7 @@ export class DisableForWorkspaceAction extends ExtensionAction {
 		if (this.extension && this.extension.local && this.runningExtensions.some(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, this.extension!.identifier) && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.enabled = this.extension.state === ExtensionState.Installed
 				&& (this.extension.enablementState === EnablementState.EnabledGlobally || this.extension.enablementState === EnablementState.EnabledWorkspace)
-				&& this.extensionEnablementService.canChangeEnablement(this.extension.local);
+				&& this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local);
 		}
 	}
 
@@ -1842,6 +1842,7 @@ export class InstallRecommendedExtensionsAction extends Action {
 		id: string,
 		label: string,
 		recommendations: string[],
+		private readonly searchValue: string,
 		private readonly source: string,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1854,22 +1855,17 @@ export class InstallRecommendedExtensionsAction extends Action {
 		this.recommendations = recommendations;
 	}
 
-	run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => {
-				viewlet.search('@recommended ');
-				viewlet.focus();
-				const names = this.recommendations;
-				return this.extensionWorkbenchService.queryGallery({ names, source: this.source }, CancellationToken.None).then(pager => {
-					let installPromises: Promise<any>[] = [];
-					let model = new PagedModel(pager);
-					for (let i = 0; i < pager.total; i++) {
-						installPromises.push(model.resolve(i, CancellationToken.None).then(e => this.installExtension(e)));
-					}
-					return Promise.all(installPromises);
-				});
-			});
+	async run(): Promise<any> {
+		await new SearchExtensionsAction(this.searchValue, this.viewletService).run();
+		const names = this.recommendations;
+		const pager = await this.extensionWorkbenchService.queryGallery({ names, source: this.source }, CancellationToken.None);
+		const installPromises: Promise<any>[] = [];
+		const model = new PagedModel(pager);
+		for (let i = 0; i < pager.total; i++) {
+			installPromises.push(model.resolve(i, CancellationToken.None)
+				.then(e => this.installExtension(e)));
+		}
+		return Promise.all(installPromises);
 	}
 
 	private async installExtension(extension: IExtension): Promise<void> {
@@ -1885,6 +1881,7 @@ export class InstallRecommendedExtensionsAction extends Action {
 					return;
 				}
 			}
+			this.extensionWorkbenchService.open(extension, { pinned: true });
 			await this.extensionWorkbenchService.install(extension);
 		} catch (err) {
 			console.error(err);
@@ -1904,7 +1901,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends InstallRecommen
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService productService: IProductService,
 	) {
-		super('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), recommendations, 'install-all-workspace-recommendations',
+		super('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), recommendations, '@recommended ', 'install-all-workspace-recommendations',
 			viewletService, instantiationService, extensionWorkbenchService, configurationService, extensionManagementServerService, productService);
 	}
 }
@@ -2075,29 +2072,6 @@ export class ShowLanguageExtensionsAction extends Action {
 	}
 }
 
-export class ShowAzureExtensionsAction extends Action {
-
-	static readonly ID = 'workbench.extensions.action.showAzureExtensions';
-	static readonly LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private readonly viewletService: IViewletService
-	) {
-		super(id, label, undefined, true);
-	}
-
-	run(): Promise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => {
-				viewlet.search('@sort:installs azure ');
-				viewlet.focus();
-			});
-	}
-}
-
 export class SearchCategoryAction extends Action {
 
 	constructor(
@@ -2110,12 +2084,23 @@ export class SearchCategoryAction extends Action {
 	}
 
 	run(): Promise<void> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true)
-			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
-			.then(viewlet => {
-				viewlet.search(`@category:"${this.category.toLowerCase()}"`);
-				viewlet.focus();
-			});
+		return new SearchExtensionsAction(`@category:"${this.category.toLowerCase()}"`, this.viewletService).run();
+	}
+}
+
+export class SearchExtensionsAction extends Action {
+
+	constructor(
+		private readonly searchValue: string,
+		@IViewletService private readonly viewletService: IViewletService
+	) {
+		super('extensions.searchExtensions', localize('search recommendations', "Search Extensions"), undefined, true);
+	}
+
+	async run(): Promise<void> {
+		const viewPaneContainer = (await this.viewletService.openViewlet(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		viewPaneContainer.search(this.searchValue);
+		viewPaneContainer.focus();
 	}
 }
 

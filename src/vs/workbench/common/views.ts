@@ -196,6 +196,8 @@ Registry.add(Extensions.ViewContainersRegistry, new ViewContainersRegistryImpl()
 
 export interface IViewDescriptor {
 
+	readonly type?: string;
+
 	readonly id: string;
 
 	readonly name: string;
@@ -244,6 +246,7 @@ export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 export interface IAddedViewDescriptorState {
 	viewDescriptor: IViewDescriptor,
 	collapsed?: boolean;
+	visible?: boolean;
 }
 
 export interface IViewContainerModel {

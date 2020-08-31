@@ -28,6 +28,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
+	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
+		this._providers = providers;
+		return Promise.resolve();
+	}
+
 	getProviderIds(): Promise<ReadonlyArray<string>> {
 		return this._proxy.$getProviderIds();
 	}

@@ -192,12 +192,16 @@ export namespace CustomExecutionDTO {
 
 
 export namespace TaskHandleDTO {
-	export function from(value: types.Task): tasks.TaskHandleDTO {
+	export function from(value: types.Task, workspaceService?: IExtHostWorkspace): tasks.TaskHandleDTO {
 		let folder: UriComponents | string;
 		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
 		} else if (value.scope !== undefined && typeof value.scope === 'number') {
-			folder = USER_TASKS_GROUP_KEY;
+			if ((value.scope === types.TaskScope.Workspace) && workspaceService && workspaceService.workspaceFile) {
+				folder = workspaceService.workspaceFile;
+			} else {
+				folder = USER_TASKS_GROUP_KEY;
+			}
 		}
 		return {
 			id: value._id!,
@@ -265,8 +269,8 @@ export namespace TaskDTO {
 			presentationOptions: TaskPresentationOptionsDTO.from(value.presentationOptions),
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
-			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
-			detail: (<vscode.Task2>value).detail
+			runOptions: value.runOptions ? value.runOptions : { reevaluateOnRerun: true },
+			detail: value.detail
 		};
 		return result;
 	}
@@ -471,11 +475,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return this._onDidExecuteTask.event;
 	}
 
-	protected async resolveDefinition(uri: number | UriComponents | undefined, definition: vscode.TaskDefinition | undefined): Promise<vscode.TaskDefinition | undefined> {
-		return definition;
-	}
-
-	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number): Promise<void> {
+	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.TaskDefinitionDTO): Promise<void> {
 		const customExecution: types.CustomExecution | undefined = this._providedCustomExecutions2.get(execution.id);
 		if (customExecution) {
 			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
@@ -484,7 +484,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, customExecution);
-			this._terminalService.attachPtyToTerminal(terminalId, await customExecution.callback(await this.resolveDefinition(execution.task?.source.scope, execution.task?.definition)));
+			this._terminalService.attachPtyToTerminal(terminalId, await customExecution.callback(resolvedDefinition));
 		}
 		this._lastStartedTask = execution.id;
 

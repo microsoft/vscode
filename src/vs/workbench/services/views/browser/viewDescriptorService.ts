@@ -692,7 +692,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			});
 		});
 
-		this.getViewContainerModel(container).add(views.map(view => { return { viewDescriptor: view, collapsed: expandViews ? false : undefined }; }));
+		this.getViewContainerModel(container).add(views.map(view => { return { viewDescriptor: view, collapsed: expandViews ? false : undefined, visible: expandViews }; }));
 	}
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {

@@ -306,7 +306,6 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
 				if (env.isLinux) {
 					const isDebian = await pfs.exists('/etc/debian_version');
-					await process.lazyEnv;
 					if (isDebian) {
 						r('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {

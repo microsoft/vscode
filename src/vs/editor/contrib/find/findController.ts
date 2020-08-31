@@ -20,7 +20,6 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -233,12 +232,22 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			this._state.change({ searchScope: null }, true);
 		} else {
 			if (this._editor.hasModel()) {
-				let selection = this._editor.getSelection();
-				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-					selection = selection.setEndPosition(selection.endLineNumber - 1, this._editor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-				}
-				if (!selection.isEmpty()) {
-					this._state.change({ searchScope: selection }, true);
+				let selections = this._editor.getSelections();
+				selections.map(selection => {
+					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+						selection = selection.setEndPosition(
+							selection.endLineNumber - 1,
+							this._editor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1)
+						);
+					}
+					if (!selection.isEmpty()) {
+						return selection;
+					}
+					return null;
+				}).filter(element => !!element);
+
+				if (selections.length) {
+					this._state.change({ searchScope: selections }, true);
 				}
 			}
 		}
@@ -299,9 +308,9 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		}
 
 		if (opts.updateSearchScope) {
-			let currentSelection = this._editor.getSelection();
-			if (!currentSelection.isEmpty()) {
-				stateChanges.searchScope = currentSelection;
+			let currentSelections = this._editor.getSelections();
+			if (currentSelections.some(selection => !selection.isEmpty())) {
+				stateChanges.searchScope = currentSelections;
 			}
 		}
 
@@ -361,7 +370,6 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public async getGlobalBufferTerm(): Promise<string> {
 		if (this._editor.getOption(EditorOption.find).globalFindClipboard
-			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
@@ -372,7 +380,6 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public setGlobalBufferTerm(text: string): void {
 		if (this._editor.getOption(EditorOption.find).globalFindClipboard
-			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
@@ -396,7 +403,7 @@ export class FindController extends CommonFindController implements IFindControl
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IStorageKeysSyncRegistryService private readonly _storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@optional(IClipboardService) clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService);
 		this._widget = null;

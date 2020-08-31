@@ -867,7 +867,7 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 }
 
 /**
- * Desktop only: limits for memory sizes
+ * Native only: limits for memory sizes
  */
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

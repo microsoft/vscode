@@ -17,6 +17,7 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface CurrentChord {
 	keypress: string;
@@ -44,6 +45,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		protected _commandService: ICommandService,
 		protected _telemetryService: ITelemetryService,
 		private _notificationService: INotificationService,
+		protected _logService: ILogService,
 	) {
 		super();
 
@@ -176,6 +178,8 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		const currentChord = this._currentChord ? this._currentChord.keypress : null;
 		const keypressLabel = keybinding.getLabel();
 		const resolveResult = this._getResolver().resolve(contextValue, currentChord, firstPart);
+
+		this._logService.trace('KeybindingService#dispatch', keypressLabel, resolveResult?.commandId);
 
 		if (resolveResult && resolveResult.enterChord) {
 			shouldPreventDefault = true;

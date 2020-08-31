@@ -115,7 +115,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
-		accessor.get(IOutputService).showChannel(channelId);
+		if (typeof channelId === 'string') {
+			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
+			accessor.get(IOutputService).showChannel(channelId);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -319,7 +322,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line."),
 			default: true,
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.WINDOW,
 			tags: ['output']
 		}
 	}

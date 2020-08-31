@@ -7,15 +7,15 @@ import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { app, shell, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
-import { getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
-import { OpenContext, IRunActionInWindowRequest, IRunKeybindingInWindowRequest } from 'vs/platform/windows/node/window';
+import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { OpenContext } from 'vs/platform/windows/node/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import product from 'vs/platform/product/common/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
-import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
 import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
@@ -754,9 +754,11 @@ export class Menubar {
 			}
 
 			if (invocation.type === 'commandId') {
-				activeWindow.sendWhenReady('vscode:runAction', { id: invocation.commandId, from: 'menu' } as IRunActionInWindowRequest);
+				const runActionPayload: INativeRunActionInWindowRequest = { id: invocation.commandId, from: 'menu' };
+				activeWindow.sendWhenReady('vscode:runAction', runActionPayload);
 			} else {
-				activeWindow.sendWhenReady('vscode:runKeybinding', { userSettingsLabel: invocation.userSettingsLabel } as IRunKeybindingInWindowRequest);
+				const runKeybindingPayload: INativeRunKeybindingInWindowRequest = { userSettingsLabel: invocation.userSettingsLabel };
+				activeWindow.sendWhenReady('vscode:runKeybinding', runKeybindingPayload);
 			}
 		} else {
 			this.logService.trace('menubar#runActionInRenderer: no active window found', invocation);
@@ -821,7 +823,7 @@ export class Menubar {
 	}
 
 	private mnemonicLabel(label: string): string {
-		return baseMnemonicLabel(label, !this.currentEnableMenuBarMnemonics);
+		return mnemonicMenuLabel(label, !this.currentEnableMenuBarMnemonics);
 	}
 }
 

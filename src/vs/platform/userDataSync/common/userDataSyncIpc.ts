@@ -128,7 +128,7 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'triggerSync': return this.service.triggerSync(args[0], args[1]);
+			case 'triggerSync': return this.service.triggerSync(args[0], args[1], args[2]);
 			case 'turnOn': return this.service.turnOn();
 			case 'turnOff': return this.service.turnOff(args[0]);
 		}

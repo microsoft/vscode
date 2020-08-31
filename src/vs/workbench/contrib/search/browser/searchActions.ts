@@ -683,6 +683,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	static readonly LABEL = nls.localize('match.replace.label', "Replace");
 
+	static runQ = Promise.resolve();
+
 	constructor(private viewer: WorkbenchObjectTree<RenderableMatch>, private element: Match, private viewlet: SearchView,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
@@ -691,26 +693,24 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), searchReplaceIcon.classNames);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<any> {
 		this.enabled = false;
 
-		return this.element.parent().replace(this.element).then(() => {
-			const elementToFocus = this.getElementToFocusAfterReplace();
-			if (elementToFocus) {
-				this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
-			}
+		await this.element.parent().replace(this.element);
+		const elementToFocus = this.getElementToFocusAfterReplace();
+		if (elementToFocus) {
+			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
+		}
 
-			return this.getElementToShowReplacePreview(elementToFocus);
-		}).then(elementToShowReplacePreview => {
-			this.viewer.domFocus();
+		const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);
+		this.viewer.domFocus();
 
-			const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
-			if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
-				this.viewlet.open(this.element, true);
-			} else {
-				this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
-			}
-		});
+		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
+		if (!useReplacePreview || !elementToShowReplacePreview || this.hasToOpenFile()) {
+			this.viewlet.open(this.element, true);
+		} else {
+			this.replaceService.openReplacePreview(elementToShowReplacePreview, true);
+		}
 	}
 
 	private getElementToFocusAfterReplace(): RenderableMatch {
@@ -740,11 +740,11 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		return elementToFocus!;
 	}
 
-	private async getElementToShowReplacePreview(elementToFocus: RenderableMatch): Promise<Match | null> {
+	private getElementToShowReplacePreview(elementToFocus: RenderableMatch): Match | null {
 		if (this.hasSameParent(elementToFocus)) {
 			return <Match>elementToFocus;
 		}
-		const previousElement = await this.getPreviousElementAfterRemoved(this.viewer, this.element);
+		const previousElement = this.getPreviousElementAfterRemoved(this.viewer, this.element);
 		if (this.hasSameParent(previousElement)) {
 			return <Match>previousElement;
 		}
