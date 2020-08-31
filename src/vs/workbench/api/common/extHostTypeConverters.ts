@@ -1299,6 +1299,10 @@ export namespace NotebookExclusiveDocumentPattern {
 	export function from(pattern: undefined): undefined;
 	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
 	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
+		if (pattern === null || pattern === undefined) {
+			return undefined;
+		}
+
 		if (pattern instanceof types.RelativePattern) {
 			return pattern;
 		}
