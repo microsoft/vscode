@@ -1344,7 +1344,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
 					],
-					description: nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
+					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
