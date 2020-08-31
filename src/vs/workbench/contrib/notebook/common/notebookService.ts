@@ -9,7 +9,7 @@ import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/noteb
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
 import {
-	INotebookTextModel, INotebookRendererInfo, INotebookKernelInfo,
+	INotebookTextModel, INotebookRendererInfo,
 	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -50,10 +50,7 @@ export interface INotebookService {
 	unregisterNotebookProvider(viewType: string): void;
 	transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]): void;
 	transformSpliceOutputs(textModel: NotebookTextModel, splices: NotebookCellOutputsSplice[]): void;
-	registerNotebookKernel(kernel: INotebookKernelInfo): void;
-	unregisterNotebookKernel(id: string): void;
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable;
-	getContributedNotebookKernels(viewType: string, resource: URI): readonly INotebookKernelInfo[];
 	getContributedNotebookKernels2(viewType: string, resource: URI, token: CancellationToken): Promise<INotebookKernelInfo2[]>;
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
@@ -61,8 +58,6 @@ export interface INotebookService {
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
-	executeNotebook(viewType: string, uri: URI, kernelId: string): Promise<void>;
-	executeNotebookCell(viewType: string, uri: URI, handle: number, kernelId: string): Promise<void>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];

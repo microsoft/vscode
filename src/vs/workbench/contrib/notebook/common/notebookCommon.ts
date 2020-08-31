@@ -133,18 +133,6 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string): boolean;
 }
 
-export interface INotebookKernelInfo {
-	id: string;
-	label: string,
-	selectors: (string | glob.IRelativePattern)[],
-	extension: ExtensionIdentifier;
-	extensionLocation: URI,
-	preloads: URI[];
-	providerHandle?: number;
-	executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void>;
-
-}
-
 export interface INotebookKernelInfoDto {
 	id: string;
 	label: string,

@@ -1719,12 +1719,6 @@ declare module 'vscode' {
 			provider: NotebookKernelProvider
 		): Disposable;
 
-		export function registerNotebookKernel(
-			id: string,
-			selectors: GlobPattern[],
-			kernel: NotebookKernel
-		): Disposable;
-
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;

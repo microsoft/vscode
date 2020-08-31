@@ -1078,21 +1078,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	registerNotebookKernel(extension: IExtensionDescription, id: string, selectors: vscode.GlobPattern[], kernel: vscode.NotebookKernel): vscode.Disposable {
-		if (this._notebookKernels.has(id)) {
-			throw new Error(`Notebook kernel for '${id}' already registered`);
-		}
-
-		this._notebookKernels.set(id, { kernel, extension });
-		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
-
-		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, id, kernel.label, transformedSelectors, kernel.preloads || []);
-		return new extHostTypes.Disposable(() => {
-			this._notebookKernels.delete(id);
-			this._proxy.$unregisterNotebookKernel(id);
-		});
-	}
-
 	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined> {
 		const provider = this._notebookContentProviders.get(viewType);
 		const revivedUri = URI.revive(uri);

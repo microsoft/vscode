@@ -52,7 +52,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellToolbarLocKey, ICellRange, IInsetRenderOutput, INotebookKernelInfo, INotebookKernelInfo2, INotebookKernelInfoDto, IProcessedOutput, isTransformedDisplayOutput, NotebookCellRunState, NotebookRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, ICellRange, IInsetRenderOutput, INotebookKernelInfo2, INotebookKernelInfoDto, IProcessedOutput, isTransformedDisplayOutput, NotebookCellRunState, NotebookRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
@@ -144,7 +144,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._notebookViewModel?.notebookDocument;
 	}
 
-	private _activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined = undefined;
+	private _activeKernel: INotebookKernelInfo2 | undefined = undefined;
 	private readonly _onDidChangeKernel = this._register(new Emitter<void>());
 	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
 	private readonly _onDidChangeAvailableKernels = this._register(new Emitter<void>());
@@ -154,7 +154,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this._activeKernel;
 	}
 
-	set activeKernel(kernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined) {
+	set activeKernel(kernel: INotebookKernelInfo2 | undefined) {
 		if (this._isDisposed) {
 			return;
 		}
@@ -712,13 +712,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		const availableKernels = this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri);
-
 		if (tokenSource.token.isCancellationRequested) {
 			return;
 		}
 
-		if ((availableKernels.length + availableKernels2.length) > 1) {
+		if ((availableKernels2.length) > 1) {
 			this._notebookHasMultipleKernels!.set(true);
 			this.multipleKernelsAvailable = true;
 		} else {
@@ -726,7 +724,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.multipleKernelsAvailable = false;
 		}
 
-		const activeKernelStillExist = [...availableKernels2, ...availableKernels].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
+		const activeKernelStillExist = [...availableKernels2].find(kernel => kernel.id === this.activeKernel?.id && this.activeKernel?.id !== undefined);
 
 		if (activeKernelStillExist) {
 			// the kernel still exist, we don't want to modify the selection otherwise user's temporary preference is lost
@@ -738,10 +736,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		// the provider doesn't have a builtin kernel, choose a kernel
-		this.activeKernel = availableKernels[0];
-		if (this.activeKernel) {
-			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
-		}
+		// this.activeKernel = availableKernels[0];
+		// if (this.activeKernel) {
+		// 	await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+		// }
 
 		tokenSource.dispose();
 	}
@@ -1456,8 +1454,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 
 				await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
-			} else {
-				await this.notebookService.executeNotebook(this._notebookViewModel!.viewType, this._notebookViewModel!.uri, this._activeKernel.id);
 			}
 		}
 	}
@@ -1502,16 +1498,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _executeNotebookCell(cell: ICellViewModel): Promise<void> {
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 		if (provider) {
-			const viewType = provider.id;
-			const notebookUri = this._notebookViewModel!.uri;
-
 			if (this._activeKernel) {
 				// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
 				if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
 					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
-				} else {
-
-					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, this._activeKernel.id);
 				}
 			}
 
