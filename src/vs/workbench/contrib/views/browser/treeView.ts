@@ -788,7 +788,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		if (iconUrl) {
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
 			templateData.icon.style.backgroundImage = DOM.asCSSUrl(iconUrl);
-
 		} else {
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
@@ -797,6 +796,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
 			templateData.icon.style.backgroundImage = '';
 		}
+		templateData.icon.title = '';
 
 		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
 		templateData.actionBar.push(this.menus.getResourceActions(node), { icon: true, label: false });
