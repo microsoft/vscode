@@ -64,7 +64,7 @@ const PRIORITY = 100;
 function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
 	command?.addImplementation(PRIORITY, accessor => {
 		const webview = getActiveElectronBasedWebview(accessor);
-		if (webview) {
+		if (webview && webview.isFocused) {
 			f(webview);
 			return true;
 		}
