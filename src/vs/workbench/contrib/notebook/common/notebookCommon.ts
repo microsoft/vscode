@@ -729,22 +729,44 @@ export interface INotebookSearchOptions {
 	wordSeparators?: string;
 }
 
+export interface INotebookExclusiveDocumentFilter {
+	include?: string | glob.IRelativePattern;
+	exclude?: string | glob.IRelativePattern;
+}
+
 export interface INotebookDocumentFilter {
-	viewType?: string;
-	filenamePattern?: string | glob.IRelativePattern;
-	excludeFileNamePattern?: string | glob.IRelativePattern;
+	viewType?: string | string[];
+	filenamePattern?: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 }
 
 //TODO@rebornix test
+
+function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
+
+	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
+		&& (typeof arg.exclude === 'string' || glob.isRelativePattern(arg.exclude))) {
+		return true;
+	}
+
+	return false;
+}
 export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
+	if (Array.isArray(filter.viewType) && filter.viewType.indexOf(viewType) >= 0) {
+		return true;
+	}
+
 	if (filter.viewType === viewType) {
 		return true;
 	}
 
 	if (filter.filenamePattern) {
-		if (glob.match(filter.filenamePattern, basename(resource.fsPath).toLowerCase())) {
-			if (filter.excludeFileNamePattern) {
-				if (glob.match(filter.excludeFileNamePattern, basename(resource.fsPath).toLowerCase())) {
+		let filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
+		let excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
+
+		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (excludeFilenamePattern) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
 					// should exclude
 
 					return false;

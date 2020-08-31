@@ -1657,9 +1657,8 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentFilter {
-		viewType?: string;
-		filenamePattern?: GlobPattern;
-		excludeFileNamePattern?: GlobPattern;
+		viewType?: string | string[];
+		filenamePattern?: GlobPattern | { include: GlobPattern; exclude: GlobPattern };
 	}
 
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {

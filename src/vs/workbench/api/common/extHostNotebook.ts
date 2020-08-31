@@ -1035,8 +1035,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookKernelProviders.set(handle, adapter);
 		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, handle, {
 			viewType: selector.viewType,
-			filenamePattern: selector.filenamePattern ? typeConverters.GlobPattern.from(selector.filenamePattern) : undefined,
-			excludeFileNamePattern: selector.excludeFileNamePattern ? typeConverters.GlobPattern.from(selector.excludeFileNamePattern) : undefined,
+			filenamePattern: typeConverters.NotebookExclusiveDocumentPattern.from(selector.filenamePattern)
 		});
 
 		return new extHostTypes.Disposable(() => {
