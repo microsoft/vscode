@@ -56,6 +56,7 @@ export class EditorScrollbar extends ViewPart {
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 			fastScrollSensitivity: fastScrollSensitivity,
 			scrollPredominantAxis: scrollPredominantAxis,
+			gutterClickMovesByPage: scrollbar.gutterClickMovesByPage,
 		};
 
 		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.getScrollable()));

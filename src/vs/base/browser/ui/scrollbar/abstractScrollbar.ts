@@ -38,12 +38,14 @@ export interface AbstractScrollbarOptions {
 	visibility: ScrollbarVisibility;
 	extraScrollbarClassName: string;
 	scrollable: Scrollable;
+	gutterClickMovesByPage: boolean;
 }
 
 export abstract class AbstractScrollbar extends Widget {
 
 	protected _host: ScrollbarHost;
 	protected _scrollable: Scrollable;
+	protected _gutterClickMovesByPage: boolean;
 	private _lazyRender: boolean;
 	protected _scrollbarState: ScrollbarState;
 	private _visibilityController: ScrollbarVisibilityController;
@@ -59,6 +61,7 @@ export abstract class AbstractScrollbar extends Widget {
 		this._lazyRender = opts.lazyRender;
 		this._host = opts.host;
 		this._scrollable = opts.scrollable;
+		this._gutterClickMovesByPage = opts.gutterClickMovesByPage;
 		this._scrollbarState = opts.scrollbarState;
 		this._visibilityController = this._register(new ScrollbarVisibilityController(opts.visibility, 'visible scrollbar ' + opts.extraScrollbarClassName, 'invisible scrollbar ' + opts.extraScrollbarClassName));
 		this._visibilityController.setIsNeeded(this._scrollbarState.isNeeded());
@@ -210,7 +213,16 @@ export abstract class AbstractScrollbar extends Widget {
 			offsetX = e.posx - domNodePosition.left;
 			offsetY = e.posy - domNodePosition.top;
 		}
-		this._setDesiredScrollPositionNow(this._scrollbarState.getDesiredScrollPositionFromOffset(this._mouseDownRelativePosition(offsetX, offsetY)));
+
+		let offset = this._mouseDownRelativePosition(offsetX, offsetY);
+		let scrollPos: number;
+		if (this._gutterClickMovesByPage) {
+			scrollPos = this._scrollbarState.getDesiredScrollPositionFromOffsetPaged(offset);
+		} else {
+			scrollPos = this._scrollbarState.getDesiredScrollPositionFromOffsetAbsolute(offset);
+		}
+		this._setDesiredScrollPositionNow(scrollPos);
+
 		if (e.leftButton) {
 			e.preventDefault();
 			this._sliderMouseDown(e, () => { /*nothing to do*/ });

@@ -68,6 +68,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			horizontalSliderSize: EditorOptions.scrollbar.defaultValue.horizontalSliderSize,
 			verticalScrollbarSize: input.verticalScrollbarWidth,
 			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
+			gutterClickMovesByPage: EditorOptions.scrollbar.defaultValue.gutterClickMovesByPage,
 		};
 		options._write(EditorOption.scrollbar, scrollbarOptions);
 		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {

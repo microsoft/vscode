@@ -33,7 +33,8 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 			),
 			visibility: options.horizontal,
 			extraScrollbarClassName: 'horizontal',
-			scrollable: scrollable
+			scrollable: scrollable,
+			gutterClickMovesByPage: options.gutterClickMovesByPage
 		});
 
 		if (options.horizontalHasArrows) {

@@ -189,12 +189,26 @@ export class ScrollbarState {
 	}
 
 	/**
+	 * Compute a desired `scrollPosition` such that `offset` ends up in the center of the slider.
+	 * `offset` is based on the same coordinate system as the `sliderPosition`.
+	 */
+	public getDesiredScrollPositionFromOffsetAbsolute(offset: number): number {
+		if (!this._computedIsNeeded) {
+			// no need for a slider
+			return 0;
+		}
+
+		let desiredSliderPosition = offset - this._arrowSize - this._computedSliderSize / 2;
+		return Math.round(desiredSliderPosition / this._computedSliderRatio);
+	}
+
+	/**
 	 * Compute a desired `scrollPosition` from if offset is before or after the slider position.
 	 * If offset is before slider, treat as a page up (or left).  If after, page down (or right).
 	 * `offset` and `_computedSliderPosition` are based on the same coordinate system.
 	 * `_visibleSize` corresponds to a "page" of lines in the returned coordinate system.
 	 */
-	public getDesiredScrollPositionFromOffset(offset: number): number {
+	public getDesiredScrollPositionFromOffsetPaged(offset: number): number {
 		if (!this._computedIsNeeded) {
 			// no need for a slider
 			return 0;
