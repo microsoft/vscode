@@ -269,7 +269,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		if (!context.only) {
 			return actions;
 		}
-		return this.pruneInvalidActions(actions, context.only, /* numberOfInvalid = */ 5);
+		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorTriggerReason | undefined {
@@ -368,7 +368,44 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		return false;
 	}
 
+	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
+		if (this.client.apiVersion.gte(API.v400)) {
+			// Invalid actions come from TS server instead
+			return actions;
+		}
+
+		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
+			const disabledAction = new vscode.CodeAction(
+				localize('extractConstant.disabled.title', "Extract to constant"),
+				Extract_Constant.kind);
+
+			disabledAction.disabled = {
+				reason: localize('extractConstant.disabled.reason', "The current selection cannot be extracted"),
+			};
+			disabledAction.isPreferred = true;
+
+			actions.push(disabledAction);
+		}
+
+		if (!actions.some(action => action.kind && Extract_Function.kind.contains(action.kind))) {
+			const disabledAction = new vscode.CodeAction(
+				localize('extractFunction.disabled.title', "Extract to function"),
+				Extract_Function.kind);
+
+			disabledAction.disabled = {
+				reason: localize('extractFunction.disabled.reason', "The current selection cannot be extracted"),
+			};
+			actions.push(disabledAction);
+		}
+		return actions;
+	}
+
 	private pruneInvalidActions(actions: vscode.CodeAction[], only?: vscode.CodeActionKind, numberOfInvalid?: number): vscode.CodeAction[] {
+		if (this.client.apiVersion.lt(API.v400)) {
+			// Older TS version don't return extra actions
+			return actions;
+		}
+
 		const availableActions: vscode.CodeAction[] = [];
 		const invalidCommonActions: vscode.CodeAction[] = [];
 		const invalidUncommonActions: vscode.CodeAction[] = [];
