@@ -579,6 +579,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					id: dto.id,
 					label: dto.label,
 					description: dto.description,
+					detail: dto.detail,
 					isPreferred: dto.isPreferred,
 					preloads: dto.preloads,
 					providerHandle: dto.providerHandle,

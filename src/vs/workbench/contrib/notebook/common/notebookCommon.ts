@@ -762,6 +762,7 @@ export interface INotebookKernelInfoDto2 {
 	extensionLocation: URI;
 	providerHandle?: number;
 	description?: string;
+	detail?: string;
 	isPreferred?: boolean;
 	preloads?: UriComponents[];
 }

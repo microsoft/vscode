@@ -829,6 +829,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				extension: this._extension.identifier,
 				extensionLocation: this._extension.extensionLocation,
 				description: kernel.description,
+				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
 				preloads: kernel.preloads
 			};

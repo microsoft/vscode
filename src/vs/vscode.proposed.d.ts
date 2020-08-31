@@ -1648,6 +1648,7 @@ declare module 'vscode' {
 		readonly id?: string;
 		label: string;
 		description?: string;
+		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;

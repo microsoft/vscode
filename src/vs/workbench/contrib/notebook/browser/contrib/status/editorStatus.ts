@@ -56,17 +56,16 @@ registerAction2(class extends Action2 {
 				label: a.label,
 				picked: a.id === activeKernel?.id,
 				description:
-					(a as INotebookKernelInfo2).description
-						? (a as INotebookKernelInfo2).description
+					a.description
+						? a.description
 						: a.extension.value + (a.id === activeKernel?.id
 							? nls.localize('currentActiveKernel', " (Currently Active)")
 							: ''),
+				detail: a.detail,
 				kernelProviderId: a.extension.value,
 				run: async () => {
 					editor.activeKernel = a;
-					if ((a as any).resolve) {
-						(a as INotebookKernelInfo2).resolve(editor.uri!, editor.getId(), tokenSource.token);
-					}
+					a.resolve(editor.uri!, editor.getId(), tokenSource.token);
 				},
 				buttons: [{
 					iconClass: 'codicon-settings-gear',
