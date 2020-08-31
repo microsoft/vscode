@@ -17,7 +17,6 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -77,9 +76,6 @@ class DesktopMain extends Disposable {
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
 		setFullscreen(!!this.environmentService.configuration.fullscreen);
-
-		// Keyboard support
-		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 	}
 
 	private reviveUris() {

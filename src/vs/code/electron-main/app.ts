@@ -303,7 +303,7 @@ export class CodeApplication extends Disposable {
 			const nativeKeymap = await import('native-keymap');
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
 				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
+					this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged');
 				}
 			});
 		})();

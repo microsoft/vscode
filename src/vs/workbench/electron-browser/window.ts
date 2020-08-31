@@ -20,7 +20,6 @@ import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -208,11 +207,6 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:leaveHighContrast', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
 			this.themeService.setOSHighContrast(false);
-		});
-
-		// keyboard layout changed event
-		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// accessibility support changed event
