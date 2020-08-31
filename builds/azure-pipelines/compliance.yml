@@ -2,7 +2,65 @@ jobs:
 - job: Compliance
   pool:
     name: Package ES Standard Build
+
   steps:
-    - task: CredScan@2
-      inputs:
-        toolMajorVersion: 'V2'
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '12.14.1'
+
+  - task: YarnInstaller@3
+    inputs:
+      versionSpec: '1.x'
+    condition: succeeded()
+      
+  - task: AzureKeyVault@1
+    displayName: 'Azure Key Vault: Get Secrets'
+    inputs:
+      azureSubscription: 'vscode-builds-subscription'
+      KeyVaultName: vscode
+    condition: succeeded()
+    
+  - script: |
+      set -e
+      cat << EOF > ~/.netrc
+      machine github.com
+      login vscode
+      password $(github-distro-mixin-password)
+      EOF
+
+      git config user.email "vscode@microsoft.com"
+      git config user.name "VSCode"
+    displayName: Prepare tooling
+    condition: succeeded()
+
+  - script: |
+      set -e
+      git remote add distro "https://github.com/$(VSCODE_MIXIN_REPO).git"
+      git fetch distro
+      git merge $(node -p "require('./package.json').distro")
+    displayName: Merge distro
+    condition: succeeded()
+
+  - script: |
+      set -e
+      CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+    displayName: Install dependencies
+    condition: succeeded()
+
+  - script: |
+      set -e
+      yarn postinstall
+    displayName: Run postinstall scripts
+    condition: succeeded()
+
+  # Mixin must run before optimize, because the CSS loader will
+  # inline small SVGs
+  - script: |
+      set -e
+      node build/azure-pipelines/mixin
+    displayName: Mix in quality
+    condition: succeeded()
+
+  - task: CredScan@2
+    inputs:
+      toolMajorVersion: 'V2'
