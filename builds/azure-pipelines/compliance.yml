@@ -15,9 +15,9 @@ jobs:
     condition: succeeded()
     
   - task: UsePythonVersion@0
-  inputs:
-    versionSpec: '2.x'
-    addToPath: true
+    inputs:
+      versionSpec: '2.x'
+      addToPath: true
 
   - task: AzureKeyVault@1
     displayName: 'Azure Key Vault: Get Secrets'
