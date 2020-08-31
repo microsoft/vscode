@@ -10,6 +10,7 @@ const glob = require('glob');
 const fs = require('fs');
 const events = require('events');
 const mocha = require('mocha');
+const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
 const playwright = require('playwright');
@@ -37,30 +38,44 @@ if (argv.help) {
 }
 
 const withReporter = (function () {
-	const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
-	let ctor;
-
-	try {
-		ctor = require(reporterPath);
-	} catch (err) {
-		try {
-			ctor = require(argv.reporter);
-		} catch (err) {
-			ctor = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
-			console.warn(`could not load reporter: ${argv.reporter}, using ${ctor.name}`);
+	if (argv.tfs) {
+		{
+			return (browserType, runner) => {
+				new mocha.reporters.Spec(runner);
+				new MochaJUnitReporter(runner, {
+					reporterOptions: {
+						testsuitesTitle: `${argv.tfs} ${process.platform}`,
+						mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${browserType}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
+					}
+				});
+			}
 		}
+	} else {
+		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
+		let ctor;
+
+		try {
+			ctor = require(reporterPath);
+		} catch (err) {
+			try {
+				ctor = require(argv.reporter);
+			} catch (err) {
+				ctor = process.platform === 'win32' ? mocha.reporters.List : mocha.reporters.Spec;
+				console.warn(`could not load reporter: ${argv.reporter}, using ${ctor.name}`);
+			}
+		}
+
+		function parseReporterOption(value) {
+			let r = /^([^=]+)=(.*)$/.exec(value);
+			return r ? { [r[1]]: r[2] } : {};
+		}
+
+		let reporterOptions = argv['reporter-options'];
+		reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
+		reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
+
+		return (_, runner) => new ctor(runner, { reporterOptions })
 	}
-
-	function parseReporterOption(value) {
-		let r = /^([^=]+)=(.*)$/.exec(value);
-		return r ? { [r[1]]: r[2] } : {};
-	}
-
-	let reporterOptions = argv['reporter-options'];
-	reporterOptions = typeof reporterOptions === 'string' ? [reporterOptions] : reporterOptions;
-	reporterOptions = reporterOptions.reduce((r, o) => Object.assign(r, parseReporterOption(o)), {});
-
-	return (runner) => new ctor(runner, { reporterOptions })
 })()
 
 const outdir = argv.build ? 'out-build' : 'out';
@@ -137,7 +152,7 @@ async function runTestsInBrowser(testModules, browserType) {
 		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
-	withReporter(new EchoRunner(emitter, browserType.toUpperCase()));
+	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));
 
 	// collection failures for console printing
 	const fails = [];

@@ -210,7 +210,7 @@ suite('FindModel', () => {
 		);
 
 		// simulate adding a search scope
-		findState.change({ searchScope: new Range(8, 1, 10, 1) }, true);
+		findState.change({ searchScope: [new Range(8, 1, 10, 1)] }, true);
 		assertFindState(
 			editor,
 			[8, 14, 8, 19],
@@ -443,7 +443,7 @@ suite('FindModel', () => {
 
 	findTest('find model next stays in scope', (editor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 9, 1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -486,6 +486,131 @@ suite('FindModel', () => {
 			[
 				[7, 14, 7, 19],
 				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('multi-selection find model next stays in scope (overlap)', (editor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 2), new Range(8, 1, 9, 1)] }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[8, 14, 8, 19],
+			[8, 14, 8, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[7, 14, 7, 19],
+				[8, 14, 8, 19]
+			]
+		);
+
+		findModel.dispose();
+		findState.dispose();
+	});
+
+	findTest('multi-selection find model next stays in scope', (editor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', matchCase: true, wholeWord: false, searchScope: [new Range(6, 1, 7, 38), new Range(9, 3, 9, 38)] }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assertFindState(
+			editor,
+			[1, 1, 1, 1],
+			null,
+			[
+				[6, 14, 6, 19],
+				// `matchCase: false` would
+				// find this match as well:
+				// [6, 27, 6, 32],
+				[7, 14, 7, 19],
+				// `wholeWord: true` would
+				// exclude this match:
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[7, 14, 7, 19],
+			[7, 14, 7, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[9, 14, 9, 19],
+			[9, 14, 9, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
+			]
+		);
+
+		findModel.moveToNextMatch();
+		assertFindState(
+			editor,
+			[6, 14, 6, 19],
+			[6, 14, 6, 19],
+			[
+				[6, 14, 6, 19],
+				[7, 14, 7, 19],
+				[9, 14, 9, 19],
 			]
 		);
 
@@ -581,7 +706,7 @@ suite('FindModel', () => {
 
 	findTest('find model prev stays in scope', (editor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 9, 1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 9, 1)] }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(
@@ -2073,7 +2198,7 @@ suite('FindModel', () => {
 
 	findTest('issue #27083. search scope works even if it is a single line', (editor) => {
 		let findState = new FindReplaceState();
-		findState.change({ searchString: 'hello', wholeWord: true, searchScope: new Range(7, 1, 8, 1) }, false);
+		findState.change({ searchString: 'hello', wholeWord: true, searchScope: [new Range(7, 1, 8, 1)] }, false);
 		let findModel = new FindModelBoundToEditorModel(editor, findState);
 
 		assertFindState(

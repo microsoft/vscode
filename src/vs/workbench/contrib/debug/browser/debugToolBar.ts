@@ -21,7 +21,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerThemingParticipant, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -58,7 +57,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(themeService);

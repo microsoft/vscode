@@ -189,6 +189,15 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return Promise.reject('No Servers');
 	}
 
+	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
+		for (const server of this.servers) {
+			if (await server.extensionManagementService.canInstall(gallery)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
 
 		// Only local server, install without any checks

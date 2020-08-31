@@ -324,8 +324,7 @@ export class Menu extends ActionBar {
 		if (action instanceof Separator) {
 			return new MenuSeparatorActionViewItem(options.context, action, { icon: true });
 		} else if (action instanceof SubmenuAction) {
-			const actions = Array.isArray(action.actions) ? action.actions : action.actions();
-			const menuActionViewItem = new SubmenuMenuActionViewItem(action, actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) });
+			const menuActionViewItem = new SubmenuMenuActionViewItem(action, action.actions, parentData, { ...options, submenuIds: new Set([...(options.submenuIds || []), action.id]) });
 
 			if (options.enableMnemonics) {
 				const mnemonic = menuActionViewItem.getMnemonic();
@@ -791,7 +790,12 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 	private cleanupExistingSubmenu(force: boolean): void {
 		if (this.parentData.submenu && (force || (this.parentData.submenu !== this.mysubmenu))) {
-			this.parentData.submenu.dispose();
+
+			// disposal may throw if the submenu has already been removed
+			try {
+				this.parentData.submenu.dispose();
+			} catch { }
+
 			this.parentData.submenu = undefined;
 			this.updateAriaExpanded('false');
 			if (this.submenuContainer) {

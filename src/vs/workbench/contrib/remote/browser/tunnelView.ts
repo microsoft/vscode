@@ -37,11 +37,13 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { URI } from 'vs/base/common/uri';
-import { RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { isLocalhost, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -72,7 +74,8 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@ITerminalService readonly terminalService: ITerminalService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -86,6 +89,11 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: ''
 		};
+
+		const urlFinder = this._register(new UrlFinder(terminalService));
+		this._register(urlFinder.onDidMatchLocalUrl(localUrl => {
+			this.model.forward(localUrl);
+		}));
 	}
 
 	async groups(): Promise<ITunnelGroup[]> {
@@ -155,18 +163,34 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
+	private mapHasTunnel(map: Map<string, Tunnel>, host: string, port: number): boolean {
+		if (!isLocalhost(host)) {
+			return map.has(MakeAddress(host, port));
+		}
+
+		const stringAddress = MakeAddress('localhost', port);
+		if (map.has(stringAddress)) {
+			return true;
+		}
+		const numberAddress = MakeAddress('127.0.0.1', port);
+		if (map.has(numberAddress)) {
+			return true;
+		}
+		return false;
+	}
+
 	get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
-			let key = MakeAddress(value.host, value.port);
-			if (!this.model.forwarded.has(key) && !this.model.detected.has(key)) {
+			if (!this.mapHasTunnel(this.model.forwarded, value.host, value.port) &&
+				!this.mapHasTunnel(this.model.detected, value.host, value.port)) {
 				// The host:port hasn't been forwarded or detected. However, if the candidate is 0.0.0.0,
 				// also check that the port hasn't already been forwarded with localhost, and vice versa.
 				// For example: no need to show 0.0.0.0:3000 as a candidate if localhost:3000 is already forwarded.
 				const otherHost = value.host === '0.0.0.0' ? 'localhost' : (value.host === 'localhost' ? '0.0.0.0' : undefined);
 				if (otherHost) {
-					key = MakeAddress(otherHost, value.port);
-					if (this.model.forwarded.has(key) || this.model.detected.has(key)) {
+					if (this.mapHasTunnel(this.model.forwarded, otherHost, value.port) ||
+						this.mapHasTunnel(this.model.detected, otherHost, value.port)) {
 						return;
 					}
 				}
@@ -403,11 +427,11 @@ class TunnelItem implements ITunnelItem {
 	get label(): string {
 		if (this.name) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel0', "{0}", this.name);
-		} else if (this.localAddress && (this.remoteHost !== 'localhost')) {
+		} else if (this.localAddress && !isLocalhost(this.remoteHost)) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel2', "{0}:{1} \u2192 {2}", this.remoteHost, this.remotePort, this.localAddress);
 		} else if (this.localAddress) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel3', "{0} \u2192 {1}", this.remotePort, this.localAddress);
-		} else if (this.remoteHost !== 'localhost') {
+		} else if (!isLocalhost(this.remoteHost)) {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel4', "{0}:{1}", this.remoteHost, this.remotePort);
 		} else {
 			return nls.localize('remote.tunnelsView.forwardedPortLabel5', "{0}", this.remotePort);

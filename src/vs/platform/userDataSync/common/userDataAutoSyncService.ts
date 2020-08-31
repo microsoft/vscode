@@ -131,8 +131,8 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 
 			this._register(userDataSyncAccountService.onDidChangeAccount(() => this.updateAutoSync()));
 			this._register(userDataSyncStoreService.onDidChangeDonotMakeRequestsUntil(() => this.updateAutoSync()));
-			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false)));
-			this._register(Event.filter(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false)));
+			this._register(Event.debounce<string, string[]>(userDataSyncService.onDidChangeLocal, (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, false, false)));
+			this._register(Event.filter(this.userDataSyncResourceEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'], false, false)));
 		}
 	}
 
@@ -320,7 +320,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	}
 
 	private sources: string[] = [];
-	async triggerSync(sources: string[], skipIfSyncedRecently: boolean): Promise<void> {
+	async triggerSync(sources: string[], skipIfSyncedRecently: boolean, disableCache: boolean): Promise<void> {
 		if (this.autoSync.value === undefined) {
 			return this.syncTriggerDelayer.cancel();
 		}
@@ -337,7 +337,7 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {
-				await this.autoSync.value.sync('Activity');
+				await this.autoSync.value.sync('Activity', disableCache);
 			}
 		}, this.successiveFailures
 			? this.getSyncTriggerDelayTime() * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
@@ -393,14 +393,14 @@ class AutoSync extends Disposable {
 			this.logService.info('Auto Sync: Stopped');
 		}));
 		this.logService.info('Auto Sync: Started');
-		this.sync(AutoSync.INTERVAL_SYNCING);
+		this.sync(AutoSync.INTERVAL_SYNCING, false);
 	}
 
 	private waitUntilNextIntervalAndSync(): void {
-		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING), this.interval);
+		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING, false), this.interval);
 	}
 
-	sync(reason: string): Promise<void> {
+	sync(reason: string, disableCache: boolean): Promise<void> {
 		const syncPromise = createCancelablePromise(async token => {
 			if (this.syncPromise) {
 				try {
@@ -414,7 +414,7 @@ class AutoSync extends Disposable {
 					}
 				}
 			}
-			return this.doSync(reason, token);
+			return this.doSync(reason, disableCache, token);
 		});
 		this.syncPromise = syncPromise;
 		this.syncPromise.finally(() => this.syncPromise = undefined);
@@ -435,12 +435,12 @@ class AutoSync extends Disposable {
 				!isEqual(current.stableUrl, previous.stableUrl));
 	}
 
-	private async doSync(reason: string, token: CancellationToken): Promise<void> {
+	private async doSync(reason: string, disableCache: boolean, token: CancellationToken): Promise<void> {
 		this.logService.info(`Auto Sync: Triggered by ${reason}`);
 		this._onDidStartSync.fire();
 		let error: Error | undefined;
 		try {
-			this.syncTask = await this.userDataSyncService.createSyncTask();
+			this.syncTask = await this.userDataSyncService.createSyncTask(disableCache);
 			if (token.isCancellationRequested) {
 				return;
 			}

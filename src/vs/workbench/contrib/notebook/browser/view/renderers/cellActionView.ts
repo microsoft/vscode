@@ -29,30 +29,33 @@ export class VerticalSeparatorViewItem extends BaseActionViewItem {
 	}
 }
 
-export function createAndFillInActionBarActionsWithVerticalSeparators(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function createAndFillInActionBarActionsWithVerticalSeparators(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, alwaysFillSecondary?: boolean, isPrimaryGroup?: (group: string) => boolean): IDisposable {
 	const groups = menu.getActions(options);
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryGroup);
+	fillInActions(groups, target, false, alwaysFillSecondary, isPrimaryGroup);
 	return asDisposable(groups);
 }
 
-function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, alwaysFillSecondary = false, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (const tuple of groups) {
 		let [group, actions] = tuple;
 		if (useAlternativeActions) {
 			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
 		}
 
-		if (isPrimaryGroup(group)) {
-			const to = Array.isArray<IAction>(target) ? target : target.primary;
+		const isPrimary = isPrimaryGroup(group);
+		if (isPrimary) {
+			const to = Array.isArray(target) ? target : target.primary;
 
 			if (to.length > 0) {
 				to.push(new VerticalSeparator());
 			}
 
 			to.push(...actions);
-		} else {
-			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+		}
+
+		if (!isPrimary || alwaysFillSecondary) {
+			const to = Array.isArray(target) ? target : target.secondary;
 
 			if (to.length > 0) {
 				to.push(new Separator());

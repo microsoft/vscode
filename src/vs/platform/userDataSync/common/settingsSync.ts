@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { updateIgnoredSettings, merge, getIgnoredSettings, isEmpty } from 'vs/platform/userDataSync/common/settingsMerge';
 import { edit } from 'vs/platform/userDataSync/common/content';
-import { AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFileResourcePreview, IMergeResult } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -38,6 +38,11 @@ function isSettingsSyncContent(thing: any): thing is ISettingsSyncContent {
 	return thing
 		&& (thing.settings && typeof thing.settings === 'string')
 		&& Object.keys(thing).length === 1;
+}
+
+export function parseSettingsSyncContent(syncContent: string): ISettingsSyncContent {
+	const parsed = <ISettingsSyncContent>JSON.parse(syncContent);
+	return isSettingsSyncContent(parsed) ? parsed : /* migrate */ { settings: syncContent };
 }
 
 export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implements IUserDataSynchroniser {
@@ -281,10 +286,9 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
 	}
 
-	parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
+	private parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
 		try {
-			const parsed = <ISettingsSyncContent>JSON.parse(syncContent);
-			return isSettingsSyncContent(parsed) ? parsed : /* migrate */ { settings: syncContent };
+			return parseSettingsSyncContent(syncContent);
 		} catch (e) {
 			this.logService.error(e);
 		}
@@ -348,6 +352,54 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 			await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
 		} catch (e) {/* ignore */ }
 	}
+}
+
+export class SettingsInitializer extends AbstractInitializer {
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
+	) {
+		super(SyncResource.Settings, environmentService, logService, fileService);
+	}
+
+	async doInitialize(remoteUserData: IRemoteUserData): Promise<void> {
+		const settingsSyncContent = remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
+		if (!settingsSyncContent) {
+			this.logService.info('Skipping initializing settings because remote settings does not exist.');
+			return;
+		}
+
+		const isEmpty = await this.isEmpty();
+		if (!isEmpty) {
+			this.logService.info('Skipping initializing settings because local settings exist.');
+			return;
+		}
+
+		await this.fileService.writeFile(this.environmentService.settingsResource, VSBuffer.fromString(settingsSyncContent.settings));
+
+		await this.updateLastSyncUserData(remoteUserData);
+	}
+
+	private async isEmpty(): Promise<boolean> {
+		try {
+			const fileContent = await this.fileService.readFile(this.environmentService.settingsResource);
+			return isEmpty(fileContent.value.toString().trim());
+		} catch (error) {
+			return (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND;
+		}
+	}
+
+	private parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
+		try {
+			return parseSettingsSyncContent(syncContent);
+		} catch (e) {
+			this.logService.error(e);
+		}
+		return null;
+	}
+
 }
 
 function isSyncData(thing: any): thing is ISyncData {

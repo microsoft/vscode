@@ -30,11 +30,11 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalBeforeHandleLinkEvent, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
-import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
-import { Unicode11Addon } from 'xterm-addon-unicode11';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
+import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -98,6 +98,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _titleReadyPromise: Promise<string>;
 	private _titleReadyComplete: ((title: string) => any) | undefined;
 	private _areLinksReady: boolean = false;
+	private _initialDataEvents: string[] | undefined = [];
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
@@ -131,6 +132,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	public get areLinksReady(): boolean { return this._areLinksReady; }
+	public get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
@@ -164,8 +166,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
 	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
-	private readonly _onBeforeHandleLink = new Emitter<ITerminalBeforeHandleLinkEvent>();
-	public get onBeforeHandleLink(): Event<ITerminalBeforeHandleLinkEvent> { return this._onBeforeHandleLink.event; }
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -233,6 +233,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this.updateAccessibilitySupport();
 			}
 		}));
+
+		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
+		// running at that point.
+		let initialDataEventsTimeout: number | undefined = window.setTimeout(() => {
+			initialDataEventsTimeout = undefined;
+			this._initialDataEvents = undefined;
+		}, 10000);
+		this._register({
+			dispose: () => {
+				if (initialDataEventsTimeout) {
+					window.clearTimeout(initialDataEventsTimeout);
+				}
+			}
+		});
 	}
 
 	public addDisposable(disposable: IDisposable): void {
@@ -419,10 +433,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				});
 			}
 			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
-			this._linkManager.onBeforeHandleLink(e => {
-				e.terminal = this;
-				this._onBeforeHandleLink.fire(e);
-			});
 			this._areLinksReady = true;
 			this._onLinksReady.fire(this);
 		});
@@ -868,11 +878,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	protected _createProcessManager(): void {
 		this._processManager = this._instantiationService.createInstance(TerminalProcessManager, this._id, this._configHelper);
-		this._processManager.onProcessReady(() => {
-			this._onProcessIdReady.fire(this);
-		});
+		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
-		this._processManager.onProcessData(data => this._onData.fire(data));
+		this._processManager.onProcessData(data => {
+			this._initialDataEvents?.push(data);
+			this._onData.fire(data);
+		});
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
 		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
@@ -1117,9 +1128,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (!reset) {
 			// HACK: Force initialText to be non-falsy for reused terminals such that the
-			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
-			// in Windows 10 1903 so we only want to use it when something is definitely written to the
-			// terminal.
+			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to stop
+			// responding in Windows 10 1903 so we only want to use it when something is definitely written
+			// to the terminal.
 			shell.initialText = ' ';
 		}
 

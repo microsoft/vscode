@@ -7,7 +7,6 @@ import { isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThemeType } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IBaseOpenWindowsOptions {
@@ -171,9 +170,37 @@ export interface IPathData {
 	overrideId?: string;
 }
 
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+	waitMarkerFileUri: URI;
+}
+
+interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFileUri: UriComponents;
+}
+
 export interface IOpenFileRequest {
 	filesToOpenOrCreate?: IPathData[];
 	filesToDiff?: IPathData[];
+}
+
+/**
+ * Additional context for the request on native only.
+ */
+export interface INativeOpenFileRequest extends IOpenFileRequest {
+	termProgram?: string;
+	filesToWait?: IPathsToWaitForData;
+}
+
+export interface INativeRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
+}
+
+export interface INativeRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
 }
 
 export interface IWindowConfiguration {
@@ -182,7 +209,7 @@ export interface IWindowConfiguration {
 	remoteAuthority?: string;
 
 	highContrast?: boolean;
-	defaultThemeType?: ThemeType;
+	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];

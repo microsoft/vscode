@@ -39,7 +39,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private _findWidgetVisible: IContextKey<boolean>;
 
 	public constructor(
-		private readonly id: string,
+		public readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,
@@ -53,6 +53,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		this._contentOptions = initialContentOptions;
 
 		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+	}
+
+	public get isFocused() {
+		return !!this._webview.value?.isFocused;
 	}
 
 	private readonly _onDispose = this._register(new Emitter<void>());

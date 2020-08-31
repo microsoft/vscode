@@ -167,7 +167,7 @@ class MessageWidget {
 
 				let relatedResource = document.createElement('a');
 				dom.addClass(relatedResource, 'filename');
-				relatedResource.innerHTML = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
+				relatedResource.innerText = `${getBaseLabel(related.resource)}(${related.startLineNumber}, ${related.startColumn}): `;
 				relatedResource.title = getPathLabel(related.resource, undefined);
 				this._relatedDiagnostics.set(relatedResource, related);
 

@@ -11,7 +11,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition } from 'vs/workbench/contrib/files/common/files';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, IExplorerService, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -140,6 +140,24 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			})).concat(...untitledResources.map(untitledResource => ({ resource: untitledResource })));
 
 			await editorService.openEditors(editors, SIDE_GROUP);
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib + 10,
+	when: ContextKeyExpr.and(ExplorerFocusCondition, ExplorerFolderContext.toNegated()),
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.DownArrow
+	},
+	id: 'explorer.openAndPassFocus', handler: async (accessor, _resource: URI | object) => {
+		const editorService = accessor.get(IEditorService);
+		const explorerService = accessor.get(IExplorerService);
+		const resources = explorerService.getContext(true);
+
+		if (resources.length) {
+			await editorService.openEditors(resources.map(r => ({ resource: r.resource, options: { preserveFocus: false } })));
 		}
 	}
 });
@@ -637,3 +655,5 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		}
 	}
 });
+
+

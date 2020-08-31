@@ -54,7 +54,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		this._register(this.on(WebviewMessageChannels.loadResource, (entry: any) => {
 			const rawPath = entry.path;
 			const normalizedPath = decodeURIComponent(rawPath);
-			const uri = URI.parse(normalizedPath.replace(/^\/(\w+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
+			const uri = URI.parse(normalizedPath.replace(/^\/([\w\-]+)\/(.+)$/, (_, scheme, path) => scheme + ':/' + path));
 			this.loadResource(rawPath, uri);
 		}));
 

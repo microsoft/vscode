@@ -168,13 +168,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 				const toggleAccountsVisibilityAction = new Action(
 					'toggleAccountsVisibility',
-					nls.localize('accounts', "Accounts"),
+					this.accountsVisibilityPreference ? nls.localize('hideAccounts', "Hide Accounts") : nls.localize('showAccounts', "Show Accounts"),
 					undefined,
 					true,
 					async () => { this.accountsVisibilityPreference = !this.accountsVisibilityPreference; }
 				);
 
-				toggleAccountsVisibilityAction.checked = !!this.accountsActivityAction;
 				actions.push(toggleAccountsVisibilityAction);
 				actions.push(new Separator());
 

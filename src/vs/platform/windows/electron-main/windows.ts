@@ -106,7 +106,7 @@ export interface IWindowsMainService {
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
 	getLastActiveWindow(): ICodeWindow | undefined;
 

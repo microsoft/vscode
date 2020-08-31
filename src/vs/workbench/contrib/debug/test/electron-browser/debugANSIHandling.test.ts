@@ -88,7 +88,6 @@ suite('Debug - ANSI Handling', () => {
 			return child;
 		} else {
 			assert.fail('Unexpected assertion error');
-			return null!;
 		}
 	}
 

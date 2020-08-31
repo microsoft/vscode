@@ -150,4 +150,19 @@ suite('ContextKeyExpr', () => {
 		t('a || b', 'c && d', 'a && c && d || b && c && d');
 		t('a || b', 'c && d || e', 'a && e || b && e || a && c && d || b && c && d');
 	});
+
+	test('ContextKeyInExpr', () => {
+		const ainb = ContextKeyExpr.deserialize('a in b')!;
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': [3, 2, 1] })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': [1, 2, 3] })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': [1, 2] })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3 })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': null })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': ['x'] })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': ['y'] })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': {} })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
+	});
 });

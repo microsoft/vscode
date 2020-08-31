@@ -10,16 +10,10 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Use Node.js
-      uses: actions/setup-node@v1
     - name: Install dependencies
       run: yarn --frozen-lockfile
       env:
         CHILD_CONCURRENCY: 1
-    - name: Install .NET Core 2.2
-      uses: actions/setup-dotnet@v1.5.0
-      with:
-        dotnet-version: 2.2
     - uses: microsoft/RichCodeNavIndexer@v0.1
       with:
         languages: typescript

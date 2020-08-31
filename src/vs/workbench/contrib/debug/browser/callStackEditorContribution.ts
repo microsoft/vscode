@@ -40,7 +40,7 @@ const FOCUSED_STACK_FRAME_DECORATION: IModelDecorationOptions = {
 	stickiness
 };
 
-export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStackFrameRange: IRange | undefined): IModelDeltaDecoration[] {
+export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStackFrameRange: IRange | undefined, isFocusedSession: boolean): IModelDeltaDecoration[] {
 	// only show decorations for the currently focused thread.
 	const result: IModelDeltaDecoration[] = [];
 	const columnUntilEOLRange = new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn, stackFrame.range.startLineNumber, Constants.MAX_SAFE_SMALL_INTEGER);
@@ -48,12 +48,14 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStack
 
 	// compute how to decorate the editor. Different decorations are used if this is a top stack frame, focused stack frame,
 	// an exception or a stack frame that did not change the line number (we only decorate the columns, not the whole line).
-	const callStack = stackFrame.thread.getCallStack();
-	if (callStack && callStack.length && stackFrame === callStack[0]) {
-		result.push({
-			options: TOP_STACK_FRAME_MARGIN,
-			range
-		});
+	const topStackFrame = stackFrame.thread.getTopStackFrame();
+	if (stackFrame.getId() === topStackFrame?.getId()) {
+		if (isFocusedSession) {
+			result.push({
+				options: TOP_STACK_FRAME_MARGIN,
+				range
+			});
+		}
 
 		result.push({
 			options: TOP_STACK_FRAME_DECORATION,
@@ -68,10 +70,12 @@ export function createDecorationsForStackFrame(stackFrame: IStackFrame, topStack
 		}
 		topStackFrameRange = columnUntilEOLRange;
 	} else {
-		result.push({
-			options: FOCUSED_STACK_FRAME_MARGIN,
-			range
-		});
+		if (isFocusedSession) {
+			result.push({
+				options: FOCUSED_STACK_FRAME_MARGIN,
+				range
+			});
+		}
 
 		result.push({
 			options: FOCUSED_STACK_FRAME_DECORATION,
@@ -106,6 +110,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 		const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const decorations: IModelDeltaDecoration[] = [];
 		this.debugService.getModel().getSessions().forEach(s => {
+			const isSessionFocused = s === focusedStackFrame?.thread.session;
 			s.getAllThreads().forEach(t => {
 				if (t.stopped) {
 					let candidateStackFrame = t === focusedStackFrame?.thread ? focusedStackFrame : undefined;
@@ -117,7 +122,7 @@ export class CallStackEditorContribution implements IEditorContribution {
 					}
 
 					if (candidateStackFrame && candidateStackFrame.source.uri.toString() === this.editor.getModel()?.uri.toString()) {
-						decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange));
+						decorations.push(...createDecorationsForStackFrame(candidateStackFrame, this.topStackFrameRange, isSessionFocused));
 					}
 				}
 			});

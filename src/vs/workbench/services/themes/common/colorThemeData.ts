@@ -550,15 +550,20 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	// constructors
 
-	static createUnloadedThemeForThemeType(themeType: ThemeType): ColorThemeData {
-		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType));
+	static createUnloadedThemeForThemeType(themeType: ThemeType, colorMap?: { [id: string]: string }): ColorThemeData {
+		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType), colorMap);
 	}
 
-	static createUnloadedTheme(id: string): ColorThemeData {
+	static createUnloadedTheme(id: string, colorMap?: { [id: string]: string }): ColorThemeData {
 		let themeData = new ColorThemeData(id, '', '__' + id);
 		themeData.isLoaded = false;
 		themeData.themeTokenColors = [];
 		themeData.watch = false;
+		if (colorMap) {
+			for (let id in colorMap) {
+				themeData.colorMap[id] = Color.fromHex(colorMap[id]);
+			}
+		}
 		return themeData;
 	}
 
