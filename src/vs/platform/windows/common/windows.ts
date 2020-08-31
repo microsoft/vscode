@@ -186,20 +186,20 @@ export interface IOpenFileRequest {
 }
 
 /**
- * Additional context for the request on desktop only.
+ * Additional context for the request on native only.
  */
-export interface IDesktopOpenFileRequest extends IOpenFileRequest {
+export interface INativeOpenFileRequest extends IOpenFileRequest {
 	termProgram?: string;
 	filesToWait?: IPathsToWaitForData;
 }
 
-export interface IDesktopRunActionInWindowRequest {
+export interface INativeRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
 	args?: any[];
 }
 
-export interface IDesktopRunKeybindingInWindowRequest {
+export interface INativeRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
 }
 

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { app, shell, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
-import { getTitleBarStyle, IDesktopRunActionInWindowRequest, IDesktopRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { getTitleBarStyle, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -754,10 +754,10 @@ export class Menubar {
 			}
 
 			if (invocation.type === 'commandId') {
-				const runActionPayload: IDesktopRunActionInWindowRequest = { id: invocation.commandId, from: 'menu' };
+				const runActionPayload: INativeRunActionInWindowRequest = { id: invocation.commandId, from: 'menu' };
 				activeWindow.sendWhenReady('vscode:runAction', runActionPayload);
 			} else {
-				const runKeybindingPayload: IDesktopRunKeybindingInWindowRequest = { userSettingsLabel: invocation.userSettingsLabel };
+				const runKeybindingPayload: INativeRunKeybindingInWindowRequest = { userSettingsLabel: invocation.userSettingsLabel };
 				activeWindow.sendWhenReady('vscode:runKeybinding', runKeybindingPayload);
 			}
 		} else {

@@ -48,7 +48,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
-import { DesktopLogService } from 'vs/workbench/services/log/electron-browser/logService';
+import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
 import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class DesktopMain extends Disposable {
@@ -183,7 +183,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IProductService, productService);
 
 		// Log
-		const logService = this._register(new DesktopLogService(this.configuration.windowId, mainProcessService, this.environmentService));
+		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote

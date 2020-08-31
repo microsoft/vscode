@@ -121,7 +121,7 @@ export class ExternalElementsDragAndDropData<T> implements IDragAndDropData {
 	}
 }
 
-export class DesktopDragAndDropData implements IDragAndDropData {
+export class NativeDragAndDropData implements IDragAndDropData {
 
 	readonly types: any[];
 	readonly files: any[];
@@ -976,7 +976,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					return false;
 				}
 
-				this.currentDragData = new DesktopDragAndDropData();
+				this.currentDragData = new NativeDragAndDropData();
 			}
 		}
 

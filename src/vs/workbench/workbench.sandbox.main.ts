@@ -28,7 +28,7 @@ import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
 import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
 import 'vs/workbench/services/title/electron-sandbox/titleService';
-import 'vs/workbench/services/host/electron-sandbox/desktopHostService';
+import 'vs/workbench/services/host/electron-sandbox/nativeHostService';
 import 'vs/workbench/services/request/electron-sandbox/requestService';
 import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import 'vs/workbench/services/clipboard/electron-sandbox/clipboardService';
