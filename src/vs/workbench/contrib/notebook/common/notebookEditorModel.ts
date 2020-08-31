@@ -18,13 +18,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 
-export interface INotebookEditorModelManager {
-	models: NotebookEditorModel[];
-
-	resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel>;
-
-	get(resource: URI): NotebookEditorModel | undefined;
-}
 
 export interface INotebookLoadOptions {
 	/**
