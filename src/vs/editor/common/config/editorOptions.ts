@@ -529,7 +529,7 @@ export interface IEditorOptions {
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
 	 */
-	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'all';
+	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
 	 * Enable rendering of control characters.
 	 * Defaults to false.
@@ -4079,13 +4079,14 @@ export const EditorOptions = {
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
-		'selection' as 'selection' | 'none' | 'boundary' | 'all',
-		['none', 'boundary', 'selection', 'all'] as const,
+		'selection' as 'selection' | 'none' | 'boundary' | 'trailing' | 'all',
+		['none', 'boundary', 'selection', 'trailing', 'all'] as const,
 		{
 			enumDescriptions: [
 				'',
 				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
+				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters"),
 				''
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")
