@@ -121,7 +121,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this.loadFromProvider(true, undefined, undefined);
+			return this._loadFromProvider(true, undefined, undefined);
 		}
 
 		if (this.isResolved()) {
@@ -134,10 +134,10 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		return this.loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
+		return this._loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
 	}
 
-	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
+	private async _loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
 		const notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
 		this._notebook = notebook!;
 		const newStats = await this._resolveStats(this.resource);
@@ -254,10 +254,5 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		} catch (e) {
 			return undefined;
 		}
-
-	}
-
-	dispose() {
-		super.dispose();
 	}
 }
