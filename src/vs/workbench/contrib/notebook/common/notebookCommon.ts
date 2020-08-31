@@ -799,7 +799,7 @@ export interface INotebookKernelProvider {
 	providerExtensionId: string;
 	providerDescription?: string;
 	selector: INotebookDocumentFilter;
-	onDidChangeKernels: Event<void>;
+	onDidChangeKernels: Event<URI | undefined>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
 	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;

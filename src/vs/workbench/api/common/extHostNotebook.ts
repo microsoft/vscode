@@ -795,8 +795,9 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		super();
 
 		if (this._provider.onDidChangeKernels) {
-			this._register(this._provider.onDidChangeKernels(() => {
-				this._proxy.$onNotebookKernelChange(this._handle);
+			this._register(this._provider.onDidChangeKernels((e: vscode.NotebookDocument | undefined) => {
+				const uri = e?.uri;
+				this._proxy.$onNotebookKernelChange(this._handle, uri);
 			}));
 		}
 	}

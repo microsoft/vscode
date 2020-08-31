@@ -638,7 +638,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// we don't await for it, otherwise it will slow down the file opening
 		this._setKernels(textModel, this._currentKernelTokenSource);
 
-		this._localStore.add(this.notebookService.onDidChangeKernels(async () => {
+		this._localStore.add(this.notebookService.onDidChangeKernels(async (e) => {
+			if (e && e.toString() !== this.textModel?.uri.toString()) {
+				// kernel update is not for current document.
+				return;
+			}
 			this._currentKernelTokenSource?.cancel();
 			this._currentKernelTokenSource = new CancellationTokenSource();
 			await this._setKernels(textModel, this._currentKernelTokenSource);

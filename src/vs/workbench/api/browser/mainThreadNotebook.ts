@@ -133,7 +133,7 @@ class DocumentAndEditorState {
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
 	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
-	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<void>, provider: IDisposable }>();
+	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
 	private readonly _proxy: ExtHostNotebookShape;
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
@@ -504,7 +504,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async $registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void> {
-		const emitter = new Emitter<void>();
+		const emitter = new Emitter<URI | undefined>();
 		const that = this;
 		const provider = this._notebookService.registerNotebookKernelProvider({
 			providerExtensionId: extension.id.value,
@@ -551,10 +551,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	$onNotebookKernelChange(handle: number): void {
+	$onNotebookKernelChange(handle: number, uriComponents: UriComponents): void {
 		const entry = this._notebookKernelProviders.get(handle);
 
-		entry?.emitter.fire();
+		entry?.emitter.fire(uriComponents ? URI.revive(uriComponents) : undefined);
 	}
 
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {

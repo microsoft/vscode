@@ -254,8 +254,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
 
-	private readonly _onDidChangeKernels = new Emitter<void>();
-	onDidChangeKernels: Event<void> = this._onDidChangeKernels.event;
+	private readonly _onDidChangeKernels = new Emitter<URI | undefined>();
+	onDidChangeKernels: Event<URI | undefined> = this._onDidChangeKernels.event;
 	private readonly _onDidChangeNotebookActiveKernel = new Emitter<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }>();
 	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }> = this._onDidChangeNotebookActiveKernel.event;
 	private cutItems: NotebookCellTextModel[] | undefined;
@@ -558,21 +558,21 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookKernel(notebook: INotebookKernelInfo): void {
 		this._notebookKernels.set(notebook.id, notebook);
-		this._onDidChangeKernels.fire();
+		this._onDidChangeKernels.fire(undefined);
 	}
 
 	unregisterNotebookKernel(id: string): void {
 		this._notebookKernels.delete(id);
-		this._onDidChangeKernels.fire();
+		this._onDidChangeKernels.fire(undefined);
 	}
 
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {
 		const d = this.notebookKernelProviderInfoStore.add(provider);
-		const kernelChangeEventListener = provider.onDidChangeKernels(() => {
-			this._onDidChangeKernels.fire();
+		const kernelChangeEventListener = provider.onDidChangeKernels((e) => {
+			this._onDidChangeKernels.fire(e);
 		});
 
-		this._onDidChangeKernels.fire();
+		this._onDidChangeKernels.fire(undefined);
 		return toDisposable(() => {
 			kernelChangeEventListener.dispose();
 			d.dispose();

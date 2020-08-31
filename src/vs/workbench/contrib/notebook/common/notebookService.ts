@@ -44,7 +44,7 @@ export interface INotebookService {
 	onNotebookDocumentRemove: Event<URI[]>;
 	onNotebookDocumentAdd: Event<URI[]>;
 	onNotebookDocumentSaved: Event<URI>;
-	onDidChangeKernels: Event<void>;
+	onDidChangeKernels: Event<URI | undefined>;
 	onDidChangeNotebookActiveKernel: Event<{ uri: URI, providerHandle: number | undefined, kernelId: string | undefined }>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
