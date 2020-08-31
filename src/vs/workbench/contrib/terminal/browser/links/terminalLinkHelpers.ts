@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 
 export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
@@ -54,6 +54,12 @@ export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: numb
 		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
 		let lineOffset = 0;
 		const line = lines[y];
+		// Sanity check for line, apparently this can happen but it's not clear under what
+		// circumstances this happens. Continue on, skipping the remainder of start offset if this
+		// happens to minimize impact.
+		if (!line) {
+			break;
+		}
 		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
 			const cell = line.getCell(x)!;
 			const width = cell.getWidth();

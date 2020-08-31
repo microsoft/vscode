@@ -5,10 +5,10 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource, EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ConfigurationKey, IExtension, IExtensionsConfiguration, IExtensionsWorkbenchService, ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { distinct, shuffle } from 'vs/base/common/arrays';
@@ -25,13 +25,24 @@ import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/k
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 };
 
+type ExtensionWorkspaceRecommendationsNotificationClassification = {
+	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
 const ignoredRecommendationsStorageKey = 'extensionsAssistant/ignored_recommendations';
+const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 
 export class ExtensionRecommendationsService extends Disposable implements IExtensionRecommendationsService {
 
@@ -49,15 +60,15 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	// Ignored Recommendations
 	private globallyIgnoredRecommendations: string[] = [];
 
-	public loadWorkspaceConfigPromise: Promise<void>;
+	public readonly activationPromise: Promise<void>;
 	private sessionSeed: number;
 
 	private readonly _onRecommendationChange = this._register(new Emitter<RecommendationChangeNotification>());
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -65,6 +76,9 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super();
 
@@ -81,7 +95,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;
-			this.loadWorkspaceConfigPromise = Promise.resolve();
+			this.activationPromise = Promise.resolve();
 			return;
 		}
 
@@ -89,15 +103,31 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		this.globallyIgnoredRecommendations = this.getCachedIgnoredRecommendations();
 
 		// Activation
-		this.loadWorkspaceConfigPromise = this.workspaceRecommendations.activate().then(() => this.fileBasedRecommendations.activate());
-		this.experimentalRecommendations.activate();
-		this.keymapRecommendations.activate();
-		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
-			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.activateProactiveRecommendations());
-		}
+		this.activationPromise = this.activate();
 
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+	}
+
+	private async activate(): Promise<void> {
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// activate all recommendations
+		await Promise.all([
+			this.workspaceRecommendations.activate(),
+			this.fileBasedRecommendations.activate(),
+			this.experimentalRecommendations.activate(),
+			this.keymapRecommendations.activate(),
+			this.lifecycleService.when(LifecyclePhase.Eventually)
+				.then(() => {
+					if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+						this.activateProactiveRecommendations();
+					}
+				})
+		]);
+
+		await this.promptWorkspaceRecommendations();
+		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations)(() => this.promptWorkspaceRecommendations()));
 	}
 
 	private isEnabled(): boolean {
@@ -133,9 +163,12 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return output;
 	}
 
-	async getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]> {
+	async getConfigBasedRecommendations(): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
 		await this.configBasedRecommendations.activate();
-		return this.toExtensionRecommendations(this.configBasedRecommendations.recommendations);
+		return {
+			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
+			others: this.toExtensionRecommendations(this.configBasedRecommendations.otherRecommendations)
+		};
 	}
 
 	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
@@ -189,6 +222,13 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		}
 		await this.workspaceRecommendations.activate();
 		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
+	}
+
+	async getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
+		await this.exeBasedRecommendations.activate();
+		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
+			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };
+		return { important: this.toExtensionRecommendations(important), others: this.toExtensionRecommendations(others) };
 	}
 
 	getFileBasedRecommendations(): IExtensionRecommendation[] {
@@ -252,6 +292,83 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.workspaceRecommendations.ignoredRecommendations
 		];
 		return allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
+	}
+
+	private async getInstallableExtensions(extensionIds: string[]): Promise<IExtension[]> {
+		const extensions: IExtension[] = [];
+		const pager = await this.extensionsWorkbenchService.queryGallery({ names: extensionIds, pageSize: extensionIds.length, source: 'install-recommendations' }, CancellationToken.None);
+		for (const extension of pager.firstPage) {
+			if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
+				extensions.push(extension);
+			}
+		}
+		return extensions;
+	}
+
+	private async promptWorkspaceRecommendations(): Promise<void> {
+		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
+			.map(({ extensionId }) => extensionId)
+			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+
+		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+		if (allowedRecommendations.length === 0
+			|| config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand
+			|| this.storageService.getBoolean(ignoreWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE, false)) {
+			return;
+		}
+
+		let installed = await this.extensionManagementService.getInstalled();
+		installed = installed.filter(l => this.extensionEnablementService.getEnablementState(l) !== EnablementState.DisabledByExtensionKind); // Filter extensions disabled by kind
+		const recommendations = allowedRecommendations.filter(extensionId => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
+
+		if (!recommendations.length) {
+			return;
+		}
+
+		const extensions = await this.getInstallableExtensions(recommendations);
+		if (!extensions.length) {
+			return;
+		}
+
+		const searchValue = '@recommended ';
+		this.notificationService.prompt(
+			Severity.Info,
+			localize('workspaceRecommended', "Do you want to install the recommended extensions for this repository?"),
+			[{
+				label: localize('install', "Install"),
+				run: async () => {
+					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
+					await Promise.all(extensions.map(async extension => {
+						this.extensionsWorkbenchService.open(extension, { pinned: true });
+						await this.extensionManagementService.installFromGallery(extension.gallery!);
+					}));
+				}
+			}, {
+				label: localize('showRecommendations', "Show Recommendations"),
+				run: async () => {
+					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+					const action = this.instantiationService.createInstance(SearchExtensionsAction, searchValue);
+					try {
+						await action.run();
+					} finally {
+						action.dispose();
+					}
+				}
+			}, {
+				label: localize('neverShowAgain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
+					this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
+				}
+			}],
+			{
+				sticky: true,
+				onCancel: () => {
+					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
+				}
+			}
+		);
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {

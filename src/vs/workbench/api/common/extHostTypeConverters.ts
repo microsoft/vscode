@@ -31,6 +31,7 @@ import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 
 export interface PositionLike {
 	line: number;
@@ -505,31 +506,41 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors, notebooks?: ExtHostNotebookController): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value.allEntries()) {
+			for (let entry of value._allEntries()) {
 
-				if (entry._type === 1) {
+				if (entry._type === types.FileEditType.File) {
 					// file operation
 					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.File,
 						oldUri: entry.from,
 						newUri: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
-				} else {
+				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
 					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: doc?.version,
 						metadata: entry.metadata
+					});
+				} else if (entry._type === types.FileEditType.Cell) {
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						resource: entry.uri,
+						edit: entry.edit,
+						metadata: entry.metadata,
+						modelVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}

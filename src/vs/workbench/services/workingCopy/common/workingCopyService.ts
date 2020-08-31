@@ -15,6 +15,11 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 export const enum WorkingCopyCapabilities {
 
 	/**
+	 * Signals no specific capability for the working copy.
+	 */
+	None = 0,
+
+	/**
 	 * Signals that the working copy requires
 	 * additional input when saving, e.g. an
 	 * associated path to save to.

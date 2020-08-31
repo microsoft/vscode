@@ -6,6 +6,7 @@
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 /**
  * It should not modify Undo/Redo stack
@@ -14,6 +15,7 @@ export interface ITextCellEditingDelegate {
 	insertCell?(index: number, cell: NotebookCellTextModel): void;
 	deleteCell?(index: number): void;
 	moveCell?(fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void;
+	updateCellMetadata?(index: number, newMetadata: NotebookCellMetadata): void;
 	emitSelections(selections: number[]): void;
 }
 
@@ -181,5 +183,35 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 		if (this.endHandles) {
 			this.editingDelegate.emitSelections(this.endHandles);
 		}
+	}
+}
+
+export class CellMetadataEdit implements IResourceUndoRedoElement {
+	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
+	label: string = 'Update Cell Metadata';
+	constructor(
+		public resource: URI,
+		readonly index: number,
+		readonly oldMetadata: NotebookCellMetadata,
+		readonly newMetadata: NotebookCellMetadata,
+		private editingDelegate: ITextCellEditingDelegate,
+	) {
+
+	}
+
+	undo(): void {
+		if (!this.editingDelegate.updateCellMetadata) {
+			return;
+		}
+
+		this.editingDelegate.updateCellMetadata(this.index, this.oldMetadata);
+	}
+
+	redo(): void | Promise<void> {
+		if (!this.editingDelegate.updateCellMetadata) {
+			return;
+		}
+
+		this.editingDelegate.updateCellMetadata(this.index, this.newMetadata);
 	}
 }

@@ -58,7 +58,6 @@ export class WebviewResourceRequestManager extends Disposable {
 		private readonly id: string,
 		private readonly extension: WebviewExtensionDescription | undefined,
 		initialContentOptions: WebviewContentOptions,
-		getWebContentsId: Promise<number | undefined>,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -79,15 +78,13 @@ export class WebviewResourceRequestManager extends Disposable {
 		const remoteAuthority = environmentService.configuration.remoteAuthority;
 		const remoteConnectionData = remoteAuthority ? remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 
-		this._ready = getWebContentsId.then(async (webContentsId) => {
-			this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
-			await this._webviewManagerService.registerWebview(this.id, webContentsId, electronService.windowId, {
-				extensionLocation: this.extension?.location.toJSON(),
-				localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
-				remoteConnectionData: remoteConnectionData,
-				portMappings: this._portMappings,
-			});
-
+		this._logService.debug(`WebviewResourceRequestManager(${this.id}): did-start-loading`);
+		this._ready = this._webviewManagerService.registerWebview(this.id, electronService.windowId, {
+			extensionLocation: this.extension?.location.toJSON(),
+			localResourceRoots: this._localResourceRoots.map(x => x.toJSON()),
+			remoteConnectionData: remoteConnectionData,
+			portMappings: this._portMappings,
+		}).then(() => {
 			this._logService.debug(`WebviewResourceRequestManager(${this.id}): did register`);
 		});
 

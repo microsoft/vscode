@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal as XTermTerminal } from 'xterm';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
@@ -76,6 +76,7 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
+	isProcessSupportRegistered: boolean;
 
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
@@ -90,6 +91,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
+	onDidRegisterProcessSupport: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -136,6 +138,7 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
+	registerProcessSupport(isSupported: boolean): void;
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
 	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered

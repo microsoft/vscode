@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { registerEditorContribution, registerModelAndPositionCommand, EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import * as arrays from 'vs/base/common/arrays';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -16,7 +16,7 @@ import { ITextModel, IModelDeltaDecoration, TrackedRangeStickiness, IIdentifiedS
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { OnTypeRenameProviderRegistry } from 'vs/editor/common/modes';
-import { first, createCancelablePromise, CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
+import { first, createCancelablePromise, CancelablePromise, Delayer } from 'vs/base/common/async';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ContextKeyExpr, RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -29,6 +29,7 @@ import * as strings from 'vs/base/common/strings';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export const CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('onTypeRenameInputVisible', false);
 
@@ -45,19 +46,26 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 		return editor.getContribution<OnTypeRenameContribution>(OnTypeRenameContribution.ID);
 	}
 
+	private _debounceDuration = 200;
+
 	private readonly _editor: ICodeEditor;
 	private _enabled: boolean;
 
 	private readonly _visibleContextKey: IContextKey<boolean>;
 
-	private _currentRequest: CancelablePromise<{
-		ranges: IRange[],
-		stopPattern?: RegExp
-	} | null | undefined> | null;
+	private _rangeUpdateTriggerPromise: Promise<any> | null;
+	private _rangeSyncTriggerPromise: Promise<any> | null;
+
+	private _currentRequest: CancelablePromise<any> | null;
+	private _currentRequestPosition: Position | null;
+	private _currentRequestModelVersion: number | null;
+
 	private _currentDecorations: string[]; // The one at index 0 is the reference one
-	private _stopPattern: RegExp;
+	private _languageWordPattern: RegExp | null;
+	private _currentWordPattern: RegExp | null;
 	private _ignoreChangeEvent: boolean;
-	private _updateMirrors: RunOnceScheduler;
+
+	private readonly _localToDispose = this._register(new DisposableStore());
 
 	constructor(
 		editor: ICodeEditor,
@@ -65,98 +73,114 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 	) {
 		super();
 		this._editor = editor;
-		this._enabled = this._editor.getOption(EditorOption.renameOnType);
+		this._enabled = false;
 		this._visibleContextKey = CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE.bindTo(contextKeyService);
-		this._currentRequest = null;
+
 		this._currentDecorations = [];
-		this._stopPattern = /\s/;
+		this._languageWordPattern = null;
+		this._currentWordPattern = null;
 		this._ignoreChangeEvent = false;
-		this._updateMirrors = this._register(new RunOnceScheduler(() => this._doUpdateMirrors(), 0));
+		this._localToDispose = this._register(new DisposableStore());
 
-		this._register(this._editor.onDidChangeModel((e) => {
-			this.run();
-		}));
+		this._rangeUpdateTriggerPromise = null;
+		this._rangeSyncTriggerPromise = null;
 
-		this._register(this._editor.onDidChangeConfiguration((e) => {
+		this._currentRequest = null;
+		this._currentRequestPosition = null;
+		this._currentRequestModelVersion = null;
+
+		this._register(this._editor.onDidChangeModel(() => this.reinitialize()));
+
+		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.renameOnType)) {
-				this._enabled = this._editor.getOption(EditorOption.renameOnType);
-				this.run();
+				this.reinitialize();
 			}
 		}));
+		this._register(OnTypeRenameProviderRegistry.onDidChange(() => this.reinitialize()));
+		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize()));
 
-		this._register(this._editor.onDidChangeCursorPosition((e) => {
-			if (!this._enabled || !this._editor.hasModel()) {
-				return;
-			}
-
-			// no regions, run
-			if (this._currentDecorations.length === 0) {
-				this.run(e.position);
-				return;
-			}
-
-			// has cached regions
-			const model = this._editor.getModel();
-			const primaryRange = model.getDecorationRange(this._currentDecorations[0]);
-
-			// just moving cursor around, don't run again
-			if (primaryRange && Range.containsPosition(primaryRange, e.position)) {
-				return;
-			}
-
-			// moving cursor out of primary region, run
-			this.run(e.position);
-		}));
-
-		this._register(OnTypeRenameProviderRegistry.onDidChange(() => {
-			this.run();
-		}));
-
-		this._register(this._editor.onDidChangeModelContent((e) => {
-			if (this._ignoreChangeEvent) {
-				return;
-			}
-			if (!this._editor.hasModel()) {
-				return;
-			}
-			if (this._currentDecorations.length === 0) {
-				// nothing to do
-				return;
-			}
-			if (e.isUndoing || e.isRedoing) {
-				return;
-			}
-			for (const change of e.changes) {
-				if (this._stopPattern.test(change.text)) {
-					this.stopAll();
-					return;
-				}
-			}
-			this._updateMirrors.schedule();
-		}));
+		this.reinitialize();
 	}
 
-	private _doUpdateMirrors(): void {
-		if (!this._editor.hasModel() || this._currentDecorations.length === 0) {
+	private reinitialize() {
+		const model = this._editor.getModel();
+		const isEnabled = model !== null && this._editor.getOption(EditorOption.renameOnType) && OnTypeRenameProviderRegistry.has(model);
+		if (isEnabled === this._enabled) {
+			return;
+		}
+
+		this._enabled = isEnabled;
+
+		this.clearRanges();
+		this._localToDispose.clear();
+
+		if (!isEnabled || model === null) {
+			return;
+		}
+
+		this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		this._localToDispose.add(model.onDidChangeLanguageConfiguration(() => {
+			this._languageWordPattern = LanguageConfigurationRegistry.getWordDefinition(model.getLanguageIdentifier().id);
+		}));
+
+		const rangeUpdateScheduler = new Delayer(this._debounceDuration);
+		const triggerRangeUpdate = () => {
+			this._rangeUpdateTriggerPromise = rangeUpdateScheduler.trigger(() => this.updateRanges(), this._debounceDuration);
+		};
+		const rangeSyncScheduler = new Delayer(0);
+		const triggerRangeSync = (decorations: string[]) => {
+			this._rangeSyncTriggerPromise = rangeSyncScheduler.trigger(() => this._syncRanges(decorations));
+		};
+		this._localToDispose.add(this._editor.onDidChangeCursorPosition(() => {
+			triggerRangeUpdate();
+		}));
+		this._localToDispose.add(this._editor.onDidChangeModelContent((e) => {
+			if (!this._ignoreChangeEvent) {
+				if (this._currentDecorations.length > 0) {
+					const referenceRange = model.getDecorationRange(this._currentDecorations[0]);
+					if (referenceRange && e.changes.every(c => referenceRange.intersectRanges(c.range))) {
+						triggerRangeSync(this._currentDecorations);
+						return;
+					}
+				}
+			}
+			triggerRangeUpdate();
+		}));
+		this._localToDispose.add({
+			dispose: () => {
+				rangeUpdateScheduler.cancel();
+				rangeSyncScheduler.cancel();
+			}
+		});
+		this.updateRanges();
+	}
+
+	private _syncRanges(decorations: string[]): void {
+		// dalayed invocation, make sure we're still on
+		if (!this._editor.hasModel() || decorations !== this._currentDecorations || decorations.length === 0) {
 			// nothing to do
 			return;
 		}
 
 		const model = this._editor.getModel();
+		const referenceRange = model.getDecorationRange(decorations[0]);
 
-		const referenceRange = model.getDecorationRange(this._currentDecorations[0]);
 		if (!referenceRange || referenceRange.startLineNumber !== referenceRange.endLineNumber) {
-			return this.stopAll();
+			return this.clearRanges();
 		}
 
 		const referenceValue = model.getValueInRange(referenceRange);
-		if (this._stopPattern.test(referenceValue)) {
-			return this.stopAll();
+		if (this._currentWordPattern) {
+			const match = referenceValue.match(this._currentWordPattern);
+			const matchLength = match ? match[0].length : 0;
+			if (matchLength !== referenceValue.length) {
+				return this.clearRanges();
+			}
 		}
 
 		let edits: IIdentifiedSingleEditOperation[] = [];
-		for (let i = 1, len = this._currentDecorations.length; i < len; i++) {
-			const mirrorRange = model.getDecorationRange(this._currentDecorations[i]);
+		for (let i = 1, len = decorations.length; i < len; i++) {
+			const mirrorRange = model.getDecorationRange(decorations[i]);
 			if (!mirrorRange) {
 				continue;
 			}
@@ -205,77 +229,136 @@ export class OnTypeRenameContribution extends Disposable implements IEditorContr
 	}
 
 	public dispose(): void {
+		this.clearRanges();
 		super.dispose();
-		this.stopAll();
 	}
 
-	stopAll(): void {
+	public clearRanges(): void {
 		this._visibleContextKey.set(false);
 		this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, []);
 		if (this._currentRequest) {
 			this._currentRequest.cancel();
 			this._currentRequest = null;
+			this._currentRequestPosition = null;
 		}
 	}
 
-	async run(position: Position | null = this._editor.getPosition(), force = false): Promise<void> {
-		const model = this._editor.getModel();
-		if (!this._enabled && !force || !model || !position) {
-			this.stopAll();
+	public get currentUpdateTriggerPromise(): Promise<any> {
+		return this._rangeUpdateTriggerPromise || Promise.resolve();
+	}
+
+	public get currentSyncTriggerPromise(): Promise<any> {
+		return this._rangeSyncTriggerPromise || Promise.resolve();
+	}
+
+	public async updateRanges(force = false): Promise<void> {
+		if (!this._editor.hasModel()) {
+			this.clearRanges();
 			return;
 		}
-		const request = createCancelablePromise(token => getOnTypeRenameRanges(model, position, token));
-		if (this._currentRequest) {
-			this._currentRequest.cancel();
+
+		const position = this._editor.getPosition();
+		if (!this._enabled && !force || this._editor.getSelections().length > 1) {
+			// disabled or multicursor
+			this.clearRanges();
+			return;
 		}
-		this._currentRequest = request;
-		try {
-			const response = await request;
-			if (request !== this._currentRequest) {
-				return;
-			}
-			this._currentRequest = null;
 
-			let ranges: IRange[] = [];
-			if (response?.ranges) {
-				ranges = response.ranges;
+		const model = this._editor.getModel();
+		const modelVersionId = model.getVersionId();
+		if (this._currentRequestPosition && this._currentRequestModelVersion === modelVersionId) {
+			if (position.equals(this._currentRequestPosition)) {
+				return; // same position
 			}
-			if (response?.stopPattern) {
-				this._stopPattern = response.stopPattern;
-			}
-
-			let foundReferenceRange = false;
-			for (let i = 0, len = ranges.length; i < len; i++) {
-				if (Range.containsPosition(ranges[i], position)) {
-					foundReferenceRange = true;
-					if (i !== 0) {
-						const referenceRange = ranges[i];
-						ranges.splice(i, 1);
-						ranges.unshift(referenceRange);
-					}
-					break;
+			if (this._currentDecorations && this._currentDecorations.length > 0) {
+				const range = model.getDecorationRange(this._currentDecorations[0]);
+				if (range && range.containsPosition(position)) {
+					return; // just moving inside the existing primary range
 				}
 			}
-
-			if (!foundReferenceRange) {
-				// Cannot do on type rename if the ranges are not where the cursor is...
-				this.stopAll();
-				return;
-			}
-
-			const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
-			this._visibleContextKey.set(true);
-			this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
-		} catch (err) {
-			if (!isPromiseCanceledError(err)) {
-				onUnexpectedError(err);
-			}
-			if (this._currentRequest === request || !this._currentRequest) {
-				// stop if we are still the latest request
-				this.stopAll();
-			}
 		}
+
+		this._currentRequestPosition = position;
+		this._currentRequestModelVersion = modelVersionId;
+		const request = createCancelablePromise(async token => {
+			try {
+				const response = await getOnTypeRenameRanges(model, position, token);
+				if (request !== this._currentRequest) {
+					return;
+				}
+				this._currentRequest = null;
+				if (modelVersionId !== model.getVersionId()) {
+					return;
+				}
+
+				let ranges: IRange[] = [];
+				if (response?.ranges) {
+					ranges = response.ranges;
+				}
+
+				this._currentWordPattern = response?.wordPattern || this._languageWordPattern;
+
+				let foundReferenceRange = false;
+				for (let i = 0, len = ranges.length; i < len; i++) {
+					if (Range.containsPosition(ranges[i], position)) {
+						foundReferenceRange = true;
+						if (i !== 0) {
+							const referenceRange = ranges[i];
+							ranges.splice(i, 1);
+							ranges.unshift(referenceRange);
+						}
+						break;
+					}
+				}
+
+				if (!foundReferenceRange) {
+					// Cannot do on type rename if the ranges are not where the cursor is...
+					this.clearRanges();
+					return;
+				}
+
+				const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: OnTypeRenameContribution.DECORATION }));
+				this._visibleContextKey.set(true);
+				this._currentDecorations = this._editor.deltaDecorations(this._currentDecorations, decorations);
+			} catch (err) {
+				if (!isPromiseCanceledError(err)) {
+					onUnexpectedError(err);
+				}
+				if (this._currentRequest === request || !this._currentRequest) {
+					// stop if we are still the latest request
+					this.clearRanges();
+				}
+			}
+		});
+		this._currentRequest = request;
+		return request;
 	}
+
+	// for testing
+	public setDebounceDuration(timeInMS: number) {
+		this._debounceDuration = timeInMS;
+	}
+
+	// private printDecorators(model: ITextModel) {
+	// 	return this._currentDecorations.map(d => {
+	// 		const range = model.getDecorationRange(d);
+	// 		if (range) {
+	// 			return this.printRange(range);
+	// 		}
+	// 		return 'invalid';
+	// 	}).join(',');
+	// }
+
+	// private printChanges(changes: IModelContentChange[]) {
+	// 	return changes.map(c => {
+	// 		return `${this.printRange(c.range)} - ${c.text}`;
+	// 	}
+	// 	).join(',');
+	// }
+
+	// private printRange(range: IRange) {
+	// 	return `${range.startLineNumber},${range.startColumn}/${range.endLineNumber},${range.endColumn}`;
+	// }
 }
 
 export class OnTypeRenameAction extends EditorAction {
@@ -313,10 +396,10 @@ export class OnTypeRenameAction extends EditorAction {
 		return super.runCommand(accessor, args);
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+	run(_accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = OnTypeRenameContribution.get(editor);
 		if (controller) {
-			return Promise.resolve(controller.run(editor.getPosition(), true));
+			return Promise.resolve(controller.updateRanges(true));
 		}
 		return Promise.resolve();
 	}
@@ -326,7 +409,7 @@ const OnTypeRenameCommand = EditorCommand.bindToContribution<OnTypeRenameContrib
 registerEditorCommand(new OnTypeRenameCommand({
 	id: 'cancelOnTypeRenameInput',
 	precondition: CONTEXT_ONTYPE_RENAME_INPUT_VISIBLE,
-	handler: x => x.stopAll(),
+	handler: x => x.clearRanges(),
 	kbOpts: {
 		kbExpr: EditorContextKeys.editorTextFocus,
 		weight: KeybindingWeight.EditorContrib + 99,
@@ -338,7 +421,7 @@ registerEditorCommand(new OnTypeRenameCommand({
 
 export function getOnTypeRenameRanges(model: ITextModel, position: Position, token: CancellationToken): Promise<{
 	ranges: IRange[],
-	stopPattern?: RegExp
+	wordPattern?: RegExp
 } | undefined | null> {
 	const orderedByScore = OnTypeRenameProviderRegistry.ordered(model);
 
@@ -347,16 +430,16 @@ export function getOnTypeRenameRanges(model: ITextModel, position: Position, tok
 	// (good = none empty array)
 	return first<{
 		ranges: IRange[],
-		stopPattern?: RegExp
+		wordPattern?: RegExp
 	} | undefined>(orderedByScore.map(provider => () => {
-		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token)).then((ranges) => {
-			if (!ranges) {
+		return Promise.resolve(provider.provideOnTypeRenameRanges(model, position, token)).then((res) => {
+			if (!res) {
 				return undefined;
 			}
 
 			return {
-				ranges,
-				stopPattern: provider.stopPattern
+				ranges: res.ranges,
+				wordPattern: res.wordPattern || provider.wordPattern
 			};
 		}, (err) => {
 			onUnexpectedExternalError(err);

@@ -339,6 +339,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
+		supportsProcesses: boolean,
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
@@ -347,6 +348,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
+		this._proxy.$registerProcessSupport(supportsProcesses);
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
@@ -805,6 +807,12 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 }
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
+		super(false, extHostRpc);
+	}
+
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		throw new NotSupportedError();
 	}

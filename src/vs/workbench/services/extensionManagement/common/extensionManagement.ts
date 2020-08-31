@@ -59,6 +59,11 @@ export interface IWorkbenchExtensionEnablementService {
 	canChangeEnablement(extension: IExtension): boolean;
 
 	/**
+	 * Returns `true` if the enablement can be changed.
+	 */
+	canChangeWorkspaceEnablement(extension: IExtension): boolean;
+
+	/**
 	 * Returns `true` if the given extension identifier is enabled.
 	 */
 	isEnabled(extension: IExtension): boolean;
@@ -127,10 +132,11 @@ export interface IExtensionRecommendationsService {
 	readonly _serviceBrand: undefined;
 
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
-	getFileBasedRecommendations(): IExtensionRecommendation[];
 	getImportantRecommendations(): Promise<IExtensionRecommendation[]>;
-	getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]>;
 	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
+	getFileBasedRecommendations(): IExtensionRecommendation[];
+	getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }>;
+	getConfigBasedRecommendations(): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeymapRecommendations(): IExtensionRecommendation[];
 

@@ -86,6 +86,9 @@ export interface IDataLinkClickEvent {
 }
 
 export interface Webview extends IDisposable {
+
+	readonly id: string;
+
 	html: string;
 	contentOptions: WebviewContentOptions;
 	localResourcesRoot: URI[];

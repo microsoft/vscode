@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -100,7 +100,7 @@ interface IRuntimeExtension {
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
-export class RuntimeExtensionsEditor extends BaseEditor {
+export class RuntimeExtensionsEditor extends EditorPane {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
@@ -233,11 +233,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		result = result.filter(element => element.status.activationTimes);
 
 		// bubble up extensions that have caused slowness
+
+		const isUnresponsive = (extension: IRuntimeExtension): boolean =>
+			extension.unresponsiveProfile === this._profileInfo;
+
+		const profileTime = (extension: IRuntimeExtension): number =>
+			extension.profileInfo?.totalTime ?? 0;
+
+		const activationTime = (extension: IRuntimeExtension): number =>
+			(extension.status.activationTimes?.codeLoadingTime ?? 0) +
+			(extension.status.activationTimes?.activateCallTime ?? 0);
+
 		result = result.sort((a, b) => {
-			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-				return -1;
-			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-				return 1;
+			if (isUnresponsive(a) || isUnresponsive(b)) {
+				return +isUnresponsive(b) - +isUnresponsive(a);
+			} else if (profileTime(a) || profileTime(b)) {
+				return profileTime(b) - profileTime(a);
+			} else if (activationTime(a) || activationTime(b)) {
+				return activationTime(b) - activationTime(a);
 			}
 			return a.originalIndex - b.originalIndex;
 		});

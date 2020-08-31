@@ -87,3 +87,34 @@
 .monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
+
+.monaco-action-bar .action-item.repl-panel-filter-container {
+	cursor: default;
+	display: flex;
+}
+
+.monaco-action-bar .panel-action-tree-filter{
+	display: flex;
+	align-items: center;
+	flex: 1;
+}
+
+.monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.pane-header .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 25px;
+}
+
+.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container {
+	min-width: 200px;
+	margin-right: 10px;
+}

@@ -32,9 +32,9 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalExternalLinkProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
-import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
-import { Unicode11Addon } from 'xterm-addon-unicode11';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
+import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -1128,9 +1128,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (!reset) {
 			// HACK: Force initialText to be non-falsy for reused terminals such that the
-			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
-			// in Windows 10 1903 so we only want to use it when something is definitely written to the
-			// terminal.
+			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to stop
+			// responding in Windows 10 1903 so we only want to use it when something is definitely written
+			// to the terminal.
 			shell.initialText = ' ';
 		}
 

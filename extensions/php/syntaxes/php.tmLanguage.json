@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/882f6c0e19f0ebf9dafa443bf4c3fc5626f76aed",
+	"version": "https://github.com/atom/language-php/commit/11cdaf62a9d949d3aca550f1a58c9754de6b5ab0",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -146,7 +146,7 @@
 					"name": "keyword.other.use.php"
 				}
 			},
-			"end": "(?<=})|(?=;)",
+			"end": "(?<=})|(?=;)|(?=\\?>)",
 			"name": "meta.use.php",
 			"patterns": [
 				{

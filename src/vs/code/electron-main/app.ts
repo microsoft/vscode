@@ -50,7 +50,7 @@ import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/err
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
 import { join, sep, posix } from 'vs/base/common/path';
@@ -68,11 +68,11 @@ import { statSync } from 'fs';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
+import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
 import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { coalesce } from 'vs/base/common/arrays';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
@@ -80,8 +80,6 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { createServer, AddressInfo } from 'net';
-import { IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -272,6 +270,12 @@ export class CodeApplication extends Disposable {
 
 			try {
 				const shellEnv = await getShellEnvironment(this.logService, this.environmentService);
+
+				// TODO@sandbox workaround for https://github.com/electron/electron/issues/25119
+				if (this.environmentService.sandbox) {
+					await timeout(100);
+				}
+
 				if (!webContents.isDestroyed()) {
 					webContents.send('vscode:acceptShellEnv', shellEnv);
 				}
@@ -297,7 +301,7 @@ export class CodeApplication extends Disposable {
 			const nativeKeymap = await import('native-keymap');
 			nativeKeymap.onDidChangeKeyboardLayout(() => {
 				if (this.windowsMainService) {
-					this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
+					this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged');
 				}
 			});
 		})();
@@ -364,17 +368,17 @@ export class CodeApplication extends Disposable {
 		const sharedProcess = this.instantiationService.createInstance(SharedProcess, machineId, this.userEnv);
 		const sharedProcessClient = sharedProcess.whenIpcReady().then(() => {
 			this.logService.trace('Shared process: IPC ready');
+
 			return connect(this.environmentService.sharedIPCHandle, 'main');
 		});
 		const sharedProcessReady = sharedProcess.whenReady().then(() => {
 			this.logService.trace('Shared process: init ready');
+
 			return sharedProcessClient;
 		});
 		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
 			this._register(new RunOnceScheduler(async () => {
-				const userEnv = await getShellEnvironment(this.logService, this.environmentService);
-
-				sharedProcess.spawn(userEnv);
+				sharedProcess.spawn(await getShellEnvironment(this.logService, this.environmentService));
 			}, 3000)).schedule();
 		});
 
@@ -847,6 +851,9 @@ export class CodeApplication extends Disposable {
 		} catch (error) {
 			this.logService.error(error);
 		}
+
+		// Start to fetch shell environment after window has opened
+		getShellEnvironment(this.logService, this.environmentService);
 	}
 
 	private handleRemoteAuthorities(): void {
@@ -856,102 +863,5 @@ export class CodeApplication extends Disposable {
 				method: request.method
 			});
 		});
-	}
-}
-
-class ElectronExtensionHostDebugBroadcastChannel<TContext> extends ExtensionHostDebugBroadcastChannel<TContext> {
-
-	constructor(private windowsMainService: IWindowsMainService) {
-		super();
-	}
-
-	call(ctx: TContext, command: string, arg?: any): Promise<any> {
-		if (command === 'openExtensionDevelopmentHostWindow') {
-			return this.openExtensionDevelopmentHostWindow(arg[0], arg[1], arg[2]);
-		} else {
-			return super.call(ctx, command, arg);
-		}
-	}
-
-	private async openExtensionDevelopmentHostWindow(args: string[], env: IProcessEnvironment, debugRenderer: boolean): Promise<IOpenExtensionWindowResult> {
-		const pargs = parseArgs(args, OPTIONS);
-		const extDevPaths = pargs.extensionDevelopmentPath;
-		if (!extDevPaths) {
-			return {};
-		}
-
-		const [codeWindow] = this.windowsMainService.openExtensionDevelopmentHostWindow(extDevPaths, {
-			context: OpenContext.API,
-			cli: pargs,
-			userEnv: Object.keys(env).length > 0 ? env : undefined
-		});
-
-		if (!debugRenderer) {
-			return {};
-		}
-
-		const debug = codeWindow.win.webContents.debugger;
-
-		let listeners = debug.isAttached() ? Infinity : 0;
-		const server = createServer(listener => {
-			if (listeners++ === 0) {
-				debug.attach();
-			}
-
-			let closed = false;
-			const writeMessage = (message: object) => {
-				if (!closed) { // in case sendCommand promises settle after closed
-					listener.write(JSON.stringify(message) + '\0'); // null-delimited, CDP-compatible
-				}
-			};
-
-			const onMessage = (_event: Event, method: string, params: unknown, sessionId?: string) =>
-				writeMessage(({ method, params, sessionId }));
-
-			codeWindow.win.on('close', () => {
-				debug.removeListener('message', onMessage);
-				listener.end();
-				closed = true;
-			});
-
-			debug.addListener('message', onMessage);
-
-			let buf = Buffer.alloc(0);
-			listener.on('data', data => {
-				buf = Buffer.concat([buf, data]);
-				for (let delimiter = buf.indexOf(0); delimiter !== -1; delimiter = buf.indexOf(0)) {
-					let data: { id: number; sessionId: string; params: {} };
-					try {
-						const contents = buf.slice(0, delimiter).toString('utf8');
-						buf = buf.slice(delimiter + 1);
-						data = JSON.parse(contents);
-					} catch (e) {
-						console.error('error reading cdp line', e);
-					}
-
-					// depends on a new API for which electron.d.ts has not been updated:
-					// @ts-ignore
-					debug.sendCommand(data.method, data.params, data.sessionId)
-						.then((result: object) => writeMessage({ id: data.id, sessionId: data.sessionId, result }))
-						.catch((error: Error) => writeMessage({ id: data.id, sessionId: data.sessionId, error: { code: 0, message: error.message } }));
-				}
-			});
-
-			listener.on('error', err => {
-				console.error('error on cdp pipe:', err);
-			});
-
-			listener.on('close', () => {
-				closed = true;
-				if (--listeners === 0) {
-					debug.detach();
-				}
-			});
-		});
-
-		await new Promise(r => server.listen(0, r));
-		codeWindow.win.on('close', () => server.close());
-
-		return { rendererDebugPort: (server.address() as AddressInfo).port };
 	}
 }

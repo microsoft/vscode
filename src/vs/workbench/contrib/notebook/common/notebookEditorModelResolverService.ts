@@ -7,15 +7,16 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { URI } from 'vs/base/common/uri';
 import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Event } from 'vs/base/common/event';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
 export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
-	resolve(resource: URI, viewType: string, editorId?: string): Promise<IReference<INotebookEditorModel>>;
+	resolve(resource: URI, viewType?: string, editorId?: string): Promise<IReference<INotebookEditorModel>>;
 }
 
 
@@ -30,9 +31,16 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 	}
 
 	protected createReferencedObject(key: string, ...args: any[]): Promise<INotebookEditorModel> {
-		const [viewType, editorId] = args as [string, string | undefined];
-
 		const resource = URI.parse(key);
+
+		let [viewType, editorId] = args as [string | undefined, string | undefined];
+		if (!viewType) {
+			viewType = this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
+		}
+		if (!viewType) {
+			throw new Error('Missing viewType');
+		}
+
 		const model = this._instantiationService.createInstance(NotebookEditorModel, resource, viewType);
 		const promise = model.load({ editorId });
 		return promise;
@@ -60,12 +68,30 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 	}
 
-	async resolve(resource: URI, viewType: string, editorId?: string | undefined): Promise<IReference<INotebookEditorModel>> {
+	async resolve(resource: URI, viewType?: string, editorId?: string | undefined): Promise<IReference<INotebookEditorModel>> {
 		const reference = this._data.acquire(resource.toString(), viewType, editorId);
 		const model = await reference.object;
+		NotebookModelResolverService._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType, editorId));
 		return {
 			object: model,
 			dispose() { reference.dispose(); }
 		};
+	}
+
+	private static _autoReferenceDirtyModel(model: INotebookEditorModel, ref: () => IDisposable) {
+
+		const references = new DisposableStore();
+		const listener = model.notebook.onDidChangeDirty(() => {
+			if (model.notebook.isDirty) {
+				references.add(ref());
+			} else {
+				references.clear();
+			}
+		});
+
+		Event.once(model.notebook.onWillDispose)(() => {
+			listener.dispose();
+			references.dispose();
+		});
 	}
 }

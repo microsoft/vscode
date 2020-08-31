@@ -39,6 +39,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationCache as BrowserConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
 import { SignService } from 'vs/platform/sign/browser/signService';
@@ -50,6 +51,7 @@ import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import product from 'vs/platform/product/common/product';
+import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -2056,6 +2058,46 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		});
 		assert.equal(testObject.getValue('configurationService.remote.newMachineOverridableSetting'), 'isSet');
 	});
+
+});
+
+suite('ConfigurationService - Configuration Defaults', () => {
+
+	const disposableStore: DisposableStore = new DisposableStore();
+
+	suiteSetup(() => {
+		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.defaultOverridesSetting': {
+					'type': 'string',
+					'default': 'isSet',
+				},
+			}
+		});
+	});
+
+	teardown(() => {
+		disposableStore.clear();
+	});
+
+	test('when default value is not overriden', () => {
+		const testObject = createConfiurationService({});
+		assert.deepEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'isSet');
+	});
+
+	test('when default value is overriden', () => {
+		const testObject = createConfiurationService({ 'configurationService.defaultOverridesSetting': 'overriddenValue' });
+		assert.deepEqual(testObject.getValue('configurationService.defaultOverridesSetting'), 'overriddenValue');
+	});
+
+	function createConfiurationService(configurationDefaults: Record<string, any>): IConfigurationService {
+		const remoteAgentService = (<TestInstantiationService>workbenchInstantiationService()).createInstance(RemoteAgentService);
+		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: URI.file(''), workspaceId: '', configurationDefaults });
+		const fileService = new FileService(new NullLogService());
+		return disposableStore.add(new WorkspaceService({ configurationCache: new BrowserConfigurationCache() }, environmentService, fileService, remoteAgentService));
+	}
 
 });
 

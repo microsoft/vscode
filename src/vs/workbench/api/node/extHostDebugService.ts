@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import type * as vscode from 'vscode';
 import * as env from 'vs/base/common/platform';
 import { DebugAdapterExecutable } from 'vs/workbench/api/common/extHostTypes';
-import { ExecutableDebugAdapter, SocketDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
+import { ExecutableDebugAdapter, SocketDebugAdapter, NamedPipeDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
 import { AbstractDebugAdapter } from 'vs/workbench/contrib/debug/common/abstractDebugAdapter';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
@@ -49,6 +49,8 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		switch (adapter.type) {
 			case 'server':
 				return new SocketDebugAdapter(adapter);
+			case 'pipeServer':
+				return new NamedPipeDebugAdapter(adapter);
 			case 'executable':
 				return new ExecutableDebugAdapter(adapter, session.type);
 		}

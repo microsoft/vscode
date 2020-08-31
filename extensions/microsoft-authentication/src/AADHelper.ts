@@ -5,6 +5,7 @@
 
 import * as randomBytes from 'randombytes';
 import * as querystring from 'querystring';
+import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
 import { createServer, startServer } from './authServer';
 

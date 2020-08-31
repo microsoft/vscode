@@ -105,6 +105,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 							extensionId,
 							extensionName,
 							isExtensionPack,
+							exeName,
 							exeFriendlyName: extensionTip.exeFriendlyName,
 							windowsPath: extensionTip.windowsPath,
 						});

@@ -590,17 +590,6 @@ export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-/**
- * @deprecated Use `Array.from` or `[...iter]`
- */
-export function toArray<T>(iterable: IterableIterator<T>): T[] {
-	const result: T[] = [];
-	for (let element of iterable) {
-		result.push(element);
-	}
-	return result;
-}
-
 export function getRandomElement<T>(arr: T[]): T | undefined {
 	return arr[Math.floor(Math.random() * arr.length)];
 }

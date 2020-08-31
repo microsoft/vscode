@@ -72,7 +72,7 @@ export class DomReadingContext {
 
 export class ViewLineOptions {
 	public readonly themeType: ThemeType;
-	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'all';
+	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
