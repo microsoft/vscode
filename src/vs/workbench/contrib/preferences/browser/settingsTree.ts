@@ -1915,7 +1915,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			new SettingsTreeDelegate(),
 			renderers,
 			{
-				horizontalScrolling: false,
 				supportDynamicHeights: true,
 				identityProvider: {
 					getId(e) {
