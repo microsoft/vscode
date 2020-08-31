@@ -25,6 +25,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -200,12 +201,16 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		// Subclasses can override
 	}
 
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | null {
+	getInternalContextKeyService(): IContextKeyService | undefined {
+		return this.invokeWithinContext(accessor => accessor.get(IContextKeyService));
+	}
+
+	private invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | undefined {
 		if (!this.editorControl) {
-			return null;
+			return undefined;
 		}
 
-		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(fn) : null;
+		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(fn) : undefined;
 	}
 
 	focus(): void {

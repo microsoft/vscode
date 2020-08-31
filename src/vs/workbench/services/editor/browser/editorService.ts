@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, toResource, IVisibleEditorPane } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -39,6 +39,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -787,20 +788,28 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region invokeWithinEditorContext()
+	//#region getEditorContextKeyService()
 
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		const result = this.activeEditorPane?.invokeWithinContext(fn);
-		if (result) {
-			return result;
+	getEditorContextKeyService(): IContextKeyService {
+		const activeEditorPane = this.activeEditorPane;
+		if (activeEditorPane) {
+			const result = activeEditorPane.getInternalContextKeyService();
+			if (result) {
+				return result;
+			}
+
+			const activeControl = activeEditorPane.getControl();
+			if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
+				return activeControl.activeCodeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService));
+			}
 		}
 
 		const activeGroup = this.editorGroupService.activeGroup;
 		if (activeGroup) {
-			return activeGroup.invokeWithinContext(fn);
+			return activeGroup.getInternalContextKeyService();
 		}
 
-		return this.instantiationService.invokeFunction(fn);
+		return this.instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 	}
 
 	//#endregion
@@ -1351,7 +1360,7 @@ export class DelegatingEditorService implements IEditorService {
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }
 
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T { return this.editorService.invokeWithinEditorContext(fn); }
+	getEditorContextKeyService(): IContextKeyService { return this.editorService.getEditorContextKeyService(); }
 
 	createEditorInput(input: IResourceEditorInputType): IEditorInput { return this.editorService.createEditorInput(input); }
 

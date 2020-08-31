@@ -237,7 +237,7 @@ export abstract class TitleControl extends Themable {
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
-			const scopedContextKeyService = activeEditorPane.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
+			const scopedContextKeyService = activeEditorPane.getInternalContextKeyService() ?? this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {

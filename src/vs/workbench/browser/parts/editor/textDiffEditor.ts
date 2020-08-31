@@ -29,6 +29,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -60,10 +61,14 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		this.doSaveOrClearTextDiffEditorViewState(editor);
 	}
 
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | null {
+	getInternalContextKeyService(): IContextKeyService | undefined {
+		return this.invokeWithinDiffEditorContext(accessor => accessor.get(IContextKeyService));
+	}
+
+	private invokeWithinDiffEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T | undefined {
 		const control = this.getControl();
 		if (!control) {
-			return null;
+			return undefined;
 		}
 
 		if (control.getOriginalEditor().hasTextFocus()) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
@@ -11,6 +11,7 @@ import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -253,9 +254,9 @@ export interface IEditorService {
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
-	 * Invoke a function in the context of the services of the active editor.
+	 * Get the context key service for the active editor.
 	 */
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
+	getEditorContextKeyService(): IContextKeyService;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

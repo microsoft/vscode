@@ -457,7 +457,7 @@ export class NativeWindow extends Disposable {
 
 	private doUpdateTouchbarMenu(scheduler: RunOnceScheduler): void {
 		if (!this.touchBarMenu) {
-			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
+			this.touchBarMenu = this.menuService.createMenu(MenuId.TouchBarContext, this.editorService.getEditorContextKeyService());
 			this.touchBarDisposables.add(this.touchBarMenu);
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}
