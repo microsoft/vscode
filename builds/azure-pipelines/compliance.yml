@@ -1,0 +1,8 @@
+jobs:
+- job: Compliance
+  pool:
+    name: Package ES Standard Build
+  steps:
+    - task: CredScan@2
+      inputs:
+        toolMajorVersion: 'V2'
