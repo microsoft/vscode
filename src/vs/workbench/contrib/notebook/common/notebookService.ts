@@ -58,7 +58,7 @@ export interface INotebookService {
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 
-	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined>;
+	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	executeNotebook(viewType: string, uri: URI, kernelId: string): Promise<void>;

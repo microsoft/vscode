@@ -657,43 +657,37 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.get(id);
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel | undefined> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel> {
 
-		await this.canResolve(viewType);
-
-		const provider = this._notebookProviders.get(viewType);
-		if (!provider) {
+		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT load notebook, no provider for '${viewType}'`);
 		}
 
-		let notebookModel: NotebookTextModel | undefined = undefined;
+		const provider = this._notebookProviders.get(viewType)!;
+		let notebookModel: NotebookTextModel;
 		if (this._models.has(uri)) {
 			// the model already exists
 			notebookModel = this._models.get(uri)!.model;
 			if (forceReload) {
 				await provider.controller.reloadNotebook(notebookModel);
 			}
-
 			return notebookModel;
+
 		} else {
 			notebookModel = this._instantiationService.createInstance(NotebookTextModel, NotebookService.mainthreadNotebookDocumentHandle++, viewType, provider.controller.supportBackup, uri);
 			await provider.controller.createNotebook(notebookModel, backupId);
-
-			if (!notebookModel) {
-				return undefined;
-			}
 		}
 
 		// new notebook model created
 		const modelData = new ModelData(
-			notebookModel!,
+			notebookModel,
 			(model) => this._onWillDisposeDocument(model),
 		);
 
 		this._models.set(uri, modelData);
-		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
+		this._onNotebookDocumentAdd.fire([notebookModel.uri]);
 		// after the document is added to the store and sent to ext host, we transform the ouputs
-		await this.transformTextModelOutputs(notebookModel!);
+		await this.transformTextModelOutputs(notebookModel);
 
 		if (editorId) {
 			await provider.controller.resolveNotebookEditor(viewType, uri, editorId);
