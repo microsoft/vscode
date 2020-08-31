@@ -647,13 +647,13 @@ class NativeMenubarControl extends MenubarControl {
 		(async () => {
 			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 
-			this.doUpdateMenubar(true);
+			this.doUpdateMenubar();
 		})();
 
 		this.registerListeners();
 	}
 
-	protected doUpdateMenubar(firstTime: boolean): void {
+	protected doUpdateMenubar(): void {
 		// Since the native menubar is shared between windows (main process)
 		// only allow the focused window to update the menubar
 		if (!this.hostService.hasFocus) {
