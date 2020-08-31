@@ -284,6 +284,7 @@ export class SettingsTreeModel {
 	protected _root!: SettingsTreeGroupElement;
 	protected _treeElementsById = new Map<string, SettingsTreeElement>();
 	private _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
+	private _tocEntryByElementId = new Map<string, ITOCEntry>();
 	private _tocRoot!: ITOCEntry;
 
 	constructor(
@@ -298,17 +299,14 @@ export class SettingsTreeModel {
 	update(newTocRoot = this._tocRoot): void {
 		this._treeElementsById.clear();
 		this._treeElementsBySettingName.clear();
+		this._tocEntryByElementId.clear();
 
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
 		if (newRoot.children[0] instanceof SettingsTreeGroupElement) {
 			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true; // TODO
 		}
 
-		if (this._root) {
-			this._root.children = newRoot.children;
-		} else {
-			this._root = newRoot;
-		}
+		this._root = newRoot;
 	}
 
 	getElementById(id: string): SettingsTreeElement | null {
@@ -317,6 +315,16 @@ export class SettingsTreeModel {
 
 	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
 		return withUndefinedAsNull(this._treeElementsBySettingName.get(name));
+	}
+
+	getTOCEntryByGroupElement(element: SettingsTreeGroupElement): ITOCEntry {
+		const tocEntry = this._tocEntryByElementId.get(element.id);
+
+		if (isUndefinedOrNull(tocEntry)) {
+			throw new Error('Group element does not have a corresponding TOC entry');
+		}
+
+		return tocEntry;
 	}
 
 	updateElementsByName(name: string): void {
@@ -351,6 +359,7 @@ export class SettingsTreeModel {
 		element.children = children;
 
 		this._treeElementsById.set(element.id, element);
+		this._tocEntryByElementId.set(element.id, tocEntry);
 		return element;
 	}
 
