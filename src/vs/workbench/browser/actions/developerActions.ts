@@ -123,30 +123,26 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
-		let mouseIndicatorColor: string;
 		const updateMouseIndicatorColor = () => {
-			mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
+			const mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
 
 			let style = new Option().style;
 			style.color = mouseIndicatorColor;
-			if (mouseIndicatorColor === '' || !style.color) {
-				mouseIndicatorColor = 'red';
-			}
+			mouseMarker.style.borderColor = (mouseIndicatorColor === '' || !style.color) ? 'red' : mouseIndicatorColor;
 		};
 
 		let mouseIndicatorSize: number;
 		const updateMouseIndicatorSize = () => {
 			mouseIndicatorSize = clamp(configurationService.getValue<number>('screencastMode.mouseIndicatorSize') || 20, 20, 100);
+
+			mouseMarker.style.height = `${mouseIndicatorSize}px`;
+			mouseMarker.style.width = `${mouseIndicatorSize}px`;
 		};
 
 		updateMouseIndicatorColor();
 		updateMouseIndicatorSize();
 
 		disposables.add(onMouseDown(e => {
-			mouseMarker.style.height = `${mouseIndicatorSize}px`;
-			mouseMarker.style.width = `${mouseIndicatorSize}px`;
-			mouseMarker.style.borderRadius = '50%';
-			mouseMarker.style.borderColor = mouseIndicatorColor;
 			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
