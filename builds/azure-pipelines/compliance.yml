@@ -2,6 +2,7 @@ jobs:
 - job: Compliance
   pool:
     name: Azure Pipelines
+    vmImage: VS2017-Win2016
 
   steps:
   - task: NodeTool@0
