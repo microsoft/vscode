@@ -40,6 +40,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
+import { getPathLabel } from 'vs/base/common/labels';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -880,11 +881,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				let message, detail;
 				if (uri.scheme === Schemas.file) {
 					message = localize('pathNotExistTitle', "Path does not exist");
-					detail = localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", uri.fsPath);
+					detail = localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentService));
 				} else {
 					message = localize('uriInvalidTitle', "URI can not be opened");
 					detail = localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString());
 				}
+
 				const options: MessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
