@@ -123,14 +123,37 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
+		let mouseIndicatorColor: string;
+		const updateMouseIndicatorColor = () => {
+			mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
+
+			let style = new Option().style;
+			style.color = mouseIndicatorColor;
+			if (mouseIndicatorColor === '' || !style.color) {
+				mouseIndicatorColor = 'red';
+			}
+		};
+
+		let mouseIndicatorSize: number;
+		const updateMouseIndicatorSize = () => {
+			mouseIndicatorSize = clamp(configurationService.getValue<number>('screencastMode.mouseIndicatorSize') || 20, 20, 100);
+		};
+
+		updateMouseIndicatorColor();
+		updateMouseIndicatorSize();
+
 		disposables.add(onMouseDown(e => {
-			mouseMarker.style.top = `${e.clientY - 10}px`;
-			mouseMarker.style.left = `${e.clientX - 10}px`;
+			mouseMarker.style.height = `${mouseIndicatorSize}px`;
+			mouseMarker.style.width = `${mouseIndicatorSize}px`;
+			mouseMarker.style.borderRadius = '50%';
+			mouseMarker.style.borderColor = mouseIndicatorColor;
+			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove(e => {
-				mouseMarker.style.top = `${e.clientY - 10}px`;
-				mouseMarker.style.left = `${e.clientX - 10}px`;
+				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			});
 
 			Event.once(onMouseUp)(() => {
@@ -150,8 +173,14 @@ class ToggleScreencastModeAction extends Action2 {
 			keyboardMarker.style.bottom = `${clamp(configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
+		let keyboardMarkerTimeout: number;
+		const updateKeyboardMarkerTimeout = () => {
+			keyboardMarkerTimeout = clamp(configurationService.getValue<number>('screencastMode.keyboardOverlayTimeout') || 800, 500, 5000);
+		};
+
 		updateKeyboardFontSize();
 		updateKeyboardMarker();
+		updateKeyboardMarkerTimeout();
 
 		disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
@@ -160,6 +189,18 @@ class ToggleScreencastModeAction extends Action2 {
 
 			if (e.affectsConfiguration('screencastMode.fontSize')) {
 				updateKeyboardFontSize();
+			}
+
+			if (e.affectsConfiguration('screencastMode.keyboardOverlayTimeout')) {
+				updateKeyboardMarkerTimeout();
+			}
+
+			if (e.affectsConfiguration('screencastMode.mouseIndicatorColor')) {
+				updateMouseIndicatorColor();
+			}
+
+			if (e.affectsConfiguration('screencastMode.mouseIndicatorSize')) {
+				updateMouseIndicatorSize();
 			}
 		}));
 
@@ -190,7 +231,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, key);
 			}
 
-			const promise = timeout(800);
+			const promise = timeout(keyboardMarkerTimeout);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
@@ -276,8 +317,27 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
-			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
 			default: false
-		}
+		},
+		'screencastMode.keyboardOverlayTimeout': {
+			type: 'number',
+			default: 800,
+			minimum: 500,
+			maximum: 5000,
+			description: nls.localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
+		},
+		'screencastMode.mouseIndicatorColor': {
+			type: 'string',
+			default: 'red',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (string or Hex) of the mouse indicator in screencast mode.")
+		},
+		'screencastMode.mouseIndicatorSize': {
+			type: 'number',
+			default: 20,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
+		},
 	}
 });
