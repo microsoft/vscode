@@ -45,6 +45,10 @@ jobs:
       exec { git fetch distro }
       exec { git merge $(node -p "require('./package.json').distro") }
     displayName: Merge distro
+  
+  - task: CredScan@2
+    inputs:
+      toolMajorVersion: 'V2'
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
@@ -67,7 +71,3 @@ jobs:
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/mixin }
     displayName: Mix in quality
-
-  - task: CredScan@2
-    inputs:
-      toolMajorVersion: 'V2'
