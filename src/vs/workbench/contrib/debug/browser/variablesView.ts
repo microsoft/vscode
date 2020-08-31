@@ -8,7 +8,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IStackFrame, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Scope, ErrorScope, StackFrame } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -27,7 +27,7 @@ import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -50,6 +50,7 @@ export class VariablesView extends ViewPane {
 	private savedViewState = new Map<string, IAsyncDataTreeViewState>();
 	private autoExpandedScopes = new Set<string>();
 	private menu: IMenu;
+	private debugProtocolVariableMenuContext: IContextKey<string>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -70,6 +71,7 @@ export class VariablesView extends ViewPane {
 
 		this.menu = menuService.createMenu(MenuId.DebugVariablesContext, contextKeyService);
 		this._register(this.menu);
+		this.debugProtocolVariableMenuContext = CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT.bindTo(contextKeyService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
@@ -193,20 +195,18 @@ export class VariablesView extends ViewPane {
 			const actions: IAction[] = [];
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session && session.capabilities.supportsSetVariable) {
-				actions.push(new Action('workbench.setValue', nls.localize('setValue', "Set Value"), undefined, true, () => {
+				actions.push(new Action('workbench.setValue', nls.localize('setValue', "Set Value"), undefined, true, async () => {
 					this.debugService.getViewModel().setSelectedExpression(variable);
-					return Promise.resolve();
 				}));
 			}
 			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable, 'variables'));
 			if (variable.evaluateName) {
-				actions.push(new Action('debug.copyEvaluatePath', nls.localize('copyAsExpression', "Copy as Expression"), undefined, true, () => {
-					return this.clipboardService.writeText(variable.evaluateName!);
+				actions.push(new Action('debug.copyEvaluatePath', nls.localize('copyAsExpression', "Copy as Expression"), undefined, true, async () => {
+					await this.clipboardService.writeText(variable.evaluateName!);
 				}));
 				actions.push(new Separator());
-				actions.push(new Action('debug.addToWatchExpressions', nls.localize('addToWatchExpressions', "Add to Watch"), undefined, true, () => {
+				actions.push(new Action('debug.addToWatchExpressions', nls.localize('addToWatchExpressions', "Add to Watch"), undefined, true, async () => {
 					this.debugService.addWatchExpression(variable.evaluateName);
-					return Promise.resolve(undefined);
 				}));
 			}
 			if (session && session.capabilities.supportsDataBreakpoints) {
@@ -214,8 +214,8 @@ export class VariablesView extends ViewPane {
 				const dataid = response?.dataId;
 				if (response && dataid) {
 					actions.push(new Separator());
-					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
-						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist, response.accessTypes);
+					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, async () => {
+						await this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist, response.accessTypes);
 					}));
 				}
 			}
@@ -225,6 +225,7 @@ export class VariablesView extends ViewPane {
 				variable: variable.toDebugProtocolObject()
 			};
 			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions, this.contextMenuService);
+			this.debugProtocolVariableMenuContext.set(variable.variableMenuContext || '');
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
