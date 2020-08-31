@@ -283,10 +283,7 @@ CommandsRegistry.registerCommand('_workbench.action.moveViews', async function (
 		}
 	}
 
-	const focusView = options.viewIds[options.viewIds.length - 1];
-	if (focusView) {
-		await accessor.get(IViewsService).openView(focusView, true);
-	}
+	await accessor.get(IViewsService).openViewContainer(destination.id, true);
 });
 
 export class MoveViewsAPICommand {
