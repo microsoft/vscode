@@ -163,9 +163,12 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return output;
 	}
 
-	async getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]> {
+	async getConfigBasedRecommendations(): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
 		await this.configBasedRecommendations.activate();
-		return this.toExtensionRecommendations(this.configBasedRecommendations.recommendations);
+		return {
+			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
+			others: this.toExtensionRecommendations(this.configBasedRecommendations.otherRecommendations)
+		};
 	}
 
 	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> {

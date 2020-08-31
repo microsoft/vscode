@@ -35,7 +35,6 @@ import { Color } from 'vs/base/common/color';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId, IMenuService } from 'vs/platform/actions/common/actions';
@@ -1829,83 +1828,6 @@ export class ShowRecommendedExtensionsAction extends Action {
 	}
 }
 
-export class InstallRecommendedExtensionsAction extends Action {
-
-	static readonly ID = 'workbench.extensions.action.installRecommendedExtensions';
-	static readonly LABEL = localize('installRecommendedExtensions', "Install Recommended Extensions");
-
-	private _recommendations: string[] = [];
-	get recommendations(): string[] { return this._recommendations; }
-	set recommendations(recommendations: string[]) { this._recommendations = recommendations; this.enabled = this._recommendations.length > 0; }
-
-	constructor(
-		id: string,
-		label: string,
-		recommendations: string[],
-		private readonly searchValue: string,
-		private readonly source: string,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IProductService private readonly productService: IProductService,
-	) {
-		super(id, label, 'extension-action');
-		this.recommendations = recommendations;
-	}
-
-	async run(): Promise<any> {
-		await new SearchExtensionsAction(this.searchValue, this.viewletService).run();
-		const names = this.recommendations;
-		const pager = await this.extensionWorkbenchService.queryGallery({ names, source: this.source }, CancellationToken.None);
-		const installPromises: Promise<any>[] = [];
-		const model = new PagedModel(pager);
-		for (let i = 0; i < pager.total; i++) {
-			installPromises.push(model.resolve(i, CancellationToken.None)
-				.then(e => this.installExtension(e)));
-		}
-		return Promise.all(installPromises);
-	}
-
-	private async installExtension(extension: IExtension): Promise<void> {
-		try {
-			if (extension.local && extension.gallery) {
-				if (prefersExecuteOnUI(extension.local.manifest, this.productService, this.configurationService)) {
-					if (this.extensionManagementServerService.localExtensionManagementServer) {
-						await this.extensionManagementServerService.localExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
-						return;
-					}
-				} else if (this.extensionManagementServerService.remoteExtensionManagementServer) {
-					await this.extensionManagementServerService.remoteExtensionManagementServer.extensionManagementService.installFromGallery(extension.gallery);
-					return;
-				}
-			}
-			this.extensionWorkbenchService.open(extension, { pinned: true });
-			await this.extensionWorkbenchService.install(extension);
-		} catch (err) {
-			console.error(err);
-			return promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), err, this.instantiationService);
-		}
-	}
-}
-
-export class InstallWorkspaceRecommendedExtensionsAction extends InstallRecommendedExtensionsAction {
-
-	constructor(
-		recommendations: string[],
-		@IViewletService viewletService: IViewletService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IExtensionsWorkbenchService extensionWorkbenchService: IExtensionsWorkbenchService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
-		@IProductService productService: IProductService,
-	) {
-		super('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), recommendations, '@recommended ', 'install-all-workspace-recommendations',
-			viewletService, instantiationService, extensionWorkbenchService, configurationService, extensionManagementServerService, productService);
-	}
-}
-
 export class ShowRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showRecommendedExtension';
@@ -1918,7 +1840,7 @@ export class ShowRecommendedExtensionAction extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
 	) {
-		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, undefined, false);
+		super(ShowRecommendedExtensionAction.ID, ShowRecommendedExtensionAction.LABEL, undefined, false);
 		this.extensionId = extensionId;
 	}
 
