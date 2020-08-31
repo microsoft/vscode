@@ -1,7 +1,7 @@
 jobs:
 - job: Compliance
   pool:
-    name: Package ES Standard Build
+    name: Azure Pipelines
 
   steps:
   - task: NodeTool@0
