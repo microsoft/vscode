@@ -507,14 +507,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 			return null;
 		}
-
-		function settingsEditorFocusSearch(accessor: ServicesAccessor) {
-			const preferencesEditor = getPreferencesEditor(accessor);
-			if (preferencesEditor) {
-				preferencesEditor.focusSearch();
-			}
-		}
-
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -529,24 +521,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 
-			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
-					keybinding: {
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusSearch', "Focus settings search")
-				});
+			run(accessor: ServicesAccessor) {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				if (preferencesEditor) {
+					preferencesEditor.focusSearch();
+				}
 			}
-
-			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
 		});
 
 		registerAction2(class extends Action2 {
@@ -711,11 +691,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate()),
-					keybinding: {
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.WorkbenchContrib,
-					},
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
 				});
 			}

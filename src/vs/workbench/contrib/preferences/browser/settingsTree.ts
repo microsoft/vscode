@@ -5,6 +5,7 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
@@ -15,7 +16,7 @@ import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
+import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeModel, ITreeNode, ITreeRenderer, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
@@ -36,7 +37,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -52,9 +53,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
-import { IListService, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = DOM.$;
 
@@ -453,45 +451,6 @@ export interface ISettingOverrideClickEvent {
 	targetKey: string;
 }
 
-function removeChildrenFromTabOrder(node: Element): void {
-	const focusableElements = node.querySelectorAll(`
-		[tabindex="0"],
-		input:not([tabindex="-1"]),
-		select:not([tabindex="-1"]),
-		textarea:not([tabindex="-1"]),
-		a:not([tabindex="-1"]),
-		button:not([tabindex="-1"]),
-		area:not([tabindex="-1"])
-	`);
-
-	focusableElements.forEach(element => {
-		element.setAttribute(AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR, 'true');
-		element.setAttribute('tabindex', '-1');
-	});
-}
-
-function addChildrenToTabOrder(node: Element): void {
-	const focusableElements = node.querySelectorAll(
-		`[${AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR}="true"]`
-	);
-
-	focusableElements.forEach(element => {
-		element.removeAttribute(AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR);
-		element.setAttribute('tabindex', '0');
-	});
-}
-
-export function updateSettingTreeTabOrder(container: Element): void {
-	const allRows = [...container.querySelectorAll(AbstractSettingRenderer.ALL_ROWS_SELECTOR)];
-	const focusedRow = allRows.find(row => row.classList.contains('focused'));
-
-	allRows.forEach(removeChildrenFromTabOrder);
-
-	if (isDefined(focusedRow)) {
-		addChildrenToTabOrder(focusedRow);
-	}
-}
-
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -500,11 +459,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
 	static readonly CONTENTS_CLASS = 'setting-item-contents';
 	static readonly CONTENTS_SELECTOR = '.' + AbstractSettingRenderer.CONTENTS_CLASS;
-	static readonly ALL_ROWS_SELECTOR = '.monaco-list-row';
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
-	static readonly ELEMENT_FOCUSABLE_ATTR = 'data-focusable';
 
 	private readonly _onDidClickOverrideElement = this._register(new Emitter<ISettingOverrideClickEvent>());
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent> = this._onDidClickOverrideElement.event;
@@ -1291,15 +1248,6 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		inputBox.inputElement.tabIndex = 0;
-
-		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
-		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
-		common.toDispose.add(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
-				e.preventDefault();
-			}
-		}));
 
 		const template: ISettingTextItemTemplate = {
 			...common,
@@ -1352,7 +1300,6 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const selectElement = common.controlElement.querySelector('select');
 		if (selectElement) {
 			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-			selectElement.tabIndex = 0;
 		}
 
 		common.toDispose.add(
@@ -1445,7 +1392,6 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 			}));
 		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		inputBox.inputElement.tabIndex = 0;
 
 		const template: ISettingNumberItemTemplate = {
 			...common,
@@ -1558,6 +1504,13 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 
 		// Prevent clicks from being handled by list
 		toDispose.add(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
+		toDispose.add(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.keyCode === KeyCode.Escape) {
+				e.browserEvent.stopPropagation();
+			}
+		}));
+
 		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
 		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
@@ -1881,7 +1834,11 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 	protected estimateHeight(element: SettingsTreeGroupChild): number {
 		if (element instanceof SettingsTreeGroupElement) {
-			return 42;
+			if (element.isFirstGroup) {
+				return 31;
+			}
+
+			return 40 + (7 * element.level);
 		}
 
 		return element instanceof SettingsTreeSettingElement && element.valueType === SettingValueType.Boolean ? 78 : 104;
@@ -1898,17 +1855,13 @@ class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 	}
 }
 
-export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
+export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 	constructor(
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
 		renderers: ITreeRenderer<any, void, any>[],
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super('SettingsTree', container,
@@ -1922,6 +1875,9 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 					}
 				},
 				accessibilityProvider: {
+					getWidgetRole() {
+						return 'form';
+					},
 					getAriaLabel() {
 						// TODO@roblourens https://github.com/microsoft/vscode/issues/95862
 						return '';
@@ -1933,16 +1889,9 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
-				multipleSelectionSupport: false,
-			},
-			contextKeyService,
-			listService,
-			themeService,
-			configurationService,
-			keybindingService,
-			accessibilityService,
-		);
+			});
 
+		this.disposables.clear();
 		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(focusBorder);
 			if (activeBorderColor) {
@@ -1990,19 +1939,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
-			}
-
-			const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-			if (listActiveSelectionBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { background-color: ${listActiveSelectionBackgroundColor}; }`);
-			}
-
-			const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-			if (listActiveSelectionForegroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { color: ${listActiveSelectionForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-label { color: ${listActiveSelectionForegroundColor}; }`);
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { color: ${listActiveSelectionForegroundColor}; }`);
 			}
 		}));
 
