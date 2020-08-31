@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest, ColorScheme } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
@@ -200,15 +200,10 @@ export class NativeWindow extends Disposable {
 		});
 
 		// High Contrast Events
-		ipcRenderer.on('vscode:enterHighContrast', async () => {
+		this._register(this.electronService.onColorSchemeChange(async scheme => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
-			this.themeService.setOSHighContrast(true);
-		});
-
-		ipcRenderer.on('vscode:leaveHighContrast', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			this.themeService.setOSHighContrast(false);
-		});
+			this.themeService.setOSHighContrast(scheme === ColorScheme.HIGH_CONTRAST);
+		}));
 
 		// keyboard layout changed event
 		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {

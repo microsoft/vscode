@@ -24,7 +24,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, ColorScheme } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -52,6 +52,7 @@ export const TestWindowConfiguration: INativeWindowConfiguration = {
 	userEnv: {},
 	execPath: process.execPath,
 	perfEntries: [],
+	colorScheme: ColorScheme.DEFAULT,
 	...parseArgs(process.argv, OPTIONS)
 };
 
@@ -164,6 +165,7 @@ export class TestElectronService implements IElectronService {
 	onWindowFocus: Event<number> = Event.None;
 	onWindowBlur: Event<number> = Event.None;
 	onOSResume: Event<unknown> = Event.None;
+	onColorSchemeChange = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }

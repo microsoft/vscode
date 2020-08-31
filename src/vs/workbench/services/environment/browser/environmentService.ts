@@ -8,7 +8,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { BACKUPS, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath } from 'vs/platform/windows/common/windows';
+import { ColorScheme, IPath } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
@@ -74,8 +74,13 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 		return undefined;
 	}
 
-	get highContrast() {
-		return false; // could investigate to detect high contrast theme automatically
+	// TODO@martin TODO@ben this currently does not support high-contrast theme preference (no browser support yet)
+	get colorScheme() {
+		if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
+			return ColorScheme.DARK;
+		}
+
+		return ColorScheme.DEFAULT;
 	}
 }
 
