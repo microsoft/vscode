@@ -763,43 +763,6 @@ export class MoveFocusedViewAction extends Action {
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveFocusedViewAction), 'View: Move Focused View', viewCategory.value, FocusedViewContext.notEqualsTo(''));
 
-export class MoveViewsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.moveViews',
-			title: { value: nls.localize('moveViews', "Move Views"), original: 'Move Views' },
-			category: viewCategory,
-			f1: false
-		});
-	}
-
-	async run(accessor: ServicesAccessor, viewIds: string[], destinationId: string): Promise<void> {
-		const viewDescriptorService = accessor.get(IViewDescriptorService);
-
-		const destination = viewDescriptorService.getViewContainerById(destinationId);
-		if (!destination) {
-			return;
-		}
-
-		const viewDescriptors = viewIds.map(viewId => {
-			const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
-			return viewDescriptor?.canMoveView ? viewDescriptor : undefined;
-		}).filter(<T>(i: T | undefined): i is T => Boolean(i));
-
-		if (viewDescriptors.length) {
-			viewDescriptorService.moveViewsToContainer(viewDescriptors, destination);
-
-			const focusView = viewIds[viewIds.length - 1];
-			if (focusView) {
-				await accessor.get(IViewsService).openView(focusView, true);
-			}
-		}
-	}
-}
-
-registerAction2(MoveViewsAction);
-
-
 // --- Reset View Location with Command
 export class ResetFocusedViewLocationAction extends Action {
 	static readonly ID = 'workbench.action.resetFocusedViewLocation';
