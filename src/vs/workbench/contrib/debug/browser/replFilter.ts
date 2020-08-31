@@ -117,13 +117,12 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'panel-action-tree-filter-container');
+		DOM.addClass(this.container, 'repl-panel-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;
 		this.createInput(this.element);
 		this.updateClass();
-		this.filterInputBox.inputElement.style.paddingRight = DOM.hasClass(this.element, 'small') ? '25px' : '150px';
 	}
 
 	focus(): void {
