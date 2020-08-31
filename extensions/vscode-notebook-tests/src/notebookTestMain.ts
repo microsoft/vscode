@@ -59,8 +59,9 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookKernelTest', ['*.vsctestnb'], {
+	const kernel: vscode.NotebookKernel = {
 		label: 'Notebook Test Kernel',
+		isPreferred: true,
 		executeAllCells: async (_document: vscode.NotebookDocument) => {
 			const cell = _document.cells[0];
 
@@ -115,5 +116,11 @@ export function activate(context: vscode.ExtensionContext): any {
 			return;
 		},
 		cancelCellExecution: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell) => { }
+	};
+
+	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.vsctestnb' }, {
+		provideKernels: async () => {
+			return [kernel];
+		}
 	}));
 }
