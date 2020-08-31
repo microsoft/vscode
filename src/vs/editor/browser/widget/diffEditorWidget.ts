@@ -351,21 +351,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._diffComputationResult = null;
 
 		const leftContextKeyService = this._contextKeyService.createScoped();
-		leftContextKeyService.createKey('isInDiffLeftEditor', true);
 
 		const leftServices = new ServiceCollection();
 		leftServices.set(IContextKeyService, leftContextKeyService);
 		const leftScopedInstantiationService = instantiationService.createChild(leftServices);
 
 		const rightContextKeyService = this._contextKeyService.createScoped();
-		rightContextKeyService.createKey('isInDiffRightEditor', true);
 
 		const rightServices = new ServiceCollection();
 		rightServices.set(IContextKeyService, rightContextKeyService);
 		const rightScopedInstantiationService = instantiationService.createChild(rightServices);
 
-		this.originalEditor = this._createLeftHandSideEditor(options, leftScopedInstantiationService);
-		this.modifiedEditor = this._createRightHandSideEditor(options, rightScopedInstantiationService);
+		this.originalEditor = this._createLeftHandSideEditor(options, leftScopedInstantiationService, leftContextKeyService);
+		this.modifiedEditor = this._createRightHandSideEditor(options, rightScopedInstantiationService, rightContextKeyService);
 
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
@@ -374,8 +372,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
-
-
 
 		// enableSplitViewResizing
 		this._enableSplitViewResizing = true;
@@ -487,7 +483,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewRulers();
 	}
 
-	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService): CodeEditorWidget {
+	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
 		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable, this._originalCodeLens));
 
 		this._register(editor.onDidScrollChange((e) => {
@@ -517,6 +513,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}));
 
+		const isInDiffLeftEditorKey = contextKeyService.createKey<boolean>('isInDiffLeftEditor', undefined);
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffLeftEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffLeftEditorKey.set(false)));
+
 		this._register(editor.onDidContentSizeChange(e => {
 			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
 			const height = Math.max(this.modifiedEditor.getContentHeight(), this.originalEditor.getContentHeight());
@@ -532,7 +532,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return editor;
 	}
 
-	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService): CodeEditorWidget {
+	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
 		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options, this._modifiedCodeLens));
 
 		this._register(editor.onDidScrollChange((e) => {
@@ -573,6 +573,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 				this._updateDecorationsRunner.schedule();
 			}
 		}));
+
+		const isInDiffRightEditorKey = contextKeyService.createKey<boolean>('isInDiffRightEditor', undefined);
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffRightEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffRightEditorKey.set(false)));
 
 		this._register(editor.onDidContentSizeChange(e => {
 			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;

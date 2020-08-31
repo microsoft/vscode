@@ -233,11 +233,24 @@ export class RuntimeExtensionsEditor extends EditorPane {
 		result = result.filter(element => element.status.activationTimes);
 
 		// bubble up extensions that have caused slowness
+
+		const isUnresponsive = (extension: IRuntimeExtension): boolean =>
+			extension.unresponsiveProfile === this._profileInfo;
+
+		const profileTime = (extension: IRuntimeExtension): number =>
+			extension.profileInfo?.totalTime ?? 0;
+
+		const activationTime = (extension: IRuntimeExtension): number =>
+			(extension.status.activationTimes?.codeLoadingTime ?? 0) +
+			(extension.status.activationTimes?.activateCallTime ?? 0);
+
 		result = result.sort((a, b) => {
-			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-				return -1;
-			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-				return 1;
+			if (isUnresponsive(a) || isUnresponsive(b)) {
+				return +isUnresponsive(b) - +isUnresponsive(a);
+			} else if (profileTime(a) || profileTime(b)) {
+				return profileTime(b) - profileTime(a);
+			} else if (activationTime(a) || activationTime(b)) {
+				return activationTime(b) - activationTime(a);
 			}
 			return a.originalIndex - b.originalIndex;
 		});

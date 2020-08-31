@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, ICellRange, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as DOM from 'vs/base/browser/dom';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -18,6 +18,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { localize } from 'vs/nls';
+import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
@@ -65,19 +66,31 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 		this._updateEditorFoldingRanges();
 	}
 
-	setFoldingState(index: number, state: CellFoldingState) {
+	setFoldingStateDown(index: number, state: CellFoldingState, levels: number) {
+		const doCollapse = state === CellFoldingState.Collapsed;
+		let region = this._foldingModel!.getRegionAtLine(index + 1);
+		let regions: FoldingRegion[] = [];
+		if (region) {
+			if (region.isCollapsed !== doCollapse) {
+				regions.push(region);
+			}
+			if (levels > 1) {
+				let regionsInside = this._foldingModel!.getRegionsInside(region, (r, level: number) => r.isCollapsed !== doCollapse && level < levels);
+				regions.push(...regionsInside);
+			}
+		}
+
+		regions.forEach(r => this._foldingModel!.setCollapsed(r.regionIndex, state === CellFoldingState.Collapsed));
+		this._updateEditorFoldingRanges();
+	}
+
+	setFoldingStateUp(index: number, state: CellFoldingState, levels: number) {
 		if (!this._foldingModel) {
 			return;
 		}
 
-		const range = this._foldingModel.regions.findRange(index + 1);
-		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
-
-		if (startIndex !== index) {
-			return;
-		}
-
-		this._foldingModel.setCollapsed(range, state === CellFoldingState.Collapsed);
+		let regions = this._foldingModel.getAllRegionsAtLine(index + 1, (region, level) => region.isCollapsed !== (state === CellFoldingState.Collapsed) && level <= levels);
+		regions.forEach(r => this._foldingModel!.setCollapsed(r.regionIndex, state === CellFoldingState.Collapsed));
 		this._updateEditorFoldingRanges();
 	}
 
@@ -121,7 +134,7 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 				return;
 			}
 
-			this.setFoldingState(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed);
+			this.setFoldingStateUp(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed, 1);
 		}
 
 		return;
@@ -129,6 +142,10 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 }
 
 registerNotebookContribution(FoldingController.id, FoldingController);
+
+
+const NOTEBOOK_FOLD_COMMAND_LABEL = localize('fold.cell', "Fold Cell");
+const NOTEBOOK_UNFOLD_COMMAND_LABEL = localize('unfold.cell', "Unfold Cell");
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -146,12 +163,39 @@ registerAction2(class extends Action2 {
 				secondary: [KeyCode.LeftArrow],
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			description: {
+				description: NOTEBOOK_FOLD_COMMAND_LABEL,
+				args: [
+					{
+						name: 'index',
+						description: 'The cell index',
+						schema: {
+							'type': 'object',
+							'required': ['index', 'direction'],
+							'properties': {
+								'index': {
+									'type': 'number'
+								},
+								'direction': {
+									'type': 'string',
+									'enum': ['up', 'down'],
+									'default': 'down'
+								},
+								'levels': {
+									'type': 'number',
+									'default': 1
+								},
+							}
+						}
+					}
+				]
+			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getActiveNotebookEditor(editorService);
@@ -159,17 +203,27 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const activeCell = editor.getActiveCell();
-		if (!activeCell) {
-			return;
+		const levels = args && args.levels || 1;
+		const direction = args && args.direction === 'up' ? 'up' : 'down';
+		let index: number | undefined = undefined;
+
+		if (args) {
+			index = args.index;
+		} else {
+			const activeCell = editor.getActiveCell();
+			if (!activeCell) {
+				return;
+			}
+			index = editor.viewModel?.viewCells.indexOf(activeCell);
 		}
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);
-
-		const index = editor.viewModel?.viewCells.indexOf(activeCell);
-
 		if (index !== undefined) {
-			controller.setFoldingState(index, CellFoldingState.Collapsed);
+			if (direction === 'up') {
+				controller.setFoldingStateUp(index, CellFoldingState.Collapsed, levels);
+			} else {
+				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
+			}
 		}
 	}
 });
@@ -178,7 +232,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.unfold',
-			title: { value: localize('unfold.cell', "Unfold Cell"), original: 'Unfold Cell' },
+			title: { value: NOTEBOOK_UNFOLD_COMMAND_LABEL, original: 'Unfold Cell' },
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -190,12 +244,39 @@ registerAction2(class extends Action2 {
 				secondary: [KeyCode.RightArrow],
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			description: {
+				description: NOTEBOOK_UNFOLD_COMMAND_LABEL,
+				args: [
+					{
+						name: 'index',
+						description: 'The cell index',
+						schema: {
+							'type': 'object',
+							'required': ['index', 'direction'],
+							'properties': {
+								'index': {
+									'type': 'number'
+								},
+								'direction': {
+									'type': 'string',
+									'enum': ['up', 'down'],
+									'default': 'down'
+								},
+								'levels': {
+									'type': 'number',
+									'default': 1
+								},
+							}
+						}
+					}
+				]
+			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, args?: { index: number, levels: number, direction: 'up' | 'down' }): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getActiveNotebookEditor(editorService);
@@ -203,17 +284,27 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const activeCell = editor.getActiveCell();
-		if (!activeCell) {
-			return;
+		const levels = args && args.levels || 1;
+		const direction = args && args.direction === 'up' ? 'up' : 'down';
+		let index: number | undefined = undefined;
+
+		if (args) {
+			index = args.index;
+		} else {
+			const activeCell = editor.getActiveCell();
+			if (!activeCell) {
+				return;
+			}
+			index = editor.viewModel?.viewCells.indexOf(activeCell);
 		}
 
 		const controller = editor.getContribution<FoldingController>(FoldingController.id);
-
-		const index = editor.viewModel?.viewCells.indexOf(activeCell);
-
 		if (index !== undefined) {
-			controller.setFoldingState(index, CellFoldingState.Expanded);
+			if (direction === 'up') {
+				controller.setFoldingStateUp(index, CellFoldingState.Expanded, levels);
+			} else {
+				controller.setFoldingStateDown(index, CellFoldingState.Expanded, levels);
+			}
 		}
 	}
 });

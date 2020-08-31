@@ -194,7 +194,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@ILogService logService: ILogService,
 		@IKeymapService private readonly keymapService: IKeymapService
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService);
+		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this.updateSchema();
 

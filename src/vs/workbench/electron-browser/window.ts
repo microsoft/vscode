@@ -13,15 +13,13 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
-import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
+import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -129,7 +127,7 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Support runAction event
-		ipcRenderer.on('vscode:runAction', async (event: unknown, request: IRunActionInWindowRequest) => {
+		ipcRenderer.on('vscode:runAction', async (event: unknown, request: INativeRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -160,7 +158,7 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Support runKeybinding event
-		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: IRunKeybindingInWindowRequest) => {
+		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: INativeRunKeybindingInWindowRequest) => {
 			if (document.activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
 			}
@@ -202,24 +200,13 @@ export class NativeWindow extends Disposable {
 
 		// High Contrast Events
 		ipcRenderer.on('vscode:enterHighContrast', async () => {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig?.autoDetectHighContrast) {
-				await this.lifecycleService.when(LifecyclePhase.Ready);
-				this.themeService.setColorTheme(VS_HC_THEME, undefined);
-			}
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			this.themeService.setOSHighContrast(true);
 		});
 
 		ipcRenderer.on('vscode:leaveHighContrast', async () => {
-			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
-			if (windowConfig?.autoDetectHighContrast) {
-				await this.lifecycleService.when(LifecyclePhase.Ready);
-				this.themeService.restoreColorTheme();
-			}
-		});
-
-		// keyboard layout changed event
-		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
+			await this.lifecycleService.when(LifecyclePhase.Ready);
+			this.themeService.setOSHighContrast(false);
 		});
 
 		// accessibility support changed event
@@ -617,7 +604,7 @@ class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
@@ -654,13 +641,13 @@ class NativeMenubarControl extends MenubarControl {
 		(async () => {
 			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 
-			this.doUpdateMenubar(true);
+			this.doUpdateMenubar();
 		})();
 
 		this.registerListeners();
 	}
 
-	protected doUpdateMenubar(firstTime: boolean): void {
+	protected doUpdateMenubar(): void {
 		// Since the native menubar is shared between windows (main process)
 		// only allow the focused window to update the menubar
 		if (!this.hostService.hasFocus) {

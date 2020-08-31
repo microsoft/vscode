@@ -8,6 +8,7 @@ import { IProcessedOutput, IRenderOutput, RenderOutputType } from 'vs/workbench/
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { URI } from 'vs/base/common/uri';
 
 export class OutputRenderer {
 	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
@@ -41,11 +42,11 @@ export class OutputRenderer {
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
-	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
+	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
 		const transform = this._mimeTypeMapping[output.outputKind];
 
 		if (transform) {
-			return transform.render(output, container, preferredMimeType);
+			return transform.render(output, container, preferredMimeType, notebookUri);
 		} else {
 			return this.renderNoop(output, container);
 		}

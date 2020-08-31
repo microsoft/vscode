@@ -8,7 +8,7 @@ import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is 
 import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
-import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
+import { $, reset, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import * as collections from 'vs/base/common/collections';
@@ -277,33 +277,25 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateSettingsSearchDetails(data: ISettingsSearchIssueReporterData): void {
-		const target = document.querySelector('.block-settingsSearchResults .block-info');
+		const target = document.querySelector<HTMLElement>('.block-settingsSearchResults .block-info');
 		if (target) {
-			const details = `
-			<div class='block-settingsSearchResults-details'>
-				<div>Query: "${data.query}"</div>
-				<div>Literal match count: ${data.filterResultCount}</div>
-			</div>
-			`;
+			const queryDiv = $<HTMLDivElement>('div', undefined, `Query: "${data.query}"` as string);
+			const countDiv = $<HTMLElement>('div', undefined, `Literal match count: ${data.filterResultCount}` as string);
+			const detailsDiv = $<HTMLDivElement>('.block-settingsSearchResults-details', undefined, queryDiv, countDiv);
 
-			let table = `
-				<tr>
-					<th>Setting</th>
-					<th>Extension</th>
-					<th>Score</th>
-				</tr>`;
-
-			data.actualSearchResults
-				.forEach(setting => {
-					table += `
-						<tr>
-							<td>${setting.key}</td>
-							<td>${setting.extensionId}</td>
-							<td>${String(setting.score).slice(0, 5)}</td>
-						</tr>`;
-				});
-
-			target.innerHTML = `${details}<table>${table}</table>`;
+			const table = $('table', undefined,
+				$('tr', undefined,
+					$('th', undefined, 'Setting'),
+					$('th', undefined, 'Extension'),
+					$('th', undefined, 'Score'),
+				),
+				...data.actualSearchResults.map(setting => $('tr', undefined,
+					$('td', undefined, setting.key),
+					$('td', undefined, setting.extensionId),
+					$('td', undefined, String(setting.score).slice(0, 5)),
+				))
+			);
+			reset(target, detailsDiv, table);
 		}
 	}
 
@@ -654,9 +646,9 @@ export class IssueReporter extends Disposable {
 					issueState.appendChild(issueIcon);
 					issueState.appendChild(issueStateLabel);
 
-					item = $('div.issue', {}, issueState, link);
+					item = $('div.issue', undefined, issueState, link);
 				} else {
-					item = $('div.issue', {}, link);
+					item = $('div.issue', undefined, link);
 				}
 
 				issues.appendChild(item);
@@ -672,19 +664,19 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setUpTypes(): void {
-		const makeOption = (issueType: IssueType, description: string) => `<option value="${issueType.valueOf()}">${escape(description)}</option>`;
+		const makeOption = (issueType: IssueType, description: string) => $('option', { 'value': issueType.valueOf() }, escape(description));
 
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
 		if (issueType === IssueType.SettingsSearchIssue) {
-			typeSelect.innerHTML = makeOption(IssueType.SettingsSearchIssue, localize('settingsSearchIssue', "Settings Search Issue"));
+			reset(typeSelect, makeOption(IssueType.SettingsSearchIssue, localize('settingsSearchIssue', "Settings Search Issue")));
 			typeSelect.disabled = true;
 		} else {
-			typeSelect.innerHTML = [
+			reset(typeSelect,
 				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
 				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
 				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
-			].join('\n');
+			);
 		}
 
 		typeSelect.value = issueType.toString();
@@ -774,9 +766,8 @@ export class IssueReporter extends Disposable {
 			} else {
 				show(extensionsBlock);
 			}
-
-			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(blockContainer);
 			show(systemBlock);
@@ -790,11 +781,11 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 
-			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.FeatureRequest) {
-			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 			show(problemSource);
 
 			if (fileOnExtension) {
@@ -805,8 +796,8 @@ export class IssueReporter extends Disposable {
 			show(searchedExtensionsBlock);
 			show(settingsSearchResultsBlock);
 
-			descriptionTitle.innerHTML = `${localize('expectedResults', "Expected Results")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('settingsSearchResultsDescription', "Please list the results that you were expecting to see when you searched with this query. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('expectedResults', "Expected Results"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('settingsSearchResultsDescription', "Please list the results that you were expecting to see when you searched with this query. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		}
 	}
 
@@ -928,42 +919,82 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {
-		const target = document.querySelector('.block-system .block-info');
+		const target = document.querySelector<HTMLElement>('.block-system .block-info');
+
 		if (target) {
 			const systemInfo = state.systemInfo!;
-			let renderedData = `
-			<table>
-				<tr><td>CPUs</td><td>${systemInfo.cpus}</td></tr>
-				<tr><td>GPU Status</td><td>${Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('<br>')}</td></tr>
-				<tr><td>Load (avg)</td><td>${systemInfo.load}</td></tr>
-				<tr><td>Memory (System)</td><td>${systemInfo.memory}</td></tr>
-				<tr><td>Process Argv</td><td>${systemInfo.processArgs}</td></tr>
-				<tr><td>Screen Reader</td><td>${systemInfo.screenReader}</td></tr>
-				<tr><td>VM</td><td>${systemInfo.vmHint}</td></tr>
-			</table>`;
+			const renderedDataTable = $('table', undefined,
+				$('tr', undefined,
+					$('td', undefined, 'CPUs'),
+					$('td', undefined, systemInfo.cpus || ''),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'GPU Status' as string),
+					$('td', undefined, Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('\n')),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Load (avg)' as string),
+					$('td', undefined, systemInfo.load || ''),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Memory (System)' as string),
+					$('td', undefined, systemInfo.memory),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Process Argv' as string),
+					$('td', undefined, systemInfo.processArgs),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Screen Reader' as string),
+					$('td', undefined, systemInfo.screenReader),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'VM'),
+					$('td', undefined, systemInfo.vmHint),
+				),
+			);
+			reset(target, renderedDataTable);
 
 			systemInfo.remoteData.forEach(remote => {
+				target.appendChild($<HTMLHRElement>('hr'));
 				if (isRemoteDiagnosticError(remote)) {
-					renderedData += `
-					<hr>
-					<table>
-						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
-						<tr><td></td><td>${remote.errorMessage}</td></tr>
-					</table>`;
+					const remoteDataTable = $('table', undefined,
+						$('tr', undefined,
+							$('td', undefined, 'Remote'),
+							$('td', undefined, remote.hostName)
+						),
+						$('tr', undefined,
+							$('td', undefined, ''),
+							$('td', undefined, remote.errorMessage)
+						)
+					);
+					target.appendChild(remoteDataTable);
 				} else {
-					renderedData += `
-					<hr>
-					<table>
-						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
-						<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
-						<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
-						<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
-						<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
-					</table>`;
+					const remoteDataTable = $('table', undefined,
+						$('tr', undefined,
+							$('td', undefined, 'Remote'),
+							$('td', undefined, remote.hostName)
+						),
+						$('tr', undefined,
+							$('td', undefined, 'OS'),
+							$('td', undefined, remote.machineInfo.os)
+						),
+						$('tr', undefined,
+							$('td', undefined, 'CPUs'),
+							$('td', undefined, remote.machineInfo.cpus || '')
+						),
+						$('tr', undefined,
+							$('td', undefined, 'Memory (System)' as string),
+							$('td', undefined, remote.machineInfo.memory)
+						),
+						$('tr', undefined,
+							$('td', undefined, 'VM'),
+							$('td', undefined, remote.machineInfo.vmHint)
+						),
+					);
+					target.appendChild(remoteDataTable);
 				}
 			});
-
-			target.innerHTML = renderedData;
 		}
 	}
 
@@ -995,15 +1026,18 @@ export class IssueReporter extends Disposable {
 			return 0;
 		});
 
-		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData) => {
+		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData): HTMLOptionElement => {
 			const selected = selectedExtension && extension.id === selectedExtension.id;
-			return `<option value="${extension.id}" ${selected ? 'selected' : ''}>${escape(extension.name)}</option>`;
+			return $<HTMLOptionElement>('option', {
+				'value': extension.id,
+				'selected': selected || ''
+			}, extension.name);
 		};
 
 		const extensionsSelector = this.getElementById('extension-selector');
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
-			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(extension => makeOption(extension, selectedExtension)).join('\n');
+			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
@@ -1071,9 +1105,9 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateProcessInfo(state: IssueReporterModelData) {
-		const target = document.querySelector('.block-process .block-info');
+		const target = document.querySelector('.block-process .block-info') as HTMLElement;
 		if (target) {
-			target.innerHTML = `<code>${state.processInfo}</code>`;
+			reset(target, $('code', undefined, state.processInfo));
 		}
 	}
 
@@ -1085,7 +1119,7 @@ export class IssueReporter extends Disposable {
 		const target = document.querySelector<HTMLElement>('.block-extensions .block-info');
 		if (target) {
 			if (this.configuration.disableExtensions) {
-				target.innerHTML = localize('disabledExtensions', "Extensions are disabled");
+				reset(target, localize('disabledExtensions', "Extensions are disabled"));
 				return;
 			}
 
@@ -1097,8 +1131,7 @@ export class IssueReporter extends Disposable {
 				return;
 			}
 
-			const table = this.getExtensionTableHtml(extensions);
-			target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
+			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
 		}
 	}
 
@@ -1111,28 +1144,24 @@ export class IssueReporter extends Disposable {
 			}
 
 			const table = this.getExtensionTableHtml(extensions);
-			target.innerHTML = `<table>${table}</table>`;
+			target.innerText = '';
+			target.appendChild(table);
 		}
 	}
 
-	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): string {
-		let table = `
-			<tr>
-				<th>Extension</th>
-				<th>Author (truncated)</th>
-				<th>Version</th>
-			</tr>`;
-
-		table += extensions.map(extension => {
-			return `
-				<tr>
-					<td>${extension.name}</td>
-					<td>${extension.publisher.substr(0, 3)}</td>
-					<td>${extension.version}</td>
-				</tr>`;
-		}).join('');
-
-		return table;
+	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): HTMLTableElement {
+		return $('table', undefined,
+			$('tr', undefined,
+				$('th', undefined, 'Extension'),
+				$('th', undefined, 'Author (truncated)' as string),
+				$('th', undefined, 'Version'),
+			),
+			...extensions.map(extension => $('tr', undefined,
+				$('td', undefined, extension.name),
+				$('td', undefined, extension.publisher.substr(0, 3)),
+				$('td', undefined, extension.version),
+			))
+		);
 	}
 
 	private openLink(event: MouseEvent): void {

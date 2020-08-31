@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
@@ -15,7 +15,6 @@ import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/elect
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
@@ -31,7 +30,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	) {
 		super();
 
-		ipcRenderer.on('vscode:openFiles', (_: unknown, request: IOpenFileRequest) => this._onOpenFileRequest(request));
+		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
 		this._register(electronService.onOSResume(() => this._onOsResume()));
 
 		this._terminalService.setLinuxDistro(linuxDistro);

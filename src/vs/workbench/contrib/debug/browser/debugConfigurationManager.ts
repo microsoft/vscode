@@ -99,6 +99,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
 		this.debuggersAvailable.set(this.debugAdapterFactories.size > 0);
+		this._onDidRegisterDebugger.fire();
 
 		return {
 			dispose: () => {
@@ -425,7 +426,6 @@ export class ConfigurationManager implements IConfigurationManager {
 			});
 
 			this.setCompoundSchemaValues();
-			this._onDidRegisterDebugger.fire();
 		});
 
 		breakpointsExtPoint.setHandler((extensions, delta) => {

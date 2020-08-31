@@ -14,7 +14,7 @@ import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, ExtHostNotebookShape, ICommandDto, IMainContext, IModelAddedData, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookEditorPropertiesChangeData, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -139,6 +139,10 @@ export class ExtHostCell extends Disposable {
 		this._onDidDispose.fire();
 	}
 
+	setOutputs(newOutputs: vscode.CellOutput[]): void {
+		this._outputs = newOutputs;
+	}
+
 	private _updateOutputs(newOutputs: vscode.CellOutput[]) {
 		const rawDiffs = diff<vscode.CellOutput>(this._outputs || [], newOutputs || [], (a) => {
 			return this._outputMapping.has(a);
@@ -213,6 +217,7 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _metadataChangeListener: IDisposable;
 	private _displayOrder: string[] = [];
 	private _versionId = 0;
+	private _isDirty: boolean = false;
 	private _backupCounter = 1;
 	private _backup?: vscode.NotebookDocumentBackup;
 	private _disposed = false;
@@ -274,7 +279,7 @@ export class ExtHostNotebookDocument extends Disposable {
 				get version() { return that._versionId; },
 				get fileName() { return that.uri.fsPath; },
 				get viewType() { return that._viewType; },
-				get isDirty() { return false; },
+				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
 				get languages() { return that._languages; },
@@ -311,14 +316,17 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._backup = undefined;
 	}
 
-	acceptModelChanged(event: NotebookCellsChangedEvent): void {
+	acceptModelChanged(event: NotebookCellsChangedEvent, isDirty: boolean): void {
 		this._versionId = event.versionId;
+		this._isDirty = isDirty;
 		if (event.kind === NotebookCellsChangeType.Initialize) {
 			this._spliceNotebookCells(event.changes, true);
 		} if (event.kind === NotebookCellsChangeType.ModelChange) {
 			this._spliceNotebookCells(event.changes, false);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
 			this._moveCell(event.index, event.newIdx);
+		} else if (event.kind === NotebookCellsChangeType.Output) {
+			this._setCellOutputs(event.index, event.outputs);
 		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
 			this._clearCellOutputs(event.index);
 		} else if (event.kind === NotebookCellsChangeType.CellsClearOutput) {
@@ -410,6 +418,12 @@ export class ExtHostNotebookDocument extends Disposable {
 		});
 	}
 
+	private _setCellOutputs(index: number, outputs: IProcessedOutput[]): void {
+		const cell = this._cells[index];
+		cell.setOutputs(outputs);
+		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
+	}
+
 	private _clearCellOutputs(index: number): void {
 		const cell = this._cells[index].cell;
 		cell.outputs = [];
@@ -447,6 +461,10 @@ export class ExtHostNotebookDocument extends Disposable {
 			const outputs = diff.toInsert;
 			return [diff.start, diff.deleteCount, outputs];
 		});
+
+		if (!outputDtos.length) {
+			return;
+		}
 
 		await this._proxy.$spliceNotebookCellOutputs(this._viewType, this.uri, cell.handle, outputDtos);
 		this._emitter.emitCellOutputsChange({
@@ -619,6 +637,20 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 
 	selection?: vscode.NotebookCell;
 
+	private _visibleRanges: vscode.NotebookCellRange[] = [];
+
+	get visibleRanges() {
+		return this._visibleRanges;
+	}
+
+	set visibleRanges(_range: vscode.NotebookCellRange[]) {
+		throw readonly('visibleRanges');
+	}
+
+	_acceptVisibleRanges(value: vscode.NotebookCellRange[]): void {
+		this._visibleRanges = value;
+	}
+
 	private _active: boolean = false;
 	get active(): boolean {
 		return this._active;
@@ -719,6 +751,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits);
 	}
 
+	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {
+		this._proxy.$tryRevealRange(this.id, range, revealType || extHostTypes.NotebookEditorRevealType.Default);
+	}
+
 	get viewColumn(): vscode.ViewColumn | undefined {
 		return this._viewColumn;
 	}
@@ -759,8 +795,9 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		super();
 
 		if (this._provider.onDidChangeKernels) {
-			this._register(this._provider.onDidChangeKernels(() => {
-				this._proxy.$onNotebookKernelChange(this._handle);
+			this._register(this._provider.onDidChangeKernels((e: vscode.NotebookDocument | undefined) => {
+				const uri = e?.uri;
+				this._proxy.$onNotebookKernelChange(this._handle, uri);
 			}));
 		}
 	}
@@ -792,6 +829,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				extension: this._extension.identifier,
 				extensionLocation: this._extension.extensionLocation,
 				description: kernel.description,
+				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
 				preloads: kernel.preloads
 			};
@@ -870,6 +908,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
 	private readonly _commandsConverter: CommandsConverter;
+	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>();
+	readonly onDidChangeNotebookEditorSelection = this._onDidChangeNotebookEditorSelection.event;
+	private readonly _onDidChangeNotebookEditorVisibleRanges = new Emitter<vscode.NotebookEditorVisibleRangesChangeEvent>();
+	readonly onDidChangeNotebookEditorVisibleRanges = this._onDidChangeNotebookEditorVisibleRanges.event;
 	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
 	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
 	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
@@ -995,8 +1037,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookKernelProviders.set(handle, adapter);
 		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, handle, {
 			viewType: selector.viewType,
-			filenamePattern: selector.filenamePattern ? typeConverters.GlobPattern.from(selector.filenamePattern) : undefined,
-			excludeFileNamePattern: selector.excludeFileNamePattern ? typeConverters.GlobPattern.from(selector.excludeFileNamePattern) : undefined,
+			filenamePattern: typeConverters.NotebookExclusiveDocumentPattern.from(selector.filenamePattern)
 		});
 
 		return new extHostTypes.Disposable(() => {
@@ -1035,21 +1076,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			if (webComm) {
 				await adapter.resolveNotebook(kernelId, document, webComm.contentProviderComm, token);
 			}
-		});
-	}
-
-	registerNotebookKernel(extension: IExtensionDescription, id: string, selectors: vscode.GlobPattern[], kernel: vscode.NotebookKernel): vscode.Disposable {
-		if (this._notebookKernels.has(id)) {
-			throw new Error(`Notebook kernel for '${id}' already registered`);
-		}
-
-		this._notebookKernels.set(id, { kernel, extension });
-		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
-
-		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, id, kernel.label, transformedSelectors, kernel.preloads || []);
-		return new extHostTypes.Disposable(() => {
-			this._notebookKernels.delete(id);
-			this._proxy.$unregisterNotebookKernel(id);
 		});
 	}
 
@@ -1253,12 +1279,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._webviewComm.get(editorId)?.onDidReceiveMessage(forRendererType, message);
 	}
 
-	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void {
-
+	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent, isDirty: boolean): void {
 		const document = this._documents.get(URI.revive(uriComponents));
-
 		if (document) {
-			document.acceptModelChanged(event);
+			document.acceptModelChanged(event, isDirty);
 		}
 	}
 
@@ -1270,8 +1294,31 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void {
-		this.logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', uriComponents.path, data);
+	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
+		this.logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', id, data);
+
+		let editor: { editor: ExtHostNotebookEditor; } | undefined;
+		this._editors.forEach(e => {
+			if (e.editor.id === id) {
+				editor = e;
+			}
+		});
+
+		if (!editor) {
+			return;
+		}
+
+		if (data.visibleRanges) {
+			editor.editor._acceptVisibleRanges(data.visibleRanges.ranges);
+			this._onDidChangeNotebookEditorVisibleRanges.fire({
+				notebookEditor: editor.editor,
+				visibleRanges: editor.editor.visibleRanges
+			});
+		}
+	}
+
+	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
+		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uriComponents.path, data);
 		const editor = this._getEditorFromURI(uriComponents);
 
 		if (!editor) {
@@ -1285,7 +1332,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			} else {
 				editor.editor.selection = undefined;
 			}
+
+			this._onDidChangeNotebookEditorSelection.fire({
+				notebookEditor: editor.editor,
+				selection: editor.editor.selection
+			});
 		}
+
 
 		if (data.metadata) {
 			editor.editor.notebookData.notebookDocument.metadata = {
@@ -1295,7 +1348,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[]) {
+	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[], visibleRanges: vscode.NotebookCellRange[]) {
 		const revivedUri = document.uri;
 		let webComm = this._webviewComm.get(editorId);
 
@@ -1319,6 +1372,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		} else {
 			editor.selection = undefined;
 		}
+
+		editor._acceptVisibleRanges(visibleRanges);
 
 		this._editors.get(editorId)?.editor.dispose();
 		this._editors.set(editorId, { editor });
@@ -1394,7 +1449,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 							0,
 							modelData.cells
 						]]
-					});
+					}, false);
 
 					// add cell document as vscode.TextDocument
 					addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.notebookDocument, cell)));
@@ -1404,7 +1459,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 					// create editor if populated
 					if (modelData.attachedEditor) {
-						this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections);
+						this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections, modelData.attachedEditor.visibleRanges);
 						editorChanged = true;
 					}
 				}
@@ -1426,7 +1481,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const document = this._documents.get(revivedUri);
 
 				if (document) {
-					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections);
+					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections, editorModelData.visibleRanges);
 					editorChanged = true;
 				}
 			}

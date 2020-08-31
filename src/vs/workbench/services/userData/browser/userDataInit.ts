@@ -19,7 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { CONFIGURATION_SYNC_STORE_KEY, IUserDataSyncStoreClient, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { URI } from 'vs/base/common/uri';
-import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { AuthenticationSessionInfo, getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -80,18 +80,13 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
-				if (!this.environmentService.options?.credentialsProvider) {
-					this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
-					return;
-				}
+				const authenticationSession = await this.getCurrentAuthenticationSessionInfo();
 
-				let authenticationSession;
-				try {
-					authenticationSession = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
-				} catch (error) {
-					this.logService.error(error);
-				}
 				if (!authenticationSession) {
+					if (!this.environmentService.options?.credentialsProvider) {
+						this.logService.trace(`Skipping initializing user data as credentials provider is not provided`);
+						return;
+					}
 					this.logService.trace(`Skipping initializing user data as authentication session is not set`);
 					return;
 				}
@@ -103,6 +98,35 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		}
 
 		return this._userDataSyncStoreClientPromise;
+	}
+
+	private async getCurrentAuthenticationSessionInfo(): Promise<AuthenticationSessionInfo | undefined> {
+		if (this.environmentService.options?.credentialsProvider) {
+			try {
+				const currentAuthenticationSessionInfo = await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService);
+				if (currentAuthenticationSessionInfo) {
+					return currentAuthenticationSessionInfo;
+				}
+			} catch (error) {
+				this.logService.error(error);
+				return undefined;
+			}
+		}
+
+		if (!this.environmentService.isBuilt) {
+			const authenticationSessionInfoElement = document.getElementById('vscode-workbench-authentication-session');
+			const authenticationSessionInfoElementAttribute = authenticationSessionInfoElement ? authenticationSessionInfoElement.getAttribute('data-settings') : undefined;
+			if (authenticationSessionInfoElementAttribute) {
+				try {
+					return JSON.parse(authenticationSessionInfoElementAttribute);
+				} catch (error) {
+					this.logService.error(error);
+					return undefined;
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	async initializeRequiredResources(): Promise<void> {

@@ -33,7 +33,7 @@ This project incorporates components from the projects listed below. The origina
 26.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 27.	language-docker (https://github.com/moby/moby)
 28.	language-less version 0.34.2 (https://github.com/atom/language-less)
-29.	language-php version 0.44.4 (https://github.com/atom/language-php)
+29.	language-php version 0.44.5 (https://github.com/atom/language-php)
 30.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
 31.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
 32.	marked version 0.6.2 (https://github.com/markedjs/marked)

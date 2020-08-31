@@ -133,29 +133,6 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string): boolean;
 }
 
-export interface INotebookKernelInfo {
-	id: string;
-	label: string,
-	selectors: (string | glob.IRelativePattern)[],
-	extension: ExtensionIdentifier;
-	extensionLocation: URI,
-	preloads: URI[];
-	providerHandle?: number;
-	executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void>;
-
-}
-
-export interface INotebookKernelInfoDto {
-	id: string;
-	label: string,
-	extensionLocation: URI;
-	preloads?: UriComponents[];
-}
-
-export interface INotebookSelectors {
-	readonly filenamePattern?: string;
-}
-
 export interface IStreamOutput {
 	outputKind: CellOutputKind.Text;
 	text: string;
@@ -166,15 +143,15 @@ export interface IErrorOutput {
 	/**
 	 * Exception Name
 	 */
-	ename?: string;
+	ename: string;
 	/**
 	 * Exception Value
 	 */
-	evalue?: string;
+	evalue: string;
 	/**
 	 * Exception call stacks
 	 */
-	traceback?: string[];
+	traceback: string[];
 }
 
 export interface NotebookCellOutputMetadata {
@@ -213,6 +190,10 @@ export interface ITransformedDisplayOutputDto {
 
 	orderedMimeTypes?: IOrderedMimeType[];
 	pickedMimeTypeIndex?: number;
+}
+
+export function isTransformedDisplayOutput(thing: unknown): thing is ITransformedDisplayOutputDto {
+	return (thing as ITransformedDisplayOutputDto).outputKind === CellOutputKind.Rich && !!(thing as ITransformedDisplayOutputDto).outputId;
 }
 
 export interface IGenericOutput {
@@ -313,14 +294,14 @@ export interface IRenderNoOutput {
 
 export interface IRenderPlainHtmlOutput {
 	type: RenderOutputType.Html;
-	source: IProcessedOutput;
+	source: ITransformedDisplayOutputDto;
 	htmlContent: string;
 	hasDynamicHeight: boolean;
 }
 
 export interface IRenderOutputViaExtension {
 	type: RenderOutputType.Extension;
-	source: IProcessedOutput;
+	source: ITransformedDisplayOutputDto;
 	mimeType: string;
 	renderer: INotebookRendererInfo;
 }
@@ -366,7 +347,8 @@ export enum NotebookCellsChangeType {
 	CellsClearOutput = 4,
 	ChangeLanguage = 5,
 	Initialize = 6,
-	ChangeMetadata = 7
+	ChangeMetadata = 7,
+	Output = 8,
 }
 
 export interface NotebookCellsInitializeEvent {
@@ -386,6 +368,13 @@ export interface NotebookCellsModelMoveEvent {
 	readonly index: number;
 	readonly newIdx: number;
 	readonly versionId: number;
+}
+
+export interface NotebookOutputChangedEvent {
+	readonly kind: NotebookCellsChangeType.Output;
+	readonly index: number;
+	readonly versionId: number;
+	readonly outputs: IProcessedOutput[];
 }
 
 export interface NotebookCellClearOutputEvent {
@@ -413,7 +402,7 @@ export interface NotebookCellsChangeMetadataEvent {
 	readonly metadata: NotebookCellMetadata | undefined;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookOutputChangedEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 
 export const enum CellEditType {
 	Replace = 1,
@@ -677,10 +666,27 @@ export interface NotebookDocumentBackupData {
 	readonly mtime?: number;
 }
 
+/**
+ * [start, end]
+ */
+export interface ICellRange {
+	/**
+	 * zero based index
+	 */
+	start: number;
+
+	/**
+	 * zero based index
+	 */
+	end: number;
+}
+
 export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
+	readonly onDidChangeVisibleRanges: Event<void>;
 	isNotebookEditor: boolean;
+	visibleRanges: ICellRange[];
 	uri?: URI;
 	textModel?: NotebookTextModel;
 	getId(): string;
@@ -700,22 +706,44 @@ export interface INotebookSearchOptions {
 	wordSeparators?: string;
 }
 
+export interface INotebookExclusiveDocumentFilter {
+	include?: string | glob.IRelativePattern;
+	exclude?: string | glob.IRelativePattern;
+}
+
 export interface INotebookDocumentFilter {
-	viewType?: string;
-	filenamePattern?: string | glob.IRelativePattern;
-	excludeFileNamePattern?: string | glob.IRelativePattern;
+	viewType?: string | string[];
+	filenamePattern?: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 }
 
 //TODO@rebornix test
+
+function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
+
+	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
+		&& (typeof arg.exclude === 'string' || glob.isRelativePattern(arg.exclude))) {
+		return true;
+	}
+
+	return false;
+}
 export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
+	if (Array.isArray(filter.viewType) && filter.viewType.indexOf(viewType) >= 0) {
+		return true;
+	}
+
 	if (filter.viewType === viewType) {
 		return true;
 	}
 
 	if (filter.filenamePattern) {
-		if (glob.match(filter.filenamePattern, basename(resource.fsPath).toLowerCase())) {
-			if (filter.excludeFileNamePattern) {
-				if (glob.match(filter.excludeFileNamePattern, basename(resource.fsPath).toLowerCase())) {
+		let filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
+		let excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
+
+		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (excludeFilenamePattern) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
 					// should exclude
 
 					return false;
@@ -734,6 +762,7 @@ export interface INotebookKernelInfoDto2 {
 	extensionLocation: URI;
 	providerHandle?: number;
 	description?: string;
+	detail?: string;
 	isPreferred?: boolean;
 	preloads?: UriComponents[];
 }
@@ -748,7 +777,7 @@ export interface INotebookKernelProvider {
 	providerExtensionId: string;
 	providerDescription?: string;
 	selector: INotebookDocumentFilter;
-	onDidChangeKernels: Event<void>;
+	onDidChangeKernels: Event<URI | undefined>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
 	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;

@@ -17,7 +17,6 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -48,7 +47,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
-import { DesktopLogService } from 'vs/workbench/services/log/electron-browser/logService';
+import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
 import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class DesktopMain extends Disposable {
@@ -77,9 +76,6 @@ class DesktopMain extends Disposable {
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
 		setFullscreen(!!this.environmentService.configuration.fullscreen);
-
-		// Keyboard support
-		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 	}
 
 	private reviveUris() {
@@ -183,7 +179,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IProductService, productService);
 
 		// Log
-		const logService = this._register(new DesktopLogService(this.configuration.windowId, mainProcessService, this.environmentService));
+		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote

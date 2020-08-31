@@ -2785,6 +2785,12 @@ export enum NotebookCellStatusBarAlignment {
 	Right = 2
 }
 
+export enum NotebookEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2
+}
+
 
 //#endregion
 

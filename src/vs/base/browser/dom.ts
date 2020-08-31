@@ -997,6 +997,11 @@ export function trackFocus(element: HTMLElement | Window): IFocusTracker {
 	return new FocusTracker(element);
 }
 
+export function after<T extends Node>(sibling: HTMLElement, child: T): T {
+	sibling.after(child);
+	return child;
+}
+
 export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
 	children.forEach(child => parent.appendChild(child));
 	return children[children.length - 1];
@@ -1008,6 +1013,18 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
+
+export function reset<T extends Node>(parent: HTMLElement, ...children: Array<Node | string>) {
+	parent.innerText = '';
+	coalesce(children)
+		.forEach(child => {
+			if (child instanceof Node) {
+				parent.appendChild(child);
+			} else {
+				parent.appendChild(document.createTextNode(child as string));
+			}
+		});
+}
 
 export enum Namespace {
 	HTML = 'http://www.w3.org/1999/xhtml',

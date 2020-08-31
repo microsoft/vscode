@@ -45,6 +45,7 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('ExtensionsListView Tests', () => {
 
@@ -66,6 +67,7 @@ suite('ExtensionsListView Tests', () => {
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
 	const configBasedRecommendationA = aGalleryExtension('configbased-recommendation-A');
+	const configBasedRecommendationB = aGalleryExtension('configbased-recommendation-B');
 	const fileBasedRecommendationA = aGalleryExtension('filebased-recommendation-A');
 	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
@@ -103,7 +105,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService, instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService));
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService));
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
@@ -125,9 +127,10 @@ suite('ExtensionsListView Tests', () => {
 					{ extensionId: workspaceRecommendationB.identifier.id }]);
 			},
 			getConfigBasedRecommendations() {
-				return Promise.resolve([
-					{ extensionId: configBasedRecommendationA.identifier.id }
-				]);
+				return Promise.resolve({
+					important: [{ extensionId: configBasedRecommendationA.identifier.id }],
+					others: [{ extensionId: configBasedRecommendationB.identifier.id }],
+				});
 			},
 			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
 				return Promise.resolve([]);
@@ -140,6 +143,7 @@ suite('ExtensionsListView Tests', () => {
 			},
 			getOtherRecommendations() {
 				return Promise.resolve([
+					{ extensionId: configBasedRecommendationB.identifier.id },
 					{ extensionId: otherRecommendationA.identifier.id }
 				]);
 			},
@@ -335,7 +339,8 @@ suite('ExtensionsListView Tests', () => {
 	test('Test @recommended:workspace query', () => {
 		const workspaceRecommendedExtensions = [
 			workspaceRecommendationA,
-			workspaceRecommendationB
+			workspaceRecommendationB,
+			configBasedRecommendationA,
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...workspaceRecommendedExtensions));
 
@@ -353,9 +358,9 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test @recommended query', () => {
 		const allRecommendedExtensions = [
-			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
+			configBasedRecommendationB,
 			otherRecommendationA
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
@@ -381,7 +386,8 @@ suite('ExtensionsListView Tests', () => {
 			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
-			otherRecommendationA
+			configBasedRecommendationB,
+			otherRecommendationA,
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
 

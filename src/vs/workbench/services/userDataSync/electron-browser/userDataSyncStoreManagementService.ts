@@ -11,8 +11,9 @@ import { AbstractUserDataSyncStoreManagementService } from 'vs/platform/userData
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
+class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManagementService implements IUserDataSyncStoreManagementService {
 
 	private readonly channel: IChannel;
 
@@ -46,3 +47,5 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	}
 
 }
+
+registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService);

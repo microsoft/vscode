@@ -505,13 +505,24 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	// TODO@rebornix should this trigger content change event?
 	spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
 		const cell = this._mapping.get(cellHandle);
-		cell?.spliceNotebookCellOutputs(splices);
+		if (cell) {
 
-		if (!this.transientOptions.transientOutputs) {
-			this._increaseVersionId();
-			this.setDirty(true);
-			this._onDidChangeContent.fire();
+			cell.spliceNotebookCellOutputs(splices);
+
+			if (!this.transientOptions.transientOutputs) {
+				this._increaseVersionId();
+				this.setDirty(true);
+				this._onDidChangeContent.fire();
+			}
+
+			this._onDidModelChangeProxy.fire({
+				kind: NotebookCellsChangeType.Output,
+				versionId: this.versionId,
+				index: this.cells.indexOf(cell),
+				outputs: cell.outputs ?? []
+			});
 		}
+
 	}
 
 	clearCellOutput(handle: number) {

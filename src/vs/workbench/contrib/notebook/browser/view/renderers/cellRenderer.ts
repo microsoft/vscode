@@ -383,7 +383,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
-
+		const decorationContainer = DOM.append(container, $('.cell-decoration'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
@@ -412,6 +412,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			expandButton,
 			contextKeyService,
 			container,
+			decorationContainer,
 			cellContainer: innerContent,
 			editorPart,
 			editorContainer,
@@ -631,7 +632,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
-
+		const decorationContainer = DOM.append(container, $('.cell-decoration'));
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
@@ -693,6 +694,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			expandButton,
 			contextKeyService,
 			container,
+			decorationContainer,
 			cellContainer,
 			cellRunState,
 			progressBar,

@@ -12,7 +12,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
 
-export class DesktopHostService extends Disposable implements IHostService {
+export class NativeHostService extends Disposable implements IHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -95,4 +95,4 @@ export class DesktopHostService extends Disposable implements IHostService {
 	}
 }
 
-registerSingleton(IHostService, DesktopHostService, true);
+registerSingleton(IHostService, NativeHostService, true);

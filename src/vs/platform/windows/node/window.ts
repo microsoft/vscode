@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowConfiguration, IPath, IOpenFileRequest, IPathData } from 'vs/platform/windows/common/windows';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { IWindowConfiguration, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
+import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -34,16 +34,6 @@ export const enum OpenContext {
 	API
 }
 
-export interface IRunActionInWindowRequest {
-	id: string;
-	from: 'menu' | 'touchbar' | 'mouse';
-	args?: any[];
-}
-
-export interface IRunKeybindingInWindowRequest {
-	userSettingsLabel: string;
-}
-
 export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
 	mainPid: number;
 
@@ -70,21 +60,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Parsed
 
 	userEnv: platform.IProcessEnvironment;
 	filesToWait?: IPathsToWaitFor;
-}
-
-export interface INativeOpenFileRequest extends IOpenFileRequest {
-	termProgram?: string;
-	filesToWait?: IPathsToWaitForData;
-}
-
-export interface IPathsToWaitFor extends IPathsToWaitForData {
-	paths: IPath[];
-	waitMarkerFileUri: URI;
-}
-
-export interface IPathsToWaitForData {
-	paths: IPathData[];
-	waitMarkerFileUri: UriComponents;
 }
 
 export interface IWindowContext {
