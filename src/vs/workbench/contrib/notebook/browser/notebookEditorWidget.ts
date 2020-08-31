@@ -52,7 +52,7 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellToolbarLocKey, ICellRange, IInsetRenderOutput, INotebookKernelInfo2, INotebookKernelInfoDto, IProcessedOutput, isTransformedDisplayOutput, NotebookCellRunState, NotebookRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, ICellRange, IInsetRenderOutput, INotebookKernelInfo2, IProcessedOutput, isTransformedDisplayOutput, NotebookCellRunState, NotebookRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
@@ -828,7 +828,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		tokenSource.dispose();
 	}
 
-	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernelInfoDto) {
+	private async _loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernelInfo2) {
 		if (kernel.preloads && kernel.preloads.length) {
 			await this._resolveWebview();
 			this._webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
