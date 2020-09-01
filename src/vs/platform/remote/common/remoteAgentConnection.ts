@@ -16,6 +16,9 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { ILogService } from 'vs/platform/log/common/log';
 import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
 
+const INITIAL_CONNECT_TIMEOUT = 120 * 1000 /* 120s */;
+const RECONNECT_TIMEOUT = 30 * 1000 /* 30s */;
+
 export const enum ConnectionType {
 	Management = 1,
 	ExtensionHost = 2,
@@ -277,7 +280,7 @@ export async function connectRemoteAgentManagement(options: IConnectionOptions, 
 	try {
 		const reconnectionToken = generateUuid();
 		const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
-		const { protocol } = await connectWithTimeLimit(simpleOptions.logService, doConnectRemoteAgentManagement(simpleOptions), 30 * 1000 /*30s*/);
+		const { protocol } = await connectWithTimeLimit(simpleOptions.logService, doConnectRemoteAgentManagement(simpleOptions), INITIAL_CONNECT_TIMEOUT);
 		return new ManagementPersistentConnection(options, remoteAuthority, clientId, reconnectionToken, protocol);
 	} catch (err) {
 		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
@@ -291,7 +294,7 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 	try {
 		const reconnectionToken = generateUuid();
 		const simpleOptions = await resolveConnectionOptions(options, reconnectionToken, null);
-		const { protocol, debugPort } = await connectWithTimeLimit(simpleOptions.logService, doConnectRemoteAgentExtensionHost(simpleOptions, startArguments), 30 * 1000 /*30s*/);
+		const { protocol, debugPort } = await connectWithTimeLimit(simpleOptions.logService, doConnectRemoteAgentExtensionHost(simpleOptions, startArguments), INITIAL_CONNECT_TIMEOUT);
 		return new ExtensionHostPersistentConnection(options, startArguments, reconnectionToken, protocol, debugPort);
 	} catch (err) {
 		options.logService.error(`[remote-connection] An error occurred in the very first connect attempt, it will be treated as a permanent error! Error:`);
@@ -303,7 +306,7 @@ export async function connectRemoteAgentExtensionHost(options: IConnectionOption
 
 export async function connectRemoteAgentTunnel(options: IConnectionOptions, tunnelRemotePort: number): Promise<PersistentProtocol> {
 	const simpleOptions = await resolveConnectionOptions(options, generateUuid(), null);
-	const protocol = await connectWithTimeLimit(simpleOptions.logService, doConnectRemoteAgentTunnel(simpleOptions, { port: tunnelRemotePort }), 30 * 1000 /*30s*/);
+	const protocol = await connectWithTimeLimit(simpleOptions.logService, doConnectRemoteAgentTunnel(simpleOptions, { port: tunnelRemotePort }), INITIAL_CONNECT_TIMEOUT);
 	return protocol;
 }
 
@@ -434,7 +437,7 @@ abstract class PersistentConnection extends Disposable {
 				this._options.logService.info(`${logPrefix} resolving connection...`);
 				const simpleOptions = await resolveConnectionOptions(this._options, this.reconnectionToken, this.protocol);
 				this._options.logService.info(`${logPrefix} connecting to ${simpleOptions.host}:${simpleOptions.port}...`);
-				await connectWithTimeLimit(simpleOptions.logService, this._reconnect(simpleOptions), 30 * 1000 /*30s*/);
+				await connectWithTimeLimit(simpleOptions.logService, this._reconnect(simpleOptions), RECONNECT_TIMEOUT);
 				this._options.logService.info(`${logPrefix} reconnected!`);
 				this._onDidStateChange.fire(new ConnectionGainEvent());
 

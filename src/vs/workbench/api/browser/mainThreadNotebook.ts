@@ -6,18 +6,16 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, INotebookDocumentFilter, INotebookKernelInfo, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
@@ -132,8 +130,7 @@ class DocumentAndEditorState {
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
-	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
-	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<void>, provider: IDisposable }>();
+	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
 	private readonly _proxy: ExtHostNotebookShape;
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
@@ -490,21 +487,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
-	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
-		const kernel = new MainThreadNotebookKernel(this._proxy, id, label, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)), this.logService);
-		this._notebookKernels.set(id, kernel);
-		this._notebookService.registerNotebookKernel(kernel);
-		return;
-	}
-
-	async $unregisterNotebookKernel(id: string): Promise<void> {
-		this._notebookKernels.delete(id);
-		this._notebookService.unregisterNotebookKernel(id);
-		return;
-	}
-
 	async $registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void> {
-		const emitter = new Emitter<void>();
+		const emitter = new Emitter<URI | undefined>();
 		const that = this;
 		const provider = this._notebookService.registerNotebookKernelProvider({
 			providerExtensionId: extension.id.value,
@@ -551,10 +535,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	$onNotebookKernelChange(handle: number): void {
+	$onNotebookKernelChange(handle: number, uriComponents: UriComponents): void {
 		const entry = this._notebookKernelProviders.get(handle);
 
-		entry?.emitter.fire();
+		entry?.emitter.fire(uriComponents ? URI.revive(uriComponents) : undefined);
 	}
 
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
@@ -657,21 +641,3 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 }
 
-export class MainThreadNotebookKernel implements INotebookKernelInfo {
-	constructor(
-		private readonly _proxy: ExtHostNotebookShape,
-		readonly id: string,
-		readonly label: string,
-		readonly selectors: (string | IRelativePattern)[],
-		readonly extension: ExtensionIdentifier,
-		readonly extensionLocation: URI,
-		readonly preloads: URI[],
-		readonly logService: ILogService
-	) {
-	}
-
-	async executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void> {
-		this.logService.debug('MainThreadNotebookKernel#executeNotebook', uri.path, handle);
-		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle);
-	}
-}

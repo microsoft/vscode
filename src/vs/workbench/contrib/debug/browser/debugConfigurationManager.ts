@@ -46,7 +46,6 @@ jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
-const DEBUG_SELECTED_DYNAMIC_CONFIG = 'debug.selecteddynamicconfig';
 
 interface IDynamicPickItem { label: string, launch: ILaunch, config: IConfig }
 
@@ -84,30 +83,23 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.toDispose = [];
 		this.initLaunches();
 		this.registerListeners();
+		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
+		const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
-
+		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
+			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+		} else if (this.launches.length > 0) {
+			this.selectConfiguration(undefined);
+		}
 	}
 
 	// debuggers
 
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
-		const firstRegistration = this.debugAdapterFactories.size === 0;
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
 		this.debuggersAvailable.set(this.debugAdapterFactories.size > 0);
 		this._onDidRegisterDebugger.fire();
-		if (firstRegistration) {
-			const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
-			const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
-			if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
-				const name = this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
-				const configStr = this.storageService.get(DEBUG_SELECTED_DYNAMIC_CONFIG, StorageScope.WORKSPACE);
-				const config = configStr ? JSON.parse(configStr) : undefined;
-				this.selectConfiguration(previousSelectedLaunch, name, config);
-			} else if (this.launches.length > 0) {
-				this.selectConfiguration(undefined);
-			}
-		}
 
 		return {
 			dispose: () => {
@@ -542,12 +534,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		this.selectedConfig = config;
-		if (config) {
-			// Only dynamic configurations get passed in the selectConfiguration. We should store them #96293
-			this.storageService.store(DEBUG_SELECTED_DYNAMIC_CONFIG, JSON.stringify(config), StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(DEBUG_SELECTED_DYNAMIC_CONFIG, StorageScope.WORKSPACE);
-		}
 		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (configForType) {
 			this.debugConfigurationTypeContext.set(configForType.type);

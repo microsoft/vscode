@@ -1648,6 +1648,7 @@ declare module 'vscode' {
 		readonly id?: string;
 		label: string;
 		description?: string;
+		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
@@ -1657,13 +1658,12 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentFilter {
-		viewType?: string;
-		filenamePattern?: GlobPattern;
-		excludeFileNamePattern?: GlobPattern;
+		viewType?: string | string[];
+		filenamePattern?: GlobPattern | { include: GlobPattern; exclude: GlobPattern };
 	}
 
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
-		onDidChangeKernels?: Event<void>;
+		onDidChangeKernels?: Event<NotebookDocument | undefined>;
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
 		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
@@ -1718,12 +1718,6 @@ declare module 'vscode' {
 		export function registerNotebookKernelProvider(
 			selector: NotebookDocumentFilter,
 			provider: NotebookKernelProvider
-		): Disposable;
-
-		export function registerNotebookKernel(
-			id: string,
-			selectors: GlobPattern[],
-			kernel: NotebookKernel
 		): Disposable;
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
@@ -2067,10 +2061,8 @@ declare module 'vscode' {
 		/**
 		 * Event fired when the view is disposed.
 		 *
-		 * Views are disposed of in a few cases:
-		 *
-		 * - When a view is collapsed and `retainContextWhenHidden` has not been set.
-		 * - When a view is hidden by a user.
+		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
+		 * right clicks in a view and unchecks the webview view).
 		 *
 		 * Trying to use the view after it has been disposed throws an exception.
 		 */
@@ -2130,7 +2122,7 @@ declare module 'vscode' {
 		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
 		 * first loaded or when the user hides and then shows a view again.
 		 *
-		 * @param webviewView Webview panel to restore. The serializer should take ownership of this panel. The
+		 * @param webviewView Webview view to restore. The serializer should take ownership of this view. The
 		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
 		 * @param context Additional metadata about the view being resolved.
 		 * @param token Cancellation token indicating that the view being provided is no longer needed.
@@ -2156,20 +2148,20 @@ declare module 'vscode' {
 			 */
 			readonly webviewOptions?: {
 				/**
-				 * Controls if the webview panel's content (iframe) is kept around even when the panel
+				 * Controls if the webview element itself (iframe) is kept around even when the view
 				 * is no longer visible.
 				 *
-				 * Normally the webview's html context is created when the panel becomes visible
+				 * Normally the webview's html context is created when the view becomes visible
 				 * and destroyed when it is hidden. Extensions that have complex state
 				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 				 * context around, even when the webview moves to a background tab. When a webview using
 				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
-				 * When the panel becomes visible again, the context is automatically restored
+				 * When the view becomes visible again, the context is automatically restored
 				 * in the exact same state it was in originally. You cannot send messages to a
 				 * hidden webview, even with `retainContextWhenHidden` enabled.
 				 *
 				 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-				 * your panel's context cannot be quickly saved and restored.
+				 * your view's context cannot be quickly saved and restored.
 				 */
 				readonly retainContextWhenHidden?: boolean;
 			};

@@ -58,7 +58,7 @@
 
 	const defaultCssRules = `
 	body {
-		background-color: var(--vscode-editor-background);
+		background-color: transparent;
 		color: var(--vscode-editor-foreground);
 		font-family: var(--vscode-font-family);
 		font-weight: var(--vscode-font-weight);
