@@ -1430,9 +1430,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _cancelNotebookExecution(): Promise<void> {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider && this._activeKernel) {
-			await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
+		if (this._activeKernel) {
+			await this._activeKernel.cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
 		}
 	}
 
@@ -1445,16 +1444,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _executeNotebook(): Promise<void> {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider && this._activeKernel) {
-			// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-			if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
-				if (this._activeKernelResolvePromise) {
-					await this._activeKernelResolvePromise;
-				}
-
-				await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, undefined);
+		if (this._activeKernel) {
+			if (this._activeKernelResolvePromise) {
+				await this._activeKernelResolvePromise;
 			}
+
+			await this._activeKernel.executeNotebookCell!(this._notebookViewModel!.uri, undefined);
 		}
 	}
 
@@ -1476,9 +1471,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _cancelNotebookCell(cell: ICellViewModel): Promise<void> {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider && this._activeKernel) {
-			return await (this._activeKernel as INotebookKernelInfo2).cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
+		if (this._activeKernel) {
+			return await this._activeKernel.cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
 		}
 	}
 
@@ -1496,15 +1490,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _executeNotebookCell(cell: ICellViewModel): Promise<void> {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-		if (provider) {
-			if (this._activeKernel) {
-				// TODO@rebornix temp any cast, should be removed once we remove legacy kernel support
-				if ((this._activeKernel as INotebookKernelInfo2).executeNotebookCell) {
-					await (this._activeKernel as INotebookKernelInfo2).executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
-				}
-			}
-
+		if (this._activeKernel) {
+			await this._activeKernel.executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
 		}
 	}
 

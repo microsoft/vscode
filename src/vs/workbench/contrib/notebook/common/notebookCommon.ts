@@ -769,8 +769,8 @@ export interface INotebookKernelInfoDto2 {
 
 export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
-	cancelNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
+	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
+	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
 }
 
 export interface INotebookKernelProvider {
