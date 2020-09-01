@@ -40,7 +40,7 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -825,20 +825,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				if (node instanceof ResolvableTreeItem) {
 					await node.resolve();
 				}
-				let tooltip: IMarkdownString | undefined;
-				if (node.tooltip && !isString(node.tooltip)) {
-					tooltip = node.tooltip;
-				} else {
-					const text = node.tooltip ?? label;
-					tooltip = text ? new MarkdownString().appendText(text) : undefined;
-				}
+				let tooltip: IMarkdownString | string | undefined = node.tooltip ?? label;
 				if (isHovering && tooltip) {
 					if (!hoverOptions) {
 						const target: IHoverTarget = {
 							targetElements: [this],
 							dispose: () => { }
 						};
-						hoverOptions = { text: isString(tooltip) ? { value: tooltip } : tooltip, target };
+						hoverOptions = { text: tooltip, target };
 					}
 					(<IHoverTarget>hoverOptions.target).x = e.x;
 					hoverService.showHover(hoverOptions);
