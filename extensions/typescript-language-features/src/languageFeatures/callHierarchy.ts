@@ -80,7 +80,7 @@ function isSourceFileItem(item: Proto.CallHierarchyItem) {
 function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.CallHierarchyItem {
 	const useFileName = isSourceFileItem(item);
 	const name = useFileName ? path.basename(item.file) : item.name;
-	const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : '';
+	const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : item.containerName ?? '';
 	const result = new vscode.CallHierarchyItem(
 		typeConverters.SymbolKind.fromProtocolScriptElementKind(item.kind),
 		name,
