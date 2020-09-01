@@ -192,6 +192,8 @@ export class VariablesView extends ViewPane {
 	private async onContextMenu(e: ITreeContextMenuEvent<IExpression | IScope>): Promise<void> {
 		const variable = e.element;
 		if (variable instanceof Variable && !!variable.value) {
+			this.debugProtocolVariableMenuContext.set(variable.variableMenuContext || '');
+
 			const actions: IAction[] = [];
 			const session = this.debugService.getViewModel().focusedSession;
 			if (session && session.capabilities.supportsSetVariable) {
@@ -225,7 +227,6 @@ export class VariablesView extends ViewPane {
 				variable: variable.toDebugProtocolObject()
 			};
 			const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: context, shouldForwardArgs: false }, actions, this.contextMenuService);
-			this.debugProtocolVariableMenuContext.set(variable.variableMenuContext || '');
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
