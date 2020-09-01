@@ -128,7 +128,7 @@ class ToggleScreencastModeAction extends Action2 {
 
 			let style = new Option().style;
 			style.color = mouseIndicatorColor;
-			mouseMarker.style.borderColor = (mouseIndicatorColor === '' || !style.color) ? 'red' : mouseIndicatorColor;
+			mouseMarker.style.borderColor = (mouseIndicatorColor === '' || !style.color) ? '#ff0000' : mouseIndicatorColor;
 		};
 
 		let mouseIndicatorSize: number;
@@ -325,8 +325,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.mouseIndicatorColor': {
 			type: 'string',
-			default: 'red',
-			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (string or Hex) of the mouse indicator in screencast mode.")
+			format: 'color-hex',
+			default: '#ff0000',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (Hex) of the mouse indicator in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorSize': {
 			type: 'number',
