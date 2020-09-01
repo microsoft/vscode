@@ -62,7 +62,7 @@ const ModulesToLookFor = [
 	'firebase',
 	'@google-cloud/common',
 	'heroku-cli',
-	//Office and Sharepoint packages
+	// Office and Sharepoint packages
 	'@microsoft/teams-js',
 	'@microsoft/office-js',
 	'@microsoft/office-js-helpers',
@@ -118,7 +118,8 @@ const PyModulesToLookFor = [
 	'pydocumentdb',
 	'botbuilder-core',
 	'botbuilder-schema',
-	'botframework-connector'
+	'botframework-connector',
+	'playwright'
 ];
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
@@ -292,7 +293,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.pydocumentdb" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botbuilder-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.botbuilder-schema" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+			"workspace.py.botframework-connector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
 	private resolveWorkspaceTags(configuration: IEnvironmentConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
