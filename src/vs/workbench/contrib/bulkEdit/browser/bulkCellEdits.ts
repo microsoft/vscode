@@ -43,10 +43,10 @@ export class BulkCellEdits {
 			const ref = await this._notebookModelService.resolve(first.resource);
 
 			// check state
-			if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
-				ref.dispose();
-				throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
-			}
+			// if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
+			// 	ref.dispose();
+			// 	throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
+			// }
 
 			// apply edits
 			const cellEdits = group.map(edit => edit.cellEdit);
