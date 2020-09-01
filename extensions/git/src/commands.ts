@@ -1372,8 +1372,8 @@ export class CommandCenter {
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
 
 				if (pick === saveAndCommit) {
-					await Promise.all(documents.map(d => d.save()));
 					await repository.add(documents.map(d => d.uri));
+					await Promise.all(documents.map(d => d.save()));
 				} else if (pick !== commit) {
 					return false; // do not commit on cancel
 				}
