@@ -424,17 +424,16 @@
 	top: 0px;
 }
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container {
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	position: absolute;
-	top: 17px;
+	position: relative;
 	height: 16px;
+	flex-shrink: 0;
+	top: 9px;
+	z-index: 27;
+	/* Above the drag handle */
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar {
 	visibility: hidden;
-	z-index: 27; /* Above the drag handle */
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .run-button-container .monaco-toolbar .codicon {
@@ -453,12 +452,18 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label {
+	position: absolute;
 	font-size: 10px;
 	font-family: var(--monaco-monospace-font);
 	white-space: pre;
+	box-sizing: border-box;
 	opacity: .6;
-	padding-top: 1px;
-	margin-right: 1px;
+
+	/* Sizing hacks */
+	left: 26px;
+	width: 35px;
+	bottom: 0px;
+	text-align: center;
 }
 
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
