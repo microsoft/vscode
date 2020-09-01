@@ -244,7 +244,8 @@ function registerDebugMenu(): void {
 			id: StartAction.ID,
 			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
 		},
-		order: 1
+		order: 1,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -253,7 +254,8 @@ function registerDebugMenu(): void {
 			id: RunAction.ID,
 			title: nls.localize({ key: 'miRun', comment: ['&& denotes a mnemonic'] }, "Run &&Without Debugging")
 		},
-		order: 2
+		order: 2,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -263,7 +265,8 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging"),
 			precondition: CONTEXT_IN_DEBUG_MODE
 		},
-		order: 3
+		order: 3,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -273,7 +276,8 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging"),
 			precondition: CONTEXT_IN_DEBUG_MODE
 		},
-		order: 4
+		order: 4,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	// Configuration
@@ -283,7 +287,8 @@ function registerDebugMenu(): void {
 			id: ConfigureAction.ID,
 			title: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
 		},
-		order: 1
+		order: 1,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -292,7 +297,8 @@ function registerDebugMenu(): void {
 			id: ADD_CONFIGURATION_ID,
 			title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "A&&dd Configuration...")
 		},
-		order: 2
+		order: 2,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	// Step Commands
@@ -303,7 +309,8 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over"),
 			precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 		},
-		order: 1
+		order: 1,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -313,7 +320,8 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into"),
 			precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 		},
-		order: 2
+		order: 2,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -323,7 +331,8 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut"),
 			precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 		},
-		order: 3
+		order: 3,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -333,7 +342,8 @@ function registerDebugMenu(): void {
 			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue"),
 			precondition: CONTEXT_DEBUG_STATE.isEqualTo('stopped')
 		},
-		order: 4
+		order: 4,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	// New Breakpoints
@@ -343,7 +353,8 @@ function registerDebugMenu(): void {
 			id: TOGGLE_BREAKPOINT_ID,
 			title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
 		},
-		order: 1
+		order: 1,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
@@ -352,7 +363,8 @@ function registerDebugMenu(): void {
 			id: TOGGLE_CONDITIONAL_BREAKPOINT_ID,
 			title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Conditional Breakpoint...")
 		},
-		order: 1
+		order: 1,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
@@ -361,7 +373,8 @@ function registerDebugMenu(): void {
 			id: TOGGLE_INLINE_BREAKPOINT_ID,
 			title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Inline Breakp&&oint")
 		},
-		order: 2
+		order: 2,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
@@ -370,7 +383,8 @@ function registerDebugMenu(): void {
 			id: AddFunctionBreakpointAction.ID,
 			title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&Function Breakpoint...")
 		},
-		order: 3
+		order: 3,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
@@ -379,14 +393,16 @@ function registerDebugMenu(): void {
 			id: ADD_LOG_POINT_ID,
 			title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
 		},
-		order: 4
+		order: 4,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		group: '4_new_breakpoint',
 		title: nls.localize({ key: 'miNewBreakpoint', comment: ['&& denotes a mnemonic'] }, "&&New Breakpoint"),
 		submenu: MenuId.MenubarNewBreakpointMenu,
-		order: 2
+		order: 2,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	// Modify Breakpoints
@@ -396,7 +412,8 @@ function registerDebugMenu(): void {
 			id: EnableAllBreakpointsAction.ID,
 			title: nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "&&Enable All Breakpoints")
 		},
-		order: 1
+		order: 1,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -405,7 +422,8 @@ function registerDebugMenu(): void {
 			id: DisableAllBreakpointsAction.ID,
 			title: nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
 		},
-		order: 2
+		order: 2,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
@@ -414,7 +432,8 @@ function registerDebugMenu(): void {
 			id: RemoveAllBreakpointsAction.ID,
 			title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
 		},
-		order: 3
+		order: 3,
+		when: CONTEXT_DEBUGGERS_AVAILABLE
 	});
 
 	// Install Debuggers
