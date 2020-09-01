@@ -216,17 +216,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
 			cellDiffViewModels.push(new CellDiffViewModel(
 				originalModel.cells[i],
-				undefined,
-				'delete',
-				this._eventDispatcher!
-			));
-		}
-
-		for (let i = modifiedCellIndex; i < modifiedModel.cells.length; i++) {
-			cellDiffViewModels.push(new CellDiffViewModel(
-				undefined,
-				modifiedModel.cells[i],
-				'insert',
+				modifiedModel.cells[i - originalCellIndex + modifiedCellIndex],
+				'unchanged',
 				this._eventDispatcher!
 			));
 		}
