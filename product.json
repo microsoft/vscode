@@ -76,7 +76,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "1.0.6",
+			"version": "1.0.7",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -91,7 +91,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.49.2",
+			"version": "1.49.3",
 			"repo": "https://github.com/Microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
@@ -123,7 +123,7 @@
 	"webBuiltInExtensions": [
 		{
 			"name": "ms-vscode.github-browser",
-			"version": "0.0.6",
+			"version": "0.0.5",
 			"repo": "https://github.com/Microsoft/vscode-github-browser",
 			"metadata": {
 				"id": "c1bcff4b-4ecb-466e-b8f6-b02788b5fb5a",
