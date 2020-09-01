@@ -2076,7 +2076,14 @@ declare module 'vscode' {
 		readonly visible: boolean;
 
 		/**
-		 * Event fired when the visibility of the view changes
+		 * Event fired when the visibility of the view changes.
+		 *
+		 * Actions that trigger a visibility change:
+		 *
+		 * - The view is collapsed or expanded.
+		 * - The user switches to a different view group in the sidebar or panel.
+		 *
+		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
 		 */
 		readonly onDidChangeVisibility: Event<void>;
 	}
