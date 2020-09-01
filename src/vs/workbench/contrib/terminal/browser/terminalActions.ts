@@ -84,7 +84,7 @@ export class ToggleTerminalAction extends ToggleViewAction {
 	}
 
 	async run() {
-		if (this.terminalService.terminalInstances.length === 0) {
+		if (this.terminalService.isProcessSupportRegistered && this.terminalService.terminalInstances.length === 0) {
 			// If there is not yet an instance attempt to create it here so that we can suggest a
 			// new shell on Windows (and not do so when the panel is restored on reload).
 			const newTerminalInstance = this.terminalService.createTerminal(undefined);
@@ -201,23 +201,25 @@ export class CreateNewTerminalAction extends Action {
 			}
 		}
 
-		let instance: ITerminalInstance | undefined;
-		if (folders.length <= 1) {
-			// Allow terminal service to handle the path when there is only a
-			// single root
-			instance = this._terminalService.createTerminal(undefined);
-		} else {
-			const options: IPickOptions<IQuickPickItem> = {
-				placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
-			};
-			const workspace = await this._commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
-			if (!workspace) {
-				// Don't create the instance if the workspace picker was canceled
-				return;
+		if (this._terminalService.isProcessSupportRegistered) {
+			let instance: ITerminalInstance | undefined;
+			if (folders.length <= 1) {
+				// Allow terminal service to handle the path when there is only a
+				// single root
+				instance = this._terminalService.createTerminal(undefined);
+			} else {
+				const options: IPickOptions<IQuickPickItem> = {
+					placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
+				};
+				const workspace = await this._commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, [options]);
+				if (!workspace) {
+					// Don't create the instance if the workspace picker was canceled
+					return;
+				}
+				instance = this._terminalService.createTerminal({ cwd: workspace.uri });
 			}
-			instance = this._terminalService.createTerminal({ cwd: workspace.uri });
+			this._terminalService.setActiveInstance(instance);
 		}
-		this._terminalService.setActiveInstance(instance);
 		await this._terminalService.showPanel(true);
 	}
 }
@@ -442,11 +444,13 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = terminalService.createTerminal(undefined);
-			if (!instance) {
-				return;
+			if (terminalService.isProcessSupportRegistered) {
+				const instance = terminalService.createTerminal(undefined);
+				if (!instance) {
+					return;
+				}
+				terminalService.setActiveInstance(instance);
 			}
-			terminalService.setActiveInstance(instance);
 			await terminalService.showPanel(true);
 		}
 	});
@@ -1183,11 +1187,13 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, args?: { cwd?: string }) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = terminalService.createTerminal({ cwd: args?.cwd });
-			if (!instance) {
-				return;
+			if (terminalService.isProcessSupportRegistered) {
+				const instance = terminalService.createTerminal({ cwd: args?.cwd });
+				if (!instance) {
+					return;
+				}
+				terminalService.setActiveInstance(instance);
 			}
-			terminalService.setActiveInstance(instance);
 			return terminalService.showPanel(true);
 		}
 	});
