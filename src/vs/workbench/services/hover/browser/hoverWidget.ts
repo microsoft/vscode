@@ -17,6 +17,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
 
@@ -78,7 +79,8 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdownElement = renderMarkdown(options.text, {
+		const markdown = typeof options.text === 'string' ? new MarkdownString(options.text) : options.text;
+		const markdownElement = renderMarkdown(markdown, {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
@@ -118,7 +120,20 @@ export class HoverWidget extends Widget {
 		}
 
 		const mouseTrackerTargets = [...this._target.targetElements];
-		if (!options.hideOnHover || (options.actions && options.actions.length > 0)) {
+		let hideOnHover: boolean;
+		if (options.hideOnHover === undefined) {
+			if (options.actions && options.actions.length > 0) {
+				// If there are actions, require hover so they can be accessed
+				hideOnHover = false;
+			} else {
+				// Defaults to true when string, false when markdown as it may contain links
+				hideOnHover = typeof options.text === 'string';
+			}
+		} else {
+			// It's set explicitly
+			hideOnHover = options.hideOnHover;
+		}
+		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hover.containerDomNode);
 		}
 		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);

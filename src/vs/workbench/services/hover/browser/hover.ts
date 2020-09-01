@@ -39,9 +39,10 @@ export interface IHoverService {
 
 export interface IHoverOptions {
 	/**
-	 * The text to display in the primary section of the hover.
+	 * The text to display in the primary section of the hover. The type of text determines the
+	 * default `hideOnHover` behavior.
 	 */
-	text: IMarkdownString;
+	text: IMarkdownString | string;
 
 	/**
 	 * The target for the hover. This determines the position of the hover and it will only be
@@ -69,8 +70,13 @@ export interface IHoverOptions {
 
 	/**
 	 * Whether to hide the hover when the mouse leaves the `target` and enters the actual hover.
-	 * This is false by default and note that it will be ignored if any `actions` are provided such
-	 * that they are accessible.
+	 * This is false by default when text is an `IMarkdownString` and true when `text` is a
+	 * `string`. Note that this will be ignored if any `actions` are provided as hovering is
+	 * required to make them accessible.
+	 *
+	 * In general hiding on hover is desired for:
+	 * - Regular text where selection is not important
+	 * - Markdown that contains no links where selection is not important
 	 */
 	hideOnHover?: boolean;
 }
