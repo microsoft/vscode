@@ -129,6 +129,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEW_CONTAINERS, version: 1 });
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: ACCOUNTS_VISIBILITY_PREFERENCE_KEY, version: 1 });
+
 		this.migrateFromOldCachedViewContainersValue();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
