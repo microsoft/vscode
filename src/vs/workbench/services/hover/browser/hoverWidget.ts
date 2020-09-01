@@ -79,7 +79,7 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdown = typeof options.text === 'string' ? new MarkdownString(options.text) : options.text;
+		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text) : options.text;
 		const markdownElement = renderMarkdown(markdown, {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
