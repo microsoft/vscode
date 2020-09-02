@@ -51,10 +51,6 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 
 	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
-		if (this._parsedQueries.length === 0) {
-			return parentVisibility;
-		}
-
 		let includeQueryPresent = false;
 		let includeQueryMatched = false;
 
@@ -72,7 +68,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 			}
 		}
 
-		return includeQueryPresent ? includeQueryMatched : parentVisibility;
+		return includeQueryPresent ? includeQueryMatched : (typeof parentVisibility !== 'undefined' ? parentVisibility : TreeVisibility.Visible);
 	}
 }
 
