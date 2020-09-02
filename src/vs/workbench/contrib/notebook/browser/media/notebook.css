@@ -366,6 +366,10 @@
 	z-index: 26;
 }
 
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
+	justify-content: flex-end;
+}
+
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-contributed-items {
 	display: flex;
 	flex-wrap: wrap;
