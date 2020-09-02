@@ -82,8 +82,8 @@ export class NativeHostService extends Disposable implements IHostService {
 		return this.electronService.toggleFullScreen();
 	}
 
-	focus(): Promise<void> {
-		return this.electronService.focusWindow();
+	focus(options?: { force: boolean }): Promise<void> {
+		return this.electronService.focusWindow(options);
 	}
 
 	restart(): Promise<void> {
