@@ -257,7 +257,8 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return {
 			name: this.name,
 			variablesReference: this.reference || 0,
-			value: this.value
+			value: this.value,
+			evaluateName: this.evaluateName
 		};
 	}
 }
