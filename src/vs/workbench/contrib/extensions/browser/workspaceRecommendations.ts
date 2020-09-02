@@ -3,23 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EXTENSION_IDENTIFIER_PATTERN, IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_PATTERN, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { distinct, flatten, coalesce } from 'vs/base/common/arrays';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionsConfigContent, ExtensionRecommendationSource, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { parse } from 'vs/base/common/json';
-import { EXTENSIONS_CONFIG, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Emitter } from 'vs/base/common/event';
 
 export class WorkspaceRecommendations extends ExtensionRecommendations {
@@ -34,21 +29,14 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	get ignoredRecommendations(): ReadonlyArray<string> { return this._ignoredRecommendations; }
 
 	constructor(
-		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
+		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, extensionsWorkbenchService, extensionManagementService, storageKeysSyncRegistryService);
+		super(promptedExtensionRecommendations);
 	}
 
 	protected async doActivate(): Promise<void> {
