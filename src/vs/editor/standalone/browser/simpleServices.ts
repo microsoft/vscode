@@ -78,8 +78,15 @@ export class SimpleModel implements IResolvedTextEditorModel {
 		return false;
 	}
 
+	private disposed = false;
 	public dispose(): void {
+		this.disposed = true;
+
 		this._onDispose.fire();
+	}
+
+	public isDisposed(): boolean {
+		return this.disposed;
 	}
 
 	public isResolved(): boolean {

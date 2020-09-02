@@ -425,7 +425,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	getMode(): string | undefined;
 
 	isResolved(): this is IResolvedTextFileEditorModel;
-	isDisposed(): boolean;
 }
 
 export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
