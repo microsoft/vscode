@@ -432,7 +432,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private async turnOn(): Promise<void> {
 		try {
 			if (!this.userDataSyncWorkbenchService.authenticationProviders.length) {
-				throw new Error(localize('no authentication providers', "No authentication providers available."));
+				throw new Error(localize('no authentication providers', "No authentication providers are available."));
 			}
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
