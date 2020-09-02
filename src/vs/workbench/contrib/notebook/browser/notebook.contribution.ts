@@ -581,7 +581,7 @@ configurationRegistry.registerConfiguration({
 			default: 'right'
 		},
 		[ShowCellStatusBarKey]: {
-			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell statusbar should be shown."),
+			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
 			type: 'boolean',
 			default: true
 		},
