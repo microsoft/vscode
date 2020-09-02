@@ -72,6 +72,7 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -170,6 +171,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
@@ -251,7 +253,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview)) {
+		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()) {
 			return this._handleDiffEditorInput(originalInput, options, group);
 		}
 
