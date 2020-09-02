@@ -30,6 +30,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listFocusBackground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -41,7 +42,7 @@ import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/deb
 import { BOTTOM_CELL_TOOLBAR_GAP, BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_BOTTOM_MARGIN, CELL_MARGIN, CELL_RUN_GUTTER, CELL_TOP_MARGIN, CODE_CELL_LEFT_MARGIN, COLLAPSED_INDICATOR_HEIGHT, SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, ICellViewModel, INotebookCellList, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_HAS_MULTIPLE_KERNELS, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
+import { NotebookKernelProviderAssociation, NotebookKernelProviderAssociations, notebookKernelProviderAssociationsSettingId } from 'vs/workbench/contrib/notebook/browser/notebookKernelAssociation';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -233,6 +234,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
@@ -1421,18 +1423,98 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return undefined;
 	}
 
+	private async _ensureActiveKernel() {
+		if (this._activeKernel) {
+			if (this._activeKernelResolvePromise) {
+				await this._activeKernelResolvePromise;
+			}
+
+			return;
+		}
+
+		// pick active kernel
+
+		const tokenSource = new CancellationTokenSource();
+		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(this.viewModel!.viewType, this.viewModel!.uri, tokenSource.token);
+		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = availableKernels2.map((a) => {
+			return {
+				id: a.id,
+				label: a.label,
+				picked: false,
+				description:
+					a.description
+						? a.description
+						: a.extension.value,
+				detail: a.detail,
+				kernelProviderId: a.extension.value,
+				run: async () => {
+					this.activeKernel = a;
+					this._activeKernelResolvePromise = this.activeKernel.resolve(this.viewModel!.uri, this.getId(), tokenSource.token);
+				},
+				buttons: [{
+					iconClass: 'codicon-settings-gear',
+					tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default kernel provider for '{0}'", this.viewModel!.viewType)
+				}]
+			};
+		});
+
+		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { run(): void; kernelProviderId?: string })>();
+		picker.items = picks;
+		picker.placeholder = nls.localize('notebook.runCell.selectKernel', "Select a notebook kernel to run this notebook");
+		picker.matchOnDetail = true;
+
+		const pickedItem = await new Promise<(IQuickPickItem & { run(): void; kernelProviderId?: string; }) | undefined>(resolve => {
+			picker.onDidAccept(() => {
+				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
+				picker.dispose();
+			});
+
+			picker.onDidTriggerItemButton(e => {
+				const pick = e.item;
+				const id = pick.id;
+				resolve(pick); // open the view
+				picker.dispose();
+
+				// And persist the setting
+				if (pick && id && pick.kernelProviderId) {
+					const newAssociation: NotebookKernelProviderAssociation = { viewType: this.viewModel!.viewType, kernelProvider: pick.kernelProviderId };
+					const currentAssociations = [...this.configurationService.getValue<NotebookKernelProviderAssociations>(notebookKernelProviderAssociationsSettingId)];
+
+					// First try updating existing association
+					for (let i = 0; i < currentAssociations.length; ++i) {
+						const existing = currentAssociations[i];
+						if (existing.viewType === newAssociation.viewType) {
+							currentAssociations.splice(i, 1, newAssociation);
+							this.configurationService.updateValue(notebookKernelProviderAssociationsSettingId, currentAssociations);
+							return;
+						}
+					}
+
+					// Otherwise, create a new one
+					currentAssociations.unshift(newAssociation);
+					this.configurationService.updateValue(notebookKernelProviderAssociationsSettingId, currentAssociations);
+				}
+			});
+
+			picker.show();
+		});
+
+		tokenSource.dispose();
+
+		if (pickedItem) {
+			await pickedItem.run();
+		}
+
+		return;
+	}
+
 	async cancelNotebookExecution(): Promise<void> {
 		if (this._notebookViewModel?.metadata.runState !== NotebookRunState.Running) {
 			return;
 		}
 
-		return this._cancelNotebookExecution();
-	}
-
-	private async _cancelNotebookExecution(): Promise<void> {
-		if (this._activeKernel) {
-			await this._activeKernel.cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
-		}
+		await this._ensureActiveKernel();
+		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel!.uri, undefined);
 	}
 
 	async executeNotebook(): Promise<void> {
@@ -1440,17 +1522,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		return this._executeNotebook();
-	}
-
-	private async _executeNotebook(): Promise<void> {
-		if (this._activeKernel) {
-			if (this._activeKernelResolvePromise) {
-				await this._activeKernelResolvePromise;
-			}
-
-			await this._activeKernel.executeNotebookCell!(this._notebookViewModel!.uri, undefined);
-		}
+		await this._ensureActiveKernel();
+		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel!.uri, undefined);
 	}
 
 	async cancelNotebookCellExecution(cell: ICellViewModel): Promise<void> {
@@ -1467,13 +1540,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._cancelNotebookCell(cell);
-	}
-
-	private async _cancelNotebookCell(cell: ICellViewModel): Promise<void> {
-		if (this._activeKernel) {
-			return await this._activeKernel.cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
-		}
+		await this._ensureActiveKernel();
+		await this._activeKernel?.cancelNotebookCell!(this._notebookViewModel!.uri, cell.handle);
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
@@ -1486,13 +1554,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		await this._executeNotebookCell(cell);
-	}
-
-	private async _executeNotebookCell(cell: ICellViewModel): Promise<void> {
-		if (this._activeKernel) {
-			await this._activeKernel.executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
-		}
+		await this._ensureActiveKernel();
+		await this._activeKernel?.executeNotebookCell!(this._notebookViewModel!.uri, cell.handle);
 	}
 
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
