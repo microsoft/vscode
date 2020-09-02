@@ -52,6 +52,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Event } from 'vs/base/common/event';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 // Editor Contribution
 
@@ -72,7 +73,6 @@ import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -98,6 +98,42 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
+class NotebookDiffEditorFactory implements IEditorInputFactory {
+	canSerialize(): boolean {
+		return true;
+	}
+
+	serialize(input: EditorInput): string {
+		assertType(input instanceof NotebookDiffEditorInput);
+		return JSON.stringify({
+			resource: input.resource,
+			originalResource: input.originalResource,
+			name: input.name,
+			originalName: input.originalName,
+			viewType: input.viewType,
+		});
+	}
+
+	deserialize(instantiationService: IInstantiationService, raw: string) {
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, group: number };
+		const data = <Data>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+		const { resource, originalResource, name, originalName, viewType } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
+			return undefined;
+		}
+
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName, viewType);
+		return input;
+	}
+
+	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		return false;
+	}
+
+}
 class NotebookEditorFactory implements IEditorInputFactory {
 	canSerialize(): boolean {
 		return true;
@@ -158,6 +194,11 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(
 	Schemas.vscodeNotebook,
 	NotebookEditorFactory
+);
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+	NotebookDiffEditorInput.ID,
+	NotebookDiffEditorFactory
 );
 
 function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
