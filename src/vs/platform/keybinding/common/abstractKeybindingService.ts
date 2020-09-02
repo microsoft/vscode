@@ -35,6 +35,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	private _currentChord: CurrentChord | null;
 	private _currentChordChecker: IntervalTimer;
 	private _currentChordStatusMessage: IDisposable | null;
+	protected _logging: boolean;
 
 	public get inChordMode(): boolean {
 		return !!this._currentChord;
@@ -52,6 +53,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		this._currentChord = null;
 		this._currentChordChecker = new IntervalTimer();
 		this._currentChordStatusMessage = null;
+		this._logging = false;
 	}
 
 	public dispose(): void {
@@ -69,6 +71,19 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 
 	public getDefaultKeybindingsContent(): string {
 		return '';
+	}
+
+	public toggleLogging(): boolean {
+		this._logging = !this._logging;
+		return this._logging;
+	}
+
+	protected _log(str: string): void {
+		if (this._logging) {
+			this._logService.info(`[KeybindingService]: ${str}`);
+		} else {
+			this._logService.trace(`[KeybindingService]: ${str}`);
+		}
 	}
 
 	public getDefaultKeybindings(): readonly ResolvedKeybindingItem[] {
@@ -170,6 +185,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 		const [firstPart,] = keybinding.getDispatchParts();
 		if (firstPart === null) {
+			this._log(`\\ Keyboard event cannot be dispatched.`);
 			// cannot be dispatched, probably only modifier keys
 			return shouldPreventDefault;
 		}
