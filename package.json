@@ -102,7 +102,7 @@
     "@typescript-eslint/eslint-plugin": "3.2.0",
     "@typescript-eslint/parser": "^3.3.0",
     "ansi-colors": "^3.2.3",
-    "asar": "^0.14.0",
+    "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
     "concurrently": "^5.2.0",
     "copy-webpack-plugin": "^4.5.2",
