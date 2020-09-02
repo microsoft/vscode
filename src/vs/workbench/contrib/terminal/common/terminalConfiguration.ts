@@ -408,7 +408,7 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.environmentChangesIndicator.on', "Enable the indicator."),
 				localize('terminal.integrated.environmentChangesIndicator.warnonly', "Only show the warning indicator when a terminal's environment is 'stale', not the information indicator that shows a terminal has had its environment modified by an extension."),
 			],
-			default: 'warnonly'
+			default: 'off'
 		},
 		[TerminalSettingId.EnvironmentChangesRelaunch]: {
 			markdownDescription: localize('terminal.integrated.environmentChangesRelaunch', "Whether to relaunch terminals automatically if extension want to contribute to their environment and have not been interacted with yet."),

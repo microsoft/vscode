@@ -163,4 +163,9 @@ xterm-addon-*/fixtures/**
 xterm-addon-*/out/**
 xterm-addon-*/out-test/**
 
-
+# TODO: Remove this once gitpod-protocol package doesn't ship source code
+@gitpod/gitpod-protocol/src/**
+@gitpod/gitpod-protocol/data/**
+@gitpod/gitpod-protocol/node_modules/**
+@gitpod/gitpod-protocol/lib/*.d.ts
+@gitpod/gitpod-protocol/lib/*.d.ts.map

@@ -235,3 +235,9 @@ body.web {
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
+
+.codicon-gitpod {
+	width: 12px;
+	height: 12px;
+	background-image: url(./code-icon.svg) !important;
+}

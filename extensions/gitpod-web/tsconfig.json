@@ -1,0 +1,12 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"rootDir": "./src",
+		"esModuleInterop": true,
+		"sourceMap": true,
+	},
+	"references": [
+		{ "path": "../gitpod-shared" }
+	]
+}

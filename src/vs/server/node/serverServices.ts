@@ -73,6 +73,8 @@ import { ExtensionsScannerService } from 'vs/server/node/extensionsScannerServic
 import { ExtensionsProfileScannerService, IExtensionsProfileScannerService } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { IUserDataProfilesService, UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { NullPolicyService } from 'vs/platform/policy/common/policy';
+// eslint-disable-next-line code-import-patterns
+import { GitpodInsightsAppender } from 'vs/gitpod/node/gitpodInsightsAppender';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -131,10 +133,12 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	let appInsightsAppender: ITelemetryAppender = NullAppender;
 	const machineId = await getMachineId();
 	if (supportsTelemetry(productService, environmentService)) {
-		if (productService.aiConfig && productService.aiConfig.asimovKey) {
+		if (productService.aiConfig && productService.aiConfig.asimovKey !== 'foo') {
 			appInsightsAppender = new AppInsightsAppender(eventPrefix, null, productService.aiConfig.asimovKey);
 			disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
 		}
+
+		appInsightsAppender = new GitpodInsightsAppender(productService.nameShort, productService.version);
 
 		const config: ITelemetryServiceConfig = {
 			appenders: [appInsightsAppender],

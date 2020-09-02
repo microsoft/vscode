@@ -2,6 +2,36 @@
 # yarn lockfile v1
 
 
+"@gitpod/local-app-api-grpcweb@main":
+  version "0.1.5-main.1701"
+  resolved "https://registry.yarnpkg.com/@gitpod/local-app-api-grpcweb/-/local-app-api-grpcweb-0.1.5-main.1701.tgz#3f4f4203c4532b098d697c65799095c3d4add9d4"
+  integrity sha512-jNxTuvvgw0k71OPeZlbrgLkzAUop1iLoR+v3sqZIf1joPcMZGKjVlvM2lPIbAQFvH5lrI3+7/gQdz3BrwTXmng==
+  dependencies:
+    "@gitpod/supervisor-api-grpcweb" "0.1.5-main.1701"
+    "@improbable-eng/grpc-web" "0.14.0"
+    google-protobuf "^3.17.0"
+
+"@gitpod/supervisor-api-grpcweb@0.1.5-main.1701":
+  version "0.1.5-main.1701"
+  resolved "https://registry.yarnpkg.com/@gitpod/supervisor-api-grpcweb/-/supervisor-api-grpcweb-0.1.5-main.1701.tgz#3518155576a6d95c26299c957ef638e10644000a"
+  integrity sha512-i5V6Y45UvKZcKc+xVOGThe0N4ltwLTUxtsrcrWw8nVen/FKGp/vA4sIMIh5bVT20rqWX8r3pLVFCRtndS43qKQ==
+  dependencies:
+    "@improbable-eng/grpc-web" "^0.14.0"
+
+"@improbable-eng/grpc-web@0.14.0":
+  version "0.14.0"
+  resolved "https://registry.yarnpkg.com/@improbable-eng/grpc-web/-/grpc-web-0.14.0.tgz#a71c5af471dcef6a2810798f71f93ed8d6ac3817"
+  integrity sha512-ag1PTMWpBZKGi6GrEcZ4lkU5Qag23Xjo10BmnK9qyx4TMmSVcWmQ3rECirfQzm2uogrM9n1M6xfOpFsJP62ivA==
+  dependencies:
+    browser-headers "^0.4.1"
+
+"@improbable-eng/grpc-web@^0.14.0":
+  version "0.14.1"
+  resolved "https://registry.yarnpkg.com/@improbable-eng/grpc-web/-/grpc-web-0.14.1.tgz#f4662f64dc89c0f956a94bb8a3b576556c74589c"
+  integrity sha512-XaIYuunepPxoiGVLLHmlnVminUGzBTnXr8Wv7khzmLWbNw4TCwJKX09GSMJlKhu/TRk6gms0ySFxewaETSBqgw==
+  dependencies:
+    browser-headers "^0.4.1"
+
 "@microsoft/1ds-core-js@3.2.3", "@microsoft/1ds-core-js@^3.2.2":
   version "3.2.3"
   resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-3.2.3.tgz#2217d92ec8b073caa4577a13f40ea3a5c4c4d4e7"
@@ -110,6 +140,21 @@
   version "1.0.21"
   resolved "https://registry.yarnpkg.com/@vscode/vscode-languagedetection/-/vscode-languagedetection-1.0.21.tgz#89b48f293f6aa3341bb888c1118d16ff13b032d3"
   integrity sha512-zSUH9HYCw5qsCtd7b31yqkpaCU6jhtkKLkvOOA8yTrIRfBSOFb8PPhgmMicD7B/m+t4PwOJXzU1XDtrM9Fd3/g==
+
+"@zip.js/zip.js@^2.4.6":
+  version "2.4.6"
+  resolved "https://registry.yarnpkg.com/@zip.js/zip.js/-/zip.js-2.4.6.tgz#eb284910f4dcbccb267c5ef76950fb84ee43bb74"
+  integrity sha512-gP13tvMy1bhaTWw5I/Sm3mJAOU7J8S18e4sAcscGzYY8NVUF8FRirfY17eYq+rZhRBk8SNg5bFzzWgFR47qSyw==
+
+browser-headers@^0.4.1:
+  version "0.4.1"
+  resolved "https://registry.yarnpkg.com/browser-headers/-/browser-headers-0.4.1.tgz#4308a7ad3b240f4203dbb45acedb38dc2d65dd02"
+  integrity sha512-CA9hsySZVo9371qEHjHZtYxV2cFtVj5Wj/ZHi8ooEsrtm4vOnl9Y9HmyYWk9q+05d7K3rdoAE0j3MVEFVvtQtg==
+
+google-protobuf@^3.17.0:
+  version "3.19.0"
+  resolved "https://registry.yarnpkg.com/google-protobuf/-/google-protobuf-3.19.0.tgz#97f474323c92f19fd6737af1bb792e396991e0b8"
+  integrity sha512-qXGAiv3OOlaJXJNeKOBKxbBAwjsxzhx+12ZdKOkZTsqsRkyiQRmr/nBkAkqnuQ8cmA9X5NVXvObQTpHVnXE2DQ==
 
 jschardet@3.0.0:
   version "3.0.0"

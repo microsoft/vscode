@@ -2051,11 +2051,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					// Extract the file name without extension
 					title = path.win32.parse(title).name;
 				} else {
-					const firstSpaceIndex = title.indexOf(' ');
 					if (title.startsWith('/')) {
 						title = path.basename(title);
-					} else if (firstSpaceIndex > -1) {
-						title = title.substring(0, firstSpaceIndex);
 					}
 				}
 				this._processName = title;

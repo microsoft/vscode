@@ -1,0 +1,21 @@
+{
+	"displayName": "Gitpod Remote",
+	"description": "Gitpod Remote Support",
+	"openDashboard": "Gitpod: Open Dashboard",
+	"openAccessControl": "Gitpod: Open Access Control",
+	"openSettings": "Gitpod: Open Settings",
+	"openContext": "Gitpod: Open Context",
+	"openDocumentation": "Gitpod: Documentation",
+	"openDiscord": "Gitpod: Open Community Chat",
+	"openTwitter": "Gitpod: Follow us on Twitter",
+	"reportIssue": "Gitpod: Report Issue",
+	"stopWorkspace": "Gitpod: Stop Workspace",
+	"upgradeSubscription": "Gitpod: Upgrade Subscription",
+	"extendTimeout": "Gitpod: Extend Workspace Timeout",
+	"takeSnapshot": "Gitpod: Share Workspace Snapshot",
+	"shareWorkspace": "Gitpod: Share Running Workspace",
+	"stopSharingWorkspace": "Gitpod: Stop Sharing Running Workspace",
+	"openInStable": "Gitpod: Open in VS Code",
+	"openInInsiders": "Gitpod: Open in VS Code Insiders",
+	"openInBrowser": "Gitpod: Open in Browser"
+}

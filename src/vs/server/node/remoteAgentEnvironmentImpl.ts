@@ -63,6 +63,7 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 					_logService.error(error);
 				});
 		}
+
 	}
 
 	async call(_: any, command: string, arg?: any): Promise<any> {
@@ -326,7 +327,16 @@ export class RemoteAgentEnvironmentChannel implements IServerChannel {
 
 	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
 		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language, useCache: true });
-		return scannedExtensions.map(e => toExtensionDescription(e, false));
+		return scannedExtensions.map(e => toExtensionDescription(e, false)).filter(ext => {
+			// TODO: remove this once whe decoupled gitpod extensions from gp-code
+			const ignoreExtensions = [
+				'vscode.github-authentication',
+				'gitpod.gitpod-shared',
+				'gitpod.gitpod-remote-ssh',
+				'gitpod.gitpod-desktop'
+			];
+			return !ignoreExtensions.includes(ext.identifier.value.toLowerCase());
+		});
 	}
 
 	private async _scanInstalledExtensions(language: string): Promise<IExtensionDescription[]> {

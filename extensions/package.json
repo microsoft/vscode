@@ -1,4 +1,5 @@
 {
+  "private": true,
   "name": "vscode-extensions",
   "version": "0.0.1",
   "license": "MIT",
@@ -7,11 +8,23 @@
     "typescript": "4.7.3"
   },
   "scripts": {
-    "postinstall": "node ./postinstall.mjs"
+    "postinstall": "node ./postinstall.mjs",
+    "compile": "../node_modules/.bin/tsc -b",
+    "watch": "../node_modules/.bin/tsc -b -w"
   },
   "devDependencies": {
     "@parcel/watcher": "2.0.5",
     "esbuild": "^0.11.12",
     "vscode-grammar-updater": "^1.1.0"
+  },
+  "workspaces": {
+    "packages": [
+      "gitpod-shared",
+      "gitpod-remote",
+      "gitpod-web"
+    ],
+    "nohoist": [
+      "**/!(gitpod-protocol|supervisor-api-grpc|grpc-js|proto-loader)"
+    ]
   }
 }

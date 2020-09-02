@@ -1,0 +1,17 @@
+packages:
+  - name: install
+    type: generic
+    srcs:
+    - "**"
+    config:
+      commands:
+        - ["yarn"]
+  - name: init
+    type: generic
+    deps:
+    - ":install"
+    config:
+      commands:
+        - ["yarn", "--cwd", "./install/build", "compile"]
+        - ["yarn", "--cwd", "./install", "compile"]
+        - ["yarn", "--cwd", "./install", "download-builtin-extensions"]
