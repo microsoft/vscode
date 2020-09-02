@@ -431,6 +431,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async turnOn(): Promise<void> {
 		try {
+			if (!this.userDataSyncWorkbenchService.authenticationProviders.length) {
+				throw new Error(localize('no authentication providers', "No authentication providers available."));
+			}
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
 					return;
@@ -478,7 +481,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						return;
 				}
 			}
-			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
+			this.notificationService.error(localize('turn on failed', "Error while starting Settings Sync: {0}", toErrorMessage(e)));
 		}
 	}
 

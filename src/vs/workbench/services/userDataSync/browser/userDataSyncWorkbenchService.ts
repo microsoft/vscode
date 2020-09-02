@@ -246,6 +246,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async turnOn(): Promise<void> {
+		if (!this.authenticationProviders.length) {
+			throw new Error(localize('no authentication providers', "Settings sync cannot be turned on because there are no authentication providers available."));
+		}
 		if (this.userDataAutoSyncService.isEnabled()) {
 			return;
 		}
