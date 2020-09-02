@@ -22,6 +22,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export enum CellKind {
 	Markdown = 1,
@@ -640,6 +641,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel;
+	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
 	isDirty(): boolean;
 	isUntitled(): boolean;
 	save(): Promise<boolean>;
