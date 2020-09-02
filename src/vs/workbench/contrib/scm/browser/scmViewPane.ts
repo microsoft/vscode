@@ -1434,7 +1434,7 @@ class SCMInputWidget extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		return this.inputEditor.hasWidgetFocus();
+		return this.inputEditor.hasTextFocus();
 	}
 
 	private renderValidation(): void {
