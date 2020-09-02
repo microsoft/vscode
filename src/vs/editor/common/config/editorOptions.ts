@@ -852,15 +852,13 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
-	public static clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-		let r: number;
+	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
 		if (typeof value === 'undefined') {
-			r = defaultValue;
-		} else {
-			r = parseInt(value, 10);
-			if (isNaN(r)) {
-				r = defaultValue;
-			}
+			return defaultValue;
+		}
+		let r = parseInt(value, 10);
+		if (isNaN(r)) {
+			return defaultValue;
 		}
 		r = Math.max(minimum, r);
 		r = Math.min(maximum, r);
@@ -1490,7 +1488,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 //#region fontWeight
 
 class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string> {
-	private static ENUM_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+	private static SUGGESTION_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 	private static MINIMUM_VALUE = 1;
 	private static MAXIMUM_VALUE = 1000;
 
@@ -1502,23 +1500,28 @@ class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string>
 					{
 						type: 'number',
 						minimum: EditorFontWeight.MINIMUM_VALUE,
-						maximum: EditorFontWeight.MAXIMUM_VALUE
+						maximum: EditorFontWeight.MAXIMUM_VALUE,
+						errorMessage: nls.localize('fontWeightErrorMessage', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
 					},
 					{
-						enum: EditorFontWeight.ENUM_VALUES
+						type: 'string',
+						pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+					},
+					{
+						enum: EditorFontWeight.SUGGESTION_VALUES
 					}
 				],
 				default: EDITOR_FONT_DEFAULTS.fontWeight,
-				description: nls.localize('fontWeight', "Controls the font weight.")
+				description: nls.localize('fontWeight', "Controls the font weight. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000.")
 			}
 		);
 	}
 
 	public validate(input: any): string {
-		if (typeof input === 'number') {
-			return EditorFontWeight.MINIMUM_VALUE <= input && input <= EditorFontWeight.MAXIMUM_VALUE ? String(input) : EDITOR_FONT_DEFAULTS.fontWeight;
+		if (input === 'normal' || input === 'bold') {
+			return input;
 		}
-		return EditorStringEnumOption.stringSet<string>(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.ENUM_VALUES);
+		return String(EditorIntOption.clampedInt(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.MINIMUM_VALUE, EditorFontWeight.MAXIMUM_VALUE));
 	}
 }
 
