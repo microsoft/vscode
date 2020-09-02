@@ -39,6 +39,10 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 		await this.original.load({ forceReadFromDisk: true });
 	}
 
+	async resolveModifiedFromDisk() {
+		await this.modified.load({ forceReadFromDisk: true });
+	}
+
 	dispose(): void {
 
 	}

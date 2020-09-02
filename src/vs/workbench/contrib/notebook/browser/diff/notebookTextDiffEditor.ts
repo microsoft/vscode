@@ -27,10 +27,12 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -48,6 +50,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
+	private _modifiedResourceDisposableStore = new DisposableStore();
+
 	get textModel() {
 		return this._model?.modified.notebook;
 	}
@@ -58,6 +62,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: FileService,
 
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
@@ -142,7 +147,34 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			return;
 		}
 
+		this._modifiedResourceDisposableStore.add(this._fileService.watch(this._model.modified.resource));
+		this._modifiedResourceDisposableStore.add(this._fileService.onDidFilesChange(async e => {
+			if (this._model === null) {
+				return;
+			}
+
+			if (e.changes.find(change => change.resource.toString() === this._model!.modified.resource.toString())) {
+				await this._model.resolveModifiedFromDisk();
+				await this.updateLayout();
+				return;
+			}
+
+			if (e.changes.find(change => change.resource.toString() === this._model!.original.resource.toString())) {
+				await this._model.resolveOriginalFromDisk();
+				await this.updateLayout();
+				return;
+			}
+		}));
+
+
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		await this.updateLayout();
+	}
+
+	async updateLayout() {
+		if (!this._model) {
+			return;
+		}
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
