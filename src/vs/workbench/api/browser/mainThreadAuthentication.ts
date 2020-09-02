@@ -132,8 +132,12 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private async registerCommandsAndContextMenuItems(): Promise<void> {
-		const sessions = await this._proxy.$getSessions(this.id);
-		sessions.forEach(session => this.registerSession(session));
+		try {
+			const sessions = await this._proxy.$getSessions(this.id);
+			sessions.forEach(session => this.registerSession(session));
+		} catch (_) {
+			// Ignore
+		}
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
