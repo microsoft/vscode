@@ -18,6 +18,7 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 const remote = require('gulp-remote-retry-src');
 const vfs = require('vinyl-fs');
+const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
 
@@ -34,14 +35,16 @@ const args = minimist(process.argv, {
 		'no-launch',
 		'help',
 		'verbose',
-		'wrap-iframe'
+		'wrap-iframe',
+		'enable-sync'
 	],
 	string: [
 		'scheme',
 		'host',
 		'port',
 		'local_port',
-		'extension'
+		'extension',
+		'github-auth'
 	],
 });
 
@@ -50,11 +53,13 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
+		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
 		' --port           Remote/Local port\n' +
 		' --local_port     Local port override\n' +
 		' --extension      Path of an extension to include\n' +
+		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
 		'[Example]\n' +
@@ -356,14 +361,38 @@ async function handleRoot(req, res) {
 	const webConfigJSON = {
 		folderUri: folderUri,
 		staticExtensions,
+		enableSyncByDefault: args['enable-sync'],
 	};
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
 	}
 
+	const credentials = [];
+	if (args['github-auth']) {
+		const sessionId = uuid.v4();
+		credentials.push({
+			service: 'code-oss.login',
+			account: 'account',
+			password: JSON.stringify({
+				id: sessionId,
+				providerId: 'github',
+				accessToken: args['github-auth']
+			})
+		}, {
+			service: 'code-oss-github.login',
+			account: 'account',
+			password: JSON.stringify([{
+				id: sessionId,
+				scopes: ['user:email'],
+				accessToken: args['github-auth']
+			}])
+		});
+	}
+
 	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
+		.replace('{{WORKBENCH_CREDENTIALS}}', () => escapeAttribute(JSON.stringify(credentials)))
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 
