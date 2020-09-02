@@ -27,6 +27,13 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
 
+	constructor(credentials: ICredential[]) {
+		this._credentials = credentials;
+		for (const { service, account, password } of this._credentials) {
+			this.setPassword(service, account, password);
+		}
+	}
+
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
 		if (!this._credentials) {
@@ -430,6 +437,11 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
+	// Find credentials from DOM
+	const credentialsElement = document.getElementById('vscode-workbench-credentials');
+	const credentialsElementAttribute = credentialsElement ? credentialsElement.getAttribute('data-settings') : undefined;
+	const credentialsProvider = new LocalStorageCredentialsProvider(credentialsElementAttribute ? JSON.parse(credentialsElementAttribute) : []);
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
@@ -438,6 +450,6 @@ class WindowIndicator implements IWindowIndicator {
 		productQualityChangeHandler,
 		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		credentialsProvider
 	});
 })();
