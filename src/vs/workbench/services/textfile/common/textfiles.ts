@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
-import { isUndefinedOrNull } from 'vs/base/common/types';
+import { areFunctions, isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -426,6 +426,12 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isResolved(): this is IResolvedTextFileEditorModel;
 	isDisposed(): boolean;
+}
+
+export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
+	const candidate = model as ITextFileEditorModel;
+
+	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getMode);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
