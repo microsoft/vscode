@@ -1,0 +1,25 @@
+image:
+  file: .gitpod.Dockerfile
+ports:
+  - port: 3000
+    onOpen: open-browser
+tasks:
+  - init: |
+      yarn
+      yarn compile
+      yarn download-builtin-extensions
+    command: |
+      yarn gulp watch-init
+  - command: |
+      export NODE_ENV=development
+      export VSCODE_DEV=1
+      export GITPOD_CODE_FOLDER=$GITPOD_REPO_ROOT
+      gp sync-await init
+      node out/gitpod.js
+    openMode: split-right
+github:
+  prebuilds:
+    pullRequestsFromForks: true
+vscode:
+  extensions:
+    - dbaeumer.vscode-eslint@2.1.3:1NRvj3UKNTNwmYjptmUmIw==

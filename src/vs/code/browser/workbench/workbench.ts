@@ -3,269 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions } from 'vs/workbench/workbench.web.api';
-import { URI, UriComponents } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
-import { generateUuid } from 'vs/base/common/uuid';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { streamToBuffer } from 'vs/base/common/buffer';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { request } from 'vs/base/parts/request/browser/request';
-import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
-import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
-import product from 'vs/platform/product/common/product';
+import { isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
+import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
+import { create, IHomeIndicator, IProductQualityChangeHandler, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { parseLogLevel } from 'vs/platform/log/common/log';
-
-function doCreateUri(path: string, queryValues: Map<string, string>): URI {
-	let query: string | undefined = undefined;
-
-	if (queryValues) {
-		let index = 0;
-		queryValues.forEach((value, key) => {
-			if (!query) {
-				query = '';
-			}
-
-			const prefix = (index++ === 0) ? '' : '&';
-			query += `${prefix}${key}=${encodeURIComponent(value)}`;
-		});
-	}
-
-	return URI.parse(window.location.href).with({ path, query });
-}
-
-interface ICredential {
-	service: string;
-	account: string;
-	password: string;
-}
-
-class LocalStorageCredentialsProvider implements ICredentialsProvider {
-
-	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
-
-	private readonly authService: string | undefined;
-
-	constructor() {
-		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
-		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
-		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
-		if (authSessionElementAttribute) {
-			try {
-				authSessionInfo = JSON.parse(authSessionElementAttribute);
-			} catch (error) { /* Invalid session is passed. Ignore. */ }
-		}
-
-		if (authSessionInfo) {
-			// Settings Sync Entry
-			this.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(authSessionInfo));
-
-			// Auth extension Entry
-			this.authService = `${product.urlProtocol}-${authSessionInfo.providerId}.login`;
-			this.setPassword(this.authService, 'account', JSON.stringify(authSessionInfo.scopes.map(scopes => ({
-				id: authSessionInfo!.id,
-				scopes,
-				accessToken: authSessionInfo!.accessToken
-			}))));
-		}
-	}
-
-	private _credentials: ICredential[] | undefined;
-	private get credentials(): ICredential[] {
-		if (!this._credentials) {
-			try {
-				const serializedCredentials = window.localStorage.getItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY);
-				if (serializedCredentials) {
-					this._credentials = JSON.parse(serializedCredentials);
-				}
-			} catch (error) {
-				// ignore
-			}
-
-			if (!Array.isArray(this._credentials)) {
-				this._credentials = [];
-			}
-		}
-
-		return this._credentials;
-	}
-
-	private save(): void {
-		window.localStorage.setItem(LocalStorageCredentialsProvider.CREDENTIALS_OPENED_KEY, JSON.stringify(this.credentials));
-	}
-
-	async getPassword(service: string, account: string): Promise<string | null> {
-		return this.doGetPassword(service, account);
-	}
-
-	private async doGetPassword(service: string, account?: string): Promise<string | null> {
-		for (const credential of this.credentials) {
-			if (credential.service === service) {
-				if (typeof account !== 'string' || account === credential.account) {
-					return credential.password;
-				}
-			}
-		}
-
-		return null;
-	}
-
-	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.doDeletePassword(service, account);
-
-		this.credentials.push({ service, account, password });
-
-		this.save();
-
-		try {
-			if (password && service === this.authService) {
-				const value = JSON.parse(password);
-				if (Array.isArray(value) && value.length === 0) {
-					await this.logout(service);
-				}
-			}
-		} catch (error) {
-			console.log(error);
-		}
-	}
-
-	async deletePassword(service: string, account: string): Promise<boolean> {
-		const result = await this.doDeletePassword(service, account);
-
-		if (result && service === this.authService) {
-			try {
-				await this.logout(service);
-			} catch (error) {
-				console.log(error);
-			}
-		}
-
-		return result;
-	}
-
-	private async doDeletePassword(service: string, account: string): Promise<boolean> {
-		let found = false;
-
-		this._credentials = this.credentials.filter(credential => {
-			if (credential.service === service && credential.account === account) {
-				found = true;
-
-				return false;
-			}
-
-			return true;
-		});
-
-		if (found) {
-			this.save();
-		}
-
-		return found;
-	}
-
-	async findPassword(service: string): Promise<string | null> {
-		return this.doGetPassword(service);
-	}
-
-	async findCredentials(service: string): Promise<Array<{ account: string, password: string }>> {
-		return this.credentials
-			.filter(credential => credential.service === service)
-			.map(({ account, password }) => ({ account, password }));
-	}
-
-	private async logout(service: string): Promise<void> {
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set('logout', String(true));
-		queryValues.set('service', service);
-
-		await request({
-			url: doCreateUri('/auth/logout', queryValues).toString(true)
-		}, CancellationToken.None);
-	}
-}
-
-class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvider {
-
-	static readonly FETCH_INTERVAL = 500; 			// fetch every 500ms
-	static readonly FETCH_TIMEOUT = 5 * 60 * 1000; 	// ...but stop after 5min
-
-	static readonly QUERY_KEYS = {
-		REQUEST_ID: 'vscode-requestId',
-		SCHEME: 'vscode-scheme',
-		AUTHORITY: 'vscode-authority',
-		PATH: 'vscode-path',
-		QUERY: 'vscode-query',
-		FRAGMENT: 'vscode-fragment'
-	};
-
-	private readonly _onCallback = this._register(new Emitter<URI>());
-	readonly onCallback = this._onCallback.event;
-
-	create(options?: Partial<UriComponents>): URI {
-		const queryValues: Map<string, string> = new Map();
-
-		const requestId = generateUuid();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
-
-		const { scheme, authority, path, query, fragment } = options ? options : { scheme: undefined, authority: undefined, path: undefined, query: undefined, fragment: undefined };
-
-		if (scheme) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.SCHEME, scheme);
-		}
-
-		if (authority) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.AUTHORITY, authority);
-		}
-
-		if (path) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.PATH, path);
-		}
-
-		if (query) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.QUERY, query);
-		}
-
-		if (fragment) {
-			queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.FRAGMENT, fragment);
-		}
-
-		// Start to poll on the callback being fired
-		this.periodicFetchCallback(requestId, Date.now());
-
-		return doCreateUri('/callback', queryValues);
-	}
-
-	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
-
-		// Ask server for callback results
-		const queryValues: Map<string, string> = new Map();
-		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
-
-		const result = await request({
-			url: doCreateUri('/fetch-callback', queryValues).toString(true)
-		}, CancellationToken.None);
-
-		// Check for callback results
-		const content = await streamToBuffer(result.stream);
-		if (content.byteLength > 0) {
-			try {
-				this._onCallback.fire(URI.revive(JSON.parse(content.toString())));
-			} catch (error) {
-				console.error(error);
-			}
-
-			return; // done
-		}
-
-		// Continue fetching unless we hit the timeout
-		if (Date.now() - startTime < PollingURLCallbackProvider.FETCH_TIMEOUT) {
-			setTimeout(() => this.periodicFetchCallback(requestId, startTime), PollingURLCallbackProvider.FETCH_INTERVAL);
-		}
-	}
-}
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
@@ -358,62 +104,27 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-class WindowIndicator implements IWindowIndicator {
-
-	readonly onDidChange = Event.None;
-
-	readonly label: string;
-	readonly tooltip: string;
-	readonly command: string | undefined;
-
-	constructor(workspace: IWorkspace) {
-		let repositoryOwner: string | undefined = undefined;
-		let repositoryName: string | undefined = undefined;
-
-		if (workspace) {
-			let uri: URI | undefined = undefined;
-			if (isFolderToOpen(workspace)) {
-				uri = workspace.folderUri;
-			} else if (isWorkspaceToOpen(workspace)) {
-				uri = workspace.workspaceUri;
-			}
-
-			if (uri?.scheme === 'github' || uri?.scheme === 'codespace') {
-				[repositoryOwner, repositoryName] = uri.authority.split('+');
-			}
-		}
-
-		// Repo
-		if (repositoryName && repositoryOwner) {
-			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
-			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
-		}
-
-		// No Repo
-		else {
-			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
-			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
-		}
-	}
-}
-
 (function () {
 
-	// Find config by checking for DOM
-	const configElement = document.getElementById('vscode-workbench-web-configuration');
-	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
-	if (!configElement || !configElementAttribute) {
-		throw new Error('Missing web configuration element');
+	const remoteAuthority = window.location.host + ':443';
+	const remoteUserDataElement = document.getElementById('vscode-remote-user-data-uri');
+	if (remoteUserDataElement) {
+		remoteUserDataElement.setAttribute('data-settings', JSON.stringify({
+			scheme: 'vscode-remote',
+			authority: remoteAuthority,
+			path: '/gitpod-user-data'
+		}));
 	}
 
-	const config: IWorkbenchConstructionOptions & { folderUri?: UriComponents, workspaceUri?: UriComponents } = JSON.parse(configElementAttribute);
-
-	// Revive static extension locations
-	if (Array.isArray(config.staticExtensions)) {
-		config.staticExtensions.forEach(extension => {
-			extension.extensionLocation = URI.revive(extension.extensionLocation);
-		});
-	}
+	const webviewEndpoint = new URL(document.baseURI);
+	webviewEndpoint.host = 'webview-' + webviewEndpoint.host;
+	webviewEndpoint.pathname += 'out/vs/workbench/contrib/webview/browser/pre';
+	webviewEndpoint.search = '';
+	webviewEndpoint.hash = '';
+	const config: IWorkbenchConstructionOptions = {
+		remoteAuthority,
+		webviewEndpoint: webviewEndpoint.toString()
+	};
 
 	// Find workspace to open and payload
 	let foundWorkspace = false;
@@ -459,32 +170,25 @@ class WindowIndicator implements IWindowIndicator {
 		}
 	});
 
-	// If no workspace is provided through the URL, check for config attribute from server
 	if (!foundWorkspace) {
-		if (config.folderUri) {
-			workspace = { folderUri: URI.revive(config.folderUri) };
-		} else if (config.workspaceUri) {
-			workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-		} else {
-			workspace = undefined;
-		}
+		workspace = {
+			folderUri: URI.from({
+				scheme: 'vscode-remote',
+				authority: remoteAuthority,
+				path: '/gitpod-folder'
+			})
+		};
 	}
 
 	// Workspace Provider
 	const workspaceProvider = new WorkspaceProvider(workspace, payload);
 
-	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
-		href: 'https://github.com/microsoft/vscode',
+		href: 'https://gitpod.io',
 		icon: 'code',
 		title: localize('home', "Home")
 	};
 
-	// Window indicator (unless connected to a remote)
-	let windowIndicator: WindowIndicator | undefined = undefined;
-	if (!workspaceProvider.hasRemote()) {
-		windowIndicator = new WindowIndicator(workspace);
-	}
 
 	// Product Quality Change Handler
 	const productQualityChangeHandler: IProductQualityChangeHandler = (quality) => {
@@ -501,34 +205,20 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
-	// settings sync options
-	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
-		enabled: config.settingsSyncOptions.enabled,
-		enablementHandler: (enablement) => {
-			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
-
-			// Save all other query params we might have
-			const query = new URL(document.location.href).searchParams;
-			query.forEach((value, key) => {
-				if (key !== 'settingsSync') {
-					queryString += `&${key}=${value}`;
-				}
-			});
-
-			window.location.href = `${window.location.origin}?${queryString}`;
-		}
-	} : undefined;
-
 	// Finally create workbench
 	create(document.body, {
 		...config,
 		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
-		settingsSyncOptions,
 		homeIndicator,
-		windowIndicator,
+		webSocketFactory: {
+			create: url => {
+				if (location.protocol.startsWith('https') && url.startsWith('ws:')) {
+					return defaultWebSocketFactory.create('wss:' + url.substr('ws:'.length));
+				}
+				return defaultWebSocketFactory.create(url);
+			}
+		},
 		productQualityChangeHandler,
-		workspaceProvider,
-		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		workspaceProvider
 	});
 })();
