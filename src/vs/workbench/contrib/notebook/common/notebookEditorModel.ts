@@ -148,6 +148,10 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			this._onDidChangeDirty.fire();
 		}));
 
+		if (forceReloadFromDisk) {
+			this._notebook.setDirty(false);
+		}
+
 		if (backupId) {
 			await this._backupFileService.discardBackup(this._workingCopyResource);
 			this._notebook.setDirty(true);
