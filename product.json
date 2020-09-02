@@ -1,33 +1,682 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"win32MutexName": "vscodeoss",
+	"nameShort": "Gitpod Code",
+	"nameLong": "Gitpod Code",
+	"applicationName": "gitpod-code",
+	"dataFolderName": ".gitpod-code",
+	"win32MutexName": "gitpodcode",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
+	"licenseUrl": "https://github.com/gitpod-io/vscode/blob/gp-code/LICENSE.txt",
 	"serverGreeting": [],
 	"serverLicense": [],
 	"serverLicensePrompt": "",
-	"serverApplicationName": "code-server-oss",
-	"serverDataFolderName": ".vscode-server-oss",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
+	"serverApplicationName": "gitpod-code",
+	"serverDataFolderName": ".gitpod-code-remote",
+	"win32DirName": "Gitpod Code",
+	"win32NameVersion": "Gitpod Code",
+	"win32RegValueName": "GitpodCode",
 	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
 	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"linuxIconName": "com.visualstudio.code.oss",
+	"win32AppUserModelId": "Gitp&d.Code",
+	"win32ShellNameShort": "Gitp&od C&ode",
+	"darwinBundleIdentifier": "io.gitpod.code",
+	"linuxIconName": "io.gitpod.code",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
-	"urlProtocol": "code-oss",
-	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/3c8520fab514b9f56070214496b26ff68d1b1cb5/out/vs/workbench/contrib/webview/browser/pre/",
+	"reportIssueUrl": "https://github.com/gitpod-io/gitpod/issues/new",
+	"urlProtocol": "gitpod-code",
+	"enableTelemetry": true,
+	"aiConfig": {
+		"asimovKey": "foo",
+		"ariaKey": "foo"
+	},
+	"extensionEnabledApiProposals": {
+		"ms-vscode.vscode-selfhost-test-provider": [
+			"testObserver"
+		],
+		"ms-vscode.js-debug": [
+			"portsAttributes",
+			"findTextInFiles",
+			"workspaceTrust",
+			"resolvers"
+		],
+		"ms-python.python": [
+			"quickPickSortByLabel",
+			"testObserver",
+			"notebookEditor"
+		],
+		"ms-dotnettools.dotnet-interactive-vscode": [
+			"notebookCellExecutionState",
+			"notebookControllerKind",
+			"notebookDebugOptions",
+			"notebookEditor",
+			"notebookEditorEdit",
+			"notebookLiveShare",
+			"notebookMessaging",
+			"notebookMime",
+			"notebookWorkspaceEdit"
+		],
+		"tanhakabir.rest-book": [
+			"notebookEditor"
+		],
+		"ms-vscode.js-debug-nightly": [
+			"portsAttributes",
+			"findTextInFiles",
+			"workspaceTrust",
+			"resolvers"
+		],
+		"ms-vscode.lsif-browser": [
+			"documentFiltersExclusive"
+		],
+		"GitHub.vscode-pull-request-github": [
+			"tokenInformation",
+			"commentsResolvedState"
+		],
+		"ms-python.gather": [
+			"notebookEditor",
+			"notebookCellExecutionState"
+		],
+		"ms-toolsai.jupyter": [
+			"notebookControllerKind",
+			"notebookDebugOptions",
+			"notebookDeprecated",
+			"notebookEditor",
+			"notebookEditorDecorationType",
+			"notebookWorkspaceEdit",
+			"notebookMessaging",
+			"notebookMime",
+			"notebookCellExecutionState",
+			"portsAttributes",
+			"quickPickSortByLabel"
+		],
+		"ms-toolsai.vscode-jupyter-powertoys": [
+			"notebookEditor",
+			"notebookEditorEdit",
+			"notebookWorkspaceEdit"
+		],
+		"dbaeumer.vscode-eslint": [
+			"notebookEditor",
+			"notebookCellExecutionState"
+		],
+		"ms-vscode.anycode": [
+			"extensionsAny"
+		]
+	},
+	"extensionTips": {
+		"muhammad-sammy.csharp": "{**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.cshtml,**/*.sln,**/appsettings.json}",
+		"firefox-devtools.vscode-firefox-debug": "{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/.babelrc}",
+		"ms-edgedevtools.vscode-edge-devtools": "{**/*.ts,**/*.tsx,**/*.js,**/*.css,**/*.html}",
+		"golang.Go": "**/*.go",
+		"ms-vscode.PowerShell": "{**/*.ps1,**/*.psd1,**/*.psm1,**/*.ps.config,**/*.ps1.config}",
+		"Ionide.Ionide-fsharp": "{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}",
+		"dbaeumer.vscode-eslint": "{**/*.js,**/*.jsx,**/*.es6,**/.eslintrc.*,**/.eslintrc,**/.babelrc,**/jsconfig.json}",
+		"ms-vscode.vscode-typescript-tslint-plugin": "{**/tslint.json}",
+		"bmewburn.vscode-intelephense-client": "{**/*.php,**/php.ini}",
+		"xdebug.php-debug": "{**/*.php,**/php.ini}",
+		"rust-lang.rust-analyzer": "{**/*.rs,**/*.rslib}",
+		"DavidAnson.vscode-markdownlint": "{**/*.md}",
+		"ms-azuretools.vscode-docker": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml,**/*.cs,**/project.json,**/global.json,**/*.csproj,**/*.cshtml,**/*.sln,**/appsettings.json,**/*.py,**/*.ipynb,**/*.js,**/*.ts,**/package.json}",
+		"EditorConfig.EditorConfig": "{**/.editorconfig}",
+		"HookyQR.beautify": "{**/.jsbeautifyrc}",
+		"donjayamanne.githistory": "{**/.gitignore,**/.git}",
+		"felipecaputo.git-project-manager": "{**/.gitignore,**/.git}",
+		"eamodio.gitlens": "{**/.gitignore,**/.git}",
+		"rebornix.Ruby": "{**/*.rb,**/*.erb,**/*.reek,**/.fasterer.yml,**/ruby-lint.yml,**/.rubocop.yml}",
+		"DotJoshJohnson.xml": "{**/*.xml}",
+		"stylelint.vscode-stylelint": "{**/.stylelintrc,**/stylelint.config.js}",
+		"eg2.vscode-npm-script": "{**/package.json}",
+		"ms-mssql.mssql": "{**/*.sql}",
+		"mtxr.sqltools": "{**/*.sql}",
+		"ms-vscode.sublime-keybindings": "{**/.sublime-project,**/.sublime-workspace}",
+		"k--kato.intellij-idea-keybindings": "{**/.idea}",
+		"christian-kohler.npm-intellisense": "{**/package.json}",
+		"vue.volar": "{**/*.vue}",
+		"ms-python.python": "{**/*.py,**/*.ipynb}",
+		"ms-toolsai.jupyter": "{**/*.ipynb}",
+		"cake-build.cake-vscode": "{**/build.cake}",
+		"Angular.ng-template": "{**/.angular-cli.json,**/angular.json,**/*.ng.html,**/*.ng,**/*.ngml}",
+		"vscjava.vscode-maven": "**/pom.xml",
+		"HashiCorp.terraform": "**/*.tf",
+		"vsciot-vscode.vscode-arduino": "**/*.ino",
+		"ms-kubernetes-tools.vscode-kubernetes-tools": "{**/Chart.yaml}",
+		"GoogleCloudTools.cloudcode": "{**/skaffold.yaml}",
+		"Oracle.oracledevtools": "{**/*.sql}",
+		"ms-vscode.vscode-github-issue-notebooks": "{**/*.github-issues}",
+		"REditorSupport.r": "**/*.r"
+	},
+	"extensionImportantTips": {
+		"muhammad-sammy.csharp": {
+			"name": "C#",
+			"languages": [
+				"csharp"
+			],
+			"pattern": "{**/*.cs,**/global.json,**/*.csproj,**/*.cshtml,**/*.sln}"
+		},
+		"ms-python.python": {
+			"name": "Python",
+			"languages": [
+				"python"
+			],
+			"pattern": "{**/*.py}"
+		},
+		"ms-toolsai.jupyter": {
+			"name": "Jupyter",
+			"pattern": "{**/*.ipynb}"
+		},
+		"golang.Go": {
+			"name": "Go",
+			"languages": [
+				"go"
+			],
+			"pattern": "**/*.go"
+		},
+		"vscjava.vscode-java-pack": {
+			"name": "Java",
+			"languages": [
+				"java"
+			],
+			"pattern": "{**/*.java}",
+			"isExtensionPack": true,
+			"whenNotInstalled": [
+				"ASF.apache-netbeans-java"
+			]
+		},
+		"ms-vscode.PowerShell": {
+			"name": "PowerShell",
+			"languages": [
+				"powershell"
+			],
+			"pattern": "{**/*.ps1,**/*.psd1,**/*.psm1}"
+		},
+		"ms-azuretools.vscode-docker": {
+			"name": "Docker",
+			"languages": [
+				"dockerfile"
+			],
+			"pattern": "{**/dockerfile,**/Dockerfile,**/docker-compose.yml,**/docker-compose.*.yml}"
+		},
+		"vue.volar": {
+			"name": "Vetur",
+			"languages": [
+				"vue"
+			],
+			"pattern": "{**/*.vue}"
+		},
+		"ms-vscode.makefile-tools": {
+			"name": "Makefile Tools",
+			"languages": [
+				"makefile"
+			],
+			"pattern": "{**/makefile,**/Makefile}"
+		},
+		"ms-vscode.cmake-tools": {
+			"name": "CMake Tools",
+			"pattern": "{**/CMakeLists.txt}"
+		},
+		"svelte.svelte-vscode": {
+			"name": "Svelte",
+			"pattern": "{**/*.svelte}"
+		},
+		"ms-vscode.vscode-github-issue-notebooks": {
+			"name": "GitHub Issue Notebooks",
+			"pattern": "{**/*.github-issues}"
+		},
+		"ms-playwright.playwright": {
+			"name": "Playwright",
+			"pattern": "{**/*playwright*.config.ts,**/*playwright*.config.js,**/*playwright*.config.mjs}"
+		},
+		"REditorSupport.r": {
+			"name": "R",
+			"languages": [
+				"r"
+			],
+			"pattern": "{**/*.r}"
+		}
+	},
+	"keymapExtensionTips": [
+		"vscodevim.vim",
+		"ms-vscode.sublime-keybindings",
+		"ms-vscode.atom-keybindings",
+		"ms-vscode.brackets-keybindings",
+		"ms-vscode.vs-keybindings",
+		"ms-vscode.notepadplusplus-keybindings",
+		"k--kato.intellij-idea-keybindings",
+		"lfs.vscode-emacs-friendly",
+		"alphabotsec.vscode-eclipse-keybindings",
+		"alefragnani.delphi-keybindings"
+	],
+	"languageExtensionTips": [
+		"ms-python.python",
+		"muhammad-sammy.csharp",
+		"ms-toolsai.jupyter",
+		"vscjava.vscode-java-pack",
+		"ecmel.vscode-html-css",
+		"vue.volar",
+		"bmewburn.vscode-intelephense-client",
+		"dsznajder.es7-react-js-snippets",
+		"golang.go",
+		"ms-vscode.powershell",
+		"dart-code.dart-code",
+		"rust-lang.rust-analyzer",
+		"rebornix.ruby"
+	],
+	"configBasedExtensionTips": {
+		"git": {
+			"configPath": ".git/config",
+			"configName": "Git",
+			"recommendations": {
+				"github.vscode-pull-request-github": {
+					"name": "GitHub Pull Request",
+					"remotes": [
+						"github.com"
+					]
+				},
+				"eamodio.gitlens": {
+					"name": "GitLens"
+				}
+			}
+		},
+		"maven": {
+			"configPath": "pom.xml",
+			"configName": "Maven",
+			"recommendations": {
+				"vscjava.vscode-java-pack": {
+					"name": "Java",
+					"important": true,
+					"isExtensionPack": true,
+					"whenNotInstalled": [
+						"ASF.apache-netbeans-java"
+					]
+				},
+				"Pivotal.vscode-boot-dev-pack": {
+					"name": "Spring Boot Extension Pack",
+					"isExtensionPack": true
+				}
+			}
+		},
+		"gradle": {
+			"configPath": "build.gradle",
+			"configName": "Gradle",
+			"recommendations": {
+				"vscjava.vscode-java-pack": {
+					"name": "Java",
+					"important": true,
+					"isExtensionPack": true,
+					"whenNotInstalled": [
+						"ASF.apache-netbeans-java"
+					]
+				}
+			}
+		},
+		"github-pull-request": {
+			"configPath": ".vscode/.github-pull-request.rec",
+			"configName": "GitHub",
+			"configScheme": "vscode-vfs",
+			"recommendations": {
+				"github.vscode-pull-request-github": {
+					"name": "GitHub Pull Request",
+					"important": true
+				}
+			}
+		}
+	},
+	"extensionKeywords": {
+		"md": [
+			"Markdown"
+		],
+		"js": [
+			"JavaScript"
+		],
+		"jsx": [
+			"JavaScript"
+		],
+		"es6": [
+			"JavaScript"
+		],
+		"html": [
+			"Html"
+		],
+		"ts": [
+			"TypeScript"
+		],
+		"tsx": [
+			"TypeScript"
+		],
+		"css": [
+			"CSS"
+		],
+		"scss": [
+			"SASS"
+		],
+		"txt": [
+			"Text"
+		],
+		"php": [
+			"PHP"
+		],
+		"php3": [
+			"PHP"
+		],
+		"php4": [
+			"PHP"
+		],
+		"ph3": [
+			"PHP"
+		],
+		"ph4": [
+			"PHP"
+		],
+		"xml": [
+			"XML"
+		],
+		"py": [
+			"Python"
+		],
+		"pyc": [
+			"Python"
+		],
+		"pyd": [
+			"Python"
+		],
+		"pyo": [
+			"Python"
+		],
+		"pyw": [
+			"Python"
+		],
+		"pyz": [
+			"Python"
+		],
+		"java": [
+			"Java"
+		],
+		"class": [
+			"Java"
+		],
+		"jar": [
+			"Java"
+		],
+		"c": [
+			"c",
+			"objective c",
+			"objective-c"
+		],
+		"m": [
+			"objective c",
+			"objective-c"
+		],
+		"mm": [
+			"objective c",
+			"objective-c"
+		],
+		"cpp": [
+			"cpp",
+			"c plus plus",
+			"c",
+			"c++"
+		],
+		"cc": [
+			"cpp",
+			"c plus plus",
+			"c",
+			"c++"
+		],
+		"cxx": [
+			"cpp",
+			"c plus plus",
+			"c++"
+		],
+		"hh": [
+			"cpp",
+			"c plus plus",
+			"c++"
+		],
+		"hpp": [
+			"cpp",
+			"c++"
+		],
+		"h": [
+			"cpp",
+			"c plus plus",
+			"c++",
+			"c",
+			"objective c",
+			"objective-c"
+		],
+		"sql": [
+			"sql"
+		],
+		"sh": [
+			"bash"
+		],
+		"bash": [
+			"bash"
+		],
+		"zsh": [
+			"bash",
+			"zshell"
+		],
+		"cs": [
+			"c#",
+			"csharp"
+		],
+		"csproj": [
+			"c#",
+			"csharp"
+		],
+		"sln": [
+			"c#",
+			"csharp"
+		],
+		"go": [
+			"go"
+		],
+		"sty": [
+			"latex"
+		],
+		"tex": [
+			"latex"
+		],
+		"ps": [
+			"powershell"
+		],
+		"ps1": [
+			"powershell"
+		],
+		"rs": [
+			"rust"
+		],
+		"rslib": [
+			"rust"
+		],
+		"hs": [
+			"haskell"
+		],
+		"lhs": [
+			"haskell"
+		],
+		"scm": [
+			"scheme"
+		],
+		"ss": [
+			"scheme"
+		],
+		"clj": [
+			"clojure"
+		],
+		"cljs": [
+			"clojure"
+		],
+		"cljc": [
+			"clojure"
+		],
+		"edn": [
+			"clojure"
+		],
+		"erl": [
+			"erlang"
+		],
+		"hrl": [
+			"erlang"
+		],
+		"scala": [
+			"scala"
+		],
+		"sc": [
+			"scala"
+		],
+		"pl": [
+			"perl"
+		],
+		"pm": [
+			"perl"
+		],
+		"t": [
+			"perl"
+		],
+		"pod": [
+			"perl"
+		],
+		"groovy": [
+			"groovy"
+		],
+		"swift": [
+			"swift"
+		],
+		"rb": [
+			"ruby"
+		],
+		"rbw": [
+			"ruby"
+		],
+		"jl": [
+			"julia"
+		],
+		"f": [
+			"fortran"
+		],
+		"for": [
+			"fortran"
+		],
+		"f90": [
+			"fortran"
+		],
+		"f95": [
+			"fortran"
+		],
+		"coffee": [
+			"CoffeeScript"
+		],
+		"litcoffee": [
+			"CoffeeScript"
+		],
+		"yaml": [
+			"yaml"
+		],
+		"yml": [
+			"yaml"
+		],
+		"dart": [
+			"dart"
+		],
+		"json": [
+			"json"
+		]
+	},
+	"extensionAllowedBadgeProviders": [
+		"api.bintray.com",
+		"api.travis-ci.com",
+		"api.travis-ci.org",
+		"app.fossa.io",
+		"badge.buildkite.com",
+		"badge.fury.io",
+		"badge.waffle.io",
+		"badgen.net",
+		"badges.frapsoft.com",
+		"badges.gitter.im",
+		"badges.greenkeeper.io",
+		"cdn.travis-ci.com",
+		"cdn.travis-ci.org",
+		"ci.appveyor.com",
+		"circleci.com",
+		"cla.opensource.microsoft.com",
+		"codacy.com",
+		"codeclimate.com",
+		"codecov.io",
+		"coveralls.io",
+		"david-dm.org",
+		"deepscan.io",
+		"dev.azure.com",
+		"docs.rs",
+		"flat.badgen.net",
+		"gemnasium.com",
+		"githost.io",
+		"gitlab.com",
+		"godoc.org",
+		"goreportcard.com",
+		"img.shields.io",
+		"isitmaintained.com",
+		"marketplace.visualstudio.com",
+		"nodesecurity.io",
+		"opencollective.com",
+		"snyk.io",
+		"travis-ci.com",
+		"travis-ci.org",
+		"visualstudio.com",
+		"vsmarketplacebadge.apphb.com",
+		"www.bithound.io",
+		"www.versioneye.com"
+	],
+	"extensionAllowedBadgeProvidersRegex": [
+		"^https:\\/\\/github\\.com\\/[^/]+\\/[^/]+\\/(actions\\/)?workflows\\/.*badge\\.svg"
+	],
+	"extensionKind": {
+		"Shan.code-settings-sync": [
+			"ui"
+		],
+		"shalldie.background": [
+			"ui"
+		],
+		"techer.open-in-browser": [
+			"ui"
+		],
+		"CoenraadS.bracket-pair-colorizer-2": [
+			"ui"
+		],
+		"CoenraadS.bracket-pair-colorizer": [
+			"ui",
+			"workspace"
+		],
+		"hiro-sun.vscode-emacs": [
+			"ui",
+			"workspace"
+		],
+		"hnw.vscode-auto-open-markdown-preview": [
+			"ui",
+			"workspace"
+		],
+		"wayou.vscode-todo-highlight": [
+			"ui",
+			"workspace"
+		],
+		"aaron-bond.better-comments": [
+			"ui",
+			"workspace"
+		],
+		"vscodevim.vim": [
+			"ui"
+		],
+		"ollyhayes.colmak-vim": [
+			"ui"
+		]
+	},
+	"extensionPointExtensionKind": {
+		"typescriptServerPlugins": [
+			"workspace"
+		]
+	},
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.js-debug-companion",
@@ -73,6 +722,48 @@
 				},
 				"publisherDisplayName": "Microsoft"
 			}
+		},
+		{
+			"name": "redhat.vscode-yaml",
+			"version": "1.8.0",
+			"repo": "https://github.com/redhat-developer/vscode-yaml",
+			"metadata": {
+				"id": "2061917f-f76a-458a-8da9-f162de22b97e",
+				"publisherId": {
+					"publisherId": "eed56242-9699-4317-8bc7-e9f4b9bdd3ff",
+					"publisherName": "redhat",
+					"displayName": "Red Hat",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Red Hat"
+			}
+		},
+		{
+			"name": "gitpod.gitpod-theme",
+			"version": "0.0.2",
+			"repo": "https://github.com/gitpod-io/gitpod-vscode-theme",
+			"metadata": {
+				"id": "985c019b-4620-45a7-92c5-b721d8c11bc0",
+				"publisherId": {
+					"publisherId": "452246e5-9ce6-485c-b35f-5a50d93f81df",
+					"publisherName": "gitpod",
+					"displayName": "Gitpod",
+					"flags": "verified"
+				},
+				"publisherDisplayName": "Gitpod"
+			}
 		}
+	],
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item",
+		"resourceUrlTemplate": "https://open-vsx.org/vscode/asset/{publisher}/{name}/{version}/Microsoft.VisualStudio.Code.WebResources/{path}",
+		"controlUrl": "",
+		"recommendationsUrl": "",
+		"nlsBaseUrl": "",
+		"publisherUrl": ""
+	},
+	"linkProtectionTrustedDomains": [
+		"https://open-vsx.org"
 	]
 }

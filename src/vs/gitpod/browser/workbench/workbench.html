@@ -1,0 +1,68 @@
+<!-- Copyright (c) Gitpod. All rights reserved.' -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<script>
+			performance.mark('code/didStartRenderer');
+		</script>
+		<meta charset="utf-8" />
+
+		<!-- Gitpod specific -->
+		<meta id="gitpod-ide-capabilities" data-settings="{&quot;service&quot;:true}">
+
+		<!-- Mobile tweaks -->
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-title" content="Code">
+		<link rel="apple-touch-icon" href="/code-192.png" />
+
+		<!-- Disable pinch zooming -->
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+		<!-- Workbench Configuration -->
+		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
+
+		<!-- Workbench Auth Session -->
+		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+
+		<!-- Workbench Icon/Manifest/CSS -->
+		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
+		<link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+		<link data-name="vs/workbench/workbench.web.main" rel="stylesheet" href="./static/out/vs/workbench/workbench.web.main.css">
+
+	</head>
+
+	<body aria-label="">
+	</body>
+
+	<!-- Startup (do not modify order of script tags!) -->
+	<script type="text/javascript" src="/_supervisor/frontend/main.js" charset="utf-8"></script>
+	<script src="./static/out/vs/loader.js"></script>
+	<script src="./static/out/vs/webPackagePaths.js"></script>
+	<script>
+		Object.keys(self.webPackagePaths).map(function (key, index) {
+			self.webPackagePaths[key] = `${window.location.origin}/static/node_modules/${key}/${self.webPackagePaths[key]}`;
+		});
+		require.config({
+			baseUrl: `${window.location.origin}/static/out`,
+			recordStats: true,
+			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					return value;
+				}
+			}),
+			paths: {
+				...self.webPackagePaths,
+				'@gitpod/local-app-api-grpcweb': `${window.location.origin}/static/node_modules/@gitpod/local-app-api-grpcweb/lib/localapp.js`,
+				'@improbable-eng/grpc-web': `${window.location.origin}/static/node_modules/@improbable-eng/grpc-web/dist/grpc-web-client.umd.js`,
+				'@zip.js/zipjs': `${window.location.origin}/static/node_modules/@zip.js/zip.js/dist/zip-no-worker-deflate.min.js`
+			}
+		});
+	</script>
+	<script>
+		performance.mark('code/willLoadWorkbenchMain');
+	</script>
+	<script src="./static/out/vs/workbench/workbench.web.main.nls.js"></script>
+	<script src="./static/out/vs/workbench/workbench.web.main.js"></script>
+	<script src="./static/out/vs/gitpod/browser/workbench/workbench.js"></script>
+</html>

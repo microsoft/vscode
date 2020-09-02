@@ -3,6 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "dependencies": {
+    "@gitpod/gitpod-protocol": "main",
+    "@gitpod/supervisor-api-grpc": "main",
     "@microsoft/1ds-core-js": "^3.2.2",
     "@microsoft/1ds-post-js": "^3.2.2",
     "@microsoft/applicationinsights-web": "^2.8.4",

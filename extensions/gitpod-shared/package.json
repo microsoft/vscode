@@ -1,0 +1,30 @@
+{
+  "private": true,
+  "name": "gitpod-shared",
+  "publisher": "gitpod",
+  "version": "0.0.1",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.58.2"
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "prepare": "node scripts/inflate.js"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/uuid": "^8.3.1",
+    "@types/ws": "^7.2.6"
+  },
+  "dependencies": {
+    "@gitpod/gitpod-protocol": "main",
+    "@gitpod/supervisor-api-grpc": "main",
+    "bufferutil": "^4.0.1",
+    "utf-8-validate": "^5.0.2",
+    "reconnecting-websocket": "^4.4.0",
+    "uuid": "^8.3.1",
+    "vscode-nls": "^5.0.0",
+    "ws": "^7.4.6",
+    "yaml": "^1.10.0"
+  }
+}

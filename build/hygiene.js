@@ -86,13 +86,15 @@ function hygiene(some, linting = true) {
 	});
 
 	const copyrights = es.through(function (file) {
-		const lines = file.__lines;
+		if (file.relative.indexOf('gitpod') === -1) {
+			const lines = file.__lines;
 
-		for (let i = 0; i < copyrightHeaderLines.length; i++) {
-			if (lines[i] !== copyrightHeaderLines[i]) {
-				console.error(file.relative + ': Missing or bad copyright statement');
-				errorCount++;
-				break;
+			for (let i = 0; i < copyrightHeaderLines.length; i++) {
+				if (lines[i] !== copyrightHeaderLines[i]) {
+					console.error(file.relative + ': Missing or bad copyright statement');
+					errorCount++;
+					break;
+				}
 			}
 		}
 

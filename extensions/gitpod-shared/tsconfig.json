@@ -1,0 +1,10 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./out",
+		"rootDir": "./src",
+		"composite": true,
+		"esModuleInterop": true,
+		"sourceMap": true,
+	}
+}

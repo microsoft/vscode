@@ -364,7 +364,12 @@ function tweakProductForServerWeb(product) {
 			out: `out-vscode-${type}`,
 			inlineAmdImages: true,
 			bundleInfo: undefined,
-			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
+			fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product),
+			header: [
+				'/*!-----------------------------------------',
+				' * Copyright (c) Gitpod. All rights reserved.',
+				' *-----------------------------------------*/'
+			].join('\n')
 		})
 	));
 

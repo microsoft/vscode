@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IProductService } from 'vs/platform/product/common/productService';
 import { getServiceMachineId } from 'vs/platform/externalServices/common/serviceMachineId';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncStoreError } from 'vs/platform/userDataSync/common/userDataSync';
 
 interface IMachineData {
 	id: string;
@@ -110,7 +110,20 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		const machineData = await this.readMachinesData(manifest);
 		if (!machineData.machines.some(({ id }) => id === currentMachineId)) {
 			machineData.machines.push({ id: currentMachineId, name: this.computeCurrentMachineName(machineData.machines), platform: getPlatformName() });
-			await this.writeMachinesData(machineData);
+			let tryWrite = true;
+			while (tryWrite) {
+				try {
+					await this.writeMachinesData(machineData);
+					tryWrite = false;
+				} catch (e) {
+					// we hit max payload for machines: https://github.com/gitpod-io/gitpod/issues/3277
+					// try to remove oldest machine and write again
+					tryWrite = e instanceof UserDataSyncStoreError && e.code === UserDataSyncErrorCode.TooLarge && !!machineData.machines.shift();
+					if (!tryWrite) {
+						throw e;
+					}
+				}
+			}
 		}
 	}
 

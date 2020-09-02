@@ -394,7 +394,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			? remoteConnection.remoteAuthority.startsWith('codespaces')
 			: isWeb;
 
-		if (allowedAllowedExtensions && FIRST_PARTY_ALLOWED_EXTENSIONS.includes(extensionId)) {
+		if ((allowedAllowedExtensions || true) && FIRST_PARTY_ALLOWED_EXTENSIONS.includes(extensionId)) {
 			return true;
 		}
 

@@ -32,6 +32,7 @@
 		"noImplicitOverride": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"forceConsistentCasingInFileNames": true
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true
 	}
 }

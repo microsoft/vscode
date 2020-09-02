@@ -294,7 +294,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'default': TelemetryConfiguration.ON,
 			'restricted': true,
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
+			'tags': ['usesOnlineServices', 'telemetry'],
+			'included': false
 		}
 	}
 });
@@ -316,8 +317,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			'restricted': true,
 			'markdownDeprecationMessage': localize('enableTelemetryDeprecated', "If this setting is false, no telemetry will be sent regardless of the new setting's value. Deprecated in favor of the {0} setting.", `\`#${TELEMETRY_SETTING_ID}#\``),
 			'scope': ConfigurationScope.APPLICATION,
-			'tags': ['usesOnlineServices', 'telemetry']
+			'tags': ['usesOnlineServices', 'telemetry'],
+			'included': false
 		}
 	}
 });
-
