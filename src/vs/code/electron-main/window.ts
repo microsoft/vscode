@@ -336,7 +336,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return !!this.documentEdited;
 	}
 
-	focus(): void {
+	focus(options?: { force: boolean }): void {
+		// macOS: Electron >6.x changed its behaviour to not
+		// bring the application to the foreground when a window
+		// is focused programmatically. Only via `app.focus` and
+		// the option `steal: true` can you get the previous
+		// behaviour back. The only reason to use this option is
+		// when a window is getting focused while the application
+		// is not in the foreground.
+		if (isMacintosh && options?.force) {
+			app.focus({ steal: true });
+		}
+
 		if (!this._win) {
 			return;
 		}
@@ -719,7 +730,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.showTimeoutHandle = setTimeout(() => {
 				if (this._win && !this._win.isVisible() && !this._win.isMinimized()) {
 					this._win.show();
-					this._win.focus();
+					this.focus({ force: true });
 					this._win.webContents.openDevTools();
 				}
 			}, 10000);

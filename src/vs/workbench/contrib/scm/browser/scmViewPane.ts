@@ -1434,7 +1434,7 @@ class SCMInputWidget extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		return this.inputEditor.hasWidgetFocus();
+		return this.inputEditor.hasTextFocus();
 	}
 
 	private renderValidation(): void {
@@ -1512,7 +1512,7 @@ class SCMCollapseAction extends Action {
 
 		this.enabled = isAnyProviderCollapsible;
 		this.allCollapsed = isAnyProviderCollapsible && this.viewModel.areAllProvidersCollapsed();
-		this.label = this.allCollapsed ? localize('expand all', "Expand All Providers") : localize('collapse all', "Collapse All Providers");
+		this.label = this.allCollapsed ? localize('expand all', "Expand All Repositories") : localize('collapse all', "Collapse All Repositories");
 		this.class = this.allCollapsed ? Codicon.expandAll.classNames : Codicon.collapseAll.classNames;
 	}
 }

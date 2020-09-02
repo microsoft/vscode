@@ -208,10 +208,17 @@ class BrowserMain extends Disposable {
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
 		serviceCollection.set(IRequestService, requestService);
 
-		// initialize user data
+		// Userdata Initialize Service
 		const userDataInitializationService = new UserDataInitializationService(environmentService, fileService, storageService, productService, requestService, logService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
-		await userDataInitializationService.initializeRequiredResources();
+
+		if (await userDataInitializationService.requiresInitialization()) {
+			// Initialize required resources - settings & global state
+			await userDataInitializationService.initializeRequiredResources();
+
+			// Reload configuration after initializing
+			await configurationService.reloadConfiguration();
+		}
 
 		return { serviceCollection, logService, storageService };
 	}
