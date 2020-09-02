@@ -209,6 +209,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	async updateLayout() {
+		console.log('update layout');
 		if (!this._model) {
 			return;
 		}
@@ -348,6 +349,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super.clearInput();
 
 		this._modifiedResourceDisposableStore.clear();
+		this._list?.splice(0, this._list?.length || 0);
 	}
 
 	getLayoutInfo(): NotebookLayoutInfo {
