@@ -16,18 +16,19 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IGalleryExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStaticExtension } from 'vs/workbench/workbench.web.api';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
+import { localize } from 'vs/nls';
 
 interface IUserExtension {
 	identifier: IExtensionIdentifier;
 	version: string;
-	uri: URI;
+	location: URI;
 	readmeUri?: URI;
 	changelogUri?: URI;
 	packageNLSUri?: URI;
@@ -36,15 +37,11 @@ interface IUserExtension {
 interface IStoredUserExtension {
 	identifier: IExtensionIdentifier;
 	version: string;
-	uri: UriComponents;
+	location: UriComponents;
 	readmeUri?: UriComponents;
 	changelogUri?: UriComponents;
 	packageNLSUri?: UriComponents;
 }
-
-const AssetTypeWebResource = 'Microsoft.VisualStudio.Code.WebResources';
-
-function getExtensionLocation(assetUri: URI): URI { return joinPath(assetUri, AssetTypeWebResource, 'extension'); }
 
 export class WebExtensionsScannerService extends Disposable implements IWebExtensionsScannerService {
 
@@ -189,12 +186,19 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		};
 	}
 
+	async canAddExtension(galleryExtension: IGalleryExtension): Promise<boolean> {
+		return !!galleryExtension.properties.webExtension && !!galleryExtension.webResource;
+	}
+
 	async addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension> {
-		if (!galleryExtension.assetTypes.some(type => type.startsWith(AssetTypeWebResource))) {
-			throw new Error(`Missing ${AssetTypeWebResource} asset type`);
+		if (!(await this.canAddExtension(galleryExtension))) {
+			const error = new Error(localize('cannot be installed', "Cannot install '{0}' because this extension is not a web extension.", galleryExtension.displayName || galleryExtension.name));
+			error.name = INSTALL_ERROR_NOT_SUPPORTED;
+			throw error;
 		}
 
-		const packageNLSUri = joinPath(getExtensionLocation(galleryExtension.assetUri), 'package.nls.json');
+		const extensionLocation = galleryExtension.webResource!;
+		const packageNLSUri = joinPath(extensionLocation, 'package.nls.json');
 		const context = await this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None);
 		const packageNLSExists = isSuccess(context);
 
@@ -202,7 +206,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const userExtension: IUserExtension = {
 			identifier: galleryExtension.identifier,
 			version: galleryExtension.version,
-			uri: galleryExtension.assetUri,
+			location: extensionLocation,
 			readmeUri: galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
 			changelogUri: galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
 			packageNLSUri: packageNLSExists ? packageNLSUri : undefined
@@ -243,14 +247,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toScannedExtension(userExtension: IUserExtension): Promise<IScannedExtension | null> {
-		const context = await this.requestService.request({ type: 'GET', url: joinPath(userExtension.uri, 'Microsoft.VisualStudio.Code.Manifest').toString() }, CancellationToken.None);
+		const context = await this.requestService.request({ type: 'GET', url: joinPath(userExtension.location, 'package.json').toString() }, CancellationToken.None);
 		if (isSuccess(context)) {
 			const content = await asText(context);
 			if (content) {
 				const packageJSON = JSON.parse(content);
 				return {
 					identifier: userExtension.identifier,
-					location: getExtensionLocation(userExtension.uri),
+					location: userExtension.location,
 					packageJSON,
 					type: ExtensionType.User,
 					readmeUrl: userExtension.readmeUri,
@@ -269,11 +273,11 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.userExtensionsResourceLimiter.queue(async () => {
 			try {
 				const content = await this.fileService.readFile(this.extensionsResource!);
-				const storedUserExtensions: IStoredUserExtension[] = JSON.parse(content.value.toString());
+				const storedUserExtensions: IStoredUserExtension[] = this.parseExtensions(content.value.toString());
 				return storedUserExtensions.map(e => ({
 					identifier: e.identifier,
 					version: e.version,
-					uri: URI.revive(e.uri),
+					location: URI.revive(e.location),
 					readmeUri: URI.revive(e.readmeUri),
 					changelogUri: URI.revive(e.changelogUri),
 					packageNLSUri: URI.revive(e.packageNLSUri),
@@ -291,7 +295,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const storedUserExtensions: IStoredUserExtension[] = userExtensions.map(e => ({
 				identifier: e.identifier,
 				version: e.version,
-				uri: e.uri.toJSON(),
+				location: e.location.toJSON(),
 				readmeUri: e.readmeUri?.toJSON(),
 				changelogUri: e.changelogUri?.toJSON(),
 				packageNLSUri: e.packageNLSUri?.toJSON(),
@@ -299,6 +303,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			await this.fileService.writeFile(this.extensionsResource!, VSBuffer.fromString(JSON.stringify(storedUserExtensions)));
 			this.userExtensionsPromise = undefined;
 			return userExtensions;
+		});
+	}
+
+	private parseExtensions(content: string): IStoredUserExtension[] {
+		const storedUserExtensions: (IStoredUserExtension & { uri?: UriComponents })[] = JSON.parse(content.toString());
+		return storedUserExtensions.map(e => {
+			const location = e.uri ? joinPath(URI.revive(e.uri), 'Microsoft.VisualStudio.Code.WebResources', 'extension') : e.location;
+			return { ...e, location };
 		});
 	}
 
