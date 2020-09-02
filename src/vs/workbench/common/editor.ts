@@ -835,6 +835,9 @@ export class EditorModel extends Disposable implements IEditorModel {
 		return true;
 	}
 
+	/**
+	 * Find out if this model has been disposed.
+	 */
 	isDisposed(): boolean {
 		return this.disposed;
 	}
