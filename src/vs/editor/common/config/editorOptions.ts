@@ -852,15 +852,13 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
-	public static clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-		let r: number;
+	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
 		if (typeof value === 'undefined') {
-			r = defaultValue;
-		} else {
-			r = parseInt(value, 10);
-			if (isNaN(r)) {
-				r = defaultValue;
-			}
+			return defaultValue;
+		}
+		let r = parseInt(value, 10);
+		if (isNaN(r)) {
+			return defaultValue;
 		}
 		r = Math.max(minimum, r);
 		r = Math.min(maximum, r);
@@ -1523,8 +1521,7 @@ class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string>
 		if (input === 'normal' || input === 'bold') {
 			return input;
 		}
-		const numericValue = Number(input);
-		return EditorFontWeight.MINIMUM_VALUE <= numericValue && numericValue <= EditorFontWeight.MAXIMUM_VALUE ? String(numericValue) : EDITOR_FONT_DEFAULTS.fontWeight;
+		return String(EditorIntOption.clampedInt(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.MINIMUM_VALUE, EditorFontWeight.MAXIMUM_VALUE));
 	}
 }
 
