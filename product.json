@@ -1,26 +1,26 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
-	"applicationName": "code-oss",
-	"dataFolderName": ".vscode-oss",
-	"win32MutexName": "vscodeoss",
+	"nameShort": "Gitpod Code",
+	"nameLong": "Gitpod Code",
+	"applicationName": "gitpod-code",
+	"dataFolderName": ".gitpod-code",
+	"win32MutexName": "gitpodcode",
 	"licenseName": "MIT",
-	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",
-	"win32DirName": "Microsoft Code OSS",
-	"win32NameVersion": "Microsoft Code OSS",
-	"win32RegValueName": "CodeOSS",
+	"licenseUrl": "https://github.com/gitpod-io/vscode/blob/gp-code/LICENSE.txt",
+	"win32DirName": "Gitpod Code",
+	"win32NameVersion": "Gitpod Code",
+	"win32RegValueName": "GitpodCode",
 	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
 	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
-	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"linuxIconName": "com.visualstudio.code.oss",
+	"win32AppUserModelId": "Gitp&d.Code",
+	"win32ShellNameShort": "Gitp&od C&ode",
+	"darwinBundleIdentifier": "io.gitpod.code",
+	"linuxIconName": "io.gitpod.code",
 	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
+	"reportIssueUrl": "https://github.com/gitpod-io/gitpod/issues/new",
 	"urlProtocol": "code-oss",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
@@ -136,5 +136,14 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		}
+	],
+	"extensionsGallery": {
+		"serviceUrl": "https://open-vsx.org/vscode/gallery",
+		"itemUrl": "https://open-vsx.org/vscode/item",
+		"controlUrl": "",
+		"recommendationsUrl": ""
+	},
+	"linkProtectionTrustedDomains": [
+		"https://open-vsx.org"
 	]
 }

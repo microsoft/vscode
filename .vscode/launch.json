@@ -4,6 +4,22 @@
 		{
 			"type": "node",
 			"request": "launch",
+			"name": "Gitpod Code Server",
+			"args": [
+				"${workspaceFolder}/out/gitpod.js"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"env": {
+				"NODE_ENV": "development",
+				"VSCODE_DEV": "1",
+				"GITPOD_CODE_FOLDER": "${env:GITPOD_REPO_ROOT}"
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
 			"name": "Gulp Build",
 			"program": "${workspaceFolder}/node_modules/gulp/bin/gulp.js",
 			"stopOnEntry": true,
