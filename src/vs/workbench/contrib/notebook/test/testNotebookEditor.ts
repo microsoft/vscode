@@ -34,6 +34,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -386,10 +387,11 @@ export function setupInstantiationService() {
 
 export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService);
+	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService, modeService);
 	notebook.initialize(cells.map(cell => {
 		return {
 			source: cell[0],

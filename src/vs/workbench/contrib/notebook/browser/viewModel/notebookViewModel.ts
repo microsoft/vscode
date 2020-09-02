@@ -174,8 +174,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._notebook.handle;
 	}
 
-	get languages() {
-		return this._notebook.languages;
+	get resolvedLanguages() {
+		return this._notebook.resolvedLanguages;
 	}
 
 	get uri() {

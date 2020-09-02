@@ -1261,7 +1261,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const index = cell ? this._notebookViewModel!.getCellIndex(cell) : 0;
 		const nextIndex = ui ? this._notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
-		const newLanguages = this._notebookViewModel!.languages;
+		const newLanguages = this._notebookViewModel!.resolvedLanguages;
 		const language = (cell?.cellKind === CellKind.Code && type === CellKind.Code)
 			? cell.language
 			: ((type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown');

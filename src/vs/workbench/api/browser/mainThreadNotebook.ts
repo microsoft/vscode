@@ -414,7 +414,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					return;
 				}
 
-				mainthreadTextModel.languages = data.languages;
+				mainthreadTextModel.updateLanguages(data.languages);
 				mainthreadTextModel.metadata = data.metadata;
 				mainthreadTextModel.transientOptions = options;
 
@@ -437,14 +437,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					return;
 				}
 
-				textModel.languages = data.languages;
+				textModel.updateLanguages(data.languages);
 				textModel.metadata = data.metadata;
 				textModel.transientOptions = options;
 
 				if (data.cells.length) {
 					textModel.initialize(data!.cells);
 				} else {
-					const mainCell = textModel.createCellTextModel('', textModel.languages.length ? textModel.languages[0] : '', CellKind.Code, [], undefined);
+					const mainCell = textModel.createCellTextModel('', textModel.resolvedLanguages.length ? textModel.resolvedLanguages[0] : '', CellKind.Code, [], undefined);
 					textModel.insertTemplateCell(mainCell);
 				}
 
