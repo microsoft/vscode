@@ -83,27 +83,43 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 */
 	private getStaticExtensions(builtin: boolean): IScannedExtension[] {
 		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
-		return (
-			staticExtensions
-				.filter(e => Boolean(e.isBuiltin) === builtin)
-				.map(e => ({
-					identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-					location: e.extensionLocation,
-					type: e.isBuiltin ? ExtensionType.System : ExtensionType.User,
-					packageJSON: e.packageJSON,
-				}))
-		);
+		const result: IScannedExtension[] = [];
+		for (const e of staticExtensions) {
+			if (Boolean(e.isBuiltin) === builtin) {
+				const scannedExtension = this.parseStaticExtension(e, builtin);
+				if (scannedExtension) {
+					result.push(scannedExtension);
+				}
+			}
+		}
+		return result;
 	}
 
 	private async readDefaultExtensions(): Promise<IScannedExtension[]> {
 		const defaultUserWebExtensions = await this.readDefaultUserWebExtensions();
-		const extensions = defaultUserWebExtensions.map(e => ({
-			identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
-			location: e.extensionLocation,
-			type: ExtensionType.User,
-			packageJSON: e.packageJSON,
-		}));
+		const extensions: IScannedExtension[] = [];
+		for (const e of defaultUserWebExtensions) {
+			const scannedExtension = this.parseStaticExtension(e, false);
+			if (scannedExtension) {
+				extensions.push(scannedExtension);
+			}
+		}
 		return extensions.concat(this.getStaticExtensions(false));
+	}
+
+	private parseStaticExtension(e: IStaticExtension, builtin: boolean): IScannedExtension | null {
+		try {
+			return {
+				identifier: { id: getGalleryExtensionId(e.packageJSON.publisher, e.packageJSON.name) },
+				location: e.extensionLocation,
+				type: builtin ? ExtensionType.System : ExtensionType.User,
+				packageJSON: e.packageJSON,
+			};
+		} catch (error) {
+			this.logService.error(`Error while parsing extension ${e.extensionLocation.toString()}`);
+			this.logService.error(error);
+		}
+		return null;
 	}
 
 	private async readDefaultUserWebExtensions(): Promise<IStaticExtension[]> {
