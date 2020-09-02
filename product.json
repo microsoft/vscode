@@ -91,7 +91,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.49.3",
+			"version": "1.49.4",
 			"repo": "https://github.com/Microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",
