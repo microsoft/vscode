@@ -8,6 +8,7 @@ import 'vs/css!./media/actions';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
@@ -124,11 +125,7 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
 		const updateMouseIndicatorColor = () => {
-			const mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
-
-			let style = new Option().style;
-			style.color = mouseIndicatorColor;
-			mouseMarker.style.borderColor = (mouseIndicatorColor === '' || !style.color) ? '#ff0000' : mouseIndicatorColor;
+			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
 		};
 
 		let mouseIndicatorSize: number;
