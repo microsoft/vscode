@@ -44,9 +44,8 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 	}
 
 	dispose(): void {
-
+		super.dispose();
 	}
-
 }
 
 export class NotebookDiffEditorInput extends EditorInput {
