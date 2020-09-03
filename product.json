@@ -123,7 +123,7 @@
 	"webBuiltInExtensions": [
 		{
 			"name": "ms-vscode.github-browser",
-			"version": "0.0.7",
+			"version": "0.0.8",
 			"repo": "https://github.com/Microsoft/vscode-github-browser",
 			"metadata": {
 				"id": "c1bcff4b-4ecb-466e-b8f6-b02788b5fb5a",
