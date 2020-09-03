@@ -149,7 +149,7 @@ class CodeMain {
 	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
 		const services = new ServiceCollection();
 
-		const environmentService = new EnvironmentService(args, process.execPath);
+		const environmentService = new EnvironmentService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentService, environmentService);
 

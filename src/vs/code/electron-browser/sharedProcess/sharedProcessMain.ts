@@ -116,7 +116,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	disposables.add(server);
 
-	const environmentService = new EnvironmentService(initData.args, process.execPath);
+	const environmentService = new EnvironmentService(initData.args);
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const loggerClient = new LoggerChannelClient(server.getChannel('logger', mainRouter));

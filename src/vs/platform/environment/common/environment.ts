@@ -20,6 +20,11 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 
 export const BACKUPS = 'Backups';
 
+/**
+ * A basic environment service that can be used in various processes,
+ * such as main, renderer and shared process. Use subclasses of this
+ * service for specific environment.
+ */
 export interface IEnvironmentService {
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -56,8 +61,6 @@ export interface IEnvironmentService {
 	disableExtensions: boolean | string[];
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
-	extensionEnabledProposedApi?: string[];
-	logExtensionHostCommunication?: boolean;
 
 	// --- logging
 	logsPath: string;
@@ -82,7 +85,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	// --- paths
 	appRoot: string;
-	execPath: string;
 	userHome: URI;
 	appSettingsHome: URI;
 	userDataPath: string;

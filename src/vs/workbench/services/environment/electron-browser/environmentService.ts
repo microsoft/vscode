@@ -10,9 +10,10 @@ import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
 export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
 
@@ -21,6 +22,7 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 	readonly crashReporterDirectory?: string;
 	readonly crashReporterId?: string;
 
+	readonly execPath: string;
 	readonly cliPath: string;
 
 	readonly log?: string;
@@ -58,12 +60,58 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
 
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
+
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (Array.isArray(this.args['enable-proposed-api'])) {
+			return this.args['enable-proposed-api'];
+		}
+
+		if ('enable-proposed-api' in this.args) {
+			return [];
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get cliPath(): string { return this.doGetCLIPath(); }
+
 	constructor(
 		readonly configuration: INativeEnvironmentConfiguration,
-		execPath: string
+		readonly execPath: string
 	) {
-		super(configuration, execPath);
+		super(configuration);
 
 		this.configuration.backupWorkspaceResource = this.configuration.backupPath ? toBackupWorkspaceResource(this.configuration.backupPath, this) : undefined;
+	}
+
+	private doGetCLIPath(): string {
+
+		// Windows
+		if (isWindows) {
+			if (this.isBuilt) {
+				return join(dirname(this.execPath), 'bin', `${product.applicationName}.cmd`);
+			}
+
+			return join(this.appRoot, 'scripts', 'code-cli.bat');
+		}
+
+		// Linux
+		if (isLinux) {
+			if (this.isBuilt) {
+				return join(dirname(this.execPath), 'bin', `${product.applicationName}`);
+			}
+
+			return join(this.appRoot, 'scripts', 'code-cli.sh');
+		}
+
+		// macOS
+		if (this.isBuilt) {
+			return join(this.appRoot, 'bin', 'code');
+		}
+
+		return join(this.appRoot, 'scripts', 'code-cli.sh');
 	}
 }

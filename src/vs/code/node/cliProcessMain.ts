@@ -299,7 +299,7 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 	const disposables = new DisposableStore();
 
-	const environmentService = new EnvironmentService(argv, process.execPath);
+	const environmentService = new EnvironmentService(argv);
 	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
