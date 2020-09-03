@@ -5,7 +5,7 @@
 
 import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -59,7 +59,7 @@ export interface ICodeWindow extends IDisposable {
 	addTabbedWindow(window: ICodeWindow): void;
 
 	load(config: INativeWindowConfiguration, isReload?: boolean): void;
-	reload(configuration?: INativeWindowConfiguration, cli?: ParsedArgs): void;
+	reload(configuration?: INativeWindowConfiguration, cli?: NativeParsedArgs): void;
 
 	focus(options?: { force: boolean }): void;
 	close(): void;
@@ -121,7 +121,7 @@ export interface IBaseOpenConfiguration {
 }
 
 export interface IOpenConfiguration extends IBaseOpenConfiguration {
-	readonly cli: ParsedArgs;
+	readonly cli: NativeParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
 	readonly waitMarkerFileURI?: URI;

@@ -5,7 +5,7 @@
 
 import * as pfs from 'vs/base/node/pfs';
 import { join } from 'vs/base/common/path';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 
 export class ConfigurationCache implements IConfigurationCache {

@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
@@ -72,4 +73,38 @@ export interface IEnvironmentService {
 	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE
 	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND NATIVE!!!!
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+}
+
+export interface INativeEnvironmentService extends IEnvironmentService {
+
+	// --- CLI Arguments
+	args: NativeParsedArgs;
+
+	// --- paths
+	appRoot: string;
+	execPath: string;
+	userHome: URI;
+	appSettingsHome: URI;
+	userDataPath: string;
+	machineSettingsResource: URI;
+	backupWorkspacesPath: string;
+	nodeCachedDataDir?: string;
+	installSourcePath: string;
+
+	// --- IPC Handles
+	mainIPCHandle: string;
+	sharedIPCHandle: string;
+
+	// --- Extensions
+	extensionsPath?: string;
+	extensionsDownloadPath: string;
+	builtinExtensionsPath: string;
+
+	// --- Smoke test support
+	driverHandle?: string;
+	driverVerbose: boolean;
+
+	// --- Misc. config
+	disableUpdates: boolean;
+	sandbox: boolean;
 }

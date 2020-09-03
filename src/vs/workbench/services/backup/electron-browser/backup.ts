@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 
 export function toBackupWorkspaceResource(backupWorkspacePath: string, environmentService: INativeEnvironmentService): URI {

@@ -11,7 +11,7 @@ import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentif
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const enum OpenContext {
 
@@ -34,7 +34,7 @@ export const enum OpenContext {
 	API
 }
 
-export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
 	mainPid: number;
 
 	windowId: number;
