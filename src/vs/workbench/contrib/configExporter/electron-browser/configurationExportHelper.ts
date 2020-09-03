@@ -5,8 +5,7 @@
 
 import { writeFile } from 'vs/base/node/pfs';
 import product from 'vs/platform/product/common/product';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';

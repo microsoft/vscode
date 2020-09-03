@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
@@ -39,7 +39,7 @@ class DesktopMain extends Disposable {
 		workspaceId: ''
 	});
 
-	constructor(private configuration: any /*INativeWindowConfiguration*/) {
+	constructor(private configuration: INativeWindowConfiguration) {
 		super();
 
 		this.init();
@@ -194,7 +194,7 @@ class DesktopMain extends Disposable {
 	}
 }
 
-export function main(configuration: any /*INativeWindowConfiguration*/): Promise<void> {
+export function main(configuration: INativeWindowConfiguration): Promise<void> {
 	const workbench = new DesktopMain(configuration);
 
 	return workbench.open();

@@ -6,7 +6,7 @@
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { NativeWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
@@ -14,7 +14,7 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -35,13 +35,12 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
-export const TestWindowConfiguration: INativeWindowConfiguration = {
+export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
 	sessionId: 'testSessionId',
@@ -55,7 +54,7 @@ export const TestWindowConfiguration: INativeWindowConfiguration = {
 	...parseArgs(process.argv, OPTIONS)
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWindowConfiguration, process.execPath);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, process.execPath);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;

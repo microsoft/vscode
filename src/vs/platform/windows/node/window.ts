@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowConfiguration, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { ExportData } from 'vs/base/common/performance';
-import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const enum OpenContext {
 
@@ -32,34 +28,6 @@ export const enum OpenContext {
 
 	// opening through the API
 	API
-}
-
-export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
-	mainPid: number;
-
-	windowId: number;
-	machineId: string;
-
-	appRoot: string;
-	execPath: string;
-	backupPath?: string;
-
-	nodeCachedDataDir?: string;
-	partsSplashPath: string;
-
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-
-	isInitialStartup?: boolean;
-	logLevel: LogLevel;
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	maximized?: boolean;
-	accessibilitySupport?: boolean;
-	perfEntries: ExportData;
-
-	userEnv: platform.IProcessEnvironment;
-	filesToWait?: IPathsToWaitFor;
 }
 
 export interface IWindowContext {

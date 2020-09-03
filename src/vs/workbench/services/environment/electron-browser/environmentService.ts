@@ -4,32 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkbenchEnvironmentService, IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
 import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
-
-	readonly configuration: INativeWorkbenchConfiguration;
-
-	readonly crashReporterDirectory?: string;
-	readonly crashReporterId?: string;
-
-	readonly execPath: string;
-	readonly cliPath: string;
-
-	readonly log?: string;
-	readonly extHostLogsPath: URI;
-}
-
-export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, INativeWindowConfiguration { }
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 

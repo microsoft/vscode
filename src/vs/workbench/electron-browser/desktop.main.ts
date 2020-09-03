@@ -15,9 +15,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
@@ -54,7 +53,7 @@ class DesktopMain extends Disposable {
 
 	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
 
-	constructor(private configuration: INativeWindowConfiguration) {
+	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
 
 		this.init();
@@ -319,7 +318,7 @@ class DesktopMain extends Disposable {
 
 }
 
-export function main(configuration: INativeWindowConfiguration): Promise<void> {
+export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
 	const workbench = new DesktopMain(configuration);
 
 	return workbench.open();
