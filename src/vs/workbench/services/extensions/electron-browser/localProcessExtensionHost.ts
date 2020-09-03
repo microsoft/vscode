@@ -45,6 +45,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { isUUID } from 'vs/base/common/uuid';
+import { join } from 'vs/base/common/path';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -199,6 +200,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 						crashReporterStartOptions.uploadToServer = true;
 					}
+					// In the upload to server case, there is a bug in electron that creates client_id file in the current
+					// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
+					// For https://github.com/microsoft/vscode/issues/105743
+					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
+					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
 					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 
