@@ -757,8 +757,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}) : undefined;
 		const icon = this.themeService.getColorTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const canResolve = node instanceof ResolvableTreeItem && node.hasResolve;
-		const title = node.tooltip ? (isString(node.tooltip) ? node.tooltip : undefined) : (resource ? undefined : (canResolve ? undefined : label));
 
 		// reset
 		templateData.actionBar.clear();
@@ -767,24 +765,22 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
 				fileKind: this.getFileKind(node),
-				title: undefined,
+				title: '',
 				hideIcon: !!iconUrl,
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				strikethrough: treeItemLabel?.strikethrough
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
-				title: undefined,
+				title: '',
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				strikethrough: treeItemLabel?.strikethrough
 			});
 		}
-
-		templateData.icon.title = title ? title : '';
 
 		if (iconUrl) {
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
