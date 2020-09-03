@@ -81,8 +81,6 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 	protected _log(str: string): void {
 		if (this._logging) {
 			this._logService.info(`[KeybindingService]: ${str}`);
-		} else {
-			this._logService.trace(`[KeybindingService]: ${str}`);
 		}
 	}
 
