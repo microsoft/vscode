@@ -811,12 +811,17 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const hoverService = this.hoverService;
 		const hoverDelay = this.hoverDelay;
 		let hoverOptions: IHoverOptions | undefined;
+		let mouseX: number | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			let isHovering = true;
+			function mouseMove(this: HTMLElement, e: MouseEvent): any {
+				mouseX = e.x;
+			}
 			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
 			}
 			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
+			this.addEventListener(DOM.EventType.MOUSE_MOVE, mouseMove, { passive: true });
 			setTimeout(async () => {
 				if (node instanceof ResolvableTreeItem) {
 					await node.resolve();
@@ -830,9 +835,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 						};
 						hoverOptions = { text: tooltip, target };
 					}
-					(<IHoverTarget>hoverOptions.target).x = e.x;
+					if (mouseX !== undefined) {
+						(<IHoverTarget>hoverOptions.target).x = mouseX;
+					}
 					hoverService.showHover(hoverOptions);
 				}
+				this.removeEventListener(DOM.EventType.MOUSE_MOVE, mouseMove);
 				this.removeEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave);
 			}, hoverDelay);
 		}
