@@ -5,7 +5,7 @@
 
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchEnvironmentService, IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
@@ -17,7 +17,7 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 
 export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
 
-	readonly configuration: INativeEnvironmentConfiguration;
+	readonly configuration: INativeWorkbenchConfiguration;
 
 	readonly crashReporterDirectory?: string;
 	readonly crashReporterId?: string;
@@ -29,7 +29,7 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 	readonly extHostLogsPath: URI;
 }
 
-export interface INativeEnvironmentConfiguration extends IEnvironmentConfiguration, INativeWindowConfiguration { }
+export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, INativeWindowConfiguration { }
 
 export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -79,7 +79,7 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get cliPath(): string { return this.doGetCLIPath(); }
 
 	constructor(
-		readonly configuration: INativeEnvironmentConfiguration,
+		readonly configuration: INativeWorkbenchConfiguration,
 		readonly execPath: string
 	) {
 		super(configuration);

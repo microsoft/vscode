@@ -75,7 +75,6 @@ export interface IBestWindowOrFolderOptions<W extends IWindowContext> {
 	newWindow: boolean;
 	context: OpenContext;
 	fileUri?: URI;
-	userHome?: string;
 	codeSettingsFolder?: string;
 	localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null;
 }
