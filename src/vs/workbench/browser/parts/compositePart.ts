@@ -106,6 +106,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			return this.activeComposite;
 		}
 
+		// We cannot open the composite if we have not been created yet
+		if (!this.element) {
+			return;
+		}
+
 		// Open
 		return this.doOpenComposite(id, focus);
 	}
