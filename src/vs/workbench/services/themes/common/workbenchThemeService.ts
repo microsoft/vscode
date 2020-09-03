@@ -107,7 +107,7 @@ export interface IExperimentalSemanticTokenColorCustomizations {
 	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | IExperimentalSemanticTokenColorCustomizations | undefined;
 }
 
-export type IThemeSpecificColorCustomizations = IColorCustomizations | ITokenColorCustomizations | IExperimentalSemanticTokenColorCustomizations | ISemanticTokenColorCustomizations | IColorCustomizations;
+export type IThemeSpecificColorCustomizations = IColorCustomizations | ITokenColorCustomizations | IExperimentalSemanticTokenColorCustomizations | ISemanticTokenColorCustomizations;
 
 export interface ISemanticTokenRules {
 	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
