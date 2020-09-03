@@ -27,10 +27,11 @@ export const BACKUPS = 'Backups';
  */
 export interface IEnvironmentService {
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE
-	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND NATIVE!!!!
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
+	//       - PUT NON-WEB PROPERTIES INTO NATIVE ENV SERVICE
+	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	readonly _serviceBrand: undefined;
 
@@ -72,13 +73,23 @@ export interface IEnvironmentService {
 	disableTelemetry: boolean;
 	serviceMachineIdResource: URI;
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE
-	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND NATIVE!!!!
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
+	//       - PUT NON-WEB PROPERTIES INTO NATIVE ENV SERVICE
+	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
 
+/**
+ * A subclass of the `IEnvironmentService` to be used only in native
+ * environments (Windows, Linux, macOS) but not e.g. web.
+ */
 export interface INativeEnvironmentService extends IEnvironmentService {
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
+	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- CLI Arguments
 	args: NativeParsedArgs;
@@ -109,4 +120,9 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- Misc. config
 	disableUpdates: boolean;
 	sandbox: boolean;
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
+	//       - PUT WORKBENCH ONLY PROPERTIES INTO WB ENV SERVICE
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }
