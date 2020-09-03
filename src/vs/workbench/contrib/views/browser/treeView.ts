@@ -706,7 +706,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
-		this.hoverDelay = this.configurationService.getValue<number>('editor.hover.delay');
+		this.hoverDelay = 500; // milliseconds
 	}
 
 	get templateId(): string {
