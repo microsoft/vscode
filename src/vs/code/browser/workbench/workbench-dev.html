@@ -17,6 +17,9 @@
 		<!-- Builtin Extensions (running out of sources) -->
 		<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
 
+		<!-- Workbench Credentials (running out of sources) -->
+		<meta id="vscode-workbench-credentials" data-settings="{{WORKBENCH_CREDENTIALS}}">
+
 		<!-- Workarounds/Hacks (remote user data uri) -->
 		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
 
@@ -30,7 +33,6 @@
 
 	<!-- Startup (do not modify order of script tags!) -->
 	<script>
-		// NOTE: Changes to inline scripts require update of content security policy
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
@@ -52,7 +54,6 @@
 		globalThis.MonacoPerformanceMarks.push('willLoadWorkbenchMain', Date.now());
 	</script>
 	<script>
-		// NOTE: Changes to inline scripts require update of content security policy
 		require(['vs/code/browser/workbench/workbench'], function() {});
 	</script>
 </html>

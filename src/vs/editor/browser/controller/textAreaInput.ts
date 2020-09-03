@@ -72,7 +72,7 @@ interface InMemoryClipboardMetadata {
  * Every time we read from the cipboard, if the text matches our last written text,
  * we can fetch the previous metadata.
  */
-class InMemoryClipboardMetadataManager {
+export class InMemoryClipboardMetadataManager {
 	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
 
 	private _lastState: InMemoryClipboardMetadata | null;

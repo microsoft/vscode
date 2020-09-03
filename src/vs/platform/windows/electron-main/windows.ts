@@ -61,7 +61,7 @@ export interface ICodeWindow extends IDisposable {
 	load(config: INativeWindowConfiguration, isReload?: boolean): void;
 	reload(configuration?: INativeWindowConfiguration, cli?: ParsedArgs): void;
 
-	focus(): void;
+	focus(options?: { force: boolean }): void;
 	close(): void;
 
 	getBounds(): Rectangle;
@@ -106,7 +106,7 @@ export interface IWindowsMainService {
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
 	getLastActiveWindow(): ICodeWindow | undefined;
 

@@ -103,6 +103,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private accountsActivityAction: ActivityAction | undefined;
 
+	private accountsActivity: ICompositeActivity[] = [];
+
 	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
@@ -127,6 +129,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEW_CONTAINERS, version: 1 });
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: ACCOUNTS_VISIBILITY_PREFERENCE_KEY, version: 1 });
+
 		this.migrateFromOldCachedViewContainersValue();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
@@ -166,13 +170,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 				const toggleAccountsVisibilityAction = new Action(
 					'toggleAccountsVisibility',
-					nls.localize('accounts', "Accounts"),
+					this.accountsVisibilityPreference ? nls.localize('hideAccounts', "Hide Accounts") : nls.localize('showAccounts', "Show Accounts"),
 					undefined,
 					true,
 					async () => { this.accountsVisibilityPreference = !this.accountsVisibilityPreference; }
 				);
 
-				toggleAccountsVisibilityAction.checked = !!this.accountsActivityAction;
 				actions.push(toggleAccountsVisibilityAction);
 				actions.push(new Separator());
 
@@ -319,65 +322,68 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		if (viewContainerOrActionId === GLOBAL_ACTIVITY_ID) {
-			return this.showGlobalActivity(badge, clazz, priority);
+			return this.showGlobalActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 		}
 
 		if (viewContainerOrActionId === ACCOUNTS_ACTIIVTY_ID) {
-			if (this.accountsActivityAction) {
-				this.accountsActivityAction.setBadge(badge, clazz);
-
-				return toDisposable(() => this.accountsActivityAction?.setBadge(undefined));
-			}
+			return this.showGlobalActivity(ACCOUNTS_ACTIIVTY_ID, badge, clazz, priority);
 		}
 
 		return Disposable.None;
 	}
 
-	private showGlobalActivity(badge: IBadge, clazz?: string, priority?: number): IDisposable {
+	private showGlobalActivity(activityId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (typeof priority !== 'number') {
 			priority = 0;
 		}
 		const activity: ICompositeActivity = { badge, clazz, priority };
+		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
 
-		for (let i = 0; i <= this.globalActivity.length; i++) {
-			if (i === this.globalActivity.length) {
-				this.globalActivity.push(activity);
+		for (let i = 0; i <= activityCache.length; i++) {
+			if (i === activityCache.length) {
+				activityCache.push(activity);
 				break;
-			} else if (this.globalActivity[i].priority <= priority) {
-				this.globalActivity.splice(i, 0, activity);
+			} else if (activityCache[i].priority <= priority) {
+				activityCache.splice(i, 0, activity);
 				break;
 			}
 		}
-		this.updateGlobalActivity();
+		this.updateGlobalActivity(activityId);
 
-		return toDisposable(() => this.removeGlobalActivity(activity));
+		return toDisposable(() => this.removeGlobalActivity(activityId, activity));
 	}
 
-	private removeGlobalActivity(activity: ICompositeActivity): void {
-		const index = this.globalActivity.indexOf(activity);
+	private removeGlobalActivity(activityId: string, activity: ICompositeActivity): void {
+		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
+		const index = activityCache.indexOf(activity);
 		if (index !== -1) {
-			this.globalActivity.splice(index, 1);
-			this.updateGlobalActivity();
+			activityCache.splice(index, 1);
+			this.updateGlobalActivity(activityId);
 		}
 	}
 
-	private updateGlobalActivity(): void {
-		const globalActivityAction = assertIsDefined(this.globalActivityAction);
-		if (this.globalActivity.length) {
-			const [{ badge, clazz, priority }] = this.globalActivity;
-			if (badge instanceof NumberBadge && this.globalActivity.length > 1) {
-				const cumulativeNumberBadge = this.getCumulativeNumberBadge(priority);
-				globalActivityAction.setBadge(cumulativeNumberBadge);
+	private updateGlobalActivity(activityId: string): void {
+		const activityAction = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivityAction : this.accountsActivityAction;
+		if (!activityAction) {
+			return;
+		}
+
+		const activityCache = activityId === GLOBAL_ACTIVITY_ID ? this.globalActivity : this.accountsActivity;
+		if (activityCache.length) {
+			const [{ badge, clazz, priority }] = activityCache;
+			if (badge instanceof NumberBadge && activityCache.length > 1) {
+				const cumulativeNumberBadge = this.getCumulativeNumberBadge(activityCache, priority);
+				activityAction.setBadge(cumulativeNumberBadge);
 			} else {
-				globalActivityAction.setBadge(badge, clazz);
+				activityAction.setBadge(badge, clazz);
 			}
 		} else {
-			globalActivityAction.setBadge(undefined);
+			activityAction.setBadge(undefined);
 		}
 	}
 
-	private getCumulativeNumberBadge(priority: number): NumberBadge {
-		const numberActivities = this.globalActivity.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
+	private getCumulativeNumberBadge(activityCache: ICompositeActivity[], priority: number): NumberBadge {
+		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
 		let number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
 		let descriptorFn = (): string => {
 			return numberActivities.reduce((result, activity, index) => {
@@ -626,6 +632,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				this.globalActivityActionBar.push(this.accountsActivityAction, { index: ActivitybarPart.ACCOUNTS_ACTION_INDEX });
 			}
 		}
+
+		this.updateGlobalActivity(ACCOUNTS_ACTIIVTY_ID);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction } {

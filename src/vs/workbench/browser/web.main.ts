@@ -50,6 +50,9 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 class BrowserMain extends Disposable {
 
@@ -180,7 +183,7 @@ class BrowserMain extends Disposable {
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// Long running services (workspace, config, storage)
-		const services = await Promise.all([
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -201,7 +204,23 @@ class BrowserMain extends Disposable {
 			})
 		]);
 
-		return { serviceCollection, logService, storageService: services[1] };
+		// Request Service
+		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
+		serviceCollection.set(IRequestService, requestService);
+
+		// Userdata Initialize Service
+		const userDataInitializationService = new UserDataInitializationService(environmentService, fileService, storageService, productService, requestService, logService);
+		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
+
+		if (await userDataInitializationService.requiresInitialization()) {
+			// Initialize required resources - settings & global state
+			await userDataInitializationService.initializeRequiredResources();
+
+			// Reload configuration after initializing
+			await configurationService.reloadConfiguration();
+		}
+
+		return { serviceCollection, logService, storageService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {

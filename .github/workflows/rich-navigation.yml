@@ -10,13 +10,11 @@ jobs:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Use Node.js
-      uses: actions/setup-node@v1
     - name: Install dependencies
       run: yarn --frozen-lockfile
       env:
         CHILD_CONCURRENCY: 1
-    - uses: microsoft/RichCodeNavIndexer@master
+    - uses: microsoft/RichCodeNavIndexer@v0.1
       with:
         languages: typescript
         repo-token: ${{ secrets.GITHUB_TOKEN }}

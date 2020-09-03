@@ -460,7 +460,7 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
-		if (!url) {
+		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
 				urlLabel: localize('repourl', "Clone from URL")
@@ -543,11 +543,11 @@ export class CommandCenter {
 			const uri = Uri.file(repositoryPath);
 
 			if (openFolder) {
-				commands.executeCommand('vscode.openFolder', uri);
+				commands.executeCommand('vscode.openFolder', uri, { forceReuseWindow: true });
 			} else if (result === addToWorkspace) {
 				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
 			} else if (result === openNewWindow) {
-				commands.executeCommand('vscode.openFolder', uri, true);
+				commands.executeCommand('vscode.openFolder', uri, { forceNewWindow: true });
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {

@@ -150,8 +150,9 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.restoreViewState': {
 				'type': 'boolean',
-				'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening files after they have been closed."),
+				'description': nls.localize('restoreViewState', "Restores the last view state (e.g. scroll position) when re-opening textual editors after they have been closed."),
 				'default': true,
+				'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 			},
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
@@ -231,6 +232,16 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': true,
 				'description': nls.localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
 			},
+			'workbench.activityBar.iconClickBehavior': {
+				'type': 'string',
+				'enum': ['toggle', 'focus'],
+				'default': 'toggle',
+				'description': nls.localize('activityBarIconClickBehavior', "Controls the behavior of clicking an activity bar icon in the workbench."),
+				'enumDescriptions': [
+					nls.localize('workbench.activityBar.iconClickBehavior.toggle', "Hide the side bar if the clicked item is already visible."),
+					nls.localize('workbench.activityBar.iconClickBehavior.focus', "Focus side bar if the clicked item is already visible.")
+				]
+			},
 			'workbench.view.alwaysShowHeaderActions': {
 				'type': 'boolean',
 				'default': false,
@@ -299,7 +310,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 
 					const base = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
 					if (isWeb) {
-						return base + '${separator}${remoteName}'; // Web: always show remote indicator
+						return base + '${separator}${remoteName}'; // Web: always show remote name
 					}
 
 					return base;
@@ -402,7 +413,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			'zenMode.hideActivityBar': {
 				'type': 'boolean',
 				'default': true,
-				'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar at the left of the workbench.")
+				'description': nls.localize('zenMode.hideActivityBar', "Controls whether turning on Zen Mode also hides the activity bar either at the left or right of the workbench.")
 			},
 			'zenMode.hideLineNumbers': {
 				'type': 'boolean',

@@ -172,14 +172,14 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
-	async focusWindow(windowId: number | undefined, options?: { windowId?: number; }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean; }): Promise<void> {
 		if (options && typeof options.windowId === 'number') {
 			windowId = options.windowId;
 		}
 
 		const window = this.windowById(windowId);
 		if (window) {
-			window.focus();
+			window.focus({ force: options?.force ?? false });
 		}
 	}
 

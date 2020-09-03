@@ -360,9 +360,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._onChange.fire({ didRemove: true });
 	}
 
-	replace(toReplace: Match): Promise<void> {
-		return this.replaceService.replace(toReplace)
-			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
+	private replaceQ = Promise.resolve();
+	async replace(toReplace: Match): Promise<void> {
+		return this.replaceQ = this.replaceQ.finally(async () => {
+			await this.replaceService.replace(toReplace);
+			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
+		});
 	}
 
 	setSelectedMatch(match: Match | null): void {
@@ -605,7 +608,7 @@ export class FolderMatch extends Disposable {
 			fileMatches = [fileMatches];
 		}
 
-		for (let match of fileMatches as FileMatch[]) {
+		for (const match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();

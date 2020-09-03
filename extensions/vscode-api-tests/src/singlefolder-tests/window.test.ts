@@ -429,6 +429,8 @@ suite('vscode API - window', () => {
 	});
 
 	test('showQuickPick, select first two', async function () {
+		const label = 'showQuickPick, select first two';
+		let i = 0;
 		const resolves: ((value: string) => void)[] = [];
 		let done: () => void;
 		const unexpected = new Promise((resolve, reject) => {
@@ -440,16 +442,26 @@ suite('vscode API - window', () => {
 			canPickMany: true
 		});
 		const first = new Promise(resolve => resolves.push(resolve));
-		await new Promise(resolve => setTimeout(resolve, 10)); // Allow UI to update.
+		console.log(`${label}: ${++i}`);
+		await new Promise(resolve => setTimeout(resolve, 100)); // Allow UI to update.
+		console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		console.log(`${label}: ${++i}`);
 		assert.equal(await first, 'eins');
+		console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		console.log(`${label}: ${++i}`);
 		const second = new Promise(resolve => resolves.push(resolve));
 		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		console.log(`${label}: ${++i}`);
 		assert.equal(await second, 'zwei');
+		console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		console.log(`${label}: ${++i}`);
 		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		console.log(`${label}: ${++i}`);
 		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+		console.log(`${label}: ${++i}`);
 		done!();
 		return unexpected;
 	});

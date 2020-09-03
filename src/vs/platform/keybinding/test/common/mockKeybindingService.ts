@@ -136,6 +136,10 @@ export class MockKeybindingService implements IKeybindingService {
 		return false;
 	}
 
+	public toggleLogging(): boolean {
+		return false;
+	}
+
 	public _dumpDebugInfo(): string {
 		return '';
 	}

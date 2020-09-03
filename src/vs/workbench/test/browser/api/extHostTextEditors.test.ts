@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { assertType } from 'vs/base/common/types';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 
@@ -40,7 +40,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 				EOL: '\n',
 			}]
 		});
-		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors);
+		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors, null!);
 	});
 
 	test('uses version id if document available', async () => {
@@ -48,7 +48,9 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await editors.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
-		assert.equal((<WorkspaceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId, 1337);
+		const [first] = workspaceResourceEdits.edits;
+		assertType(first._type === WorkspaceEditType.Text);
+		assert.equal(first.modelVersionId, 1337);
 	});
 
 	test('does not use version id if document is not available', async () => {
@@ -56,7 +58,9 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await editors.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
-		assert.ok(typeof (<WorkspaceTextEdit>workspaceResourceEdits.edits[0]).modelVersionId === 'undefined');
+		const [first] = workspaceResourceEdits.edits;
+		assertType(first._type === WorkspaceEditType.Text);
+		assert.ok(typeof first.modelVersionId === 'undefined');
 	});
 
 });

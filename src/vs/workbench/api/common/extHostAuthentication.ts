@@ -21,11 +21,16 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
 	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
-	private _onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-	readonly onDidChangeSessions: Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
+	private _onDidChangeSessions = new Emitter<vscode.AuthenticationSessionsChangeEvent>();
+	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
+	}
+
+	$setProviders(providers: vscode.AuthenticationProviderInformation[]): Promise<void> {
+		this._providers = providers;
+		return Promise.resolve();
 	}
 
 	getProviderIds(): Promise<ReadonlyArray<string>> {
@@ -41,7 +46,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+		await this._proxy.$ensureProvider(providerId);
 		const provider = this._authenticationProviders.get(providerId);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
@@ -181,9 +187,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]) {
-		added.forEach(id => {
-			if (!this._providers.includes(id)) {
-				this._providers.push(id);
+		added.forEach(provider => {
+			if (!this._providers.some(p => p.id === provider.id)) {
+				this._providers.push(provider);
 			}
 		});
 

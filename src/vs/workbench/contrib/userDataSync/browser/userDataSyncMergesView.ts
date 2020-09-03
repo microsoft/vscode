@@ -71,7 +71,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.updateSyncButtonEnablement()));
 		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.treeView.refresh()));
-		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeConflictEditors()));
+		this._register(this.userDataSyncPreview.onDidChangeResources(() => this.closeDiffEditors()));
 		this._register(decorationsService.registerDecorationsProvider(this._register(new UserDataSyncResourcesDecorationProvider(this.userDataSyncPreview))));
 
 		this.registerActions();
@@ -90,7 +90,7 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		this.buttonsContainer = DOM.append(container, DOM.$('.manual-sync-buttons-container'));
 
 		this.syncButton = this._register(new Button(this.buttonsContainer));
-		this.syncButton.label = localize('turn on sync', "Turn on Preferences Sync");
+		this.syncButton.label = localize('turn on sync', "Turn on Settings Sync");
 		this.updateSyncButtonEnablement();
 		this._register(attachButtonStyler(this.syncButton, this.themeService));
 		this._register(this.syncButton.onDidClick(() => this.apply()));
@@ -349,12 +349,13 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 		}
 	}
 
-	private closeConflictEditors() {
+	private closeDiffEditors() {
 		for (const previewResource of this.userDataSyncPreview.resources) {
-			if (previewResource.mergeState !== MergeState.Conflict) {
+			if (previewResource.mergeState === MergeState.Accepted) {
 				for (const input of this.editorService.editors) {
 					if (input instanceof DiffEditorInput) {
-						if (isEqual(previewResource.remote, input.secondary.resource) && isEqual(previewResource.merged, input.primary.resource)) {
+						if (isEqual(previewResource.remote, input.secondary.resource) &&
+							(isEqual(previewResource.merged, input.primary.resource) || isEqual(previewResource.local, input.primary.resource))) {
 							input.dispose();
 						}
 					}

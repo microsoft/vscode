@@ -5,6 +5,7 @@
 
 import * as randomBytes from 'randombytes';
 import * as querystring from 'querystring';
+import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
 import { createServer, startServer } from './authServer';
 
@@ -73,7 +74,7 @@ function parseQuery(uri: vscode.Uri) {
 	}, {});
 }
 
-export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationSessionsChangeEvent>();
+export const onDidChangeSessions = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
 
 export const REFRESH_NETWORK_FAILURE = 'Network failure';
 
@@ -528,7 +529,7 @@ export class AzureActiveDirectoryService {
 			}
 		} catch (e) {
 			Logger.error('Refreshing token failed');
-			throw e;
+			throw new Error(REFRESH_NETWORK_FAILURE);
 		}
 	}
 

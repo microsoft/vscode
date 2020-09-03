@@ -8,7 +8,6 @@ import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isObject } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -813,12 +812,12 @@ export interface DocumentHighlightProvider {
  */
 export interface OnTypeRenameProvider {
 
-	stopPattern?: RegExp;
+	wordPattern?: RegExp;
 
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
 }
 
 /**
@@ -1337,29 +1336,6 @@ export class FoldingRangeKind {
 	}
 }
 
-/**
- * @internal
- */
-export namespace WorkspaceFileEdit {
-	/**
-	 * @internal
-	 */
-	export function is(thing: any): thing is WorkspaceFileEdit {
-		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
-	}
-}
-
-/**
- * @internal
- */
-export namespace WorkspaceTextEdit {
-	/**
-	 * @internal
-	 */
-	export function is(thing: any): thing is WorkspaceTextEdit {
-		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
-	}
-}
 
 export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;

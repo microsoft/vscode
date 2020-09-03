@@ -41,23 +41,21 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
-	alwaysUnderlineAccessKeys(): Promise<boolean> {
+	async alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
-			return Promise.resolve(false);
+			return false;
 		}
 
-		return new Promise<boolean>(async (resolve) => {
-			const Registry = await import('vscode-windows-registry');
+		const Registry = await import('vscode-windows-registry');
 
-			let value;
-			try {
-				value = Registry.GetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
-			} catch {
-				resolve(false);
-			}
+		let value: string | undefined = undefined;
+		try {
+			value = Registry.GetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
+		} catch {
+			return false;
+		}
 
-			resolve(value === '1');
-		});
+		return value === '1';
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {

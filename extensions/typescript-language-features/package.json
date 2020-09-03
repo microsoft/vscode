@@ -689,16 +689,16 @@
         "typescript.preferences.includePackageJsonAutoImports": {
           "type": "string",
           "enum": [
-            "all",
-            "exclude-dev",
-            "none"
+            "auto",
+            "on",
+            "off"
           ],
           "enumDescriptions": [
-            "%typescript.preferences.includePackageJsonAutoImports.all%",
-            "%typescript.preferences.includePackageJsonAutoImports.excludeDev%",
-            "%typescript.preferences.includePackageJsonAutoImports.none%"
+            "%typescript.preferences.includePackageJsonAutoImports.auto%",
+            "%typescript.preferences.includePackageJsonAutoImports.on%",
+            "%typescript.preferences.includePackageJsonAutoImports.off%"
           ],
-          "default": "exclude-dev",
+          "default": "auto",
           "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
           "scope": "window"
         },
@@ -1030,10 +1030,10 @@
         "background": {
           "activeOnStart": true,
           "beginsPattern": {
-            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
+            "regexp": "^\\s*(?:message TS6032:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) File change detected\\. Starting incremental compilation\\.\\.\\."
           },
           "endsPattern": {
-            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
+            "regexp": "^\\s*(?:message TS6042:|\\[?\\D*\\d{1,2}[:.]\\d{1,2}[:.]\\d{1,2}\\D*(├\\D*\\d{1,2}\\D+┤)?(?:\\]| -)) (?:Compilation complete\\.|Found \\d+ errors?\\.) Watching for file changes\\."
           }
         }
       }

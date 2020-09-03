@@ -281,7 +281,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart }, undefined, 1000);
+				return this.send('terminate', { restart }, undefined, 2000);
 			}
 			return this.disconnect(restart);
 		}
@@ -499,7 +499,9 @@ export class RawDebugSession implements IDisposable {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					await this.send('disconnect', { restart }, undefined, 1000);
+					await this.send('disconnect', { restart }, undefined, 2000);
+				} catch (e) {
+					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
 					this.stopAdapter(error);
 				}
@@ -624,7 +626,7 @@ export class RawDebugSession implements IDisposable {
 					// We are in shutdown silently complete
 					completeDispatch();
 				} else {
-					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debug adapter found. Can not send '{0}'.", command)));
+					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debugger available found. Can not send '{0}'.", command)));
 				}
 				return;
 			}

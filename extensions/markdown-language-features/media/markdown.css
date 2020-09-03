@@ -128,21 +128,12 @@ textarea:focus {
 }
 
 p {
-	margin-bottom: 1.5em;
-}
-
-li > p {
-	margin-bottom: 0;
-}
-
-/* don't space 2 paragraphs too far apart */
-p + p {
-	margin-top: -0.8em;
+	margin-bottom: 0.7em;
 }
 
 ul,
 ol {
-	margin-bottom: 1.5em;
+	margin-bottom: 0.7em;
 }
 
 hr {

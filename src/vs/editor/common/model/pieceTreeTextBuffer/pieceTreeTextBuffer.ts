@@ -178,6 +178,10 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 		return this._pieceTree.getLineCharCode(lineNumber, index);
 	}
 
+	public getCharCode(offset: number): number {
+		return this._pieceTree.getCharCode(offset);
+	}
+
 	public getLineLength(lineNumber: number): number {
 		return this._pieceTree.getLineLength(lineNumber);
 	}
@@ -214,8 +218,9 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 				return '\r\n';
 			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
+			default:
+				throw new Error('Unknown EOL preference');
 		}
-		throw new Error('Unknown EOL preference');
 	}
 
 	public setEOL(newEOL: '\r\n' | '\n'): void {

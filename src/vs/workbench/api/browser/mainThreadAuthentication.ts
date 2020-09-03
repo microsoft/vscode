@@ -17,7 +17,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Platform, platform } from 'vs/base/common/platform';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser'];
@@ -132,8 +132,12 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private async registerCommandsAndContextMenuItems(): Promise<void> {
-		const sessions = await this._proxy.$getSessions(this.id);
-		sessions.forEach(session => this.registerSession(session));
+		try {
+			const sessions = await this._proxy.$getSessions(this.id);
+			sessions.forEach(session => this.registerSession(session));
+		} catch (_) {
+			// Ignore
+		}
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
@@ -232,6 +236,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._register(this.authenticationService.onDidUnregisterAuthenticationProvider(info => {
 			this._proxy.$onDidChangeAuthenticationProviders([], [info]);
 		}));
+
+		this._proxy.$setProviders(this.authenticationService.declaredProviders);
+
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(e => {
+			this._proxy.$setProviders(e);
+		}));
 	}
 
 	$getProviderIds(): Promise<string[]> {
@@ -246,6 +256,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	$unregisterAuthenticationProvider(id: string): void {
 		this.authenticationService.unregisterAuthenticationProvider(id);
+	}
+
+	$ensureProvider(id: string): Promise<void> {
+		return this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id), ActivationKind.Immediate);
 	}
 
 	$sendDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
@@ -381,8 +395,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
-
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -17,7 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
+import { append, $, reset, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -38,8 +38,7 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { escape } from 'vs/base/common/strings';
+import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
@@ -100,7 +99,7 @@ interface IRuntimeExtension {
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
-export class RuntimeExtensionsEditor extends BaseEditor {
+export class RuntimeExtensionsEditor extends EditorPane {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
@@ -233,11 +232,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		result = result.filter(element => element.status.activationTimes);
 
 		// bubble up extensions that have caused slowness
+
+		const isUnresponsive = (extension: IRuntimeExtension): boolean =>
+			extension.unresponsiveProfile === this._profileInfo;
+
+		const profileTime = (extension: IRuntimeExtension): number =>
+			extension.profileInfo?.totalTime ?? 0;
+
+		const activationTime = (extension: IRuntimeExtension): number =>
+			(extension.status.activationTimes?.codeLoadingTime ?? 0) +
+			(extension.status.activationTimes?.activateCallTime ?? 0);
+
 		result = result.sort((a, b) => {
-			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-				return -1;
-			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-				return 1;
+			if (isUnresponsive(a) || isUnresponsive(b)) {
+				return +isUnresponsive(b) - +isUnresponsive(a);
+			} else if (profileTime(a) || profileTime(b)) {
+				return profileTime(b) - profileTime(a);
+			} else if (activationTime(a) || activationTime(b)) {
+				return activationTime(b) - activationTime(a);
 			}
 			return a.originalIndex - b.originalIndex;
 		});
@@ -397,32 +409,28 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				clearNode(data.msgContainer);
 
 				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(` $(alert) Unresponsive`));
+					const el = $('span', undefined, ...renderCodiconsAsElement(` $(alert) Unresponsive`));
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
 					data.msgContainer.appendChild(el);
 				}
 
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
+					const el = $('span', undefined, ...renderCodiconsAsElement(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(`$(alert) ${element.status.messages[0].message}`));
+					const el = $('span', undefined, ...renderCodiconsAsElement(`$(alert) ${element.status.messages[0].message}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.description.extensionLocation.scheme !== 'file') {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(`$(remote) ${element.description.extensionLocation.authority}`));
+					const el = $('span', undefined, ...renderCodiconsAsElement(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
 					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
-						el.innerHTML = renderCodicons(escape(`$(remote) ${hostLabel}`));
+						reset(el, ...renderCodiconsAsElement(`$(remote) ${hostLabel}`));
 					}
 				}
 

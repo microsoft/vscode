@@ -28,10 +28,14 @@ interface IMergeResult {
 	conflicts: Set<string>;
 }
 
+export function parseKeybindings(content: string): IUserFriendlyKeybinding[] {
+	return parse(content) || [];
+}
+
 export async function merge(localContent: string, remoteContent: string, baseContent: string | null, formattingOptions: FormattingOptions, userDataSyncUtilService: IUserDataSyncUtilService): Promise<{ mergeContent: string, hasChanges: boolean, hasConflicts: boolean }> {
-	const local = <IUserFriendlyKeybinding[]>parse(localContent);
-	const remote = <IUserFriendlyKeybinding[]>parse(remoteContent);
-	const base = baseContent ? <IUserFriendlyKeybinding[]>parse(baseContent) : null;
+	const local = parseKeybindings(localContent);
+	const remote = parseKeybindings(remoteContent);
+	const base = baseContent ? parseKeybindings(baseContent) : null;
 
 	const userbindings: string[] = [...local, ...remote, ...(base || [])].map(keybinding => keybinding.key);
 	const normalizedKeys = await userDataSyncUtilService.resolveUserBindings(userbindings);
@@ -331,7 +335,7 @@ function addKeybindings(content: string, keybindings: IUserFriendlyKeybinding[],
 }
 
 function removeKeybindings(content: string, command: string, formattingOptions: FormattingOptions): string {
-	const keybindings = <IUserFriendlyKeybinding[]>parse(content);
+	const keybindings = parseKeybindings(content);
 	for (let index = keybindings.length - 1; index >= 0; index--) {
 		if (keybindings[index].command === command || keybindings[index].command === `-${command}`) {
 			content = contentUtil.edit(content, [index], undefined, formattingOptions);
@@ -341,7 +345,7 @@ function removeKeybindings(content: string, command: string, formattingOptions: 
 }
 
 function updateKeybindings(content: string, command: string, keybindings: IUserFriendlyKeybinding[], formattingOptions: FormattingOptions): string {
-	const allKeybindings = <IUserFriendlyKeybinding[]>parse(content);
+	const allKeybindings = parseKeybindings(content);
 	const location = findFirstIndex(allKeybindings, keybinding => keybinding.command === command || keybinding.command === `-${command}`);
 	// Remove all entries with this command
 	for (let index = allKeybindings.length - 1; index >= 0; index--) {

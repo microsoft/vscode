@@ -422,7 +422,7 @@
     "scripts": {
         "watch": "gulp watch-extension:emmet",
         "compile": "gulp compile-extension:emmet",
-        "deps": "yarn add vscode-emmet-helper2"
+        "deps": "yarn add vscode-emmet-helper"
     },
     "devDependencies": {
         "@types/node": "^12.11.7",
@@ -435,7 +435,7 @@
         "@emmetio/html-matcher": "^0.3.3",
         "@emmetio/math-expression": "^0.1.1",
         "image-size": "^0.5.2",
-        "vscode-emmet-helper2": "^2.0.0-next.0",
+        "vscode-emmet-helper": "^2.0.0",
         "vscode-html-languageservice": "^3.0.3"
     }
 }

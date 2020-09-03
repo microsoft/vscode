@@ -1,5 +1,6 @@
 {
 	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier-deep/apply/apply-labels/deep-classifier-config.schema.json",
+	"vacation": ["joaomoreno"], 
 	"assignees": {
 		"JacksonKearl": {"accuracy": 0.5}
 	},
@@ -119,7 +120,7 @@
 		"remote-explorer": {"assign": ["alexr00"]},
 		"rename": {"assign": ["jrieken"]},
 		"scm": {"assign": ["joaomoreno"]},
-		"screencast-mode": {"assign": ["joaomoreno"]},
+		"screencast-mode": {"assign": ["lszomoru"]},
 		"search": {"assign": ["roblourens"]},
 		"search-editor": {"assign": ["JacksonKearl"]},
 		"search-replace": {"assign": ["sandy081"]},
@@ -133,7 +134,7 @@
 		"snippets": {"assign": ["jrieken"]},
 		"splitview": {"assign": ["joaomoreno"]},
 		"suggest": {"assign": ["jrieken"]},
-		"tasks": {"assign": ["alexr00"]},
+		"tasks": {"assign": ["alexr00"], "accuracy": 0.85},
 		"telemetry": {"assign": []},
 		"themes": {"assign": ["aeschli"]},
 		"timeline": {"assign": ["eamodio"]},

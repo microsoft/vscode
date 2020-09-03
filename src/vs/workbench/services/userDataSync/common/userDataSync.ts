@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState } from 'vs/platform/userDataSync/common/userDataSync';
+import { IAuthenticationProvider, SyncStatus, SyncResource, Change, MergeState, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -58,6 +58,7 @@ export interface IUserDataSyncWorkbenchService {
 	turnOn(): Promise<void>;
 	turnoff(everyWhere: boolean): Promise<void>;
 	signIn(): Promise<void>;
+	switchSyncService(type: UserDataSyncStoreType): Promise<void>;
 
 	resetSyncedData(): Promise<void>;
 	showSyncActivity(): Promise<void>;
@@ -78,6 +79,8 @@ export const enum AccountStatus {
 	Unavailable = 'unavailable',
 	Available = 'available',
 }
+
+export const SYNC_TITLE = localize('sync category', "Settings Sync");
 
 // Contexts
 export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);

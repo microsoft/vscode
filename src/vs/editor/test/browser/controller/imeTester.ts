@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import { createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
@@ -74,7 +73,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
-	startBtn.innerHTML = 'Start';
+	startBtn.innerText = 'Start';
 	container.appendChild(startBtn);
 
 
@@ -96,12 +95,6 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 			};
 		},
 		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-
-			if (browser.isIPad) {
-				// Do not place anything in the textarea for the iPad
-				return TextAreaState.EMPTY;
-			}
-
 			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 
 			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, 10, true);
@@ -141,10 +134,10 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 
 		let expected = 'some ' + expectedStr + ' text';
 		if (text === expected) {
-			check.innerHTML = '[GOOD]';
+			check.innerText = '[GOOD]';
 			check.className = 'check good';
 		} else {
-			check.innerHTML = '[BAD]';
+			check.innerText = '[BAD]';
 			check.className = 'check bad';
 		}
 		check.innerHTML += expected;

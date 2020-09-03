@@ -33,6 +33,7 @@ import { updateColorThemeConfigurationSchemas, updateFileIconThemeConfigurationS
 import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isWeb } from 'vs/base/common/platform';
 
 // implementation
 
@@ -90,20 +91,24 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private readonly onProductIconThemeChange: Emitter<IWorkbenchProductIconTheme>;
 	private readonly productIconThemeWatcher: ThemeFileWatcher;
 
+	private isOSInHighContrast: boolean; // tracking the high contrast state of the OS eventauilly should go out to a seperate service
+	private themeSettingIdBeforeSchemeSwitch: string | undefined;
+
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this.container = layoutService.container;
-		const defaultThemeType = environmentService.configuration.defaultThemeType || DARK;
-		this.settings = new ThemeConfiguration(configurationService, defaultThemeType);
+		this.settings = new ThemeConfiguration(configurationService);
+
+		this.isOSInHighContrast = !!environmentService.configuration.highContrast;
 
 		this.colorThemeRegistry = new ThemeRegistry(extensionService, colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
 		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this));
@@ -124,11 +129,21 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
-		if (environmentService.configuration.highContrast && themeData?.baseTheme !== HIGH_CONTRAST) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(HIGH_CONTRAST);
+
+		// the preferred color scheme (high contrast, light, dark) has changed since the last start
+		const preferredColorScheme = this.getPreferredColorScheme();
+
+		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL) !== preferredColorScheme) {
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme);
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(defaultThemeType);
+			const initialColorTheme = environmentService.options?.initialColorTheme;
+			if (initialColorTheme) {
+				themeData = ColorThemeData.createUnloadedThemeForThemeType(initialColorTheme.themeType, initialColorTheme.colors);
+			}
+		}
+		if (!themeData) {
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? LIGHT : DARK);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
@@ -161,10 +176,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 			const theme = await this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, DEFAULT_COLOR_THEME_ID);
 
-			const persistedColorScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 			const preferredColorScheme = this.getPreferredColorScheme();
-			if (persistedColorScheme && preferredColorScheme && persistedColorScheme !== preferredColorScheme) {
-				return this.applyPreferredColorTheme(preferredColorScheme);
+			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+			if (preferredColorScheme !== prevScheme) {
+				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL);
+				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
+					return this.applyPreferredColorTheme(preferredColorScheme);
+				}
 			}
 			return this.setColorTheme(theme && theme.id, undefined);
 		};
@@ -195,7 +213,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)) {
 				this.restoreColorTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME) || e.affectsConfiguration(ThemeSettings.DETECT_HC)) {
 				this.handlePreferredSchemeUpdated();
 			}
 			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && this.getPreferredColorScheme() === DARK) {
@@ -309,18 +327,38 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		window.matchMedia('(prefers-color-scheme: dark)').addListener(async () => this.handlePreferredSchemeUpdated());
 	}
 
+	public setOSHighContrast(highContrast: boolean): void {
+		if (this.isOSInHighContrast !== highContrast) {
+			this.isOSInHighContrast = highContrast;
+			this.handlePreferredSchemeUpdated();
+		}
+	}
+
 	private async handlePreferredSchemeUpdated() {
 		const scheme = this.getPreferredColorScheme();
-		this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
-		if (scheme) {
-			return this.applyPreferredColorTheme(scheme);
+		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+		if (scheme !== prevScheme) {
+			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
+			if (scheme) {
+				if (!prevScheme) {
+					// remember the theme before scheme switching
+					this.themeSettingIdBeforeSchemeSwitch = this.settings.colorTheme;
+				}
+				return this.applyPreferredColorTheme(scheme);
+			} else if (prevScheme && this.themeSettingIdBeforeSchemeSwitch) {
+				// reapply the theme before scheme switching
+				const theme = await this.colorThemeRegistry.findThemeBySettingsId(this.themeSettingIdBeforeSchemeSwitch, undefined);
+				if (theme) {
+					this.setColorTheme(theme.id, 'auto');
+				}
+			}
 		}
 		return undefined;
 	}
 
 	private getPreferredColorScheme(): ThemeType | undefined {
 		const detectHCThemeSetting = this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC);
-		if (this.environmentService.configuration.highContrast && detectHCThemeSetting) {
+		if (this.isOSInHighContrast && detectHCThemeSetting) {
 			return HIGH_CONTRAST;
 		}
 		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_COLOR_SCHEME)) {
@@ -339,7 +377,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (themeSettingId) {
 			const theme = await this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
 			if (theme) {
-				return this.setColorTheme(theme.id, 'auto');
+				return this.setColorTheme(theme.id, ConfigurationTarget.USER);
 			}
 		}
 		return null;
@@ -397,7 +435,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 		return false;
 	}
-
 
 	private updateDynamicCSSRules(themeData: IColorTheme) {
 		const cssRules = new Set<string>();

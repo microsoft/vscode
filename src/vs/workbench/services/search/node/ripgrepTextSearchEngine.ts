@@ -162,12 +162,12 @@ export function rgErrorMsgForDisplay(msg: string): Maybe<SearchError> {
 }
 
 export function buildRegexParseError(lines: string[]): string {
-	let errorMessage: string[] = ['Regex parse error'];
-	let pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
+	const errorMessage: string[] = ['Regex parse error'];
+	const pcre2ErrorLine = lines.filter(l => (l.startsWith('PCRE2:')));
 	if (pcre2ErrorLine.length >= 1) {
-		let pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
+		const pcre2ErrorMessage = pcre2ErrorLine[0].replace('PCRE2:', '');
 		if (pcre2ErrorMessage.indexOf(':') !== -1 && pcre2ErrorMessage.split(':').length >= 2) {
-			let pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
+			const pcre2ActualErrorMessage = pcre2ErrorMessage.split(':')[1];
 			errorMessage.push(':' + pcre2ActualErrorMessage);
 		}
 	}
@@ -300,12 +300,12 @@ export class RipgrepParser extends EventEmitter {
 				match.end = match.end <= 3 ? 0 : match.end - 3;
 			}
 			const inBetweenChars = fullTextBytes.slice(prevMatchEnd, match.start).toString().length;
-			let startCol = prevMatchEndCol + inBetweenChars;
+			const startCol = prevMatchEndCol + inBetweenChars;
 
 			const stats = getNumLinesAndLastNewlineLength(matchText);
 			const startLineNumber = prevMatchEndLine;
 			const endLineNumber = stats.numLines + startLineNumber;
-			let endCol = stats.numLines > 0 ?
+			const endCol = stats.numLines > 0 ?
 				stats.lastLineLength :
 				stats.lastLineLength + startCol;
 
@@ -504,7 +504,7 @@ export function spreadGlobComponents(globArg: string): string[] {
 
 export function unicodeEscapesToPCRE2(pattern: string): string {
 	// Match \u1234
-	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/g;
+	const unicodePattern = /((?:[^\\]|^)(?:\\\\)*)\\u([a-z0-9]{4})/gi;
 
 	while (pattern.match(unicodePattern)) {
 		pattern = pattern.replace(unicodePattern, `$1\\x{$2}`);
@@ -512,7 +512,7 @@ export function unicodeEscapesToPCRE2(pattern: string): string {
 
 	// Match \u{1234}
 	// \u with 5-6 characters will be left alone because \x only takes 4 characters.
-	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/g;
+	const unicodePatternWithBraces = /((?:[^\\]|^)(?:\\\\)*)\\u\{([a-z0-9]{4})\}/gi;
 	while (pattern.match(unicodePatternWithBraces)) {
 		pattern = pattern.replace(unicodePatternWithBraces, `$1\\x{$2}`);
 	}

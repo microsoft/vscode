@@ -14,7 +14,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
-import * as semver from 'semver-umd';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -131,7 +130,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService
 	) {
-		hostService.hadLastFocus().then(hadLastFocus => {
+		hostService.hadLastFocus().then(async hadLastFocus => {
 			if (!hadLastFocus) {
 				return;
 			}
@@ -160,6 +159,7 @@ export class ProductContribution implements IWorkbenchContribution {
 			}
 
 			// should we show the new license?
+			const semver = await import('semver-umd');
 			if (productService.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(productService.version, '>=1.0.0')) {
 				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
 			}
@@ -435,7 +435,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.downloadNow',
-				title: nls.localize('download update', "Download Update")
+				title: nls.localize('download update_1', "Download Update (1)")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
 		});
@@ -456,7 +456,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			group: '6_update',
 			command: {
 				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update...")
+				title: nls.localize('installUpdate...', "Install Update... (1)")
 			},
 			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
 		});

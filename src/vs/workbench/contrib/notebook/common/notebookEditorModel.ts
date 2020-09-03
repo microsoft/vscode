@@ -11,20 +11,13 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { basename } from 'vs/base/common/resources';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Schemas } from 'vs/base/common/network';
 import { IFileStatWithMetadata, IFileService } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { ILabelService } from 'vs/platform/label/common/label';
 
-export interface INotebookEditorModelManager {
-	models: NotebookEditorModel[];
-
-	resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel>;
-
-	get(resource: URI): NotebookEditorModel | undefined;
-}
 
 export interface INotebookLoadOptions {
 	/**
@@ -36,7 +29,7 @@ export interface INotebookLoadOptions {
 }
 
 
-export class NotebookEditorModel extends EditorModel implements IWorkingCopy, INotebookEditorModel {
+export class NotebookEditorModel extends EditorModel implements INotebookEditorModel {
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
@@ -44,35 +37,37 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private _notebook!: NotebookTextModel;
 	private _lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
+	get lastResolvedFileStat() {
+		return this._lastResolvedFileStat;
+	}
+
 	get notebook() {
 		return this._notebook;
 	}
 
-	private _name!: string;
-
-	get name() {
-		return this._name;
-	}
-
-	private _workingCopyResource: URI;
+	private readonly _name: string;
+	private readonly _workingCopyResource: URI;
 
 	constructor(
-		public readonly resource: URI,
-		public readonly viewType: string,
+		readonly resource: URI,
+		readonly viewType: string,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IBackupFileService private readonly _backupFileService: IBackupFileService,
 		@IFileService private readonly _fileService: IFileService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@ILabelService labelService: ILabelService,
 	) {
 		super();
+
+		this._name = labelService.getUriBasenameLabel(resource);
 
 		const input = this;
 		this._workingCopyResource = resource.with({ scheme: Schemas.vscodeNotebook });
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = input._workingCopyResource;
-			get name() { return input.name; }
-			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : input.capabilities;
+			get name() { return input._name; }
+			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }
@@ -83,8 +78,6 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
-
-	capabilities = 0;
 
 	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
 		if (this._notebook.supportBackup) {
@@ -128,7 +121,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this.loadFromProvider(true, undefined, undefined);
+			return this._loadFromProvider(true, undefined, undefined);
 		}
 
 		if (this.isResolved()) {
@@ -141,18 +134,16 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		return this.loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
+		return this._loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
 	}
 
-	private async loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
-		const notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
-		this._notebook = notebook!;
+	private async _loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
+		this._notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
+
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 
 		this._register(this._notebook);
-
-		this._name = basename(this._notebook!.uri);
 
 		this._register(this._notebook.onDidChangeContent(() => {
 			this._onDidChangeContent.fire();
@@ -160,6 +151,10 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		this._register(this._notebook.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire();
 		}));
+
+		if (forceReloadFromDisk) {
+			this._notebook.setDirty(false);
+		}
 
 		if (backupId) {
 			await this._backupFileService.discardBackup(this._workingCopyResource);
@@ -187,7 +182,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
 					Severity.Info,
-					nls.localize('notebook.staleSaveError', "The content of the file is newer. Please revert your version with the file contents or overwrite the content of the file with your changes"),
+					nls.localize('notebook.staleSaveError', "The contents of the file has changed on disk. Would you like to open the updated version or overwrite the file with your changes?"),
 					[{
 						label: nls.localize('notebook.staleSaveError.revert', "Revert"),
 						run: () => {
@@ -261,10 +256,5 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		} catch (e) {
 			return undefined;
 		}
-
-	}
-
-	dispose() {
-		super.dispose();
 	}
 }

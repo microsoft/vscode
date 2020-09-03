@@ -337,6 +337,44 @@ export abstract class EditorAction extends EditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
+export abstract class MultiEditorAction extends EditorAction {
+	private readonly _implementations: [number, CommandImplementation][] = [];
+
+	constructor(opts: IActionOptions) {
+		super(opts);
+	}
+
+	public addImplementation(priority: number, implementation: CommandImplementation): IDisposable {
+		this._implementations.push([priority, implementation]);
+		this._implementations.sort((a, b) => b[0] - a[0]);
+		return {
+			dispose: () => {
+				for (let i = 0; i < this._implementations.length; i++) {
+					if (this._implementations[i][1] === implementation) {
+						this._implementations.splice(i, 1);
+						return;
+					}
+				}
+			}
+		};
+	}
+
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+		this.reportTelemetry(accessor, editor);
+
+		for (const impl of this._implementations) {
+			if (impl[1](accessor, args)) {
+				return;
+			}
+		}
+
+		return this.run(accessor, editor, args || {});
+	}
+
+	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
+
+}
+
 //#endregion EditorAction
 
 //#region EditorAction2
@@ -470,6 +508,11 @@ export function registerEditorCommand<T extends EditorCommand>(editorCommand: T)
 
 export function registerEditorAction<T extends EditorAction>(ctor: { new(): T; }): T {
 	const action = new ctor();
+	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
+	return action;
+}
+
+export function registerMultiEditorAction<T extends MultiEditorAction>(action: T): T {
 	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
 	return action;
 }

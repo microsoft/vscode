@@ -10,6 +10,7 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import * as path from 'vs/base/common/path';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
@@ -34,6 +35,26 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
+
+(<any>self)['AMDLoader'] = undefined;
+(<any>self)['NLSLoaderPlugin'] = undefined;
+(<any>self)['define'] = undefined;
+(<any>self)['require'] = undefined;
+(<any>self)['webkitRequestFileSystem'] = undefined;
+(<any>self)['webkitRequestFileSystemSync'] = undefined;
+(<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
+(<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
+
+if (location.protocol === 'data:') {
+	// make sure new Worker(...) always uses data:
+	const _Worker = Worker;
+	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
+		const js = `importScripts('${stringUrl}');`;
+		options = options || {};
+		options.name = options.name || path.basename(stringUrl.toString());
+		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
+	};
+}
 
 //#endregion ---
 
