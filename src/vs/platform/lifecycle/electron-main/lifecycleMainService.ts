@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app, BrowserWindow } from 'electron';
+import * as nls from 'vs/nls';
+import { ipcMain as ipc, app, BrowserWindow, dialog } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -14,6 +15,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -175,7 +177,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -196,6 +199,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// before-quit: an event that is fired if application quit was
 		// requested but before any window was closed.
 		const beforeQuitListener = () => {
+
 			if (this._quitRequested) {
 				return;
 			}
@@ -380,6 +384,21 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
 			return Promise.resolve(false);
+		}
+
+		// Check if 'Confirm Before Quit' setting is enabled and prompt
+		if (this.configurationService.getValue<boolean>('workbench.settings.confirmBeforeQuit')) {
+			const choice = await dialog.showMessageBox(window.win, {
+				type: nls.localize('confirmQuit.type', "question"),
+				buttons: [nls.localize('confirmQuit.yes', "Yes"), nls.localize('confirmQuit.no', "No")],
+				title: nls.localize('confirmQuit.title', "Confirm Quit"),
+				message: nls.localize('confirmQuit.message', "Are you sure you want to quit?")
+			});
+
+			if (choice.response === 1) {
+				this._quitRequested = false;
+				return this.handleWindowUnloadVeto(true);
+			}
 		}
 
 		this.logService.trace(`Lifecycle#unload() - window ID ${window.id}`);
