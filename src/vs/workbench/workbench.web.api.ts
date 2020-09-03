@@ -148,10 +148,14 @@ interface IWindowIndicator {
 }
 
 interface IInitialColorTheme {
+
+	/**
+	 * Initial color theme type.
+	 */
 	themeType: 'light' | 'dark' | 'hc';
 
 	/**
-	 * a list of workbench colors
+	 * A list of workbench colors to apply initially.
 	 */
 	colors?: { [colorId: string]: string };
 }
@@ -293,7 +297,8 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 * Enables user data sync by default and syncs into the current authenticated user account
+	 * using the provided [authenticationSessionId}(#authenticationSessionId).
 	 */
 	readonly enableSyncByDefault?: boolean;
 
@@ -554,6 +559,7 @@ export {
 	IHomeIndicator,
 	IProductConfiguration,
 	IWindowIndicator,
+	IInitialColorTheme,
 
 	// Default layout
 	IDefaultView,
