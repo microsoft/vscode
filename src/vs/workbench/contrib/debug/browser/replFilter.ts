@@ -22,6 +22,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
 
 
 type ParsedQuery = {
@@ -51,6 +52,11 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 
 	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
+			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
+			return TreeVisibility.Visible;
+		}
+
 		let includeQueryPresent = false;
 		let includeQueryMatched = false;
 
