@@ -1,7 +1,7 @@
 {
-	"tabSize": 4,
-	"indentSize": 4,
-	"convertTabsToSpaces": false,
+	"tabSize": 2,
+	"indentSize": 2,
+	"convertTabsToSpaces": true,
 	"insertSpaceAfterCommaDelimiter": true,
 	"insertSpaceAfterSemicolonInForStatements": true,
 	"insertSpaceBeforeAndAfterBinaryOperators": true,

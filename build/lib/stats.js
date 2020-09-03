@@ -108,7 +108,7 @@ function submitAllStats(productJson, commit) {
                 .setAutoCollectDependencies(false)
                 .setAutoDependencyCorrelation(false)
                 .start();
-            appInsights.defaultClient.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+            appInsights.defaultClient.config.endpointUrl = 'https://0.0.0.0/collect/v1';
             /* __GDPR__
                 "monacoworkbench/packagemetrics" : {
                     "commit" : {"classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },

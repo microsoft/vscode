@@ -1,6 +1,6 @@
 {
-	"nameShort": "Code - OSS",
-	"nameLong": "Code - OSS",
+	"nameShort": "VSCode",
+	"nameLong": "VSCode",
 	"applicationName": "code-oss",
 	"dataFolderName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
@@ -16,7 +16,7 @@
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
-	"win32ShellNameShort": "C&ode - OSS",
+	"win32ShellNameShort": "Code - OSS",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
 	"linuxIconName": "com.visualstudio.code.oss",
 	"licenseFileName": "LICENSE.txt",
@@ -136,5 +136,10 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		}
-	]
+	],
+	"extensionsGallery": {
+		"serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+		"cacheUrl": "https://vscode.blob.core.windows.net/gallery/index",
+		"itemUrl": "https://marketplace.visualstudio.com/items"
+	}
 }

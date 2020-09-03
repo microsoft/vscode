@@ -29,7 +29,7 @@ function getClient(aiKey: string): appInsights.TelemetryClient {
 	}
 
 	if (aiKey.indexOf('AIF-') === 0) {
-		client.config.endpointUrl = 'https://vortex.data.microsoft.com/collect/v1';
+		client.config.endpointUrl = 'https://0.0.0.0/collect/v1';
 	}
 	return client;
 }
