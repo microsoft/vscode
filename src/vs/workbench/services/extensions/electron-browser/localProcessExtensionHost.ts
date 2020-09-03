@@ -155,17 +155,24 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			]).then(data => {
 				const pipeName = data[0];
 				const portNumber = data[1];
+				const env = objects.mixin(objects.deepClone(process.env), {
+					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: true,
+					VSCODE_IPC_HOOK_EXTHOST: pipeName,
+					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
+					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
+					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
+				});
+
+				if (platform.isMacintosh) {
+					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
+					// See https://github.com/microsoft/vscode/issues/104525
+					delete env['DYLD_LIBRARY_PATH'];
+				}
 
 				const opts = {
-					env: objects.mixin(objects.deepClone(process.env), {
-						AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-						PIPE_LOGGING: 'true',
-						VERBOSE_LOGGING: true,
-						VSCODE_IPC_HOOK_EXTHOST: pipeName,
-						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
-						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
-					}),
+					env: env,
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.
 					// We detach because we have noticed that when the renderer exits, its child processes
