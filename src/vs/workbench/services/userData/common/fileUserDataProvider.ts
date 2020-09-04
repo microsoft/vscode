@@ -19,6 +19,7 @@ export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability {
 
+	get capabilities() { return this.fileSystemProvider.capabilities; }
 	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
@@ -45,9 +46,6 @@ export class FileUserDataProvider extends Disposable implements
 		// Assumption: This path always exists
 		this._register(this.fileSystemProvider.watch(this.fileSystemUserDataHome, { recursive: false, excludes: [] }));
 		this._register(this.fileSystemProvider.onDidChangeFile(e => this.handleFileChanges(e)));
-	}
-	get capabilities() {
-		return this.fileSystemProvider.capabilities;
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
