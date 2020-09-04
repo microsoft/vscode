@@ -17,8 +17,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -38,12 +36,10 @@ class RemoteChannelsContribution implements IWorkbenchContribution {
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDialogService dialogService: IDialogService,
 		@IDownloadService downloadService: IDownloadService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			connection.registerChannel('dialog', new DialogChannel(dialogService));
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
 			connection.registerChannel('logger', new LoggerChannel(logService));
 		}

@@ -39,7 +39,6 @@ import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/output/electron-browser/outputChannelModelService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
-import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';

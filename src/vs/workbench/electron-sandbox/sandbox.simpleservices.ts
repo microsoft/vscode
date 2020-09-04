@@ -36,8 +36,6 @@ import { ChordKeybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/c
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { isWindows, OS } from 'vs/base/common/platform';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
@@ -502,22 +500,6 @@ class SimpleKeymapService implements IKeymapService {
 }
 
 registerSingleton(IKeymapService, SimpleKeymapService);
-
-//#endregion
-
-
-//#region Dialog
-
-class SimpleDialogService implements IDialogService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { return { confirmed: false }; }
-	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 1 }; }
-	async about(): Promise<void> { }
-}
-
-registerSingleton(IDialogService, SimpleDialogService);
 
 //#endregion
 
