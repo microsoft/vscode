@@ -1300,12 +1300,13 @@ registerAction2(class extends NotebookCellAction {
 		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId, [{ editType: CellEditType.Output, index, outputs: [] }], true);
 
 		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
-			context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, {
+			context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, {
+				...context.cell.metadata,
 				runState: NotebookCellRunState.Idle,
 				runStartTime: undefined,
 				lastRunDuration: undefined,
 				statusMessage: undefined
-			});
+			}, true);
 		}
 	}
 });
@@ -1573,7 +1574,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { inputCollapsed: true });
+		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { ...context.cell.metadata, inputCollapsed: true }, true);
 	}
 });
 
@@ -1596,7 +1597,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { inputCollapsed: false });
+		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { ...context.cell.metadata, inputCollapsed: false }, true);
 	}
 });
 
@@ -1619,7 +1620,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { outputCollapsed: true });
+		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { ...context.cell.metadata, outputCollapsed: true }, true);
 	}
 });
 
@@ -1642,7 +1643,7 @@ registerAction2(class extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.viewModel!.notebookDocument.deltaCellMetadata(context.cell.handle, { outputCollapsed: false });
+		context.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(context.cell.handle, { ...context.cell.metadata, outputCollapsed: false }, true);
 	}
 });
 

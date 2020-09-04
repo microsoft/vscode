@@ -254,7 +254,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 				case CellEditType.Metadata:
 					this._assertIndex(edit.index);
-					this.deltaCellMetadata(this.cells[edit.index].handle, edit.metadata);
+					this.changeCellMetadata(this.cells[edit.index].handle, { ...this.cells[edit.index].metadata, ...edit.metadata }, true);
 					break;
 			}
 		}
@@ -570,16 +570,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
-	}
-
-	deltaCellMetadata(handle: number, newMetadata: NotebookCellMetadata) {
-		const cell = this._mapping.get(handle);
-		if (cell) {
-			this.changeCellMetadata(handle, {
-				...cell.metadata,
-				...newMetadata
-			}, true);
-		}
 	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
