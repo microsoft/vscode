@@ -423,7 +423,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	insertNewCell(index: number, cells: NotebookCellTextModel[], emitToExtHost: boolean = true): void {
+	insertNewCell(index: number, cells: NotebookCellTextModel[]): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
@@ -443,31 +443,29 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._increaseVersionId();
 
-		if (emitToExtHost) {
-			this._onDidModelChangeProxy.fire({
-				kind: NotebookCellsChangeType.ModelChange,
-				versionId: this._versionId, changes:
-					[[
-						index,
-						0,
-						cells.map(cell => ({
-							handle: cell.handle,
-							uri: cell.uri,
-							source: cell.textBuffer.getLinesContent(),
-							eol: cell.textBuffer.getEOL(),
-							language: cell.language,
-							cellKind: cell.cellKind,
-							outputs: cell.outputs,
-							metadata: cell.metadata
-						}))
-					]]
-			});
-		}
+		this._onDidModelChangeProxy.fire({
+			kind: NotebookCellsChangeType.ModelChange,
+			versionId: this._versionId, changes:
+				[[
+					index,
+					0,
+					cells.map(cell => ({
+						handle: cell.handle,
+						uri: cell.uri,
+						source: cell.textBuffer.getLinesContent(),
+						eol: cell.textBuffer.getEOL(),
+						language: cell.language,
+						cellKind: cell.cellKind,
+						outputs: cell.outputs,
+						metadata: cell.metadata
+					}))
+				]]
+		});
 
 		return;
 	}
 
-	removeCell(index: number, count: number, emitToExtHost: boolean = true) {
+	removeCell(index: number, count: number) {
 		this._isUntitled = false;
 
 		for (let i = index; i < index + count; i++) {
@@ -480,12 +478,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		if (emitToExtHost) {
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
-		}
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
 	}
 
-	moveCellToIdx(index: number, length: number, newIdx: number, emitToExtHost: boolean = true) {
+	moveCellToIdx(index: number, length: number, newIdx: number) {
 		this.assertIndex(index);
 		this.assertIndex(newIdx);
 
@@ -495,10 +491,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-
-		if (emitToExtHost) {
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, newIdx });
-		}
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, newIdx });
 	}
 
 	assertIndex(index: number) {
