@@ -10,9 +10,6 @@ export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
-	constructor() {
-	}
-
 	attachToElement(terminalWrapper: HTMLElement) {
 		if (!this._container) {
 			this._container = document.createElement('div');
