@@ -557,7 +557,16 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void> {
 		this.logService.debug('MainThreadNotebooks#updateNotebookCellMetadata', resource.path, handle, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		textModel?.changeCellMetadata(handle, metadata, true);
+		if (!textModel) {
+			return;
+		}
+
+		const index = textModel.cells.findIndex(cell => cell.handle === handle);
+		if (index < 0) {
+			return;
+		}
+
+		textModel.applyEdit(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata }], true);
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {

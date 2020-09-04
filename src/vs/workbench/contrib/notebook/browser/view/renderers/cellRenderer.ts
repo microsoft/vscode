@@ -48,7 +48,7 @@ import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 
 const $ = DOM.$;
@@ -332,11 +332,21 @@ abstract class AbstractCellRenderer {
 				return;
 			}
 
-			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
+			const textModel = this.notebookEditor.viewModel!.notebookDocument;
+			const index = textModel.cells.indexOf(templateData.currentRenderedCell.model);
 
-				this.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(templateData.currentRenderedCell.handle, { ...templateData.currentRenderedCell.metadata, inputCollapsed: false }, true);
+			if (index < 0) {
+				return;
+			}
+
+			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
+				textModel.applyEdit(textModel.versionId, [
+					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
+				], true);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
-				this.notebookEditor.viewModel!.notebookDocument.changeCellMetadata(templateData.currentRenderedCell.handle, { ...templateData.currentRenderedCell.metadata, outputCollapsed: false }, true);
+				textModel.applyEdit(textModel.versionId, [
+					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
+				], true);
 			}
 		}));
 	}

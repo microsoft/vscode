@@ -254,7 +254,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 				case CellEditType.Metadata:
 					this._assertIndex(edit.index);
-					this.changeCellMetadata(this.cells[edit.index].handle, { ...this.cells[edit.index].metadata, ...edit.metadata }, true);
+					this._changeCellMetadata(this.cells[edit.index].handle, edit.metadata, true);
 					break;
 			}
 		}
@@ -483,6 +483,55 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 	}
 
+	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
+		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+		for (let key of keys) {
+			if (
+				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
+				&&
+				!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private _changeCellMetadata(handle: number, metadata: NotebookCellMetadata, pushUndoStop: boolean) {
+		const cell = this.cells.find(cell => cell.handle === handle);
+
+		if (!cell) {
+			return;
+		}
+
+		const triggerDirtyChange = this._isCellMetadataChanged(cell.metadata, metadata);
+
+		if (triggerDirtyChange) {
+			if (pushUndoStop) {
+				const index = this.cells.indexOf(cell);
+				this._operationManager.pushEditOperation(new CellMetadataEdit(this.uri, index, Object.freeze(cell.metadata), Object.freeze(metadata), {
+					updateCellMetadata: (index, newMetadata) => {
+						const cell = this.cells[index];
+						if (!cell) {
+							return;
+						}
+						this._changeCellMetadata(cell.handle, newMetadata, false);
+					},
+					emitSelections: (selections) => { this._emitSelections.fire(selections); }
+				}));
+			}
+			cell.metadata = metadata;
+			this.setDirty(true);
+			this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellMetadata);
+		} else {
+			cell.metadata = metadata;
+		}
+
+		this._increaseVersionId();
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
+	}
+
 	// TODO@rebornix, once adopted the new Edit API in ext host, the method should be private.
 	_spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
 		const cell = this._mapping.get(cellHandle);
@@ -521,55 +570,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._increaseVersionId();
 			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this.cells.indexOf(cell), language: languageId });
 		}
-	}
-
-	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
-		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
-		for (let key of keys) {
-			if (
-				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
-				&&
-				!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
-			) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	changeCellMetadata(handle: number, metadata: NotebookCellMetadata, pushUndoStop: boolean) {
-		const cell = this.cells.find(cell => cell.handle === handle);
-
-		if (!cell) {
-			return;
-		}
-
-		const triggerDirtyChange = this._isCellMetadataChanged(cell.metadata, metadata);
-
-		if (triggerDirtyChange) {
-			if (pushUndoStop) {
-				const index = this.cells.indexOf(cell);
-				this._operationManager.pushEditOperation(new CellMetadataEdit(this.uri, index, Object.freeze(cell.metadata), Object.freeze(metadata), {
-					updateCellMetadata: (index, newMetadata) => {
-						const cell = this.cells[index];
-						if (!cell) {
-							return;
-						}
-						this.changeCellMetadata(cell.handle, newMetadata, false);
-					},
-					emitSelections: (selections) => { this._emitSelections.fire(selections); }
-				}));
-			}
-			cell.metadata = metadata;
-			this.setDirty(true);
-			this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellMetadata);
-		} else {
-			cell.metadata = metadata;
-		}
-
-		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
 	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
