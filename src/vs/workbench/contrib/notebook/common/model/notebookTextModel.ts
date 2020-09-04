@@ -112,6 +112,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
+	private _dirty = false;
+	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
 	private readonly _onDidChangeCells = this._register(new Emitter<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>());
 	get onDidChangeCells() { return this._onDidChangeCells.event; }
 	private readonly _emitSelections = this._register(new Emitter<number[]>());
@@ -146,10 +150,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	get versionId() {
 		return this._versionId;
 	}
-
-	private _dirty = false;
-	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
 	private _operationManager: NotebookOperationManager;
 
@@ -421,7 +421,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	insertNewCell(index: number, cells: NotebookCellTextModel[]): void {
+	insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
@@ -460,10 +460,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				]]
 		});
 
+		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 0, cells]] });
+
 		return;
 	}
 
-	removeCell(index: number, count: number) {
+	removeCell(index: number, count: number, synchronous: boolean) {
 		this._isUntitled = false;
 
 		for (let i = index; i < index + count; i++) {
@@ -477,6 +479,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
+		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 	}
 
 	moveCellToIdx(index: number, length: number, newIdx: number) {
@@ -615,13 +618,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	//#region Notebook Text Model Edit API
 
 	private _insertCellDelegate(insertIndex: number, insertCell: NotebookCellTextModel) {
-		this.insertNewCell(insertIndex, [insertCell]);
-		this._onDidChangeCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
+		this.insertNewCell(insertIndex, [insertCell], true);
 	}
 
 	private _deleteCellDelegate(deleteIndex: number) {
-		this.removeCell(deleteIndex, 1);
-		this._onDidChangeCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+		this.removeCell(deleteIndex, 1, true);
 	}
 
 	private _emitSelectionsDelegate(selections: number[]) {
@@ -640,9 +641,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 
-		this.insertNewCell(index, [cell]);
-
-		this._onDidChangeCells.fire({ synchronous, splices: [[index, 0, [cell]]] });
+		this.insertNewCell(index, [cell], synchronous);
 
 		if (endSelections) {
 			this._emitSelections.fire(endSelections);
@@ -659,8 +658,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}, undefined, undefined));
 		}
 
-		this.insertNewCell(index, [cell]);
-		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 0, [cell]]] });
+		this.insertNewCell(index, [cell], synchronous);
 	}
 
 	deleteCell2(index: number, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
@@ -673,8 +671,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}, beforeSelections, endSelections));
 		}
 
-		this.removeCell(index, 1);
-		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
+		this.removeCell(index, 1, synchronous);
 		if (endSelections) {
 			this._emitSelections.fire(endSelections);
 		}
