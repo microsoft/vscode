@@ -759,10 +759,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		// reset
 		templateData.actionBar.clear();
-
+		let fallbackHover = label;
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
+			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
+			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title: '',
 				hideIcon: !!iconUrl,
@@ -771,6 +772,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough
 			});
+			fallbackHover = this.labelService.getUriLabel(labelResource);
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
 				title: '',
@@ -803,8 +805,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
-		this.setupHovers(node, <HTMLElement>templateData.resourceLabel.element.firstElementChild!, disposableStore, label);
-		this.setupHovers(node, templateData.icon, disposableStore, label);
+		this.setupHovers(node, <HTMLElement>templateData.resourceLabel.element.firstElementChild!, disposableStore, fallbackHover);
+		this.setupHovers(node, templateData.icon, disposableStore, fallbackHover);
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
