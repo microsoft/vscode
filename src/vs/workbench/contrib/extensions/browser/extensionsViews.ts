@@ -607,7 +607,7 @@ export class ExtensionsListView extends ViewPane {
 		const recommendations = await this.extensionRecommendationsService.getWorkspaceRecommendations();
 		const { important } = await this.extensionRecommendationsService.getConfigBasedRecommendations();
 		for (const configBasedRecommendation of important) {
-			if (recommendations.some(r => r.extensionId !== configBasedRecommendation.extensionId)) {
+			if (!recommendations.find(r => r.extensionId === configBasedRecommendation.extensionId)) {
 				recommendations.push(configBasedRecommendation);
 			}
 		}
