@@ -50,8 +50,8 @@ export class CellEditorStatusBar extends Disposable {
 		this.cellRunStatusContainer = DOM.append(leftItemsContainer, $('.cell-run-status'));
 		this.durationContainer = DOM.append(leftItemsContainer, $('.cell-run-duration'));
 		this.cellStatusMessageContainer = DOM.append(leftItemsContainer, $('.cell-status-message'));
-		this.leftContributedItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items-left'));
-		this.rightContributedItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items-right'));
+		this.leftContributedItemsContainer = DOM.append(leftItemsContainer, $('.cell-contributed-items.cell-contributed-items-left'));
+		this.rightContributedItemsContainer = DOM.append(rightItemsContainer, $('.cell-contributed-items.cell-contributed-items-right'));
 		this.languageStatusBarItem = instantiationService.createInstance(CellLanguageStatusBarItem, rightItemsContainer);
 
 		this.itemsDisposable = this._register(new DisposableStore());

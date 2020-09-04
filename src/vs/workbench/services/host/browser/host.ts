@@ -32,8 +32,14 @@ export interface IHostService {
 
 	/**
 	 * Attempt to bring the window to the foreground and focus it.
+	 *
+	 * @param options Pass `force: true` if you want to make the window take
+	 * focus even if the application does not have focus currently. This option
+	 * should only be used if it is necessary to steal focus from the current
+	 * focused application which may not be VSCode. It may not be supported
+	 * in all environments.
 	 */
-	focus(): Promise<void>;
+	focus(options?: { force: boolean }): Promise<void>;
 
 	//#endregion
 

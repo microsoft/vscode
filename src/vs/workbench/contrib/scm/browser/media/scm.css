@@ -81,7 +81,7 @@
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
 	font-size: 12px;
-	padding-right: 2px;
+	margin-right: 2px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {

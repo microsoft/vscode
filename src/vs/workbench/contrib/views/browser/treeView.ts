@@ -41,6 +41,7 @@ import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme
 import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { isMacintosh } from 'vs/base/common/platform';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -692,7 +693,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
-	private readonly hoverDelay: number;
 
 	constructor(
 		private treeViewId: string,
@@ -706,7 +706,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
-		this.hoverDelay = this.configurationService.getValue<number>('editor.hover.delay');
 	}
 
 	get templateId(): string {
@@ -757,8 +756,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}) : undefined;
 		const icon = this.themeService.getColorTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
-		const canResolve = node instanceof ResolvableTreeItem && node.hasResolve;
-		const title = node.tooltip ? (isString(node.tooltip) ? node.tooltip : undefined) : (resource ? undefined : (canResolve ? undefined : label));
 
 		// reset
 		templateData.actionBar.clear();
@@ -767,24 +764,22 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
 			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
 				fileKind: this.getFileKind(node),
-				title: undefined,
+				title: '',
 				hideIcon: !!iconUrl,
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				strikethrough: treeItemLabel?.strikethrough
 			});
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
-				title: undefined,
+				title: '',
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
-				strikethrough: treeItemLabel?.strikethrough,
+				strikethrough: treeItemLabel?.strikethrough
 			});
 		}
-
-		templateData.icon.title = title ? title : '';
 
 		if (iconUrl) {
 			templateData.icon.className = 'custom-view-tree-node-item-icon';
@@ -808,19 +803,27 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
-		this.setupHovers(node, templateData.container, disposableStore, label);
+		this.setupHovers(node, <HTMLElement>templateData.resourceLabel.element.firstElementChild!, disposableStore, label);
+		this.setupHovers(node, templateData.icon, disposableStore, label);
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
 		const hoverService = this.hoverService;
-		const hoverDelay = this.hoverDelay;
+		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
+		// On Mac, the delay is 1500.
+		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverOptions | undefined;
+		let mouseX: number | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
 			let isHovering = true;
+			function mouseMove(this: HTMLElement, e: MouseEvent): any {
+				mouseX = e.x;
+			}
 			function mouseLeave(this: HTMLElement, e: MouseEvent): any {
 				isHovering = false;
 			}
 			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
+			this.addEventListener(DOM.EventType.MOUSE_MOVE, mouseMove, { passive: true });
 			setTimeout(async () => {
 				if (node instanceof ResolvableTreeItem) {
 					await node.resolve();
@@ -834,9 +837,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 						};
 						hoverOptions = { text: tooltip, target };
 					}
-					(<IHoverTarget>hoverOptions.target).x = e.x;
+					if (mouseX !== undefined) {
+						(<IHoverTarget>hoverOptions.target).x = mouseX;
+					}
 					hoverService.showHover(hoverOptions);
 				}
+				this.removeEventListener(DOM.EventType.MOUSE_MOVE, mouseMove);
 				this.removeEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave);
 			}, hoverDelay);
 		}

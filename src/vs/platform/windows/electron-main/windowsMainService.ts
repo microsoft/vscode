@@ -167,9 +167,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady = this._onWindowReady.event;
 
-	private readonly _onWindowClose = this._register(new Emitter<number>());
-	readonly onWindowClose = this._onWindowClose.event;
-
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
 
@@ -1626,18 +1623,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return state;
 	}
 
-	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
-		const lastActive = this.getLastActiveWindow();
-		if (lastActive) {
-			lastActive.focus();
-
-			return lastActive;
-		}
-
-		// No window - open new empty one
-		return this.open({ context, cli, forceEmpty: true })[0];
-	}
-
 	getLastActiveWindow(): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsMainService.WINDOWS);
 	}
@@ -1695,6 +1680,5 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Emit
 		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
-		this._onWindowClose.fire(win.id);
 	}
 }

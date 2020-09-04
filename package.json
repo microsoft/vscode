@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.49.0",
-  "distro": "03bc55f3461216fb36fbf1bb4292796e5183ff66",
+  "distro": "97bd451b684ef610d9752cf941451085fc6e0d91",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -102,7 +102,7 @@
     "@typescript-eslint/eslint-plugin": "3.2.0",
     "@typescript-eslint/parser": "^3.3.0",
     "ansi-colors": "^3.2.3",
-    "asar": "^0.14.0",
+    "asar": "^3.0.3",
     "chromium-pickle-js": "^0.2.0",
     "concurrently": "^5.2.0",
     "copy-webpack-plugin": "^4.5.2",

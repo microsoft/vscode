@@ -61,7 +61,7 @@ export interface ICodeWindow extends IDisposable {
 	load(config: INativeWindowConfiguration, isReload?: boolean): void;
 	reload(configuration?: INativeWindowConfiguration, cli?: ParsedArgs): void;
 
-	focus(): void;
+	focus(options?: { force: boolean }): void;
 	close(): void;
 
 	getBounds(): Rectangle;

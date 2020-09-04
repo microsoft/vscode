@@ -35,6 +35,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -340,6 +341,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+	lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	isDirty() {
 		return this._dirty;

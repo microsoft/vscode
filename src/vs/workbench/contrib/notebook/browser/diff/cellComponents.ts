@@ -464,7 +464,8 @@ abstract class AbstractCellRenderer extends Disposable {
 				...fixedDiffEditorOptions,
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false,
-				originalEditable: false
+				originalEditable: false,
+				ignoreTrimWhitespace: false
 			});
 
 			DOM.addClass(this._metadataEditorContainer!, 'diff');
@@ -567,7 +568,8 @@ abstract class AbstractCellRenderer extends Disposable {
 				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputEditorContainer!, {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-					readOnly: true
+					readOnly: true,
+					ignoreTrimWhitespace: false
 				});
 
 				DOM.addClass(this._outputEditorContainer!, 'diff');
@@ -855,7 +857,8 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._editor = this.instantiationService.createInstance(DiffEditorWidget, this._editorContainer, {
 			...fixedDiffEditorOptions,
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-			originalEditable: false
+			originalEditable: false,
+			ignoreTrimWhitespace: false
 		});
 		DOM.addClass(this._editorContainer, 'diff');
 

@@ -86,7 +86,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inConflictMode = false;
 	private inOrphanMode = false;
 	private inErrorMode = false;
-	private disposed = false;
 
 	constructor(
 		public readonly resource: URI,
@@ -147,7 +146,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				// file is really gone and not just a faulty file event.
 				await timeout(100);
 
-				if (this.disposed) {
+				if (this.isDisposed()) {
 					newInOrphanModeValidated = true;
 				} else {
 					const exists = await this.fileService.exists(this.resource);
@@ -155,7 +154,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 			}
 
-			if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+			if (this.inOrphanMode !== newInOrphanModeValidated && !this.isDisposed()) {
 				this.setOrphaned(newInOrphanModeValidated);
 			}
 		}
@@ -697,7 +696,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
-			if (this.disposed) {
+			if (this.isDisposed()) {
 				return;
 			}
 
@@ -955,10 +954,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
 	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
@@ -966,7 +961,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 
-		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;

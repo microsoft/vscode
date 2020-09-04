@@ -1032,7 +1032,7 @@ export class TestHostService implements IHostService {
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 
-	async focus(): Promise<void> { }
+	async focus(options?: { force: boolean }): Promise<void> { }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 

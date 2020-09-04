@@ -359,13 +359,18 @@
 	flex-grow: 1;
 }
 
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left,
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right {
 	padding-right: 12px;
-	z-index: 26;
 	display: flex;
+	z-index: 26;
 }
 
-.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items-right {
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-right .cell-contributed-items {
+	justify-content: flex-end;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-contributed-items {
 	display: flex;
 	flex-wrap: wrap;
 	overflow: hidden;
