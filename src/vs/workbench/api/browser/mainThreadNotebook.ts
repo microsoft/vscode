@@ -566,7 +566,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		if (textModel) {
 			this._notebookService.transformSpliceOutputs(textModel, splices);
-			textModel.spliceNotebookCellOutputs(cellHandle, splices);
+			textModel._spliceNotebookCellOutputs(cellHandle, splices);
 		}
 	}
 

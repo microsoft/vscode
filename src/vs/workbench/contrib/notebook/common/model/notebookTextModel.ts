@@ -247,12 +247,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 				case CellEditType.Output:
 					//TODO@joh,@rebornix no event, no undo stop (?)
-					this.assertIndex(edit.index);
+					this._assertIndex(edit.index);
 					const cell = this.cells[edit.index];
-					this.spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]]);
+					// TODO@rebornix, we should do diff first
+					this._spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]]);
 					break;
 				case CellEditType.Metadata:
-					this.assertIndex(edit.index);
+					this._assertIndex(edit.index);
 					this.deltaCellMetadata(this.cells[edit.index].handle, edit.metadata);
 					break;
 			}
@@ -482,21 +483,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 	}
 
-	assertIndex(index: number) {
-		if (index < 0 || index >= this.cells.length) {
-			throw new Error(`model index out of range ${index}`);
-		}
-	}
-
-	// TODO@rebornix should this trigger content change event?
-	spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
+	// TODO@rebornix, once adopted the new Edit API in ext host, the method should be private.
+	_spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
 		const cell = this._mapping.get(cellHandle);
 		if (cell) {
-
 			cell.spliceNotebookCellOutputs(splices);
+			this._increaseVersionId();
 
 			if (!this.transientOptions.transientOutputs) {
-				this._increaseVersionId();
 				this.setDirty(true);
 				this._onDidChangeContent.fire(NotebookCellsChangeType.Output);
 			}
@@ -510,6 +504,16 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 	}
+
+	private _assertIndex(index: number) {
+		if (index < 0 || index >= this.cells.length) {
+			throw new Error(`model index out of range ${index}`);
+		}
+	}
+
+	//#region Notebook Text Model Edit API
+
+	// TODO@rebornix should this trigger content change event?
 
 	clearCellOutput(handle: number) {
 		const cell = this._mapping.get(handle);
@@ -602,7 +606,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.CellsClearOutput, versionId: this._versionId });
 	}
 
-	//#region Notebook Text Model Edit API
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.createCellTextModel(source, language, type, [], metadata);
@@ -663,8 +666,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}, beforeSelections, endSelections));
 		}
 
-		this.assertIndex(index);
-		this.assertIndex(newIdx);
+		this._assertIndex(index);
+		this._assertIndex(newIdx);
 
 		{
 			const cells = this.cells.splice(index, length);
