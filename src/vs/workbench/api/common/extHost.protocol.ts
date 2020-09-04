@@ -1639,11 +1639,11 @@ export interface INotebookVisibleRangesEvent {
 
 export interface INotebookEditorPropertiesChangeData {
 	visibleRanges: INotebookVisibleRangesEvent | null;
+	selections: INotebookSelectionChangeEvent | null;
 }
 
 export interface INotebookDocumentPropertiesChangeData {
 	metadata: NotebookDocumentMetadata | null;
-	selections: INotebookSelectionChangeEvent | null;
 }
 
 export interface INotebookModelAddedData {

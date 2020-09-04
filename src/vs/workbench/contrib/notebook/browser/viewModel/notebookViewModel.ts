@@ -218,7 +218,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this._selections = selections;
-		this._notebook.selections = selections;
 		this._onDidChangeSelection.fire();
 	}
 

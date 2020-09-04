@@ -58,7 +58,7 @@ class DocumentAndEditorState {
 			const apiEditors = [];
 			for (let id in after.textEditors) {
 				const editor = after.textEditors.get(id)!;
-				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.textModel!.selections, visibleRanges: editor.visibleRanges });
+				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.getSelectionHandles(), visibleRanges: editor.visibleRanges });
 			}
 
 			return {
@@ -72,7 +72,7 @@ class DocumentAndEditorState {
 		const addedAPIEditors = editorDelta.added.map(add => ({
 			id: add.getId(),
 			documentUri: add.uri!,
-			selections: add.textModel!.selections || [],
+			selections: add.getSelectionHandles(),
 			visibleRanges: add.visibleRanges
 		}));
 
@@ -231,7 +231,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			if (!this._editorEventListenersMapping.has(editor.getId())) {
 				const disposableStore = new DisposableStore();
 				disposableStore.add(editor.onDidChangeVisibleRanges(() => {
-					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges } });
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges }, selections: null });
+				}));
+
+				disposableStore.add(editor.onDidChangeSelection(() => {
+					const selectionHandles = editor.getSelectionHandles();
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: selectionHandles } });
 				}));
 
 				this._editorEventListenersMapping.set(editor.getId(), disposableStore);
@@ -262,11 +267,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const textModel = this._notebookService.getNotebookTextModel(doc);
 				disposableStore.add(textModel!.onDidModelChangeProxy(e => {
 					this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
-					this._proxy.$acceptDocumentPropertiesChanged(doc, { selections: { selections: textModel!.selections }, metadata: null });
-				}));
-				disposableStore.add(textModel!.onDidSelectionChange(e => {
-					const selectionsChange = e ? { selections: e } : null;
-					this._proxy.$acceptDocumentPropertiesChanged(doc, { selections: selectionsChange, metadata: null });
+					this._proxy.$acceptDocumentPropertiesChanged(doc, { metadata: null });
 				}));
 
 				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
@@ -448,7 +449,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					textModel.insertTemplateCell(mainCell);
 				}
 
-				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: null, metadata: textModel.metadata });
+				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
 				return;
 			},
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {

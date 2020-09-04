@@ -1315,15 +1315,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				visibleRanges: editor.editor.visibleRanges
 			});
 		}
-	}
-
-	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
-		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uriComponents.path, data);
-		const editor = this._getEditorFromURI(uriComponents);
-
-		if (!editor) {
-			return;
-		}
 
 		if (data.selections) {
 			if (data.selections.selections.length) {
@@ -1338,7 +1329,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				selection: editor.editor.selection
 			});
 		}
+	}
 
+	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
+		this.logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uriComponents.path, data);
+		const editor = this._getEditorFromURI(uriComponents);
+
+		if (!editor) {
+			return;
+		}
 
 		if (data.metadata) {
 			editor.editor.notebookData.notebookDocument.metadata = {

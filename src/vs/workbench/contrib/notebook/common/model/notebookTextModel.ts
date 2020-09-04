@@ -118,8 +118,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	get emitSelections() { return this._emitSelections.event; }
 	private _onDidModelChangeProxy = this._register(new Emitter<NotebookCellsChangedEvent>());
 	get onDidModelChangeProxy(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
-	private _onDidSelectionChangeProxy = this._register(new Emitter<number[] | null>());
-	get onDidSelectionChange(): Event<number[] | null> { return this._onDidSelectionChangeProxy.event; }
 	private _onDidChangeContent = this._register(new Emitter<void>());
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _onDidChangeMetadata = this._register(new Emitter<NotebookDocumentMetadata>());
@@ -149,17 +147,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	get versionId() {
 		return this._versionId;
-	}
-
-	private _selections: number[] = [];
-
-	get selections() {
-		return this._selections;
-	}
-
-	set selections(selections: number[]) {
-		this._selections = selections;
-		this._onDidSelectionChangeProxy.fire(this._selections);
 	}
 
 	private _dirty = false;
