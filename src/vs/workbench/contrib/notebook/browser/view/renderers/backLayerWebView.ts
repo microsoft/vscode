@@ -192,7 +192,6 @@ export type ToWebviewMessage =
 	| IHideOutputMessage
 	| IShowOutputMessage
 	| IUpdatePreloadResourceMessage
-	| IFocusOutputMessage
 	| IUpdateDecorationsMessage
 	| ICustomRendererMessage;
 

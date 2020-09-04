@@ -324,8 +324,6 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			format: 'color-hex',
 			default: '#FF0000',
-			minLength: 4,
-			maxLength: 9,
 			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorSize': {

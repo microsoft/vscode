@@ -36,7 +36,8 @@ const args = minimist(process.argv, {
 		'help',
 		'verbose',
 		'wrap-iframe',
-		'enable-sync'
+		'enable-sync',
+		'trusted-types'
 	],
 	string: [
 		'scheme',
@@ -53,6 +54,7 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
+		' --trusted-types  Enable trusted types (report only)\n' +
 		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
@@ -396,7 +398,13 @@ async function handleRoot(req, res) {
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 
-	res.writeHead(200, { 'Content-Type': 'text/html' });
+
+	const headers = { 'Content-Type': 'text/html' };
+	if (args['trusted-types']) {
+		headers['Content-Security-Policy-Report-Only'] = 'require-trusted-types-for \'script\';';
+	}
+
+	res.writeHead(200, headers);
 	return res.end(data);
 }
 

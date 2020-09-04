@@ -274,7 +274,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 	) {
 		super(null, action);
 		this.focusContextKey = Constants.MarkerViewFilterFocusContextKey.bindTo(contextKeyService);
-		this.delayedFilterUpdate = new Delayer<void>(200);
+		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 		this._register(filterController.onDidFocusFilter(() => this.focus()));
 		this._register(filterController.onDidClearFilterText(() => this.clearFilterText()));

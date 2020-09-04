@@ -209,7 +209,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	async updateLayout() {
-		console.log('update layout');
 		if (!this._model) {
 			return;
 		}

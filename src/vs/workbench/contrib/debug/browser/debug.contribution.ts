@@ -187,11 +187,11 @@ function registerCommandsAndActions(): void {
 	registerDebugViewMenuItem(MenuId.DebugCallStackContext, RESTART_FRAME_ID, nls.localize('restartFrame', "Restart Frame"), 10, ContextKeyExpr.and(CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'), CONTEXT_RESTART_FRAME_SUPPORTED));
 	registerDebugViewMenuItem(MenuId.DebugCallStackContext, COPY_STACK_TRACE_ID, nls.localize('copyStackTrace', "Copy Call Stack"), 20, CONTEXT_CALLSTACK_ITEM_TYPE.isEqualTo('stackFrame'));
 
-	registerDebugViewMenuItem(MenuId.DebugVariablesContext, SET_VARIABLE_ID, nls.localize('setValue', "Set Value"), 10, CONTEXT_SET_VARIABLE_SUPPORTED);
-	registerDebugViewMenuItem(MenuId.DebugVariablesContext, COPY_VALUE_ID, nls.localize('copyValue', "Copy Value"), 20);
-	registerDebugViewMenuItem(MenuId.DebugVariablesContext, COPY_EVALUATE_PATH_ID, nls.localize('copyAsExpression', "Copy as Expression"), 30, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT);
-	registerDebugViewMenuItem(MenuId.DebugVariablesContext, ADD_TO_WATCH_ID, nls.localize('addToWatchExpressions', "Add to Watch"), 10, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, undefined, '3_watch');
-	registerDebugViewMenuItem(MenuId.DebugVariablesContext, BREAK_WHEN_VALUE_CHANGES_ID, nls.localize('breakWhenValueChanges', "Break When Value Changes"), 20, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, undefined, '5_breakpoint');
+	registerDebugViewMenuItem(MenuId.DebugVariablesContext, SET_VARIABLE_ID, nls.localize('setValue', "Set Value"), 10, CONTEXT_SET_VARIABLE_SUPPORTED, undefined, '3_modification');
+	registerDebugViewMenuItem(MenuId.DebugVariablesContext, COPY_VALUE_ID, nls.localize('copyValue', "Copy Value"), 10, undefined, undefined, '5_cutcopypaste');
+	registerDebugViewMenuItem(MenuId.DebugVariablesContext, COPY_EVALUATE_PATH_ID, nls.localize('copyAsExpression', "Copy as Expression"), 20, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, undefined, '5_cutcopypaste');
+	registerDebugViewMenuItem(MenuId.DebugVariablesContext, ADD_TO_WATCH_ID, nls.localize('addToWatchExpressions', "Add to Watch"), 100, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, undefined, 'z_commands');
+	registerDebugViewMenuItem(MenuId.DebugVariablesContext, BREAK_WHEN_VALUE_CHANGES_ID, nls.localize('breakWhenValueChanges', "Break When Value Changes"), 200, CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, undefined, 'z_commands');
 
 	// Touch Bar
 	if (isMacintosh) {

@@ -387,7 +387,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
 
 		if (existingEditors.length) {
-			return { override: this.editorService.openEditor(existingEditors[0]) };
+			return undefined;
 		}
 
 		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
