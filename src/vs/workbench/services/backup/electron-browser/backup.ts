@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 
 export function toBackupWorkspaceResource(backupWorkspacePath: string, environmentService: INativeWorkbenchEnvironmentService): URI {

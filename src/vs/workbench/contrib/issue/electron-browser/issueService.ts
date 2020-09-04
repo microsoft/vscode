@@ -12,7 +12,8 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
-import { IWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { platform } from 'process';
 import { IProductService } from 'vs/platform/product/common/productService';

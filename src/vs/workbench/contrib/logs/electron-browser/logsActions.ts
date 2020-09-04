@@ -8,7 +8,8 @@ import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { IWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 
 export class OpenLogsFolderAction extends Action {

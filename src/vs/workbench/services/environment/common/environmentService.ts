@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeWindowConfiguration, IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { URI } from 'vs/base/common/uri';
 
@@ -14,8 +14,6 @@ export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmen
 export interface IWorkbenchConfiguration extends IWindowConfiguration {
 	backupWorkspaceResource?: URI;
 }
-
-export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, INativeWindowConfiguration { }
 
 export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
@@ -35,18 +33,4 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly webviewCspSource: string;
 
 	readonly skipReleaseNotes: boolean;
-}
-
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
-
-	readonly configuration: INativeWorkbenchConfiguration;
-
-	readonly crashReporterDirectory?: string;
-	readonly crashReporterId?: string;
-
-	readonly execPath: string;
-	readonly cliPath: string;
-
-	readonly log?: string;
-	readonly extHostLogsPath: URI;
 }
