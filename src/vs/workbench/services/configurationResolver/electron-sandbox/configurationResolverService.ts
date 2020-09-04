@@ -14,6 +14,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 

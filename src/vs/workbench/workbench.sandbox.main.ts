@@ -34,11 +34,17 @@ import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extension
 import 'vs/workbench/services/clipboard/electron-sandbox/clipboardService';
 import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
+import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
+import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
+import 'vs/workbench/services/path/electron-sandbox/pathService';
 
 //#endregion
 
 
 //#region --- workbench contributions
+
+// Logs
+import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';

@@ -35,9 +35,7 @@ import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboar
 import { ChordKeybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { posix, win32 } from 'vs/base/common/path';
+import { isWindows, OS } from 'vs/base/common/platform';
 import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -46,14 +44,12 @@ import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/
 import { EnablementState, ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IGrammar, ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { AbstractTimerService, IStartupMetrics, ITimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
 import { LinkedMap } from 'vs/base/common/map';
@@ -510,24 +506,6 @@ registerSingleton(IKeymapService, SimpleKeymapService);
 //#endregion
 
 
-//#region Path
-
-class SimplePathService implements IPathService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly resolvedUserHome = URI.file('user-home');
-	readonly path = Promise.resolve(OS === OperatingSystem.Windows ? win32 : posix);
-
-	async fileURI(path: string): Promise<URI> { return URI.file(path); }
-	async userHome(options?: { preferLocal: boolean; }): Promise<URI> { return this.resolvedUserHome; }
-}
-
-registerSingleton(IPathService, SimplePathService);
-
-//#endregion
-
-
 //#region Dialog
 
 class SimpleDialogService implements IDialogService {
@@ -603,25 +581,6 @@ class SimpleTextMateService implements ITextMateService {
 }
 
 registerSingleton(ITextMateService, SimpleTextMateService);
-
-//#endregion
-
-
-//#region Accessibility
-
-class SimpleAccessibilityService implements IAccessibilityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeScreenReaderOptimized = Event.None;
-
-	isScreenReaderOptimized(): boolean { return false; }
-	async alwaysUnderlineAccessKeys(): Promise<boolean> { return false; }
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
-}
-
-registerSingleton(IAccessibilityService, SimpleAccessibilityService);
 
 //#endregion
 
@@ -755,27 +714,6 @@ class SimpleTimerService extends AbstractTimerService {
 }
 
 registerSingleton(ITimerService, SimpleTimerService);
-
-//#endregion
-
-
-//#region Workspace Editing
-
-class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> { }
-	async removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void> { }
-	async updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> { }
-	async enterWorkspace(path: URI): Promise<void> { }
-	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> { }
-	async saveAndEnterWorkspace(path: URI): Promise<void> { }
-	async copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> { }
-	async pickNewWorkspacePath(): Promise<URI> { return undefined!; }
-}
-
-registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService);
 
 //#endregion
 
