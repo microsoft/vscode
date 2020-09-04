@@ -612,13 +612,14 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []) {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
-		this._notebook.createCell(index, source, language, type, metadata, synchronous, pushUndoStop, beforeSelections, undefined);
+		const cell = this._notebook.createCellTextModel(source, language, type, [], metadata);
+		this._notebook.insertCell(index, cell, synchronous, pushUndoStop, beforeSelections, undefined);
 		// TODO, rely on createCell to be sync
 		return this.viewCells[index];
 	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean = true): CellViewModel {
-		this._notebook.insertCell(index, cell, synchronous, pushUndoStop);
+		this._notebook.insertCell(index, cell, synchronous, pushUndoStop, undefined, undefined);
 		// TODO, rely on createCell to be sync // this will trigger it to synchronous update
 		return this._viewCells[index];
 	}

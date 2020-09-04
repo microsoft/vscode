@@ -582,9 +582,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
-		const cell = this.createCellTextModel(source, language, type, [], metadata);
-
+	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
 				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
@@ -593,25 +591,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}, beforeSelections, endSelections));
 		}
 
-
 		this._insertNewCell(index, [cell], synchronous);
 
 		if (endSelections) {
 			this._emitSelections.fire(endSelections);
 		}
-		return cell;
-	}
-
-	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean): void {
-		if (pushUndoStop) {
-			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
-				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
-				deleteCell: (index) => { this._removeCell(index, 1, true); },
-				emitSelections: (selections) => { this._emitSelections.fire(selections); }
-			}, undefined, undefined));
-		}
-
-		this._insertNewCell(index, [cell], synchronous);
 	}
 
 	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
@@ -683,7 +667,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let insertIndex = index + 1;
 		const newCells = [];
 		for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
-			newCells.push(this.createCell(insertIndex, newLinesContents[j], language, kind, undefined, true, false, undefined, undefined));
+			const cell = this.createCellTextModel(newLinesContents[j], language, kind, [], undefined);
+			this.insertCell(insertIndex, cell, true, false, undefined, undefined);
+			newCells.push(cell);
 		}
 
 		if (endSelections) {
