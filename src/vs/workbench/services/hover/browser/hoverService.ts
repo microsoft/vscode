@@ -12,6 +12,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -35,14 +36,20 @@ export class HoverService implements IHoverService {
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(new HoverContextViewDelegate(hover, focus));
 		hover.onRequestLayout(() => provider.layout());
+
+		if ('IntersectionObserver' in window) {
+			const observer = new IntersectionObserver(e => this._intersectionChange(e, hover), { threshold: 0 });
+			const firstTargetElement = 'targetElements' in options.target ? options.target.targetElements[0] : options.target;
+			observer.observe(firstTargetElement);
+			hover.onDispose(() => observer.disconnect());
+		}
 	}
 
-	hideHover(): void {
-		if (!this._currentHoverOptions) {
-			return;
+	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
+		const entry = entries[entries.length - 1];
+		if (!entry.isIntersecting) {
+			hover.dispose();
 		}
-		this._currentHoverOptions = undefined;
-		this._contextViewService.hideContextView();
 	}
 }
 
