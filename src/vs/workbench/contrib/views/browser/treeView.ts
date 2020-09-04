@@ -803,7 +803,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
-		this.setupHovers(node, templateData.container, disposableStore, label);
+		this.setupHovers(node, <HTMLElement>templateData.resourceLabel.element.firstElementChild!, disposableStore, label);
+		this.setupHovers(node, templateData.icon, disposableStore, label);
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
