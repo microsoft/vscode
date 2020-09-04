@@ -50,7 +50,6 @@ import 'vs/workbench/services/configurationResolver/electron-browser/configurati
 import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
 import 'vs/workbench/services/accessibility/electron-browser/accessibilityService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';

@@ -8,7 +8,7 @@ import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } fro
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
+import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-sandbox/backup';
 import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { isLinux, isWindows } from 'vs/base/common/platform';
