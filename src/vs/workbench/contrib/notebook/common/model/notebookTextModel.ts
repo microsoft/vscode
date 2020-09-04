@@ -118,10 +118,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	get emitSelections() { return this._emitSelections.event; }
 	private _onDidModelChangeProxy = this._register(new Emitter<NotebookCellsChangedEvent>());
 	get onDidModelChangeProxy(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
-	private _onDidChangeContent = this._register(new Emitter<void>());
-	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-	private _onDidChangeMetadata = this._register(new Emitter<NotebookDocumentMetadata>());
-	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
+	private _onDidChangeContent = this._register(new Emitter<NotebookCellsChangeType | undefined>());
+	onDidChangeContent: Event<NotebookCellsChangeType | undefined> = this._onDidChangeContent.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -210,7 +208,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
 				this.setDirty(true);
 				this._increaseVersionId();
-				this._onDidChangeContent.fire();
+				this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
@@ -324,7 +322,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = cell.onDidChangeContent(() => {
 				this.setDirty(true);
 				this._increaseVersionId();
-				this._onDidChangeContent.fire();
+				this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._mapping.set(cell.handle, cell);
@@ -335,7 +333,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells.splice(index, count, ...cells);
 		this.setDirty(true);
 		this._increaseVersionId();
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 	}
 
 	handleEdit(label: string | undefined, undo: () => void, redo: () => void): void {
@@ -378,7 +376,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
-		this._onDidChangeMetadata.fire(this.metadata);
+		this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeDocumentMetadata);
 	}
 
 	insertTemplateCell(cell: NotebookCellTextModel) {
@@ -394,12 +392,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._isUntitled = false;
 			this.setDirty(true);
 			this._increaseVersionId();
-			this._onDidChangeContent.fire();
+			this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
 		});
 
 		this._cellListeners.set(cell.handle, dirtyStateListener);
 		this.setDirty(false);
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
@@ -431,7 +429,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this.setDirty(true);
 				this._increaseVersionId();
-				this._onDidChangeContent.fire();
+				this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
 			});
 
 			this._cellListeners.set(cells[i].handle, dirtyStateListener);
@@ -439,7 +437,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this.cells.splice(index, 0, ...cells);
 		this.setDirty(true);
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._increaseVersionId();
 
@@ -475,7 +473,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 		this.cells.splice(index, count);
 		this.setDirty(true);
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
@@ -488,7 +486,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const cells = this.cells.splice(index, length);
 		this.cells.splice(newIdx, 0, ...cells);
 		this.setDirty(true);
-		this._onDidChangeContent.fire();
+		this._onDidChangeContent.fire(NotebookCellsChangeType.Move);
 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, newIdx });
@@ -510,7 +508,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			if (!this.transientOptions.transientOutputs) {
 				this._increaseVersionId();
 				this.setDirty(true);
-				this._onDidChangeContent.fire();
+				this._onDidChangeContent.fire(NotebookCellsChangeType.Output);
 			}
 
 			this._onDidModelChangeProxy.fire({
@@ -585,13 +583,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}
 			cell.metadata = metadata;
 			this.setDirty(true);
-			this._onDidChangeContent.fire();
+			this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellMetadata);
 		} else {
 			cell.metadata = metadata;
 		}
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata });
 	}
 
 	deltaCellMetadata(handle: number, newMetadata: NotebookCellMetadata) {

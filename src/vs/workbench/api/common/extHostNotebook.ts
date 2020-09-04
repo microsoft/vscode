@@ -333,7 +333,7 @@ export class ExtHostNotebookDocument extends Disposable {
 			this._clearAllCellOutputs();
 		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
 			this._changeCellLanguage(event.index, event.language);
-		} else if (event.kind === NotebookCellsChangeType.ChangeMetadata) {
+		} else if (event.kind === NotebookCellsChangeType.ChangeCellMetadata) {
 			this._changeCellMetadata(event.index, event.metadata);
 		}
 	}

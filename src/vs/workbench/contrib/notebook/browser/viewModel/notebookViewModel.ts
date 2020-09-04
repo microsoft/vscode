@@ -23,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -308,8 +308,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this.selectionHandles = endSelectionHandles;
 		}));
 
-		this._register(this._notebook.onDidChangeMetadata(e => {
-			this.eventDispatcher.emit([new NotebookMetadataChangedEvent(e)]);
+		this._register(this._notebook.onDidChangeContent(e => {
+			if (e === NotebookCellsChangeType.ChangeDocumentMetadata) {
+				this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
+			}
 		}));
 
 		this._register(this._notebook.emitSelections(selections => {

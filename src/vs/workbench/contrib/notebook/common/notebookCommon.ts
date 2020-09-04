@@ -278,7 +278,7 @@ export interface INotebookTextModel {
 	languages: string[];
 	cells: ICell[];
 	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
-	onDidChangeContent: Event<void>;
+	onDidChangeContent: Event<NotebookCellsChangeType | undefined>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -348,13 +348,20 @@ export enum NotebookCellsChangeType {
 	CellsClearOutput = 4,
 	ChangeLanguage = 5,
 	Initialize = 6,
-	ChangeMetadata = 7,
+	ChangeCellMetadata = 7,
 	Output = 8,
+	ChangeCellContent = 9,
+	ChangeDocumentMetadata = 10
 }
 
 export interface NotebookCellsInitializeEvent {
 	readonly kind: NotebookCellsChangeType.Initialize;
 	readonly changes: NotebookCellsSplice2[];
+	readonly versionId: number;
+}
+
+export interface NotebookCellContentChangeEvent {
+	readonly kind: NotebookCellsChangeType.ChangeCellContent;
 	readonly versionId: number;
 }
 
@@ -397,13 +404,19 @@ export interface NotebookCellsChangeLanguageEvent {
 }
 
 export interface NotebookCellsChangeMetadataEvent {
-	readonly kind: NotebookCellsChangeType.ChangeMetadata;
+	readonly kind: NotebookCellsChangeType.ChangeCellMetadata;
 	readonly versionId: number;
 	readonly index: number;
 	readonly metadata: NotebookCellMetadata | undefined;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookOutputChangedEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
+export interface NotebookDocumentChangeMetadataEvent {
+	readonly kind: NotebookCellsChangeType.ChangeDocumentMetadata;
+	readonly versionId: number;
+	readonly metadata: NotebookDocumentMetadata | undefined;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookOutputChangedEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
 
 export const enum CellEditType {
 	Replace = 1,
