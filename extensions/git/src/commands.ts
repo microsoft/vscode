@@ -1371,6 +1371,7 @@ export class CommandCenter {
 				const saveAndCommitStaged = localize('save all and commit staged', "Save All & Commit Staged");
 				const commit = localize('commit', "Commit Anyway");
 				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommitAll, saveAndCommitStaged, commit);
+
 				if (pick === saveAndCommitStaged) {
 					await Promise.all(documents.map(d => d.save()));
 				} else if (pick === saveAndCommitAll) {
