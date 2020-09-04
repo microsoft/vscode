@@ -1367,11 +1367,13 @@ export class CommandCenter {
 				const message = documents.length === 1
 					? localize('unsaved files single', "The following file has unsaved changes which won't be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?", path.basename(documents[0].uri.fsPath))
 					: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before committing?", documents.length);
-				const saveAndCommit = localize('save and commit', "Save All & Commit");
+				const saveAndCommitAll = localize('save all and commit all', "Save All & Commit All");
+				const saveAndCommitStaged = localize('save all and commit staged', "Save All & Commit Staged");
 				const commit = localize('commit', "Commit Anyway");
-				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
-
-				if (pick === saveAndCommit) {
+				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommitAll, saveAndCommitStaged, commit);
+				if (pick === saveAndCommitStaged) {
+					await Promise.all(documents.map(d => d.save()));
+				} else if (pick === saveAndCommitAll) {
 					await Promise.all(documents.map(d => d.save()));
 					await repository.add(documents.map(d => d.uri));
 				} else if (pick !== commit) {
