@@ -6,6 +6,7 @@
 import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
@@ -70,7 +71,10 @@ class DesktopMain extends Disposable {
 		this.registerListeners(workbench, services.storageService);
 
 		// Startup
-		workbench.startup();
+		const instantiationService = workbench.startup();
+
+		// Window
+		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));

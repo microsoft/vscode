@@ -67,6 +67,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 
 //#region Workspace
 
@@ -903,5 +904,21 @@ class SimpleOutputChannelModelService extends AsbtractOutputChannelModelService 
 }
 
 registerSingleton(IOutputChannelModelService, SimpleOutputChannelModelService);
+
+//#endregion
+
+
+//#region Integrity
+
+class SimpleIntegrityService implements IIntegrityService {
+
+	declare readonly _serviceBrand: undefined;
+
+	async isPure(): Promise<IntegrityTestResult> {
+		return { isPure: true, proof: [] };
+	}
+}
+
+registerSingleton(IIntegrityService, SimpleIntegrityService);
 
 //#endregion
