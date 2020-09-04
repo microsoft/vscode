@@ -12,7 +12,8 @@ import { URI as uri } from 'vs/base/common/uri';
 import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDebugParams, IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IDebugParams } from 'vs/platform/environment/common/environment';
+import { INativeWorkbenchEnvironmentService, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -34,7 +35,7 @@ export class LocalSearchService extends SearchService {
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IEnvironmentService readonly environmentService: INativeEnvironmentService,
+		@IWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService readonly instantiationService: IInstantiationService
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
