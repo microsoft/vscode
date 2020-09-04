@@ -52,7 +52,7 @@ import { IElectronService, ElectronService } from 'vs/platform/electron/electron
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration);
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();

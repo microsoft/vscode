@@ -45,7 +45,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration, TestWorkbenchConfiguration.execPath);
+		super(TestWorkbenchConfiguration);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }

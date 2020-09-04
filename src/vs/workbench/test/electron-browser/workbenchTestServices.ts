@@ -56,7 +56,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	...parseArgs(process.argv, OPTIONS)
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, process.execPath);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;

@@ -30,15 +30,11 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleRemoteAuthorityResolverService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
-import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleRemoteAuthorityResolverService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService = new BrowserWorkbenchEnvironmentService({
-		logsPath: URI.file('logs-path'),
-		workspaceId: ''
-	});
+	private readonly environmentService = new SimpleWorkbenchEnvironmentService(this.configuration);
 
 	constructor(private configuration: INativeWindowConfiguration) {
 		super();

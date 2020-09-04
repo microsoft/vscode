@@ -62,6 +62,95 @@ import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { Schemas } from 'vs/base/common/network';
+
+
+//#region Environment
+
+export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		readonly configuration: INativeWorkbenchConfiguration
+	) { }
+
+	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
+	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
+	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
+	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get logFile(): URI { return joinPath(this.userRoamingDataHome, 'window.log'); }
+	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
+	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
+	get backupHome(): URI { return joinPath(this.userRoamingDataHome, 'backupsHome'); }
+
+	options?: IWorkbenchConstructionOptions | undefined;
+	logExtensionHostCommunication?: boolean | undefined;
+	extensionEnabledProposedApi?: string[] | undefined;
+	webviewExternalEndpoint: string = undefined!;
+	webviewResourceRoot: string = undefined!;
+	webviewCspSource: string = undefined!;
+	skipReleaseNotes: boolean = undefined!;
+	keyboardLayoutResource: URI = undefined!;
+	sync: 'on' | 'off' | undefined;
+	enableSyncByDefault: boolean = false;
+	debugExtensionHost: IExtensionHostDebugParams = undefined!;
+	isExtensionDevelopment: boolean = false;
+	disableExtensions: boolean | string[] = [];
+	extensionDevelopmentLocationURI?: URI[] | undefined;
+	extensionTestsLocationURI?: URI | undefined;
+	logsPath: string = undefined!;
+	logLevel?: string | undefined;
+
+	args: NativeParsedArgs = Object.create(null);
+
+	execPath: string = undefined!;
+	cliPath: string = undefined!;
+	appRoot: string = undefined!;
+	userHome: URI = undefined!;
+	appSettingsHome: URI = undefined!;
+	userDataPath: string = undefined!;
+	machineSettingsResource: URI = undefined!;
+	backupWorkspacesPath: string = undefined!;
+
+	log?: string | undefined;
+	extHostLogsPath: URI = undefined!;
+
+	installSourcePath: string = undefined!;
+
+	mainIPCHandle: string = undefined!;
+	sharedIPCHandle: string = undefined!;
+
+	extensionsPath?: string | undefined;
+	extensionsDownloadPath: string = undefined!;
+	builtinExtensionsPath: string = undefined!;
+
+	driverHandle?: string | undefined;
+	driverVerbose = false;
+
+	crashReporterDirectory?: string | undefined;
+	crashReporterId?: string | undefined;
+
+	nodeCachedDataDir?: string | undefined;
+
+	disableUpdates = false;
+	sandbox = true;
+	verbose = false;
+	isBuilt = false;
+	disableTelemetry = false;
+}
+
+//#endregion
+
 
 //#region Workspace
 

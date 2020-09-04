@@ -691,6 +691,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWorkbenchConfiguration, userEnv }, TestWorkbenchConfiguration.execPath);
+		super({ ...TestWorkbenchConfiguration, userEnv });
 	}
 }

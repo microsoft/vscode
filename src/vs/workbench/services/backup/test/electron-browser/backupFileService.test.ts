@@ -49,7 +49,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(u
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir }, TestWorkbenchConfiguration.execPath);
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir });
 	}
 }
 

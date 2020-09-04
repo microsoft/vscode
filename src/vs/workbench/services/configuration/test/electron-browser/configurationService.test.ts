@@ -56,7 +56,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration, TestWorkbenchConfiguration.execPath);
+		super(TestWorkbenchConfiguration);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }

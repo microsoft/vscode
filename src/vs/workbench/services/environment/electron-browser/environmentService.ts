@@ -60,9 +60,10 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	@memoize
 	get cliPath(): string { return this.doGetCLIPath(); }
 
+	readonly execPath = this.configuration.execPath;
+
 	constructor(
-		readonly configuration: INativeWorkbenchConfiguration,
-		readonly execPath: string
+		readonly configuration: INativeWorkbenchConfiguration
 	) {
 		super(configuration);
 
