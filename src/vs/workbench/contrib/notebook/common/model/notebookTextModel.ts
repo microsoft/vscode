@@ -286,9 +286,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
-			insertCell: this._insertCellDelegate.bind(this),
-			deleteCell: this._deleteCellDelegate.bind(this),
-			emitSelections: this._emitSelectionsDelegate.bind(this)
+			insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
+			deleteCell: (index) => { this._removeCell(index, 1, true); },
+			emitSelections: (selections) => { this._emitSelections.fire(selections); }
 		}, undefined, undefined));
 
 		this._onDidChangeCells.fire({ synchronous: synchronous, splices: diffs });
@@ -421,7 +421,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean): void {
+	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
@@ -465,7 +465,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	removeCell(index: number, count: number, synchronous: boolean) {
+	private _removeCell(index: number, count: number, synchronous: boolean) {
 		this._isUntitled = false;
 
 		for (let i = index; i < index + count; i++) {
@@ -581,7 +581,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						}
 						this.changeCellMetadata(cell.handle, newMetadata, false);
 					},
-					emitSelections: this._emitSelectionsDelegate.bind(this)
+					emitSelections: (selections) => { this._emitSelections.fire(selections); }
 				}));
 			}
 			cell.metadata = metadata;
@@ -617,31 +617,19 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	//#region Notebook Text Model Edit API
 
-	private _insertCellDelegate(insertIndex: number, insertCell: NotebookCellTextModel) {
-		this.insertNewCell(insertIndex, [insertCell], true);
-	}
-
-	private _deleteCellDelegate(deleteIndex: number) {
-		this.removeCell(deleteIndex, 1, true);
-	}
-
-	private _emitSelectionsDelegate(selections: number[]) {
-		this._emitSelections.fire(selections);
-	}
-
 	createCell2(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.createCellTextModel(source, language, type, [], metadata);
 
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
-				insertCell: this._insertCellDelegate.bind(this),
-				deleteCell: this._deleteCellDelegate.bind(this),
-				emitSelections: this._emitSelectionsDelegate.bind(this)
+				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
+				deleteCell: (index) => { this._removeCell(index, 1, true); },
+				emitSelections: (selections) => { this._emitSelections.fire(selections); }
 			}, beforeSelections, endSelections));
 		}
 
 
-		this.insertNewCell(index, [cell], synchronous);
+		this._insertNewCell(index, [cell], synchronous);
 
 		if (endSelections) {
 			this._emitSelections.fire(endSelections);
@@ -652,26 +640,26 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	insertCell2(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean): void {
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
-				insertCell: this._insertCellDelegate.bind(this),
-				deleteCell: this._deleteCellDelegate.bind(this),
-				emitSelections: this._emitSelectionsDelegate.bind(this)
+				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
+				deleteCell: (index) => { this._removeCell(index, 1, true); },
+				emitSelections: (selections) => { this._emitSelections.fire(selections); }
 			}, undefined, undefined));
 		}
 
-		this.insertNewCell(index, [cell], synchronous);
+		this._insertNewCell(index, [cell], synchronous);
 	}
 
 	deleteCell2(index: number, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.cells[index];
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new DeleteCellEdit(this.uri, index, cell, {
-				insertCell: this._insertCellDelegate.bind(this),
-				deleteCell: this._deleteCellDelegate.bind(this),
-				emitSelections: this._emitSelectionsDelegate.bind(this)
+				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
+				deleteCell: (index) => { this._removeCell(index, 1, true); },
+				emitSelections: (selections) => { this._emitSelections.fire(selections); }
 			}, beforeSelections, endSelections));
 		}
 
-		this.removeCell(index, 1, synchronous);
+		this._removeCell(index, 1, synchronous);
 		if (endSelections) {
 			this._emitSelections.fire(endSelections);
 		}
@@ -684,7 +672,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
 					this.moveCellToIdx2(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
 				},
-				emitSelections: this._emitSelectionsDelegate.bind(this)
+				emitSelections: (selections) => { this._emitSelections.fire(selections); }
 			}, beforeSelections, endSelections));
 		}
 
