@@ -41,6 +41,7 @@ import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme
 import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { isMacintosh } from 'vs/base/common/platform';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -809,7 +810,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
 		const hoverService = this.hoverService;
-		const hoverDelay = this.hoverDelay;
+		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
+		// On Mac, the delay is 1500.
+		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverOptions | undefined;
 		let mouseX: number | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
