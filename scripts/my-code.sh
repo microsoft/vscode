@@ -3,7 +3,7 @@
 ROOT_PATH=~/Public/nodejs/vscode/
 
 # remove some built-in extensions
-extensions=(clojure coffeescript docker fsharp groovy handlebars hlsl jake less make lua microsoft-authentication perl r razor ruby rust theme-abyss theme-defaults theme-kimbie-dark theme-monokai theme-monokai-dimmed theme-quietlight theme-red theme-seti theme-solarized-dark theme-solarized-light theme-tomorrow-night-blue vb)
+extensions=(clojure coffeescript docker fsharp groovy handlebars hlsl jake less make lua microsoft-authentication perl r razor ruby rust shaderlab theme-abyss theme-defaults theme-kimbie-dark theme-monokai theme-monokai-dimmed theme-quietlight theme-red theme-seti theme-solarized-dark theme-solarized-light theme-tomorrow-night-blue vb)
 
 for ext in "${extensions[@]}"
 do
