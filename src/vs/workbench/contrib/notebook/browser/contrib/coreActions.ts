@@ -1431,7 +1431,10 @@ registerAction2(class extends NotebookAction {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.clearAllCellOutputs();
+		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId,
+			editor.viewModel.notebookDocument.cells.map((cell, index) => ({
+				editType: CellEditType.Output, index, outputs: []
+			})), true);
 	}
 });
 

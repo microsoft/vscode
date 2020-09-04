@@ -513,20 +513,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	//#region Notebook Text Model Edit API
 
-	// TODO@rebornix should this trigger content change event?
-
-	clearCellOutput(handle: number) {
-		const cell = this._mapping.get(handle);
-		if (cell) {
-			cell.spliceNotebookCellOutputs([
-				[0, cell.outputs.length, []]
-			]);
-
-			this._increaseVersionId();
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.CellClearOutput, versionId: this._versionId, index: this.cells.indexOf(cell) });
-		}
-	}
-
 	changeCellLanguage(handle: number, languageId: string) {
 		const cell = this._mapping.get(handle);
 		if (cell && cell.language !== languageId) {
@@ -595,17 +581,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}, true);
 		}
 	}
-
-	clearAllCellOutputs() {
-		this.cells.forEach(cell => {
-			cell.spliceNotebookCellOutputs([
-				[0, cell.outputs.length, []]
-			]);
-		});
-		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.CellsClearOutput, versionId: this._versionId });
-	}
-
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.createCellTextModel(source, language, type, [], metadata);
