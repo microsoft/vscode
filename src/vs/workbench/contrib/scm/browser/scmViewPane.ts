@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -74,6 +74,7 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { IPosition } from 'vs/editor/common/core/position';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -131,6 +132,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	private inputWidgets = new Map<ISCMInput, SCMInputWidget>();
 	private contentHeights = new WeakMap<ISCMInput, number>();
+	private editorPositions = new WeakMap<ISCMInput, IPosition>();
 
 	constructor(
 		private outerLayout: ISCMLayout,
@@ -160,6 +162,21 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
 		disposables.add({ dispose: () => this.inputWidgets.delete(input) });
+
+		// Widget position
+		const position = this.editorPositions.get(input);
+
+		if (position) {
+			templateData.inputWidget.position = position;
+		}
+
+		disposables.add(toDisposable(() => {
+			const position = templateData.inputWidget.position;
+
+			if (position) {
+				this.editorPositions.set(input, position);
+			}
+		}));
 
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
@@ -1341,6 +1358,16 @@ class SCMInputWidget extends Disposable {
 
 		// Save model
 		this.model = { input, textModel };
+	}
+
+	get position(): IPosition | null {
+		return this.inputEditor.getPosition();
+	}
+
+	set position(position: IPosition | null) {
+		if (position) {
+			this.inputEditor.setPosition(position);
+		}
 	}
 
 	constructor(

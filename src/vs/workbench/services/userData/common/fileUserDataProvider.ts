@@ -19,7 +19,7 @@ export class FileUserDataProvider extends Disposable implements
 	IFileSystemProviderWithOpenReadWriteCloseCapability,
 	IFileSystemProviderWithFileReadStreamCapability {
 
-	readonly capabilities: FileSystemProviderCapabilities = this.fileSystemProvider.capabilities;
+	get capabilities() { return this.fileSystemProvider.capabilities; }
 	readonly onDidChangeCapabilities: Event<void> = this.fileSystemProvider.onDidChangeCapabilities;
 
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());

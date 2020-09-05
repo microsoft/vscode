@@ -41,6 +41,7 @@ import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme
 import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { isMacintosh } from 'vs/base/common/platform';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -692,7 +693,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
-	private readonly hoverDelay: number;
 
 	constructor(
 		private treeViewId: string,
@@ -706,7 +706,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
-		this.hoverDelay = 500; // milliseconds
 	}
 
 	get templateId(): string {
@@ -760,10 +759,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		// reset
 		templateData.actionBar.clear();
-
+		let fallbackHover = label;
 		if (resource || this.isFileKindThemeIcon(node.themeIcon)) {
 			const fileDecorations = this.configurationService.getValue<{ colors: boolean, badges: boolean }>('explorer.decorations');
-			templateData.resourceLabel.setResource({ name: label, description, resource: resource ? resource : URI.parse('missing:_icon_resource') }, {
+			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
+			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
 				title: '',
 				hideIcon: !!iconUrl,
@@ -772,6 +772,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				matches: matches ? matches : createMatches(element.filterData),
 				strikethrough: treeItemLabel?.strikethrough
 			});
+			fallbackHover = this.labelService.getUriLabel(labelResource);
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
 				title: '',
@@ -804,12 +805,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const disposableStore = new DisposableStore();
 		templateData.elementDisposable = disposableStore;
 		disposableStore.add(this.themeService.onDidFileIconThemeChange(() => this.setAlignment(templateData.container, node)));
-		this.setupHovers(node, templateData.container, disposableStore, label);
+		this.setupHovers(node, <HTMLElement>templateData.resourceLabel.element.firstElementChild!, disposableStore, fallbackHover);
+		this.setupHovers(node, templateData.icon, disposableStore, fallbackHover);
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
 		const hoverService = this.hoverService;
-		const hoverDelay = this.hoverDelay;
+		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
+		// On Mac, the delay is 1500.
+		const hoverDelay = isMacintosh ? 1500 : 500;
 		let hoverOptions: IHoverOptions | undefined;
 		let mouseX: number | undefined;
 		function mouseOver(this: HTMLElement, e: MouseEvent): any {
