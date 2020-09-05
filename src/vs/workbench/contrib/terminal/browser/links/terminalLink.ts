@@ -71,13 +71,12 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}));
 
 		// Listen for when the terminal renders on the same line as the link
-		const renderListener = this._xterm.onRender(e => {
+		this._hoverListeners.add(this._xterm.onRender(e => {
 			const viewportRangeY = this.range.start.y - this._viewportY;
 			if (viewportRangeY >= e.start && viewportRangeY <= e.end) {
 				this._onInvalidated.fire();
 			}
-		});
-		this._hoverListeners.add(renderListener);
+		}));
 
 		// Only show the tooltip and highlight for high confidence links (not word/search workspace
 		// links). Feedback was that this makes using the terminal overly noisy.
