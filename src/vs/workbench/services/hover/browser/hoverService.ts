@@ -25,9 +25,9 @@ export class HoverService implements IHoverService {
 	) {
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean): void {
+	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined {
 		if (this._currentHoverOptions === options) {
-			return;
+			return undefined;
 		}
 		this._currentHoverOptions = options;
 
@@ -43,6 +43,8 @@ export class HoverService implements IHoverService {
 			observer.observe(firstTargetElement);
 			hover.onDispose(() => observer.disconnect());
 		}
+
+		return hover;
 	}
 
 	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {

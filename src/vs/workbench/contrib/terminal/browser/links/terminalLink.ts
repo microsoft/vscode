@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IViewportRange, IBufferRange, ILink, ILinkDecorations } from 'xterm';
+import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -23,10 +23,11 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private _tooltipScheduler: RunOnceScheduler | undefined;
 	private _hoverListeners: DisposableStore | undefined;
 
-	private readonly _onLeave = new Emitter<void>();
-	public get onLeave(): Event<void> { return this._onLeave.event; }
+	private readonly _onInvalidated = new Emitter<void>();
+	public get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
 	constructor(
+		private readonly _xterm: Terminal,
 		public readonly range: IBufferRange,
 		public readonly text: string,
 		private readonly _viewportY: number,
@@ -68,6 +69,16 @@ export class TerminalLink extends DisposableStore implements ILink {
 				this._disableDecorations();
 			}
 		}));
+
+		// Listen for when the terminal renders on the same line as the link
+		const renderListener = this._xterm.onRender(e => {
+			const viewportRangeY = this.range.start.y - this._viewportY;
+			if (viewportRangeY >= e.start && viewportRangeY <= e.end) {
+				// TODO: Check if the range is in the link's range
+				this._onInvalidated.fire();
+			}
+		});
+		this._hoverListeners.add(renderListener);
 
 		// Only show the tooltip and highlight for high confidence links (not word/search workspace
 		// links). Feedback was that this makes using the terminal overly noisy.
@@ -111,7 +122,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		this._hoverListeners = undefined;
 		this._tooltipScheduler?.dispose();
 		this._tooltipScheduler = undefined;
-		this._onLeave.fire();
 	}
 
 	private _enableDecorations(): void {

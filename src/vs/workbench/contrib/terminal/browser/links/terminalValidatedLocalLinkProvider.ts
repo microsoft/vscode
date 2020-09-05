@@ -144,7 +144,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 								this._activateFileCallback(event, text);
 							}
 						});
-						r(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
+						r(this._instantiationService.createInstance(TerminalLink, this._xterm, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 					} else {
 						r(undefined);
 					}

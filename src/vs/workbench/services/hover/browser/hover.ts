@@ -29,7 +29,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): void;
+	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
 }
 
 export interface IHoverOptions {
