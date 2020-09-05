@@ -172,7 +172,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				const opts = {
-					env: env,
+					env,
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.
 					// We detach because we have noticed that when the renderer exits, its child processes
