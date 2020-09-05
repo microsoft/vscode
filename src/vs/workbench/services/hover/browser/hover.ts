@@ -30,11 +30,6 @@ export interface IHoverService {
 	 * ```
 	 */
 	showHover(options: IHoverOptions, focus?: boolean): void;
-
-	/**
-	 * Hides the hover if it was visible.
-	 */
-	hideHover(): void;
 }
 
 export interface IHoverOptions {
