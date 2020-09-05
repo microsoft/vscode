@@ -395,8 +395,7 @@ async function handleRoot(req, res) {
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
 		.replace('{{WORKBENCH_CREDENTIALS}}', () => escapeAttribute(JSON.stringify(credentials)))
-		.replace('{{WEBVIEW_ENDPOINT}}', '')
-		.replace('{{REMOTE_USER_DATA_URI}}', '');
+		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
 
 	const headers = { 'Content-Type': 'text/html' };
