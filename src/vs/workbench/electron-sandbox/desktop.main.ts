@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INativeWindowConfiguration, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
@@ -12,6 +12,7 @@ import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnima
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -31,12 +32,13 @@ import product from 'vs/platform/product/common/product';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleRemoteAuthorityResolverService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 class DesktopMain extends Disposable {
 
 	private readonly environmentService = new SimpleWorkbenchEnvironmentService(this.configuration);
 
-	constructor(private configuration: INativeWindowConfiguration) {
+	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
 
 		this.init();
@@ -44,14 +46,43 @@ class DesktopMain extends Disposable {
 
 	private init(): void {
 
+		// Massage configuration file URIs
+		this.reviveUris();
+
 		// Setup perf
-		importEntries(this.configuration.perfEntries);
+		importEntries(this.environmentService.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
-		setFullscreen(!!this.configuration.fullscreen);
+		setFullscreen(!!this.environmentService.configuration.fullscreen);
+	}
+
+	private reviveUris() {
+		if (this.environmentService.configuration.folderUri) {
+			this.environmentService.configuration.folderUri = URI.revive(this.environmentService.configuration.folderUri);
+		}
+
+		if (this.environmentService.configuration.workspace) {
+			this.environmentService.configuration.workspace = reviveWorkspaceIdentifier(this.environmentService.configuration.workspace);
+		}
+
+		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWaitPaths = filesToWait?.paths;
+		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
+			if (Array.isArray(paths)) {
+				paths.forEach(path => {
+					if (path.fileUri) {
+						path.fileUri = URI.revive(path.fileUri);
+					}
+				});
+			}
+		});
+
+		if (filesToWait) {
+			filesToWait.waitMarkerFileUri = URI.revive(filesToWait.waitMarkerFileUri);
+		}
 	}
 
 	async open(): Promise<void> {
@@ -194,7 +225,7 @@ class DesktopMain extends Disposable {
 	}
 }
 
-export function main(configuration: INativeWindowConfiguration): Promise<void> {
+export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
 	const workbench = new DesktopMain(configuration);
 
 	return workbench.open();

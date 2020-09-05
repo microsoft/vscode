@@ -79,7 +79,7 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 		readonly configuration: INativeWorkbenchConfiguration
 	) { }
 
-	get userRoamingDataHome(): URI { return URI.file('/User').with({ scheme: Schemas.userData }); }
+	get userRoamingDataHome(): URI { return URI.file('/sandbox-user-data-dir').with({ scheme: Schemas.userData }); }
 	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
 	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
 	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
