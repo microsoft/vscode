@@ -74,7 +74,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		const renderListener = this._xterm.onRender(e => {
 			const viewportRangeY = this.range.start.y - this._viewportY;
 			if (viewportRangeY >= e.start && viewportRangeY <= e.end) {
-				// TODO: Check if the range is in the link's range
 				this._onInvalidated.fire();
 			}
 		});
