@@ -63,7 +63,8 @@ export class TabsTitleControl extends TitleControl {
 	};
 
 	private static readonly TAB_SIZES = {
-		sticky: 38,
+		compact: 38,
+		shrink: 80,
 		fit: 120
 	};
 
@@ -521,6 +522,7 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.labelFormat !== newOptions.labelFormat ||
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
+			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
@@ -1025,14 +1027,15 @@ export class TabsTitleControl extends TitleControl {
 		const isTabSticky = this.group.isSticky(index);
 		const options = this.accessor.partOptions;
 
-		const tabCloseButton = isTabSticky ? 'off' /* treat sticky tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
+		const tabCloseButton = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
 		['off', 'left', 'right'].forEach(option => {
 			const domAction = tabCloseButton === option ? addClass : removeClass;
 			domAction(tabContainer, `close-button-${option}`);
 		});
 
+		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		['fit', 'shrink'].forEach(option => {
-			const domAction = options.tabSizing === option ? addClass : removeClass;
+			const domAction = tabSizing === option ? addClass : removeClass;
 			domAction(tabContainer, `sizing-${option}`);
 		});
 
@@ -1042,13 +1045,26 @@ export class TabsTitleControl extends TitleControl {
 			removeClass(tabContainer, 'has-icon');
 		}
 
-		// Sticky Tabs need a position to remain at their location
+		['compact', 'shrink', 'inherit'].forEach(option => {
+			const domAction = isTabSticky && options.pinnedTabSizing === option ? addClass : removeClass;
+			domAction(tabContainer, `sticky-${option}`);
+		});
+
+		// Sticky compact/shrink tabs need a position to remain at their location
 		// when scrolling to stay in view (requirement for position: sticky)
-		if (isTabSticky) {
-			addClass(tabContainer, 'sticky');
-			tabContainer.style.left = `${index * TabsTitleControl.TAB_SIZES.sticky}px`;
+		if (isTabSticky && options.pinnedTabSizing !== 'inherit') {
+			let stickyTabWidth = 0;
+			switch (options.pinnedTabSizing) {
+				case 'compact':
+					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					break;
+				case 'shrink':
+					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					break;
+			}
+
+			tabContainer.style.left = `${index * stickyTabWidth}px`;
 		} else {
-			removeClass(tabContainer, 'sticky');
 			tabContainer.style.left = 'auto';
 		}
 
@@ -1057,17 +1073,19 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private redrawLabel(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
-		const isTabSticky = this.group.isSticky(index);
+		const options = this.accessor.partOptions;
 
-		// Unless tabs are sticky, show the full label and description
-		// Sticky tabs will only show an icon if icons are enabled
+		// Unless tabs are sticky compact, show the full label and description
+		// Sticky compact tabs will only show an icon if icons are enabled
 		// or their first character of the name otherwise
 		let name: string | undefined;
+		let forceLabel = false;
 		let description: string;
-		if (isTabSticky) {
-			const isShowingIcons = this.accessor.partOptions.showIcons && this.accessor.partOptions.hasIcons;
+		if (this.group.isSticky(index) && options.pinnedTabSizing === 'compact') {
+			const isShowingIcons = options.showIcons && options.hasIcons;
 			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
 			description = '';
+			forceLabel = true;
 		} else {
 			name = tabLabel.name;
 			description = tabLabel.description || '';
@@ -1086,7 +1104,7 @@ export class TabsTitleControl extends TitleControl {
 		// Label
 		tabLabelWidget.setResource(
 			{ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
-			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel: isTabSticky }
+			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel }
 		);
 
 		// Tests helper
@@ -1249,7 +1267,7 @@ export class TabsTitleControl extends TitleControl {
 		//
 		// Synopsis
 		// - allTabsWidth:   			sum of all tab widths
-		// - stickyTabsWidth:			sum of all sticky tab widths
+		// - stickyTabsWidth:			sum of all sticky tab widths (unless they inherit look from other tabs)
 		// - visibleContainerWidth: 	size of tab container
 		// - availableContainerWidth: 	size of tab container minus size of sticky tabs
 		//
@@ -1265,7 +1283,24 @@ export class TabsTitleControl extends TitleControl {
 		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
 
-		let stickyTabsWidth = this.group.stickyCount * TabsTitleControl.TAB_SIZES.sticky;
+		// Compute width of sticky tabs depending on pinned tab sizing
+		// - compact: sticky-tabs * TAB_SIZES.compact
+		// -  shrink: sticky-tabs * TAB_SIZES.shrink
+		// - inherit: 0 (sticky tabs inherit look and feel from non-sticky tabs)
+		let stickyTabsWidth = 0;
+		if (this.group.stickyCount > 0) {
+			let stickyTabWidth = 0;
+			switch (this.accessor.partOptions.pinnedTabSizing) {
+				case 'compact':
+					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					break;
+				case 'shrink':
+					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					break;
+			}
+
+			stickyTabsWidth = this.group.stickyCount * stickyTabWidth;
+		}
 		let activeTabSticky = this.group.isSticky(activeIndex);
 		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
 
@@ -1583,11 +1618,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 		// Adjust gradient for focused and unfocused hover background
 		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
-			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky):hover > .tab-label::after {
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label::after {
 				background: linear-gradient(to left, ${color}, transparent) !important;
 			}
 
-			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky):hover > .tab-label::after {
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky-compact):hover > .tab-label::after {
 				background: linear-gradient(to left, ${colorDrag}, transparent) !important;
 			}
 		`;
@@ -1610,19 +1645,19 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		if (editorDragAndDropBackground && adjustedTabDragBackground) {
 			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky) > .tab-label::after,
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky-compact) > .tab-label::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky-compact) > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 		`);
 		}
 
 		const makeTabBackgroundRule = (color: Color, colorDrag: Color, focused: boolean, active: boolean) => `
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky) > .tab-label::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label::after {
 					background: linear-gradient(to left, ${color}, transparent);
 				}
 
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky-compact) > .tab-label::after {
 					background: linear-gradient(to left, ${colorDrag}, transparent);
 				}
 		`;
