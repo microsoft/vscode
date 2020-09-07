@@ -13,12 +13,13 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
+import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-sandbox/backup';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -31,7 +32,6 @@ import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron
 import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {

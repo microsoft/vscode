@@ -607,6 +607,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public createTerminal(shell: IShellLaunchConfig = {}): ITerminalInstance {
+		if (!this.isProcessSupportRegistered) {
+			throw new Error('Could not create terminal when process support is not registered');
+		}
 		if (shell.hideFromUser) {
 			const instance = this.createInstance(undefined, shell);
 			this._backgroundedTerminalInstances.push(instance);

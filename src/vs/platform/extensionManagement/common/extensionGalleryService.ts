@@ -22,6 +22,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { joinPath } from 'vs/base/common/resources';
 
 interface IRawGalleryExtensionFile {
 	assetType: string;
@@ -272,6 +273,12 @@ function getIsWebExtension(version: IRawGalleryExtensionVersion): boolean {
 	return !!webExtensionProperty && webExtensionProperty.value === 'true';
 }
 
+function getWebResource(version: IRawGalleryExtensionVersion): URI | undefined {
+	return version.files.some(f => f.assetType.startsWith('Microsoft.VisualStudio.Code.WebResources'))
+		? joinPath(URI.parse(version.assetUri), 'Microsoft.VisualStudio.Code.WebResources', 'extension')
+		: undefined;
+}
+
 function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGalleryExtensionVersion, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const assets = <IGalleryExtensionAssets>{
 		manifest: getVersionAsset(version, AssetType.Manifest),
@@ -301,6 +308,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 		rating: getStatistic(galleryExtension.statistics, 'averagerating'),
 		ratingCount: getStatistic(galleryExtension.statistics, 'ratingcount'),
 		assetUri: URI.parse(version.assetUri),
+		webResource: getWebResource(version),
 		assetTypes: version.files.map(({ assetType }) => assetType),
 		assets,
 		properties: {
@@ -363,7 +371,17 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return !!this.extensionsGalleryUrl;
 	}
 
-	getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, version?: string): Promise<IGalleryExtension | null> {
+	async getCompatibleExtension(arg1: IExtensionIdentifier | IGalleryExtension, version?: string): Promise<IGalleryExtension | null> {
+		const extension = await this.getCompatibleExtensionByEngine(arg1, version);
+
+		if (extension?.properties.webExtension) {
+			return extension.webResource ? extension : null;
+		} else {
+			return extension;
+		}
+	}
+
+	private getCompatibleExtensionByEngine(arg1: IExtensionIdentifier | IGalleryExtension, version?: string): Promise<IGalleryExtension | null> {
 		const extension: IGalleryExtension | null = isIExtensionIdentifier(arg1) ? null : arg1;
 		if (extension && extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version)) {
 			return Promise.resolve(extension);

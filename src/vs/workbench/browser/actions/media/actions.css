@@ -11,6 +11,7 @@
 	position: absolute;
 	border-width: 2px;
 	border-style: solid;
+	border-radius: 50%;
 	z-index: 100000;
 	content: ' ';
 	pointer-events: none;

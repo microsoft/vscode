@@ -10,7 +10,7 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -48,7 +48,7 @@ import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusbarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookCellRunState, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { createAndFillInActionBarActionsWithVerticalSeparators, VerticalSeparator, VerticalSeparatorViewItem } from './cellActionView';
 
 const $ = DOM.$;
@@ -112,14 +112,14 @@ export class CellEditorOptions {
 	constructor(configurationService: IConfigurationService, language: string) {
 
 		this.disposable = configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('editor') || e.affectsConfiguration(ShowCellStatusbarKey)) {
+			if (e.affectsConfiguration('editor') || e.affectsConfiguration(ShowCellStatusBarKey)) {
 				this._value = computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
 		});
 
 		const computeEditorOptions = () => {
-			const showCellStatusBar = configurationService.getValue<boolean>(ShowCellStatusbarKey);
+			const showCellStatusBar = configurationService.getValue<boolean>(ShowCellStatusBarKey);
 			const editorPadding = {
 				top: EDITOR_TOP_PADDING,
 				bottom: showCellStatusBar ? EDITOR_BOTTOM_PADDING : EDITOR_BOTTOM_PADDING_WITHOUT_STATUSBAR
@@ -341,8 +341,7 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement } {
-		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part'));
-		collapsedPart.innerHTML = renderCodicons('$(unfold)');
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, ...renderCodiconsAsElement('$(unfold)')));
 		const expandButton = collapsedPart.querySelector('.codicon') as HTMLElement;
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_CONTENT_COMMAND_ID);
 		let title = localize('cellExpandButtonLabel', "Expand");
@@ -643,10 +642,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const dragHandle = DOM.append(container, DOM.$('.cell-drag-handle'));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
-
-		const runButtonContainer = DOM.append(container, $('.run-button-container'));
+		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const runToolbar = disposables.add(this.createToolbar(runButtonContainer));
-		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
+
+		const executionOrderLabel = DOM.append(cellContainer, $('div.execution-count-label'));
 
 		// create a special context key service that set the inCompositeEditor-contextkey
 		const editorContextKeyService = disposables.add(this.contextKeyServiceProvider(container));
@@ -949,11 +948,11 @@ export class RunStateRenderer {
 		}
 
 		if (runState === NotebookCellRunState.Success) {
-			this.element.innerHTML = renderCodicons('$(check)');
+			DOM.reset(this.element, ...renderCodiconsAsElement('$(check)'));
 		} else if (runState === NotebookCellRunState.Error) {
-			this.element.innerHTML = renderCodicons('$(error)');
+			DOM.reset(this.element, ...renderCodiconsAsElement('$(error)'));
 		} else if (runState === NotebookCellRunState.Running) {
-			this.element.innerHTML = renderCodicons('$(sync~spin)');
+			DOM.reset(this.element, ...renderCodiconsAsElement('$(sync~spin)'));
 
 			this.spinnerTimer = setTimeout(() => {
 				this.spinnerTimer = undefined;

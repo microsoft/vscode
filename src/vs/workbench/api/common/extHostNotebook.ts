@@ -795,8 +795,9 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 		super();
 
 		if (this._provider.onDidChangeKernels) {
-			this._register(this._provider.onDidChangeKernels(() => {
-				this._proxy.$onNotebookKernelChange(this._handle);
+			this._register(this._provider.onDidChangeKernels((e: vscode.NotebookDocument | undefined) => {
+				const uri = e?.uri;
+				this._proxy.$onNotebookKernelChange(this._handle, uri);
 			}));
 		}
 	}
@@ -828,6 +829,7 @@ export class ExtHostNotebookKernelProviderAdapter extends Disposable {
 				extension: this._extension.identifier,
 				extensionLocation: this._extension.extensionLocation,
 				description: kernel.description,
+				detail: kernel.detail,
 				isPreferred: kernel.isPreferred,
 				preloads: kernel.preloads
 			};
@@ -1035,8 +1037,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookKernelProviders.set(handle, adapter);
 		this._proxy.$registerNotebookKernelProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, handle, {
 			viewType: selector.viewType,
-			filenamePattern: selector.filenamePattern ? typeConverters.GlobPattern.from(selector.filenamePattern) : undefined,
-			excludeFileNamePattern: selector.excludeFileNamePattern ? typeConverters.GlobPattern.from(selector.excludeFileNamePattern) : undefined,
+			filenamePattern: selector.filenamePattern ? typeConverters.NotebookExclusiveDocumentPattern.from(selector.filenamePattern) : undefined
 		});
 
 		return new extHostTypes.Disposable(() => {
@@ -1075,21 +1076,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			if (webComm) {
 				await adapter.resolveNotebook(kernelId, document, webComm.contentProviderComm, token);
 			}
-		});
-	}
-
-	registerNotebookKernel(extension: IExtensionDescription, id: string, selectors: vscode.GlobPattern[], kernel: vscode.NotebookKernel): vscode.Disposable {
-		if (this._notebookKernels.has(id)) {
-			throw new Error(`Notebook kernel for '${id}' already registered`);
-		}
-
-		this._notebookKernels.set(id, { kernel, extension });
-		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
-
-		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, id, kernel.label, transformedSelectors, kernel.preloads || []);
-		return new extHostTypes.Disposable(() => {
-			this._notebookKernels.delete(id);
-			this._proxy.$unregisterNotebookKernel(id);
 		});
 	}
 

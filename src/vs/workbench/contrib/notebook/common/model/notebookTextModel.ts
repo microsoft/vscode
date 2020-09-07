@@ -13,6 +13,7 @@ import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { InsertCellEdit, DeleteCellEdit, MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
 	// private readonly _pieces: Ce[] = [];
@@ -126,7 +127,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
-	languages: string[] = [];
+	private _languages: string[] = [];
+	private _allLanguages: boolean = false;
+
+	get languages() {
+		return this._languages;
+	}
+
+	get resolvedLanguages() {
+		if (this._allLanguages) {
+			return this._modeService.getRegisteredModes();
+		}
+
+		return this._languages;
+	}
+
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
 	transientOptions: TransientOptions = { transientMetadata: {}, transientOutputs: false };
 	private _isUntitled: boolean | undefined = undefined;
@@ -159,7 +174,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		public supportBackup: boolean,
 		public uri: URI,
 		@IUndoRedoService private _undoService: IUndoRedoService,
-		@ITextModelService private _modelService: ITextModelService
+		@ITextModelService private _modelService: ITextModelService,
+		@IModeService private readonly _modeService: IModeService,
 	) {
 		super();
 		this.cells = [];
@@ -363,11 +379,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	updateLanguages(languages: string[]) {
-		this.languages = languages;
+		const allLanguages = languages.find(lan => lan === '*');
+		this._allLanguages = allLanguages !== undefined;
+		this._languages = languages;
 
-		// TODO@rebornix metadata: default language for cell
-		if (this._isUntitled && languages.length && this.cells.length) {
-			this.cells[0].language = languages[0];
+		const resolvedLanguages = this.resolvedLanguages;
+		if (this._isUntitled && resolvedLanguages.length && this.cells.length) {
+			this.cells[0].language = resolvedLanguages[0];
 		}
 	}
 

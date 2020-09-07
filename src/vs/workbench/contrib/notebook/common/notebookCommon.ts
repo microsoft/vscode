@@ -22,6 +22,7 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IRevertOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export enum CellKind {
 	Markdown = 1,
@@ -131,29 +132,6 @@ export interface INotebookRendererInfo {
 	extensionId: ExtensionIdentifier;
 
 	matches(mimeType: string): boolean;
-}
-
-export interface INotebookKernelInfo {
-	id: string;
-	label: string,
-	selectors: (string | glob.IRelativePattern)[],
-	extension: ExtensionIdentifier;
-	extensionLocation: URI,
-	preloads: URI[];
-	providerHandle?: number;
-	executeNotebook(viewType: string, uri: URI, handle: number | undefined): Promise<void>;
-
-}
-
-export interface INotebookKernelInfoDto {
-	id: string;
-	label: string,
-	extensionLocation: URI;
-	preloads?: UriComponents[];
-}
-
-export interface INotebookSelectors {
-	readonly filenamePattern?: string;
 }
 
 export interface IStreamOutput {
@@ -663,6 +641,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	readonly resource: URI;
 	readonly viewType: string;
 	readonly notebook: NotebookTextModel;
+	readonly lastResolvedFileStat: IFileStatWithMetadata | undefined;
 	isDirty(): boolean;
 	isUntitled(): boolean;
 	save(): Promise<boolean>;
@@ -674,6 +653,7 @@ export interface INotebookDiffEditorModel extends IEditorModel {
 	original: INotebookEditorModel;
 	modified: INotebookEditorModel;
 	resolveOriginalFromDisk(): Promise<void>;
+	resolveModifiedFromDisk(): Promise<void>;
 }
 
 export interface INotebookTextModelBackup {
@@ -729,22 +709,44 @@ export interface INotebookSearchOptions {
 	wordSeparators?: string;
 }
 
+export interface INotebookExclusiveDocumentFilter {
+	include?: string | glob.IRelativePattern;
+	exclude?: string | glob.IRelativePattern;
+}
+
 export interface INotebookDocumentFilter {
-	viewType?: string;
-	filenamePattern?: string | glob.IRelativePattern;
-	excludeFileNamePattern?: string | glob.IRelativePattern;
+	viewType?: string | string[];
+	filenamePattern?: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 }
 
 //TODO@rebornix test
+
+function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
+
+	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
+		&& (typeof arg.exclude === 'string' || glob.isRelativePattern(arg.exclude))) {
+		return true;
+	}
+
+	return false;
+}
 export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, viewType: string, resource: URI): boolean {
+	if (Array.isArray(filter.viewType) && filter.viewType.indexOf(viewType) >= 0) {
+		return true;
+	}
+
 	if (filter.viewType === viewType) {
 		return true;
 	}
 
 	if (filter.filenamePattern) {
-		if (glob.match(filter.filenamePattern, basename(resource.fsPath).toLowerCase())) {
-			if (filter.excludeFileNamePattern) {
-				if (glob.match(filter.excludeFileNamePattern, basename(resource.fsPath).toLowerCase())) {
+		let filenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.include : (filter.filenamePattern as string | glob.IRelativePattern);
+		let excludeFilenamePattern = isDocumentExcludePattern(filter.filenamePattern) ? filter.filenamePattern.exclude : undefined;
+
+		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (excludeFilenamePattern) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
 					// should exclude
 
 					return false;
@@ -763,21 +765,22 @@ export interface INotebookKernelInfoDto2 {
 	extensionLocation: URI;
 	providerHandle?: number;
 	description?: string;
+	detail?: string;
 	isPreferred?: boolean;
 	preloads?: UriComponents[];
 }
 
 export interface INotebookKernelInfo2 extends INotebookKernelInfoDto2 {
 	resolve(uri: URI, editorId: string, token: CancellationToken): Promise<void>;
-	executeNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
-	cancelNotebookCell?(uri: URI, handle: number | undefined): Promise<void>;
+	executeNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
+	cancelNotebookCell(uri: URI, handle: number | undefined): Promise<void>;
 }
 
 export interface INotebookKernelProvider {
 	providerExtensionId: string;
 	providerDescription?: string;
 	selector: INotebookDocumentFilter;
-	onDidChangeKernels: Event<void>;
+	onDidChangeKernels: Event<URI | undefined>;
 	provideKernels(uri: URI, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	resolveKernel(editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
 	executeNotebook(uri: URI, kernelId: string, handle: number | undefined): Promise<void>;
@@ -817,7 +820,7 @@ export interface INotebookCellStatusBarEntry {
 
 export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
-export const ShowCellStatusbarKey = 'notebook.showCellStatusbar';
+export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 
 export const enum CellStatusbarAlignment {

@@ -20,7 +20,6 @@ import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -36,6 +35,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
@@ -60,7 +60,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Event } from 'vs/base/common/event';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
@@ -204,11 +203,6 @@ export class NativeWindow extends Disposable {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
 			this.themeService.setOSHighContrast(scheme === ColorScheme.HIGH_CONTRAST);
 		}));
-
-		// keyboard layout changed event
-		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
-			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
-		});
 
 		// accessibility support changed event
 		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
@@ -642,13 +636,13 @@ class NativeMenubarControl extends MenubarControl {
 		(async () => {
 			this.recentlyOpened = await this.workspacesService.getRecentlyOpened();
 
-			this.doUpdateMenubar(true);
+			this.doUpdateMenubar();
 		})();
 
 		this.registerListeners();
 	}
 
-	protected doUpdateMenubar(firstTime: boolean): void {
+	protected doUpdateMenubar(): void {
 		// Since the native menubar is shared between windows (main process)
 		// only allow the focused window to update the menubar
 		if (!this.hostService.hasFocus) {

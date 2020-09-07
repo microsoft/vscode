@@ -36,6 +36,15 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
+(<any>self)['AMDLoader'] = undefined;
+(<any>self)['NLSLoaderPlugin'] = undefined;
+(<any>self)['define'] = undefined;
+(<any>self)['require'] = undefined;
+(<any>self)['webkitRequestFileSystem'] = undefined;
+(<any>self)['webkitRequestFileSystemSync'] = undefined;
+(<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
+(<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
+
 if (location.protocol === 'data:') {
 	// make sure new Worker(...) always uses data:
 	const _Worker = Worker;

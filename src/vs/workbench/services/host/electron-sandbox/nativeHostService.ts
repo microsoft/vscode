@@ -59,10 +59,6 @@ export class NativeHostService extends Disposable implements IHostService {
 		return activeWindowId === this.electronService.windowId;
 	}
 
-	focus(): Promise<void> {
-		return this.electronService.focusWindow();
-	}
-
 	//#endregion
 
 
@@ -121,6 +117,10 @@ export class NativeHostService extends Disposable implements IHostService {
 
 
 	//#region Lifecycle
+
+	focus(options?: { force: boolean }): Promise<void> {
+		return this.electronService.focusWindow(options);
+	}
 
 	restart(): Promise<void> {
 		return this.electronService.relaunch();

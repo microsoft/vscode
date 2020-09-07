@@ -8,6 +8,7 @@ import 'vs/css!./media/actions';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
@@ -123,30 +124,22 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
-		let mouseIndicatorColor: string;
 		const updateMouseIndicatorColor = () => {
-			mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
-
-			let style = new Option().style;
-			style.color = mouseIndicatorColor;
-			if (mouseIndicatorColor === '' || !style.color) {
-				mouseIndicatorColor = 'red';
-			}
+			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
 		};
 
 		let mouseIndicatorSize: number;
 		const updateMouseIndicatorSize = () => {
 			mouseIndicatorSize = clamp(configurationService.getValue<number>('screencastMode.mouseIndicatorSize') || 20, 20, 100);
+
+			mouseMarker.style.height = `${mouseIndicatorSize}px`;
+			mouseMarker.style.width = `${mouseIndicatorSize}px`;
 		};
 
 		updateMouseIndicatorColor();
 		updateMouseIndicatorSize();
 
 		disposables.add(onMouseDown(e => {
-			mouseMarker.style.height = `${mouseIndicatorSize}px`;
-			mouseMarker.style.width = `${mouseIndicatorSize}px`;
-			mouseMarker.style.borderRadius = '50%';
-			mouseMarker.style.borderColor = mouseIndicatorColor;
 			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
@@ -329,8 +322,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.mouseIndicatorColor': {
 			type: 'string',
-			default: 'red',
-			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (string or Hex) of the mouse indicator in screencast mode.")
+			format: 'color-hex',
+			default: '#FF0000',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorSize': {
 			type: 'number',

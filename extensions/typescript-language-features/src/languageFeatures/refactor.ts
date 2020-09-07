@@ -269,7 +269,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		if (!context.only) {
 			return actions;
 		}
-		return this.appendInvalidActions(actions);
+		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
 	}
 
 	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorTriggerReason | undefined {
@@ -369,6 +369,11 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
+		if (this.client.apiVersion.gte(API.v400)) {
+			// Invalid actions come from TS server instead
+			return actions;
+		}
+
 		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
 			const disabledAction = new vscode.CodeAction(
 				localize('extractConstant.disabled.title', "Extract to constant"),
@@ -393,6 +398,39 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			actions.push(disabledAction);
 		}
 		return actions;
+	}
+
+	private pruneInvalidActions(actions: vscode.CodeAction[], only?: vscode.CodeActionKind, numberOfInvalid?: number): vscode.CodeAction[] {
+		if (this.client.apiVersion.lt(API.v400)) {
+			// Older TS version don't return extra actions
+			return actions;
+		}
+
+		const availableActions: vscode.CodeAction[] = [];
+		const invalidCommonActions: vscode.CodeAction[] = [];
+		const invalidUncommonActions: vscode.CodeAction[] = [];
+		for (const action of actions) {
+			if (!action.disabled) {
+				availableActions.push(action);
+				continue;
+			}
+
+			// These are the common refactors that we should always show if applicable.
+			if (action.kind && (Extract_Constant.kind.contains(action.kind) || Extract_Function.kind.contains(action.kind))) {
+				invalidCommonActions.push(action);
+				continue;
+			}
+
+			// These are the remaining refactors that we can show if we haven't reached the max limit with just common refactors.
+			invalidUncommonActions.push(action);
+		}
+
+		const prioritizedActions: vscode.CodeAction[] = [];
+		prioritizedActions.push(...invalidCommonActions);
+		prioritizedActions.push(...invalidUncommonActions);
+		const topNInvalid = prioritizedActions.filter(action => !only || (action.kind && only.contains(action.kind))).slice(0, numberOfInvalid);
+		availableActions.push(...topNInvalid);
+		return availableActions;
 	}
 }
 

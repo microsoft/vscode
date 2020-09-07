@@ -1616,6 +1616,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.state.windowBorder;
 	}
 
+	getWindowBorderWidth(): number {
+		return this.state.windowBorder ? 2 : 0;
+	}
+
 	getWindowBorderRadius(): string | undefined {
 		return this.state.windowBorder && isMacintosh ? '5px' : undefined;
 	}

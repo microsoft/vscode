@@ -132,11 +132,11 @@ export interface IExtensionRecommendationsService {
 	readonly _serviceBrand: undefined;
 
 	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
+	getImportantRecommendations(): Promise<IExtensionRecommendation[]>;
+	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
 	getFileBasedRecommendations(): IExtensionRecommendation[];
 	getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }>;
-	getImportantRecommendations(): Promise<IExtensionRecommendation[]>;
-	getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]>;
-	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
+	getConfigBasedRecommendations(): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }>;
 	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
 	getKeymapRecommendations(): IExtensionRecommendation[];
 
@@ -150,6 +150,7 @@ export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
 	scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]>;
+	canAddExtension(galleryExtension: IGalleryExtension): Promise<boolean>;
 	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 }

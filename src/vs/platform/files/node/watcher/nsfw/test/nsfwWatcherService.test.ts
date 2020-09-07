@@ -10,11 +10,14 @@ import { NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/nsfwWatc
 import { IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
 
 class TestNsfwWatcherService extends NsfwWatcherService {
-	public normalizeRoots(roots: string[]): string[] {
+
+	normalizeRoots(roots: string[]): string[] {
+
 		// Work with strings as paths to simplify testing
 		const requests: IWatcherRequest[] = roots.map(r => {
 			return { path: r, excludes: [] };
 		});
+
 		return this._normalizeRoots(requests).map(r => r.path);
 	}
 }

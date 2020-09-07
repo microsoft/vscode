@@ -23,6 +23,7 @@ import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/storageKeysSyncRegistryService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
+import 'vs/workbench/services/dialogs/electron-sandbox/dialogService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
@@ -33,11 +34,18 @@ import 'vs/workbench/services/request/electron-sandbox/requestService';
 import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
 import 'vs/workbench/services/clipboard/electron-sandbox/clipboardService';
 import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
+import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingService';
+import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
+import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
+import 'vs/workbench/services/path/electron-sandbox/pathService';
 
 //#endregion
 
 
 //#region --- workbench contributions
+
+// Logs
+import 'vs/workbench/contrib/logs/electron-sandbox/logs.contribution';
 
 // Localizations
 import 'vs/workbench/contrib/localizations/browser/localizations.contribution';

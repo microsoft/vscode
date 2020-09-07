@@ -500,7 +500,8 @@ export const enum TERMINAL_COMMAND_ID {
 	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
 	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
-	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation'
+	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation',
+	SEARCH_WORKSPACE = 'workbench.action.terminal.searchWorkspace'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

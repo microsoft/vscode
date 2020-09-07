@@ -168,7 +168,7 @@ suite('AbstractKeybindingService', () => {
 				setFilter() { }
 			};
 
-			let resolver = new KeybindingResolver(items, []);
+			let resolver = new KeybindingResolver(items, [], () => { });
 
 			return new TestKeybindingService(resolver, contextKeyService, commandService, notificationService);
 		};
@@ -190,7 +190,8 @@ suite('AbstractKeybindingService', () => {
 			command,
 			null,
 			when,
-			true
+			true,
+			null
 		);
 	}
 
