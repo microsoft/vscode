@@ -9,17 +9,17 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { BACKUPS, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IPath } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchEnvironmentService, IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 
-export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguration {
+class BrowserWorkbenchConfiguration implements IWorkbenchConfiguration {
 
 	constructor(
-		private readonly options: IBrowserWorkbenchEnvironmentConstructionOptions,
+		private readonly options: IBrowserWorkbenchOptions,
 		private readonly payload: Map<string, string> | undefined,
 		private readonly backupHome: URI
 	) { }
@@ -79,7 +79,7 @@ export class BrowserEnvironmentConfiguration implements IEnvironmentConfiguratio
 	}
 }
 
-interface IBrowserWorkbenchEnvironmentConstructionOptions extends IWorkbenchConstructionOptions {
+interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
 	workspaceId: string;
 	logsPath: URI;
 }
@@ -96,10 +96,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	declare readonly _serviceBrand: undefined;
 
-	private _configuration: IEnvironmentConfiguration | undefined = undefined;
-	get configuration(): IEnvironmentConfiguration {
+	private _configuration: IWorkbenchConfiguration | undefined = undefined;
+	get configuration(): IWorkbenchConfiguration {
 		if (!this._configuration) {
-			this._configuration = new BrowserEnvironmentConfiguration(this.options, this.payload, this.backupHome);
+			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload, this.backupHome);
 		}
 
 		return this._configuration;
@@ -237,7 +237,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	private payload: Map<string, string> | undefined;
 
-	constructor(readonly options: IBrowserWorkbenchEnvironmentConstructionOptions) {
+	constructor(readonly options: IBrowserWorkbenchOptions) {
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
 			try {
 				this.payload = new Map(options.workspaceProvider.payload);

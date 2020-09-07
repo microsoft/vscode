@@ -9,6 +9,13 @@ import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOpt
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
+export interface IOSProperties {
+	type: string;
+	release: string;
+	arch: string;
+	platform: string;
+}
+
 export interface ICommonElectronService {
 
 	readonly _serviceBrand: undefined;
@@ -73,6 +80,7 @@ export interface ICommonElectronService {
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 	isAdmin(): Promise<boolean>;
 	getTotalMem(): Promise<number>;
+	getOS(): Promise<IOSProperties>;
 
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
