@@ -756,6 +756,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}) : undefined;
 		const icon = this.themeService.getColorTheme().type === LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
+		const canResolve = node instanceof ResolvableTreeItem && node.hasResolve;
+		const title = node.tooltip ? (isString(node.tooltip) ? node.tooltip : undefined) : (resource ? undefined : (canResolve ? undefined : label));
 
 		// reset
 		templateData.actionBar.clear();
@@ -765,7 +767,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
-				title: '',
+				title,
 				hideIcon: !!iconUrl,
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
@@ -775,7 +777,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			fallbackHover = this.labelService.getUriLabel(labelResource);
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
-				title: '',
+				title,
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -810,6 +812,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
+		if (!(node instanceof ResolvableTreeItem) || (node.tooltip && isString(node.tooltip)) || (!node.tooltip && !node.hasResolve)) {
+			return;
+		}
+		const resolvableNode: ResolvableTreeItem = node;
+
 		const hoverService = this.hoverService;
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
@@ -827,10 +834,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
 			this.addEventListener(DOM.EventType.MOUSE_MOVE, mouseMove, { passive: true });
 			setTimeout(async () => {
-				if (node instanceof ResolvableTreeItem) {
-					await node.resolve();
-				}
-				let tooltip: IMarkdownString | string | undefined = node.tooltip ?? label;
+				await resolvableNode.resolve();
+				const tooltip = resolvableNode.tooltip ?? label;
 				if (isHovering && tooltip) {
 					if (!hoverOptions) {
 						const target: IHoverTarget = {
