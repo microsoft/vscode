@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.14.1"
+    versionSpec: "12.18.3"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -95,12 +95,6 @@ steps:
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
   displayName: Build
-
-- script: |
-    set -e
-    service xvfb start
-  displayName: Start xvfb
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e

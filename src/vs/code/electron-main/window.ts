@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, Details } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, RenderProcessGoneDetails } from 'electron';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -415,7 +415,11 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private registerListeners(): void {
 
 		// Crashes & Unrsponsive
-		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
+		this._win.webContents.on('render-process-gone', (event, details) => {
+			if (details.reason === 'crashed') {
+				this.onWindowError(WindowError.CRASHED, details);
+			}
+		});
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
 
 		// Window close
@@ -548,8 +552,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onWindowError(error: WindowError.UNRESPONSIVE): void;
-	private onWindowError(error: WindowError.CRASHED, details: Details): void;
-	private onWindowError(error: WindowError, details?: Details): void {
+	private onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): void;
+	private onWindowError(error: WindowError, details?: RenderProcessGoneDetails): void {
 		this.logService.error(error === WindowError.CRASHED ? `[VS Code]: renderer process crashed (detail: ${details?.reason})` : '[VS Code]: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
