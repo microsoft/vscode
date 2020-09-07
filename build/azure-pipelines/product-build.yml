@@ -13,6 +13,9 @@ resources:
   - container: vscode-x64
     image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
     endpoint: VSCodeHub
+  - container: vscode-arm64
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
+    endpoint: VSCodeHub
   - container: snapcraft
     image: snapcore/snapcraft:stable
 
@@ -64,6 +67,8 @@ stages:
   - job: Linux
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
     container: vscode-x64
+    variables:
+      VSCODE_ARCH: x64
     steps:
     - template: linux/product-build-linux.yml
 
@@ -72,6 +77,8 @@ stages:
     - Linux
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX'], 'true'))
     container: snapcraft
+    variables:
+      VSCODE_ARCH: x64
     steps:
     - template: linux/snap-build-linux.yml
 
@@ -84,10 +91,11 @@ stages:
 
   - job: LinuxArm64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
+    container: vscode-arm64
     variables:
       VSCODE_ARCH: arm64
     steps:
-    - template: linux/product-build-linux-multiarch.yml
+    - template: linux/product-build-linux.yml
 
   - job: LinuxAlpine
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ALPINE'], 'true'))

@@ -3,6 +3,7 @@ steps:
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
     echo -n $VSCODE_QUALITY > .build/quality
+    echo -n $VSCODE_ARCH > .build/arch
   displayName: Prepare cache flag
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
@@ -54,19 +55,19 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 yarn --frozen-lockfile
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile --arch=$(VSCODE_ARCH)
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
@@ -85,30 +86,30 @@ steps:
 - script: |
     set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-linux-x64-min-ci
+      yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-linux-x64-min-ci
+      yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      yarn gulp vscode-reh-web-linux-x64-min-ci
+      yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
   displayName: Build
 
 - script: |
     set -e
     service xvfb start
   displayName: Start xvfb
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
   displayName: Run unit tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
   displayName: Run unit tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     # Figure out the full absolute path of the product we just built
@@ -121,14 +122,14 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
     DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
   displayName: Run integration tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -138,11 +139,11 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
   displayName: Run remote integration tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: PublishPipelineArtifact@0
   inputs:
-    artifactName: crash-dump-linux
+    artifactName: 'crash-dump-linux-$(VSCODE_ARCH)'
     targetPath: .build/crashes
   displayName: 'Publish Crash Reports'
   continueOnError: true
@@ -161,6 +162,7 @@ steps:
     yarn gulp "vscode-linux-x64-build-rpm"
     yarn gulp "vscode-linux-x64-prepare-snap"
   displayName: Build packages
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']))
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
@@ -180,20 +182,23 @@ steps:
       ]
     SessionTimeout: 120
   displayName: Codesign rpm
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']))
 
 - script: |
     set -e
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+    VSCODE_ARCH="$(VSCODE_ARCH)" \
     ./build/azure-pipelines/linux/publish.sh
   displayName: Publish
 
 - task: PublishPipelineArtifact@0
   displayName: 'Publish Pipeline Artifact'
   inputs:
-    artifactName: snap-x64
+    artifactName: 'snap-$(VSCODE_ARCH)'
     targetPath: .build/linux/snap-tarball
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']))
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
