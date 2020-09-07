@@ -10,6 +10,10 @@ import { URI } from 'vs/base/common/uri';
 
 export interface INativeWorkbenchConfiguration extends IWindowConfiguration, INativeWindowConfiguration { }
 
+/**
+ * A subclass of the `IWorkbenchEnvironmentService` to be used only in native
+ * environments (Windows, Linux, macOS) but not e.g. web.
+ */
 export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
 
 	readonly configuration: INativeWorkbenchConfiguration;
