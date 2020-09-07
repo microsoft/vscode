@@ -8,7 +8,6 @@ import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } fro
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-sandbox/backup';
 import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -32,6 +31,9 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+
+	// Do not memoize as `backupPath` can change in configuration
+	get backupWorkspaceHome(): URI | undefined { return this.configuration.backupPath ? URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme }) : undefined; }
 
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
@@ -66,8 +68,6 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 		readonly configuration: INativeWorkbenchConfiguration
 	) {
 		super(configuration);
-
-		this.configuration.backupWorkspaceResource = this.configuration.backupPath ? toBackupWorkspaceResource(this.configuration.backupPath, this) : undefined;
 	}
 
 	private doGetCLIPath(): string {

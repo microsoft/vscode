@@ -11,19 +11,16 @@ import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('environmentService');
 
-export interface IWorkbenchConfiguration extends IWindowConfiguration {
-	backupWorkspaceResource?: URI;
-}
-
 export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly configuration: IWorkbenchConfiguration;
+	readonly configuration: IWindowConfiguration;
 
 	readonly options?: IWorkbenchOptions;
 
 	readonly logFile: URI;
+	readonly backupWorkspaceHome?: URI;
 
 	readonly logExtensionHostCommunication?: boolean;
 	readonly extensionEnabledProposedApi?: string[];

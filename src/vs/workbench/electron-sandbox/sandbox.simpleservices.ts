@@ -91,7 +91,7 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
-	get backupHome(): URI { return joinPath(this.userRoamingDataHome, 'backupsHome'); }
+	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -120,6 +120,7 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	appSettingsHome: URI = undefined!;
 	userDataPath: string = undefined!;
 	machineSettingsResource: URI = undefined!;
+	backupHome: string = undefined!;
 	backupWorkspacesPath: string = undefined!;
 
 	log?: string | undefined;
