@@ -1735,9 +1735,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super.dispose();
 	}
 
-	toJSON(): object {
+	toJSON(): { notebookUri: URI | undefined } {
 		return {
-			notebookHandle: this.viewModel?.handle
+			notebookUri: this.viewModel?.uri,
 		};
 	}
 }

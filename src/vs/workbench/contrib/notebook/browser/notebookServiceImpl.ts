@@ -225,7 +225,6 @@ class ModelData implements IDisposable {
 }
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	declare readonly _serviceBrand: undefined;
-	static mainthreadNotebookDocumentHandle: number = 0;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	notebookProviderInfoStore: NotebookProviderInfoStore;
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
@@ -622,7 +621,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return notebookModel;
 
 		} else {
-			notebookModel = this._instantiationService.createInstance(NotebookTextModel, NotebookService.mainthreadNotebookDocumentHandle++, viewType, provider.controller.supportBackup, uri);
+			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri);
 			await provider.controller.createNotebook(notebookModel, backupId);
 		}
 

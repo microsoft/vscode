@@ -270,7 +270,6 @@ export interface IMetadata {
 }
 
 export interface INotebookTextModel {
-	handle: number;
 	viewType: string;
 	metadata: NotebookDocumentMetadata
 	readonly uri: URI;

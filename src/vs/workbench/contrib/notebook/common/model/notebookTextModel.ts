@@ -164,10 +164,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _operationManager: NotebookOperationManager;
 
 	constructor(
-		public handle: number,
-		public viewType: string,
-		public supportBackup: boolean,
-		public uri: URI,
+		readonly viewType: string,
+		readonly supportBackup: boolean,
+		readonly uri: URI,
 		@IUndoRedoService private _undoService: IUndoRedoService,
 		@ITextModelService private _modelService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
