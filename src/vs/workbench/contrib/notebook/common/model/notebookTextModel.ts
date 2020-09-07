@@ -16,15 +16,10 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
-	// private readonly _pieces: Ce[] = [];
+
 	private _index: number = -1;
 
-	constructor(private _model: NotebookTextModel) {
-		// for (let i = 0; i < this._model.cells.length; i++) {
-		// 	const cell = this._model.cells[i];
-		// 	this._pieces.push(this._model.cells[i].textBuffer.createSnapshot(true));
-		// }
-	}
+	constructor(private _model: NotebookTextModel) { }
 
 	read(): string | null {
 
