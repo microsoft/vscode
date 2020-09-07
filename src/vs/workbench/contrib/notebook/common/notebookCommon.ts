@@ -270,13 +270,13 @@ export interface IMetadata {
 }
 
 export interface INotebookTextModel {
-	viewType: string;
+	readonly viewType: string;
 	metadata: NotebookDocumentMetadata
 	readonly uri: URI;
 	readonly versionId: number;
 	languages: string[];
-	cells: ICell[];
-	onDidChangeCells?: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
+	readonly cells: readonly ICell[];
+	onDidChangeCells: Event<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>;
 	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
