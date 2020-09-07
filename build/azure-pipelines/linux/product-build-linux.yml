@@ -97,19 +97,19 @@ steps:
     set -e
     service xvfb start
   displayName: Start xvfb
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
   displayName: Run unit tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     DISPLAY=:10 yarn test-browser --build --browser chromium --tfs "Browser Unit Tests"
   displayName: Run unit tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     # Figure out the full absolute path of the product we just built
@@ -122,14 +122,14 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./scripts/test-integration.sh --build --tfs "Integration Tests"
   displayName: Run integration tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-x64" \
     DISPLAY=:10 ./resources/server/test/test-web-integration.sh --browser chromium
   displayName: Run integration tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
@@ -139,7 +139,7 @@ steps:
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-x64" \
     DISPLAY=:10 ./resources/server/test/test-remote-integration.sh
   displayName: Run remote integration tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - task: PublishPipelineArtifact@0
   inputs:
@@ -162,7 +162,7 @@ steps:
     yarn gulp "vscode-linux-x64-build-rpm"
     yarn gulp "vscode-linux-x64-prepare-snap"
   displayName: Build packages
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
@@ -182,7 +182,7 @@ steps:
       ]
     SessionTimeout: 120
   displayName: Codesign rpm
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
 - script: |
     set -e
@@ -198,7 +198,7 @@ steps:
   inputs:
     artifactName: 'snap-$(VSCODE_ARCH)'
     targetPath: .build/linux/snap-tarball
-  condition: and(succeeded(), eq(variables['VSCODE_ARCH', 'x64']))
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'
