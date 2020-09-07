@@ -498,10 +498,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 		xterm.open(this._xtermElement);
 		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
-			this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
-				this._webglAddon = new Addon();
-				xterm.loadAddon(this._webglAddon);
-			});
+			this._enableWebglRenderer();
 		}
 
 		if (!xterm.element || !xterm.textarea) {
@@ -771,7 +768,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._webglAddon?.clearTextureAtlas();
-		// TODO: Do other renderers?
+		// TODO: Do canvas renderer too?
 	}
 
 	public focus(force?: boolean): void {
@@ -1231,13 +1228,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
-		if (config.rendererType !== 'experimentalWebgl') {
-			// TODO: Unset/dispose this._webglAddon
-
+		if (config.rendererType === 'experimentalWebgl') {
+			this._enableWebglRenderer();
+		} else {
+			this._webglAddon?.dispose();
+			this._webglAddon = undefined;
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+	}
+
+	private async _enableWebglRenderer(): Promise<void> {
+		if (!this._xterm || this._webglAddon) {
+			return;
+		}
+		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
+		this._webglAddon = new Addon();
+		this._xterm.loadAddon(this._webglAddon);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
