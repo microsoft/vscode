@@ -17,7 +17,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsDevelopmentContext, IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
@@ -45,7 +45,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CloseCurrentWindowAction.ID, // close the window when the last editor is closed by reusing the same keybinding
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
+			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 			handler: accessor => {
 				const electronService = accessor.get(IElectronService);

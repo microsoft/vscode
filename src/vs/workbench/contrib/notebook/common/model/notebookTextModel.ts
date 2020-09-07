@@ -103,29 +103,22 @@ export class NotebookOperationManager {
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 
-	private _cellhandlePool: number = 0;
-
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	private readonly _onDidChangeCells = this._register(new Emitter<{ synchronous: boolean, splices: NotebookCellTextModelSplice[] }>());
-	get onDidChangeCells() { return this._onDidChangeCells.event; }
-	private readonly _emitSelections = this._register(new Emitter<number[]>());
-	get emitSelections() { return this._emitSelections.event; }
-	private _onDidModelChangeProxy = this._register(new Emitter<NotebookCellsChangedEvent>());
-	get onDidModelChangeProxy(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
-	private _onDidSelectionChangeProxy = this._register(new Emitter<number[] | null>());
-	get onDidSelectionChange(): Event<number[] | null> { return this._onDidSelectionChangeProxy.event; }
-	private _onDidChangeContent = this._register(new Emitter<void>());
-	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-	private _onDidChangeMetadata = this._register(new Emitter<NotebookDocumentMetadata>());
-	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
+	private readonly _onDidModelChangeProxy = this._register(new Emitter<NotebookCellsChangedEvent>());
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	private readonly _onDidChangeMetadata = this._register(new Emitter<NotebookDocumentMetadata>());
+
+	readonly onWillDispose: Event<void> = this._onWillDispose.event;
+	readonly onDidChangeCells = this._onDidChangeCells.event;
+	readonly onDidModelChangeProxy = this._onDidModelChangeProxy.event;
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
+
+	private _cellhandlePool: number = 0;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[];
-
-	get cells(): readonly NotebookCellTextModel[] {
-		return this._cells;
-	}
 
 	private _languages: string[] = [];
 	private _allLanguages: boolean = false;
@@ -147,9 +140,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
-	get versionId() {
-		return this._versionId;
-	}
+	//#region selection TODO@rebornix this shouldn't be here
+
+	private readonly _emitSelections = this._register(new Emitter<number[]>());
+	readonly emitSelections = this._emitSelections.event;
+	private _onDidSelectionChangeProxy = this._register(new Emitter<number[] | null>());
+	readonly onDidSelectionChange = this._onDidSelectionChangeProxy.event;
+
 
 	private _selections: number[] = [];
 
@@ -162,11 +159,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidSelectionChangeProxy.fire(this._selections);
 	}
 
+	//#endregion
+
 	private _dirty = false;
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private _operationManager: NotebookOperationManager;
+	private readonly _operationManager: NotebookOperationManager;
 
 	constructor(
 		readonly viewType: string,
@@ -180,6 +179,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cells = [];
 
 		this._operationManager = new NotebookOperationManager(this._undoService, uri);
+	}
+
+	dispose() {
+		this._onWillDispose.fire();
+		dispose(this._cellListeners.values());
+		dispose(this._cells);
+		super.dispose();
+	}
+
+	get cells(): readonly NotebookCellTextModel[] {
+		return this._cells;
+	}
+
+	get versionId() {
+		return this._versionId;
 	}
 
 	get isDirty() {
@@ -261,12 +275,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 				case CellEditType.Output:
 					//TODO@joh,@rebornix no event, no undo stop (?)
-					this.assertIndex(edit.index);
+					this._assertCellIndex(edit.index);
 					const cell = this._cells[edit.index];
 					this.spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]]);
 					break;
 				case CellEditType.Metadata:
-					this.assertIndex(edit.index);
+					this._assertCellIndex(edit.index);
 					this.deltaCellMetadata(this._cells[edit.index].handle, edit.metadata);
 					break;
 			}
@@ -498,8 +512,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	moveCellToIdx(index: number, length: number, newIdx: number, emitToExtHost: boolean = true) {
-		this.assertIndex(index);
-		this.assertIndex(newIdx);
+		this._assertCellIndex(index);
+		this._assertCellIndex(newIdx);
 
 		const cells = this._cells.splice(index, length);
 		this._cells.splice(newIdx, 0, ...cells);
@@ -513,7 +527,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	assertIndex(index: number) {
+	private _assertCellIndex(index: number): void {
 		if (index < 0 || index >= this._cells.length) {
 			throw new Error(`model index out of range ${index}`);
 		}
@@ -751,10 +765,5 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 	//#endregion
 
-	dispose() {
-		this._onWillDispose.fire();
-		dispose(this._cellListeners.values());
-		dispose(this._cells);
-		super.dispose();
-	}
+
 }

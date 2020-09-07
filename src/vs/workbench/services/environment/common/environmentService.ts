@@ -11,19 +11,25 @@ import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('environmentService');
 
-export interface IWorkbenchConfiguration extends IWindowConfiguration {
-	backupWorkspaceResource?: URI;
-}
-
+/**
+ * A workbench specific environment service that is only present in workbench
+ * layer.
+ */
 export interface IWorkbenchEnvironmentService extends IEnvironmentService {
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
+	//       - PUT NON-WEB PROPERTIES INTO NATIVE WB ENV SERVICE
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	readonly _serviceBrand: undefined;
 
-	readonly configuration: IWorkbenchConfiguration;
+	readonly configuration: IWindowConfiguration;
 
 	readonly options?: IWorkbenchOptions;
 
 	readonly logFile: URI;
+	readonly backupWorkspaceHome?: URI;
 
 	readonly logExtensionHostCommunication?: boolean;
 	readonly extensionEnabledProposedApi?: string[];
@@ -33,4 +39,9 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly webviewCspSource: string;
 
 	readonly skipReleaseNotes: boolean;
+
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
+	//       - PUT NON-WEB PROPERTIES INTO NATIVE WB ENV SERVICE
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

@@ -181,7 +181,7 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, simpleFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(URI.file('user-home'), this.environmentService.backupHome, simpleFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(URI.file('user-home'), undefined, simpleFileSystemProvider, this.environmentService, logService));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {

@@ -33,7 +33,7 @@ self.close = () => console.trace(`'close' has been blocked`);
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
-const nativeAddEventLister = addEventListener.bind(self);
+// const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
 
 (<any>self)['AMDLoader'] = undefined;
@@ -79,11 +79,14 @@ class ExtensionWorker {
 
 	constructor() {
 
-		let emitter = new Emitter<VSBuffer>();
+		const channel = new MessageChannel();
+		const emitter = new Emitter<VSBuffer>();
 		let terminating = false;
 
+		// send over port2, keep port1
+		nativePostMessage(channel.port2, [channel.port2]);
 
-		nativeAddEventLister('message', event => {
+		channel.port1.onmessage = event => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -100,14 +103,14 @@ class ExtensionWorker {
 
 			// emit non-terminate messages to the outside
 			emitter.fire(msg);
-		});
+		};
 
 		this.protocol = {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				if (!terminating) {
 					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-					nativePostMessage(data, [data]);
+					channel.port1.postMessage(data, [data]);
 				}
 			}
 		};

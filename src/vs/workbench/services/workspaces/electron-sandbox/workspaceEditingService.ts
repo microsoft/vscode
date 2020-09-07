@@ -13,7 +13,6 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-sandbox/backup';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -173,7 +172,6 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 
 			// Reinitialize backup service
 			this.environmentService.configuration.backupPath = result.backupPath;
-			this.environmentService.configuration.backupWorkspaceResource = result.backupPath ? toBackupWorkspaceResource(result.backupPath, this.environmentService) : undefined;
 			if (this.backupFileService instanceof BackupFileService) {
 				this.backupFileService.reinitialize();
 			}

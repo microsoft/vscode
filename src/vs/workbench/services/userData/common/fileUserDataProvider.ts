@@ -7,7 +7,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
@@ -26,11 +25,12 @@ export class FileUserDataProvider extends Disposable implements
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
 	private readonly userDataHome: URI;
+	private readonly backupHome: URI | undefined;
 	private extUri: ExtUri;
 
 	constructor(
 		private readonly fileSystemUserDataHome: URI,
-		private readonly fileSystemBackupsHome: URI,
+		private readonly fileSystemBackupsHome: URI | undefined,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
 		environmentService: IWorkbenchEnvironmentService,
 		private readonly logService: ILogService,
@@ -38,6 +38,7 @@ export class FileUserDataProvider extends Disposable implements
 		super();
 
 		this.userDataHome = environmentService.userRoamingDataHome;
+		this.backupHome = environmentService.backupWorkspaceHome;
 
 		this.extUri = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive) ? extUri : extUriIgnorePathCase;
 		// update extUri as capabilites might change.
@@ -139,10 +140,13 @@ export class FileUserDataProvider extends Disposable implements
 	}
 
 	private toFileSystemResource(userDataResource: URI): URI {
-		const relativePath = this.extUri.relativePath(this.userDataHome, userDataResource)!;
-		if (relativePath.startsWith(BACKUPS)) {
-			return this.extUri.joinPath(this.extUri.dirname(this.fileSystemBackupsHome), relativePath);
+		// Backup Resource
+		if (this.backupHome && this.fileSystemBackupsHome && this.extUri.isEqualOrParent(userDataResource, this.backupHome)) {
+			const relativePath = this.extUri.relativePath(this.backupHome, userDataResource);
+			return relativePath ? this.extUri.joinPath(this.fileSystemBackupsHome, relativePath) : this.fileSystemBackupsHome;
 		}
+
+		const relativePath = this.extUri.relativePath(this.userDataHome, userDataResource)!;
 		return this.extUri.joinPath(this.fileSystemUserDataHome, relativePath);
 	}
 
@@ -151,9 +155,9 @@ export class FileUserDataProvider extends Disposable implements
 			const relativePath = this.extUri.relativePath(this.fileSystemUserDataHome, fileSystemResource);
 			return relativePath ? this.extUri.joinPath(this.userDataHome, relativePath) : this.userDataHome;
 		}
-		if (this.extUri.isEqualOrParent(fileSystemResource, this.fileSystemBackupsHome)) {
+		if (this.backupHome && this.fileSystemBackupsHome && this.extUri.isEqualOrParent(fileSystemResource, this.fileSystemBackupsHome)) {
 			const relativePath = this.extUri.relativePath(this.fileSystemBackupsHome, fileSystemResource);
-			return relativePath ? this.extUri.joinPath(this.userDataHome, BACKUPS, relativePath) : this.extUri.joinPath(this.userDataHome, BACKUPS);
+			return relativePath ? this.extUri.joinPath(this.backupHome, relativePath) : this.backupHome;
 		}
 		return null;
 	}
