@@ -14,6 +14,7 @@ import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { isMacintosh } from 'vs/base/common/platform';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -195,6 +196,12 @@ export class Client implements IChannelClient, IDisposable {
 
 			if (this.options && typeof this.options.debugBrk === 'number') {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
+			}
+
+			if (isMacintosh && forkOpts.env) {
+				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
+				// See https://github.com/microsoft/vscode/issues/105848
+				delete forkOpts.env['DYLD_LIBRARY_PATH'];
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);

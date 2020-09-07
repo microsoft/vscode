@@ -1648,7 +1648,6 @@ export interface INotebookDocumentPropertiesChangeData {
 
 export interface INotebookModelAddedData {
 	uri: UriComponents;
-	handle: number;
 	versionId: number;
 	cells: IMainCellDto[],
 	viewType: string;

@@ -27,7 +27,7 @@ import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/b
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const appSettingsHome = path.join(userdataDir, 'User');
@@ -46,10 +46,10 @@ const fooBackupPath = path.join(workspaceBackupPath, 'file', hashPath(fooFile));
 const barBackupPath = path.join(workspaceBackupPath, 'file', hashPath(barFile));
 const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(untitledFile));
 
-class TestBackupEnvironmentService extends NativeWorkbenchEnvironmentService {
+class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
-		super({ ...TestWindowConfiguration, backupPath, 'user-data-dir': userdataDir }, TestWindowConfiguration.execPath);
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir });
 	}
 }
 
@@ -62,7 +62,7 @@ export class NodeTestBackupFileService extends BackupFileService {
 	discardedBackups: URI[];
 
 	constructor(workspaceBackupPath: string) {
-		const environmentService = new TestBackupEnvironmentService(workspaceBackupPath);
+		const environmentService = new TestWorkbenchEnvironmentService(workspaceBackupPath);
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);

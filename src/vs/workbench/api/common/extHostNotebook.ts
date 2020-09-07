@@ -962,16 +962,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			// Serialized INotebookCellActionContext
 			processArgument: (arg) => {
 				if (arg && arg.$mid === 12) {
-					const documentHandle = arg.notebookEditor?.notebookHandle;
+					const notebookUri = arg.notebookEditor?.notebookUri;
 					const cellHandle = arg.cell.handle;
 
-					for (const value of this._editors) {
-						if (value[1].editor.notebookData.handle === documentHandle) {
-							const cell = value[1].editor.notebookData.getCell(cellHandle);
-							if (cell) {
-								return cell.cell;
-							}
-						}
+					const data = this._documents.get(notebookUri);
+					const cell = data?.getCell(cellHandle);
+					if (cell) {
+						return cell.cell;
 					}
 				}
 				return arg;

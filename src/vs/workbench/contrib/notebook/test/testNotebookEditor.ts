@@ -393,7 +393,7 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService, modeService);
+	const notebook = new NotebookTextModel(viewType, false, URI.parse('test'), undoRedoService, textModelService, modeService);
 	notebook.initialize(cells.map(cell => {
 		return {
 			source: cell[0],

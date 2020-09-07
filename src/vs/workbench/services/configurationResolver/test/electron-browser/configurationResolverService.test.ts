@@ -13,7 +13,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { Workspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IQuickInputService, IQuickPickItem, QuickPickInput, IPickOptions, Omit, IInputOptions, IQuickInputButton, IQuickPick, IInputBox, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
@@ -691,6 +691,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWindowConfiguration, userEnv }, TestWindowConfiguration.execPath);
+		super({ ...TestWorkbenchConfiguration, userEnv });
 	}
 }

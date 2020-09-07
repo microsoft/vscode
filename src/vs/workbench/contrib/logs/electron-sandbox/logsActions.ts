@@ -8,10 +8,9 @@ import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class OpenLogsFolderAction extends Action {
 
@@ -19,7 +18,7 @@ export class OpenLogsFolderAction extends Action {
 	static readonly LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IElectronService private readonly electronService: IElectronService,
 	) {
 		super(id, label);
