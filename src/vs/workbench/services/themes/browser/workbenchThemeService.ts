@@ -34,6 +34,7 @@ import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbenc
 import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
+import { ColorScheme } from 'vs/platform/windows/common/windows';
 
 // implementation
 
@@ -108,7 +109,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
 
-		this.isOSInHighContrast = !!environmentService.configuration.highContrast;
+		this.isOSInHighContrast = environmentService.configuration.colorScheme === ColorScheme.HIGH_CONTRAST;
 
 		this.colorThemeRegistry = new ThemeRegistry(extensionService, colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
 		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this));

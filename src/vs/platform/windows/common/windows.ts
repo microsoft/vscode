@@ -211,7 +211,7 @@ export interface IWindowConfiguration {
 
 	remoteAuthority?: string;
 
-	highContrast?: boolean;
+	colorScheme: ColorScheme;
 	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
@@ -252,4 +252,22 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
  */
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 	return Math.pow(1.2, zoomLevel);
+}
+
+export enum ColorScheme {
+
+	/**
+	 * The window should use standard colors.
+	 */
+	DEFAULT = 1,
+
+	/**
+	 * The window should use dark colors.
+	 */
+	DARK = 2,
+
+	/**
+	 * The window should use high contrast colors.
+	 */
+	HIGH_CONTRAST = 3
 }
