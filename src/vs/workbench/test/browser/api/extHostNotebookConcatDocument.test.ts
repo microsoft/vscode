@@ -56,7 +56,6 @@ suite('NotebookConcatDocument', function () {
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
-				handle: 0,
 				uri: notebookUri,
 				viewType: 'test',
 				cells: [{

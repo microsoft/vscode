@@ -18,7 +18,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
 	static ofSets<T>(before: Set<T>, after: Set<T>): { removed: T[], added: T[] } {
@@ -84,10 +84,9 @@ class DocumentAndEditorState {
 		const visibleEditorDelta = DocumentAndEditorState.ofMaps(before.visibleEditors, after.visibleEditors);
 
 		return {
-			addedDocuments: documentDelta.added.map(e => {
+			addedDocuments: documentDelta.added.map((e: NotebookTextModel): INotebookModelAddedData => {
 				return {
 					viewType: e.viewType,
-					handle: e.handle,
 					uri: e.uri,
 					metadata: e.metadata,
 					versionId: e.versionId,
@@ -640,4 +639,3 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 }
-
