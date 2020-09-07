@@ -5,12 +5,12 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { isWindows, IProcessEnvironment } from 'vs/base/common/platform';
+import * as fs from 'fs';
+import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import { mkdirp } from 'vs/base/node/pfs';
-import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleMainService, ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
@@ -22,14 +22,13 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { EnvironmentService, xdgRuntimeDir, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
-import * as fs from 'fs';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -50,6 +49,11 @@ import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IPathWithLineAndColumn, isValidBasename, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
+import { isNumber } from 'vs/base/common/types';
+import { rtrim, trim } from 'vs/base/common/strings';
+import { basename, resolve } from 'vs/base/common/path';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -64,10 +68,10 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Parse arguments
-		let args: ParsedArgs;
+		let args: NativeParsedArgs;
 		try {
 			args = parseMainProcessArgv(process.argv);
-			args = validatePaths(args);
+			args = this.validatePaths(args);
 		} catch (err) {
 			console.error(err.message);
 			app.exit(1);
@@ -94,7 +98,7 @@ class CodeMain {
 		this.startup(args);
 	}
 
-	private async startup(args: ParsedArgs): Promise<void> {
+	private async startup(args: NativeParsedArgs): Promise<void> {
 
 		// We need to buffer the spdlog logs until we are sure
 		// we are the only instance running, otherwise we'll have concurrent
@@ -142,10 +146,10 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
+	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
 		const services = new ServiceCollection();
 
-		const environmentService = new EnvironmentService(args, process.execPath);
+		const environmentService = new EnvironmentService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentService, environmentService);
 
@@ -209,7 +213,7 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private async doStartup(args: ParsedArgs, logService: ILogService, environmentService: INativeEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(args: NativeParsedArgs, logService: ILogService, environmentService: INativeEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -409,6 +413,100 @@ class CodeMain {
 
 		lifecycleMainService.kill(exitCode);
 	}
+
+	//#region Helpers
+
+	private validatePaths(args: NativeParsedArgs): NativeParsedArgs {
+
+		// Track URLs if they're going to be used
+		if (args['open-url']) {
+			args._urls = args._;
+			args._ = [];
+		}
+
+		// Normalize paths and watch out for goto line mode
+		if (!args['remote']) {
+			const paths = this.doValidatePaths(args._, args.goto);
+			args._ = paths;
+		}
+
+		return args;
+	}
+
+	private doValidatePaths(args: string[], gotoLineMode?: boolean): string[] {
+		const cwd = process.env['VSCODE_CWD'] || process.cwd();
+		const result = args.map(arg => {
+			let pathCandidate = String(arg);
+
+			let parsedPath: IPathWithLineAndColumn | undefined = undefined;
+			if (gotoLineMode) {
+				parsedPath = parseLineAndColumnAware(pathCandidate);
+				pathCandidate = parsedPath.path;
+			}
+
+			if (pathCandidate) {
+				pathCandidate = this.preparePath(cwd, pathCandidate);
+			}
+
+			const sanitizedFilePath = sanitizeFilePath(pathCandidate, cwd);
+
+			const filePathBasename = basename(sanitizedFilePath);
+			if (filePathBasename /* can be empty if code is opened on root */ && !isValidBasename(filePathBasename)) {
+				return null; // do not allow invalid file names
+			}
+
+			if (gotoLineMode && parsedPath) {
+				parsedPath.path = sanitizedFilePath;
+
+				return this.toPath(parsedPath);
+			}
+
+			return sanitizedFilePath;
+		});
+
+		const caseInsensitive = isWindows || isMacintosh;
+		const distinctPaths = distinct(result, path => path && caseInsensitive ? path.toLowerCase() : (path || ''));
+
+		return coalesce(distinctPaths);
+	}
+
+	private preparePath(cwd: string, path: string): string {
+
+		// Trim trailing quotes
+		if (isWindows) {
+			path = rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+		}
+
+		// Trim whitespaces
+		path = trim(trim(path, ' '), '\t');
+
+		if (isWindows) {
+
+			// Resolve the path against cwd if it is relative
+			path = resolve(cwd, path);
+
+			// Trim trailing '.' chars on Windows to prevent invalid file names
+			path = rtrim(path, '.');
+		}
+
+		return path;
+	}
+
+	private toPath(pathWithLineAndCol: IPathWithLineAndColumn): string {
+		const segments = [pathWithLineAndCol.path];
+
+		if (isNumber(pathWithLineAndCol.line)) {
+			segments.push(String(pathWithLineAndCol.line));
+		}
+
+		if (isNumber(pathWithLineAndCol.column)) {
+			segments.push(String(pathWithLineAndCol.column));
+		}
+
+		return segments.join(':');
+	}
+
+	//#endregion
 }
 
 // Main Startup

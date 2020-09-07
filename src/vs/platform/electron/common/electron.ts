@@ -5,9 +5,16 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, ColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+
+export interface IOSProperties {
+	type: string;
+	release: string;
+	arch: string;
+	platform: string;
+}
 
 export interface ICommonElectronService {
 
@@ -26,6 +33,8 @@ export interface ICommonElectronService {
 	readonly onWindowBlur: Event<number>;
 
 	readonly onOSResume: Event<unknown>;
+
+	readonly onColorSchemeChange: Event<ColorScheme>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -73,6 +82,7 @@ export interface ICommonElectronService {
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 	isAdmin(): Promise<boolean>;
 	getTotalMem(): Promise<number>;
+	getOS(): Promise<IOSProperties>;
 
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;

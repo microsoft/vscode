@@ -266,9 +266,9 @@ export class NotebookEditor extends EditorPane {
 		super.dispose();
 	}
 
-	toJSON(): object {
-		return {
-			notebookHandle: this.viewModel?.handle
-		};
-	}
+	// toJSON(): object {
+	// 	return {
+	// 		notebookHandle: this.viewModel?.handle
+	// 	};
+	// }
 }

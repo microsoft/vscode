@@ -13,7 +13,7 @@ import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';

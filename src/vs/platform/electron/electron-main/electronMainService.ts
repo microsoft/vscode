@@ -3,26 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, Menu, BrowserWindow, app, clipboard, powerMonitor, nativeTheme } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions, ColorScheme } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
-import { ICommonElectronService } from 'vs/platform/electron/common/electron';
+import { ICommonElectronService, IOSProperties } from 'vs/platform/electron/common/electron';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { dirExists } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { totalmem } from 'os';
+import { arch, totalmem, release, platform, type } from 'os';
 
 export interface IElectronMainService extends AddFirstParameterToFunctions<ICommonElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -39,7 +38,24 @@ export class ElectronMainService implements IElectronMainService {
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
+		this.registerListeners();
 	}
+
+	private registerListeners(): void {
+
+		// Color Scheme changes
+		nativeTheme.on('updated', () => {
+			let colorScheme = ColorScheme.DEFAULT;
+			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
+				colorScheme = ColorScheme.HIGH_CONTRAST;
+			} else if (nativeTheme.shouldUseDarkColors) {
+				colorScheme = ColorScheme.DARK;
+			}
+
+			this._onColorSchemeChange.fire(colorScheme);
+		});
+	}
+
 
 	//#region Properties
 
@@ -61,6 +77,9 @@ export class ElectronMainService implements IElectronMainService {
 	);
 
 	readonly onOSResume = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+	private readonly _onColorSchemeChange = new Emitter<ColorScheme>();
+	readonly onColorSchemeChange = this._onColorSchemeChange.event;
 
 	//#endregion
 
@@ -314,6 +333,15 @@ export class ElectronMainService implements IElectronMainService {
 
 	async getTotalMem(): Promise<number> {
 		return totalmem();
+	}
+
+	async getOS(): Promise<IOSProperties> {
+		return {
+			arch: arch(),
+			platform: platform(),
+			release: release(),
+			type: type()
+		};
 	}
 
 	//#endregion

@@ -35,25 +35,19 @@ import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboar
 import { ChordKeybinding, ResolvedKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
-import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { posix, win32 } from 'vs/base/common/path';
-import { IConfirmation, IConfirmationResult, IDialogOptions, IDialogService, IShowResult } from 'vs/platform/dialogs/common/dialogs';
-import Severity from 'vs/base/common/severity';
+import { isWindows, OS } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { EnablementState, ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IGrammar, ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { AbstractTimerService, IStartupMetrics, ITimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
 import { LinkedMap } from 'vs/base/common/map';
@@ -67,6 +61,96 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import { Schemas } from 'vs/base/common/network';
+
+
+//#region Environment
+
+export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		readonly configuration: INativeWorkbenchConfiguration
+	) { }
+
+	get userRoamingDataHome(): URI { return URI.file('/sandbox-user-data-dir').with({ scheme: Schemas.userData }); }
+	get settingsResource(): URI { return joinPath(this.userRoamingDataHome, 'settings.json'); }
+	get argvResource(): URI { return joinPath(this.userRoamingDataHome, 'argv.json'); }
+	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
+	get globalStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'globalStorage'); }
+	get workspaceStorageHome(): URI { return URI.joinPath(this.userRoamingDataHome, 'workspaceStorage'); }
+	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
+	get logFile(): URI { return joinPath(this.userRoamingDataHome, 'window.log'); }
+	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
+	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
+	get backupHome(): URI { return joinPath(this.userRoamingDataHome, 'backupsHome'); }
+
+	options?: IWorkbenchConstructionOptions | undefined;
+	logExtensionHostCommunication?: boolean | undefined;
+	extensionEnabledProposedApi?: string[] | undefined;
+	webviewExternalEndpoint: string = undefined!;
+	webviewResourceRoot: string = undefined!;
+	webviewCspSource: string = undefined!;
+	skipReleaseNotes: boolean = undefined!;
+	keyboardLayoutResource: URI = undefined!;
+	sync: 'on' | 'off' | undefined;
+	enableSyncByDefault: boolean = false;
+	debugExtensionHost: IExtensionHostDebugParams = undefined!;
+	isExtensionDevelopment: boolean = false;
+	disableExtensions: boolean | string[] = [];
+	extensionDevelopmentLocationURI?: URI[] | undefined;
+	extensionTestsLocationURI?: URI | undefined;
+	logsPath: string = undefined!;
+	logLevel?: string | undefined;
+
+	args: NativeParsedArgs = Object.create(null);
+
+	execPath: string = undefined!;
+	cliPath: string = undefined!;
+	appRoot: string = undefined!;
+	userHome: URI = undefined!;
+	appSettingsHome: URI = undefined!;
+	userDataPath: string = undefined!;
+	machineSettingsResource: URI = undefined!;
+	backupWorkspacesPath: string = undefined!;
+
+	log?: string | undefined;
+	extHostLogsPath: URI = undefined!;
+
+	installSourcePath: string = undefined!;
+
+	mainIPCHandle: string = undefined!;
+	sharedIPCHandle: string = undefined!;
+
+	extensionsPath?: string | undefined;
+	extensionsDownloadPath: string = undefined!;
+	builtinExtensionsPath: string = undefined!;
+
+	driverHandle?: string | undefined;
+	driverVerbose = false;
+
+	crashReporterDirectory?: string | undefined;
+	crashReporterId?: string | undefined;
+
+	nodeCachedDataDir?: string | undefined;
+
+	disableUpdates = false;
+	sandbox = true;
+	verbose = false;
+	isBuilt = false;
+	disableTelemetry = false;
+}
+
+//#endregion
+
 
 //#region Workspace
 
@@ -509,40 +593,6 @@ registerSingleton(IKeymapService, SimpleKeymapService);
 //#endregion
 
 
-//#region Path
-
-class SimplePathService implements IPathService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly resolvedUserHome = URI.file('user-home');
-	readonly path = Promise.resolve(OS === OperatingSystem.Windows ? win32 : posix);
-
-	async fileURI(path: string): Promise<URI> { return URI.file(path); }
-	async userHome(options?: { preferLocal: boolean; }): Promise<URI> { return this.resolvedUserHome; }
-}
-
-registerSingleton(IPathService, SimplePathService);
-
-//#endregion
-
-
-//#region Dialog
-
-class SimpleDialogService implements IDialogService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> { return { confirmed: false }; }
-	async show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 1 }; }
-	async about(): Promise<void> { }
-}
-
-registerSingleton(IDialogService, SimpleDialogService);
-
-//#endregion
-
-
 //#region Webview
 
 class SimpleWebviewService implements IWebviewService {
@@ -602,25 +652,6 @@ class SimpleTextMateService implements ITextMateService {
 }
 
 registerSingleton(ITextMateService, SimpleTextMateService);
-
-//#endregion
-
-
-//#region Accessibility
-
-class SimpleAccessibilityService implements IAccessibilityService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeScreenReaderOptimized = Event.None;
-
-	isScreenReaderOptimized(): boolean { return false; }
-	async alwaysUnderlineAccessKeys(): Promise<boolean> { return false; }
-	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void { }
-	getAccessibilitySupport(): AccessibilitySupport { return AccessibilitySupport.Unknown; }
-}
-
-registerSingleton(IAccessibilityService, SimpleAccessibilityService);
 
 //#endregion
 
@@ -758,27 +789,6 @@ registerSingleton(ITimerService, SimpleTimerService);
 //#endregion
 
 
-//#region Workspace Editing
-
-class SimpleWorkspaceEditingService implements IWorkspaceEditingService {
-
-	declare readonly _serviceBrand: undefined;
-
-	async addFolders(folders: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> { }
-	async removeFolders(folders: URI[], donotNotifyError?: boolean): Promise<void> { }
-	async updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> { }
-	async enterWorkspace(path: URI): Promise<void> { }
-	async createAndEnterWorkspace(folders: IWorkspaceFolderCreationData[], path?: URI): Promise<void> { }
-	async saveAndEnterWorkspace(path: URI): Promise<void> { }
-	async copyWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> { }
-	async pickNewWorkspacePath(): Promise<URI> { return undefined!; }
-}
-
-registerSingleton(IWorkspaceEditingService, SimpleWorkspaceEditingService);
-
-//#endregion
-
-
 //#region Task
 
 class SimpleTaskService implements ITaskService {
@@ -903,5 +913,21 @@ class SimpleOutputChannelModelService extends AsbtractOutputChannelModelService 
 }
 
 registerSingleton(IOutputChannelModelService, SimpleOutputChannelModelService);
+
+//#endregion
+
+
+//#region Integrity
+
+class SimpleIntegrityService implements IIntegrityService {
+
+	declare readonly _serviceBrand: undefined;
+
+	async isPure(): Promise<IntegrityTestResult> {
+		return { isPure: true, proof: [] };
+	}
+}
+
+registerSingleton(IIntegrityService, SimpleIntegrityService);
 
 //#endregion

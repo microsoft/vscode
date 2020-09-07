@@ -11,7 +11,6 @@ import * as path from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -242,9 +241,8 @@ export class BackLayerWebView extends Disposable {
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 	) {
@@ -358,7 +356,7 @@ export class BackLayerWebView extends Disposable {
 
 	async createWebview(): Promise<void> {
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = asWebviewUri(this.workbenchEnvironmentService, this.id, URI.file(pathsPath));
+		const loader = asWebviewUri(this.environmentService, this.id, URI.file(pathsPath));
 
 		let coreDependencies = '';
 		let resolveFunc: () => void;
@@ -367,7 +365,7 @@ export class BackLayerWebView extends Disposable {
 			resolveFunc = resolve;
 		});
 
-		const baseUrl = asWebviewUri(this.workbenchEnvironmentService, this.id, dirname(this.documentUri));
+		const baseUrl = asWebviewUri(this.environmentService, this.id, dirname(this.documentUri));
 
 		if (!isWeb) {
 			coreDependencies = `<script src="${loader}"></script>`;
@@ -797,7 +795,7 @@ ${loaderJs}
 			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
 				return preload;
 			}
-			return asWebviewUri(this.workbenchEnvironmentService, this.id, preload);
+			return asWebviewUri(this.environmentService, this.id, preload);
 		});
 
 		preloads.forEach(e => {
@@ -827,7 +825,7 @@ ${loaderJs}
 		const extensionLocations: URI[] = [];
 		for (const rendererInfo of renderers) {
 			const preloads = [rendererInfo.entrypoint, ...rendererInfo.preloads]
-				.map(preload => asWebviewUri(this.workbenchEnvironmentService, this.id, preload));
+				.map(preload => asWebviewUri(this.environmentService, this.id, preload));
 			extensionLocations.push(rendererInfo.extensionLocation);
 
 			preloads.forEach(e => {

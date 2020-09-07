@@ -21,7 +21,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, RemoteFileSystemProvider } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWindowConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -38,7 +38,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-browser/configurationCache';
 import { ConfigurationCache as BrowserConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IConfigurationCache } from 'vs/workbench/services/configuration/common/configuration';
@@ -53,10 +53,10 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
-class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
+class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWindowConfiguration, TestWindowConfiguration.execPath);
+		super(TestWorkbenchConfiguration);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -109,7 +109,7 @@ suite('WorkspaceContextService - Folder', () => {
 			.then(({ parentDir, folderDir }) => {
 				parentResource = parentDir;
 				workspaceResource = folderDir;
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const fileService = new FileService(new NullLogService());
 				const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 				fileService.registerProvider(Schemas.file, diskFileSystemProvider);
@@ -173,7 +173,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				parentResource = parentDir;
 
 				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
@@ -233,7 +233,7 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 				parentResource = parentDir;
 
 				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
@@ -494,7 +494,7 @@ suite('WorkspaceService - Initialization', () => {
 				globalSettingsFile = path.join(parentDir, 'settings.json');
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
@@ -771,7 +771,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 				globalTasksFile = path.join(parentDir, 'tasks.json');
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				fileService = new FileService(new NullLogService());
@@ -1280,7 +1280,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 				globalSettingsFile = path.join(parentDir, 'settings.json');
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 				instantiationService.stub(IRemoteAgentService, remoteAgentService);
 				const fileService = new FileService(new NullLogService());
@@ -1883,7 +1883,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 				remoteSettingsResource = URI.file(remoteSettingsFile).with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
 
 				instantiationService = <TestInstantiationService>workbenchInstantiationService();
-				const environmentService = new TestEnvironmentService(URI.file(parentDir));
+				const environmentService = new TestWorkbenchEnvironmentService(URI.file(parentDir));
 				const remoteEnvironmentPromise = new Promise<Partial<IRemoteAgentEnvironment>>(c => resolveRemoteEnvironment = () => c({ settingsPath: remoteSettingsResource }));
 				const remoteAgentService = instantiationService.stub(IRemoteAgentService, <Partial<IRemoteAgentService>>{ getEnvironment: () => remoteEnvironmentPromise });
 				const fileService = new FileService(new NullLogService());

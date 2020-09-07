@@ -56,7 +56,6 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
-				handle: 0,
 				uri: notebookUri,
 				viewType: 'test',
 				versionId: 0,

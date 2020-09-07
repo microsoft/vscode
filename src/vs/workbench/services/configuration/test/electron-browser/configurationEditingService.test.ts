@@ -13,7 +13,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWindowConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestWorkbenchConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -37,15 +37,15 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-browser/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
-class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
+class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWindowConfiguration, TestWindowConfiguration.execPath);
+		super(TestWorkbenchConfiguration);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -104,7 +104,7 @@ suite('ConfigurationEditingService', () => {
 		clearServices();
 
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		const environmentService = new TestEnvironmentService(URI.file(workspaceDir));
+		const environmentService = new TestWorkbenchEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
 		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 		const fileService = new FileService(new NullLogService());

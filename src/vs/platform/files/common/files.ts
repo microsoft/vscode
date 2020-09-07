@@ -856,6 +856,7 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
 		return Promise.resolve();
 	}
+
 	return new Promise((c, e) => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {

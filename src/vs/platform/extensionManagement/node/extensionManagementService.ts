@@ -23,8 +23,7 @@ import {
 	ExtensionManagementError
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'semver-umd';

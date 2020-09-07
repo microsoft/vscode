@@ -8,7 +8,6 @@ import { streamToBuffer } from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -38,12 +37,11 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IFileService private readonly fileService: IFileService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService private readonly _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService logService: ILogService,
 	) {
-		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService, _workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, webviewThemeDataProvider, notificationService, logService, telemetryService, environmentService);
 
 		this._portMappingManager = this._register(new WebviewPortMappingManager(
 			() => this.extension?.location,
@@ -83,7 +81,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private get externalEndpoint(): string {
-		const endpoint = this.workbenchEnvironmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
+		const endpoint = this.environmentService.webviewExternalEndpoint!.replace('{{uuid}}', this.id);
 		if (endpoint[endpoint.length - 1] === '/') {
 			return endpoint.slice(0, endpoint.length - 1);
 		}
@@ -142,7 +140,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
-			const remoteAuthority = this._workbenchEnvironmentService.configuration.remoteAuthority;
+			const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 			const remoteConnectionData = remoteAuthority ? this._remoteAuthorityResolverService.getConnectionData(remoteAuthority) : null;
 			const extensionLocation = this.extension?.location;
 
@@ -193,7 +191,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	}
 
 	private async localLocalhost(origin: string) {
-		const authority = this._workbenchEnvironmentService.configuration.remoteAuthority;
+		const authority = this.environmentService.configuration.remoteAuthority;
 		const resolveAuthority = authority ? await this._remoteAuthorityResolverService.resolveAuthority(authority) : undefined;
 		const redirect = resolveAuthority ? await this._portMappingManager.getRedirect(resolveAuthority.authority, origin) : undefined;
 		return this._send('did-load-localhost', {

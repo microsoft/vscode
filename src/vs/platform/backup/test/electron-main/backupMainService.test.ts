@@ -34,7 +34,7 @@ suite('BackupMainService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
-	const environmentService = new EnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
+	const environmentService = new EnvironmentService(parseArgs(process.argv, OPTIONS));
 
 	class TestBackupMainService extends BackupMainService {
 

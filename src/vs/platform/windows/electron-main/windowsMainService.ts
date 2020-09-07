@@ -10,17 +10,16 @@ import * as arrays from 'vs/base/common/arrays';
 import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
+import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, OpenContext } from 'vs/platform/windows/node/window';
 import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode, IOpenEmptyConfiguration } from 'vs/platform/windows/electron-main/windows';
@@ -64,7 +63,7 @@ type RestoreWindowsSetting = 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
 	userEnv?: IProcessEnvironment;
-	cli?: ParsedArgs;
+	cli?: NativeParsedArgs;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
@@ -209,17 +208,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private registerListeners(): void {
-
-		// React to HC color scheme changes (Windows, macOS)
-		if (isWindows || isMacintosh) {
-			nativeTheme.on('updated', () => {
-				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-					this.sendToAll('vscode:enterHighContrast');
-				} else {
-					this.sendToAll('vscode:leaveHighContrast');
-				}
-			});
-		}
 
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
@@ -899,7 +887,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return pathsToOpen;
 	}
 
-	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
+	private doExtractPathsFromCLI(cli: NativeParsedArgs): IPath[] {
 		const pathsToOpen: IPathToOpen[] = [];
 		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
 

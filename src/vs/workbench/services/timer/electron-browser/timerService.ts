@@ -7,6 +7,7 @@ import { virtualMachineHint } from 'vs/base/node/id';
 import * as os from 'os';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -15,7 +16,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IStartupMetrics, AbstractTimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
