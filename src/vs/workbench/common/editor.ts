@@ -24,23 +24,28 @@ import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/ed
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
-export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
+// Editor State Context Keys
+export const EditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
+export const EditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
+export const EditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
+export const EditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
+
+// Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
-export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
-export const EditorStickyContext = new RawContextKey<boolean>('editorSticky', false);
-export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
-export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
+
+// Editor Group Context Keys
+export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
+
+// Editor Layout Context Keys
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
