@@ -11,7 +11,6 @@ import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, atta
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1581,7 +1580,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private removePane(pane: ViewPane): void {
-		const index = firstIndex(this.paneItems, i => i.pane === pane);
+		const index = this.paneItems.findIndex(i => i.pane === pane);
 
 		if (index === -1) {
 			return;
@@ -1598,8 +1597,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	movePane(from: ViewPane, to: ViewPane): void {
-		const fromIndex = firstIndex(this.paneItems, item => item.pane === from);
-		const toIndex = firstIndex(this.paneItems, item => item.pane === to);
+		const fromIndex = this.paneItems.findIndex(item => item.pane === from);
+		const toIndex = this.paneItems.findIndex(item => item.pane === to);
 
 		const fromViewDescriptor = this.viewContainerModel.visibleViewDescriptors[fromIndex];
 		const toViewDescriptor = this.viewContainerModel.visibleViewDescriptors[toIndex];

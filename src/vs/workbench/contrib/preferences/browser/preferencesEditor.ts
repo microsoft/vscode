@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -646,7 +645,7 @@ class PreferencesRenderersController extends Disposable {
 		const current = this._settingsNavigator && this._settingsNavigator.current();
 		const navigatorSettings = this._lastQuery ? consolidatedSettings : [];
 		const currentIndex = current ?
-			arrays.firstIndex(navigatorSettings, s => s.key === current.key) :
+			navigatorSettings.findIndex(s => s.key === current.key) :
 			-1;
 
 		this._settingsNavigator = new SettingsNavigator(navigatorSettings, Math.max(currentIndex, 0));
@@ -691,7 +690,7 @@ class PreferencesRenderersController extends Disposable {
 			if (nlpMetadata) {
 				const sortedKeys = Object.keys(nlpMetadata.scoredResults).sort((a, b) => nlpMetadata.scoredResults[b].score - nlpMetadata.scoredResults[a].score);
 				const suffix = '##' + key;
-				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => key.endsWith(suffix));
+				data['nlpIndex'] = sortedKeys.findIndex(key => key.endsWith(suffix));
 			}
 
 			const settingLocation = this._findSetting(this.lastFilterResult, key);

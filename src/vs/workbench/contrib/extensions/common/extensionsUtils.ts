@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -44,7 +43,7 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): Promise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
-			const extension = arrays.first(keymaps, extension => areSameExtensions(extension.identifier, extensionIdentifier));
+			const extension = keymaps.find(extension => areSameExtensions(extension.identifier, extensionIdentifier));
 			if (extension && extension.globallyEnabled) {
 				const otherKeymaps = keymaps.filter(extension => !areSameExtensions(extension.identifier, extensionIdentifier) && extension.globallyEnabled);
 				if (otherKeymaps.length) {

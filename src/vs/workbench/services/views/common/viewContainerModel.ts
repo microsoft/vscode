@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { firstIndex, move } from 'vs/base/common/arrays';
+import { move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 
@@ -442,8 +442,8 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	move(from: string, to: string): void {
-		const fromIndex = firstIndex(this.viewDescriptorItems, v => v.viewDescriptor.id === from);
-		const toIndex = firstIndex(this.viewDescriptorItems, v => v.viewDescriptor.id === to);
+		const fromIndex = this.viewDescriptorItems.findIndex(v => v.viewDescriptor.id === from);
+		const toIndex = this.viewDescriptorItems.findIndex(v => v.viewDescriptor.id === to);
 
 		const fromViewDescriptor = this.viewDescriptorItems[fromIndex];
 		const toViewDescriptor = this.viewDescriptorItems[toIndex];
@@ -531,7 +531,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					this.contextKeys.delete(key);
 				}
 			}
-			const index = firstIndex(this.viewDescriptorItems, i => i.viewDescriptor.id === viewDescriptor.id);
+			const index = this.viewDescriptorItems.findIndex(i => i.viewDescriptor.id === viewDescriptor.id);
 			if (index !== -1) {
 				removed.push(viewDescriptor);
 				const viewDescriptorItem = this.viewDescriptorItems[index];
