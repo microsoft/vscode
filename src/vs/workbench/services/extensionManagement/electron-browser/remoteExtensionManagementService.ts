@@ -22,7 +22,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
-export class DesktopRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
+export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
 	private readonly localExtensionManagementService: IExtensionManagementService;
 

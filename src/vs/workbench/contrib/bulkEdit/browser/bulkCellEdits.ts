@@ -11,6 +11,7 @@ import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 export class ResourceNotebookCellEdit extends ResourceEdit {
 
@@ -29,6 +30,7 @@ export class BulkCellEdits {
 	constructor(
 		private readonly _progress: IProgress<void>,
 		private readonly _edits: ResourceNotebookCellEdit[],
+		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelService: INotebookEditorModelResolverService,
 	) { }
 
@@ -41,13 +43,14 @@ export class BulkCellEdits {
 			const ref = await this._notebookModelService.resolve(first.resource);
 
 			// check state
-			if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
-				ref.dispose();
-				throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
-			}
+			// if (typeof first.versionId === 'number' && ref.object.notebook.versionId !== first.versionId) {
+			// 	ref.dispose();
+			// 	throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
+			// }
 
 			// apply edits
 			const cellEdits = group.map(edit => edit.cellEdit);
+			this._notebookService.transformEditsOutputs(ref.object.notebook, cellEdits);
 			ref.object.notebook.applyEdit(ref.object.notebook.versionId, cellEdits, true);
 			ref.dispose();
 

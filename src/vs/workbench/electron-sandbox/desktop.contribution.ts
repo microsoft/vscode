@@ -314,6 +314,31 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			}
 		}
 	});
+
+	// Keybinding
+	registry.registerConfiguration({
+		'id': 'keyboard',
+		'order': 15,
+		'type': 'object',
+		'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+		'properties': {
+			'keyboard.touchbar.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
+				'included': isMacintosh
+			},
+			'keyboard.touchbar.ignored': {
+				'type': 'array',
+				'items': {
+					'type': 'string'
+				},
+				'default': [],
+				'markdownDescription': nls.localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+				'included': isMacintosh
+			}
+		}
+	});
 })();
 
 // JSON Schemas

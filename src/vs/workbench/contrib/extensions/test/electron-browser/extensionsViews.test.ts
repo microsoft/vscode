@@ -67,6 +67,7 @@ suite('ExtensionsListView Tests', () => {
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
 	const configBasedRecommendationA = aGalleryExtension('configbased-recommendation-A');
+	const configBasedRecommendationB = aGalleryExtension('configbased-recommendation-B');
 	const fileBasedRecommendationA = aGalleryExtension('filebased-recommendation-A');
 	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
@@ -126,9 +127,10 @@ suite('ExtensionsListView Tests', () => {
 					{ extensionId: workspaceRecommendationB.identifier.id }]);
 			},
 			getConfigBasedRecommendations() {
-				return Promise.resolve([
-					{ extensionId: configBasedRecommendationA.identifier.id }
-				]);
+				return Promise.resolve({
+					important: [{ extensionId: configBasedRecommendationA.identifier.id }],
+					others: [{ extensionId: configBasedRecommendationB.identifier.id }],
+				});
 			},
 			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
 				return Promise.resolve([]);
@@ -141,6 +143,7 @@ suite('ExtensionsListView Tests', () => {
 			},
 			getOtherRecommendations() {
 				return Promise.resolve([
+					{ extensionId: configBasedRecommendationB.identifier.id },
 					{ extensionId: otherRecommendationA.identifier.id }
 				]);
 			},
@@ -336,7 +339,8 @@ suite('ExtensionsListView Tests', () => {
 	test('Test @recommended:workspace query', () => {
 		const workspaceRecommendedExtensions = [
 			workspaceRecommendationA,
-			workspaceRecommendationB
+			workspaceRecommendationB,
+			configBasedRecommendationA,
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...workspaceRecommendedExtensions));
 
@@ -354,9 +358,9 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test @recommended query', () => {
 		const allRecommendedExtensions = [
-			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
+			configBasedRecommendationB,
 			otherRecommendationA
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
@@ -382,7 +386,8 @@ suite('ExtensionsListView Tests', () => {
 			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
-			otherRecommendationA
+			configBasedRecommendationB,
+			otherRecommendationA,
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
 

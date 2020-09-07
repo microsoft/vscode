@@ -180,8 +180,8 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsHoverForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
 		}
-		if (this._styleElement.innerHTML !== content) {
-			this._styleElement.innerHTML = content;
+		if (this._styleElement.innerText !== content) {
+			this._styleElement.innerText = content;
 		}
 	}
 

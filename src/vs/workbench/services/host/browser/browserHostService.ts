@@ -84,6 +84,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	//#region Focus
+
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
 		const focusTracker = this._register(trackFocus(window));
@@ -106,6 +108,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async focus(): Promise<void> {
 		window.focus();
 	}
+
+	//#endregion
+
+
+	//#region Window
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -320,6 +327,23 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	//#endregion
+
+
+	//#region Color Scheme
+
+	// TODO@martin TODO@ben this currently does not support detecting changes
+	onDidChangeColorScheme = Event.None;
+
+	get colorScheme() {
+		return this.environmentService.configuration.colorScheme;
+	}
+
+	//#endregion
+
+
+	//#region Lifecycle
+
 	async restart(): Promise<void> {
 		this.reload();
 	}
@@ -327,6 +351,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async reload(): Promise<void> {
 		window.location.reload();
 	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, true);

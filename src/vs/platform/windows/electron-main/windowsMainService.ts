@@ -10,17 +10,16 @@ import * as arrays from 'vs/base/common/arrays';
 import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
+import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, OpenContext } from 'vs/platform/windows/node/window';
 import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode, IOpenEmptyConfiguration } from 'vs/platform/windows/electron-main/windows';
@@ -40,6 +39,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
+import { getPathLabel } from 'vs/base/common/labels';
 
 export interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
@@ -63,7 +63,7 @@ type RestoreWindowsSetting = 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
 	userEnv?: IProcessEnvironment;
-	cli?: ParsedArgs;
+	cli?: NativeParsedArgs;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
@@ -166,9 +166,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady = this._onWindowReady.event;
 
-	private readonly _onWindowClose = this._register(new Emitter<number>());
-	readonly onWindowClose = this._onWindowClose.event;
-
 	private readonly _onWindowsCountChanged = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onWindowsCountChanged = this._onWindowsCountChanged.event;
 
@@ -211,17 +208,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private registerListeners(): void {
-
-		// React to HC color scheme changes (Windows, macOS)
-		if (isWindows || isMacintosh) {
-			nativeTheme.on('updated', () => {
-				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-					this.sendToAll('vscode:enterHighContrast');
-				} else {
-					this.sendToAll('vscode:leaveHighContrast');
-				}
-			});
-		}
 
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
@@ -880,11 +866,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				let message, detail;
 				if (uri.scheme === Schemas.file) {
 					message = localize('pathNotExistTitle', "Path does not exist");
-					detail = localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", uri.fsPath);
+					detail = localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentService));
 				} else {
 					message = localize('uriInvalidTitle', "URI can not be opened");
 					detail = localize('uriInvalidDetail', "The URI '{0}' is not valid and can not be opened.", uri.toString());
 				}
+
 				const options: MessageBoxOptions = {
 					title: product.nameLong,
 					type: 'info',
@@ -900,7 +887,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return pathsToOpen;
 	}
 
-	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
+	private doExtractPathsFromCLI(cli: NativeParsedArgs): IPath[] {
 		const pathsToOpen: IPathToOpen[] = [];
 		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
 
@@ -1371,7 +1358,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
 		// loading the window.
 		if (options.emptyWindowBackupInfo) {
-			configuration.backupPath = join(this.environmentService.backupHome.fsPath, options.emptyWindowBackupInfo.backupFolder);
+			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder);
 		}
 
 		let window: ICodeWindow | undefined;
@@ -1624,18 +1611,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return state;
 	}
 
-	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow {
-		const lastActive = this.getLastActiveWindow();
-		if (lastActive) {
-			lastActive.focus();
-
-			return lastActive;
-		}
-
-		// No window - open new empty one
-		return this.open({ context, cli, forceEmpty: true })[0];
-	}
-
 	getLastActiveWindow(): ICodeWindow | undefined {
 		return getLastActiveWindow(WindowsMainService.WINDOWS);
 	}
@@ -1693,6 +1668,5 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Emit
 		this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length + 1, newCount: WindowsMainService.WINDOWS.length });
-		this._onWindowClose.fire(win.id);
 	}
 }

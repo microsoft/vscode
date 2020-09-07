@@ -11,7 +11,7 @@ import { TMGrammarFactory, ICreateGrammarResult } from 'vs/workbench/services/te
 import { IModelChangedEvent, MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { TextMateWorkerHost } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { TokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
-import { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
+import type { IGrammar, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { MultilineTokensBuilder, countEOL } from 'vs/editor/common/model/tokensStore';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 

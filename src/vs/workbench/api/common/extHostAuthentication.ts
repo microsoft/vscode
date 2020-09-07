@@ -187,9 +187,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	$onDidChangeAuthenticationProviders(added: modes.AuthenticationProviderInformation[], removed: modes.AuthenticationProviderInformation[]) {
-		added.forEach(id => {
-			if (!this._providers.includes(id)) {
-				this._providers.push(id);
+		added.forEach(provider => {
+			if (!this._providers.some(p => p.id === provider.id)) {
+				this._providers.push(provider);
 			}
 		});
 

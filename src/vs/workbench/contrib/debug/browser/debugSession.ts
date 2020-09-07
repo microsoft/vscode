@@ -264,7 +264,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	async launchOrAttach(config: IConfig): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'launch or attach'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'launch or attach'));
 		}
 		if (this.parentSession && this.parentSession.state === State.Inactive) {
 			throw canceled();
@@ -327,7 +327,7 @@ export class DebugSession implements IDebugSession {
 	 */
 	async restart(): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'restart'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'restart'));
 		}
 
 		this.cancelAllRequests();
@@ -336,7 +336,7 @@ export class DebugSession implements IDebugSession {
 
 	async sendBreakpoints(modelUri: URI, breakpointsToSend: IBreakpoint[], sourceModified: boolean): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'breakpoints'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'breakpoints'));
 		}
 
 		if (!this.raw.readyForBreakpoints) {
@@ -370,7 +370,7 @@ export class DebugSession implements IDebugSession {
 
 	async sendFunctionBreakpoints(fbpts: IFunctionBreakpoint[]): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'function breakpoints'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'function breakpoints'));
 		}
 
 		if (this.raw.readyForBreakpoints) {
@@ -387,7 +387,7 @@ export class DebugSession implements IDebugSession {
 
 	async sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'exception breakpoints'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'exception breakpoints'));
 		}
 
 		if (this.raw.readyForBreakpoints) {
@@ -397,7 +397,7 @@ export class DebugSession implements IDebugSession {
 
 	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean } | undefined> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'data breakpoints info'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
 		if (!this.raw.readyForBreakpoints) {
 			throw new Error(localize('sessionNotReadyForBreakpoints', "Session is not ready for breakpoints"));
@@ -409,7 +409,7 @@ export class DebugSession implements IDebugSession {
 
 	async sendDataBreakpoints(dataBreakpoints: IDataBreakpoint[]): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'data breakpoints'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints'));
 		}
 
 		if (this.raw.readyForBreakpoints) {
@@ -426,7 +426,7 @@ export class DebugSession implements IDebugSession {
 
 	async breakpointsLocations(uri: URI, lineNumber: number): Promise<IPosition[]> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'breakpoints locations'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'breakpoints locations'));
 		}
 
 		const source = this.getRawSource(uri);
@@ -446,7 +446,7 @@ export class DebugSession implements IDebugSession {
 
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", request));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", request));
 		}
 
 		return this.raw.custom(request, args);
@@ -454,7 +454,7 @@ export class DebugSession implements IDebugSession {
 
 	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stackTrace'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stackTrace'));
 		}
 
 		const sessionToken = this.getNewCancellationToken(threadId, token);
@@ -463,7 +463,7 @@ export class DebugSession implements IDebugSession {
 
 	async exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'exceptionInfo'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'exceptionInfo'));
 		}
 
 		const response = await this.raw.exceptionInfo({ threadId });
@@ -481,7 +481,7 @@ export class DebugSession implements IDebugSession {
 
 	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'scopes'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'scopes'));
 		}
 
 		const token = this.getNewCancellationToken(threadId);
@@ -490,7 +490,7 @@ export class DebugSession implements IDebugSession {
 
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'variables'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'variables'));
 		}
 
 		const token = threadId ? this.getNewCancellationToken(threadId) : undefined;
@@ -499,7 +499,7 @@ export class DebugSession implements IDebugSession {
 
 	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'evaluate'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'evaluate'));
 		}
 
 		return this.raw.evaluate({ expression, frameId, context });
@@ -507,7 +507,7 @@ export class DebugSession implements IDebugSession {
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'restartFrame'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'restartFrame'));
 		}
 
 		await this.raw.restartFrame({ frameId }, threadId);
@@ -515,7 +515,7 @@ export class DebugSession implements IDebugSession {
 
 	async next(threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'next'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
 
 		await this.raw.next({ threadId });
@@ -523,7 +523,7 @@ export class DebugSession implements IDebugSession {
 
 	async stepIn(threadId: number, targetId?: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepIn'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
 		}
 
 		await this.raw.stepIn({ threadId, targetId });
@@ -531,7 +531,7 @@ export class DebugSession implements IDebugSession {
 
 	async stepOut(threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepOut'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
 
 		await this.raw.stepOut({ threadId });
@@ -539,7 +539,7 @@ export class DebugSession implements IDebugSession {
 
 	async stepBack(threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepBack'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
 		}
 
 		await this.raw.stepBack({ threadId });
@@ -547,7 +547,7 @@ export class DebugSession implements IDebugSession {
 
 	async continue(threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'continue'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'continue'));
 		}
 
 		await this.raw.continue({ threadId });
@@ -555,7 +555,7 @@ export class DebugSession implements IDebugSession {
 
 	async reverseContinue(threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'reverse continue'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'reverse continue'));
 		}
 
 		await this.raw.reverseContinue({ threadId });
@@ -563,7 +563,7 @@ export class DebugSession implements IDebugSession {
 
 	async pause(threadId: number): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'pause'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'pause'));
 		}
 
 		await this.raw.pause({ threadId });
@@ -571,7 +571,7 @@ export class DebugSession implements IDebugSession {
 
 	async terminateThreads(threadIds?: number[]): Promise<void> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'terminateThreads'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'terminateThreads'));
 		}
 
 		await this.raw.terminateThreads({ threadIds });
@@ -579,7 +579,7 @@ export class DebugSession implements IDebugSession {
 
 	setVariable(variablesReference: number, name: string, value: string): Promise<DebugProtocol.SetVariableResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'setVariable'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'setVariable'));
 		}
 
 		return this.raw.setVariable({ variablesReference, name, value });
@@ -587,7 +587,7 @@ export class DebugSession implements IDebugSession {
 
 	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'gotoTargets'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'gotoTargets'));
 		}
 
 		return this.raw.gotoTargets({ source, line, column });
@@ -595,7 +595,7 @@ export class DebugSession implements IDebugSession {
 
 	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
 		if (!this.raw) {
-			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'goto'));
+			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'goto'));
 		}
 
 		return this.raw.goto({ threadId, targetId });
@@ -603,7 +603,7 @@ export class DebugSession implements IDebugSession {
 
 	loadSource(resource: URI): Promise<DebugProtocol.SourceResponse> {
 		if (!this.raw) {
-			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'loadSource')));
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'loadSource')));
 		}
 
 		const source = this.getSourceForUri(resource);
@@ -621,7 +621,7 @@ export class DebugSession implements IDebugSession {
 
 	async getLoadedSources(): Promise<Source[]> {
 		if (!this.raw) {
-			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'getLoadedSources')));
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'getLoadedSources')));
 		}
 
 		const response = await this.raw.loadedSources({});
@@ -634,7 +634,7 @@ export class DebugSession implements IDebugSession {
 
 	async completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (!this.raw) {
-			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'completions')));
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'completions')));
 		}
 		const sessionCancelationToken = this.getNewCancellationToken(threadId, token);
 
@@ -648,7 +648,7 @@ export class DebugSession implements IDebugSession {
 
 	async stepInTargets(frameId: number): Promise<{ id: number, label: string }[]> {
 		if (!this.raw) {
-			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'stepInTargets')));
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepInTargets')));
 		}
 
 		const response = await this.raw.stepInTargets({ frameId });
@@ -657,7 +657,7 @@ export class DebugSession implements IDebugSession {
 
 	async cancel(progressId: string): Promise<DebugProtocol.CancelResponse> {
 		if (!this.raw) {
-			return Promise.reject(new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'cancel')));
+			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'cancel')));
 		}
 
 		return this.raw.cancel({ progressId });
@@ -813,7 +813,7 @@ export class DebugSession implements IDebugSession {
 							}
 
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
-								this.hostService.focus();
+								this.hostService.focus({ force: true /* Application may not be active */ });
 							}
 						}
 					}

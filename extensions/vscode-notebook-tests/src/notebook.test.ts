@@ -70,8 +70,11 @@ async function saveFileAndCloseAll(resource: vscode.Uri) {
 	await documentClosed;
 }
 
-async function saveAllFilesAndCloseAll(resource: vscode.Uri) {
+async function saveAllFilesAndCloseAll(resource: vscode.Uri | undefined) {
 	const documentClosed = new Promise((resolve, _reject) => {
+		if (!resource) {
+			return resolve();
+		}
 		const d = vscode.notebook.onDidCloseNotebookDocument(e => {
 			if (e.uri.toString() === resource.toString()) {
 				d.dispose();
@@ -393,23 +396,102 @@ suite('Notebook API tests', () => {
 		await saveFileAndCloseAll(resource);
 	});
 
-	test('edit API', async function () {
+	test('edit API (replaceCells)', async function () {
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.insert(1, 'test 2', 'javascript', vscode.CellKind.Code, [], undefined);
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.CellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
 		});
 
 		const cellChangeEventRet = await cellsChangeEvent;
-		assert.equal(cellChangeEventRet.document, vscode.notebook.activeNotebookEditor?.document);
-		assert.equal(cellChangeEventRet.changes.length, 1);
-		assert.deepEqual(cellChangeEventRet.changes[0].start, 1);
-		assert.deepEqual(cellChangeEventRet.changes[0].deletedCount, 0);
-		assert.equal(cellChangeEventRet.changes[0].items[0], vscode.notebook.activeNotebookEditor!.document.cells[1]);
+		assert.strictEqual(cellChangeEventRet.document === vscode.notebook.activeNotebookEditor?.document, true);
+		assert.strictEqual(cellChangeEventRet.document.isDirty, true);
+		assert.strictEqual(cellChangeEventRet.changes.length, 1);
+		assert.strictEqual(cellChangeEventRet.changes[0].start, 1);
+		assert.strictEqual(cellChangeEventRet.changes[0].deletedCount, 0);
+		assert.strictEqual(cellChangeEventRet.changes[0].items[0] === vscode.notebook.activeNotebookEditor!.document.cells[1], true);
 
+		await saveAllFilesAndCloseAll(resource);
+	});
+
+	test('edit API (replaceOutput)', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceOutput(0, [{ outputKind: vscode.CellOutputKind.Rich, data: { foo: 'bar' } }]);
+		});
+
+		const document = vscode.notebook.activeNotebookEditor?.document!;
+		assert.strictEqual(document.isDirty, true);
+		assert.strictEqual(document.cells.length, 1);
+		assert.strictEqual(document.cells[0].outputs.length, 1);
+		assert.strictEqual(document.cells[0].outputs[0].outputKind, vscode.CellOutputKind.Rich);
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
+	test('edit API (replaceOutput, event)', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const outputChangeEvent = getEventOncePromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceOutput(0, [{ outputKind: vscode.CellOutputKind.Rich, data: { foo: 'bar' } }]);
+		});
+
+		const value = await outputChangeEvent;
+		assert.strictEqual(value.document === vscode.notebook.activeNotebookEditor?.document, true);
+		assert.strictEqual(value.document.isDirty, true);
+		assert.strictEqual(value.cells.length, 1);
+		assert.strictEqual(value.cells[0].outputs.length, 1);
+		assert.strictEqual(value.cells[0].outputs[0].outputKind, vscode.CellOutputKind.Rich);
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
+	test('edit API (replaceMetadata)', async function () {
+
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceMetadata(0, { inputCollapsed: true, executionOrder: 17 });
+		});
+
+		const document = vscode.notebook.activeNotebookEditor?.document!;
+		assert.strictEqual(document.cells.length, 1);
+		assert.strictEqual(document.cells[0].metadata.executionOrder, 17);
+		assert.strictEqual(document.cells[0].metadata.inputCollapsed, true);
+
+		assert.strictEqual(document.isDirty, true);
+		await saveFileAndCloseAll(resource);
+	});
+
+	test('edit API (replaceMetadata, event)', async function () {
+
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const event = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
+
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceMetadata(0, { inputCollapsed: true, executionOrder: 17 });
+		});
+
+		const data = await event;
+		assert.strictEqual(data.document, vscode.notebook.activeNotebookEditor?.document);
+		assert.strictEqual(data.cell.metadata.executionOrder, 17);
+		assert.strictEqual(data.cell.metadata.inputCollapsed, true);
+
+		assert.strictEqual(data.document.isDirty, true);
 		await saveFileAndCloseAll(resource);
 	});
 

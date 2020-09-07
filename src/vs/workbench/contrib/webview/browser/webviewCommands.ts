@@ -7,7 +7,6 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as nls from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
@@ -34,7 +33,7 @@ export class ShowWebViewEditorFindWidgetAction extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebview(accessor)?.showFind();
+		getActiveWebviewEditor(accessor)?.showFind();
 	}
 }
 
@@ -55,7 +54,7 @@ export class HideWebViewEditorFindCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebview(accessor)?.hideFind();
+		getActiveWebviewEditor(accessor)?.hideFind();
 	}
 }
 
@@ -76,7 +75,7 @@ export class WebViewEditorFindNextCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebview(accessor)?.runFindAction(false);
+		getActiveWebviewEditor(accessor)?.runFindAction(false);
 	}
 }
 
@@ -97,29 +96,7 @@ export class WebViewEditorFindPreviousCommand extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor): void {
-		getActiveWebview(accessor)?.runFindAction(true);
-	}
-}
-
-export class SelectAllWebviewEditorCommand extends Action2 {
-	public static readonly ID = 'editor.action.webvieweditor.selectAll';
-	public static readonly LABEL = nls.localize('editor.action.webvieweditor.selectAll', 'Select all');
-
-	constructor() {
-		const precondition = ContextKeyExpr.and(webviewActiveContextKeyExpr, ContextKeyExpr.not(InputFocusedContextKey));
-		super({
-			id: SelectAllWebviewEditorCommand.ID,
-			title: SelectAllWebviewEditorCommand.LABEL,
-			keybinding: {
-				when: precondition,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
-				weight: KeybindingWeight.EditorContrib
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor): void {
-		getActiveWebview(accessor)?.selectAll();
+		getActiveWebviewEditor(accessor)?.runFindAction(true);
 	}
 }
 
@@ -148,7 +125,7 @@ export class ReloadWebviewAction extends Action2 {
 	}
 }
 
-export function getActiveWebview(accessor: ServicesAccessor): Webview | undefined {
+export function getActiveWebviewEditor(accessor: ServicesAccessor): Webview | undefined {
 	const editorService = accessor.get(IEditorService);
 	const activeEditor = editorService.activeEditor;
 	return activeEditor instanceof WebviewInput ? activeEditor.webview : undefined;

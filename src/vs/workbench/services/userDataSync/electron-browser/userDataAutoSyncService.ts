@@ -7,13 +7,12 @@ import { IUserDataAutoSyncService, UserDataSyncError, IUserDataSyncStoreManageme
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService implements IUserDataAutoSyncService {
+class UserDataAutoSyncService extends UserDataAutoSyncEnablementService implements IUserDataAutoSyncService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -24,12 +23,10 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 		@IStorageService storageService: IStorageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
 		super(storageService, environmentService, userDataSyncStoreManagementService);
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
-		this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => this.triggerSync([source], true, false)));
 	}
 
 	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void> {
@@ -45,3 +42,5 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	}
 
 }
+
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);

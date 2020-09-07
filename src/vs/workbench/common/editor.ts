@@ -819,6 +819,8 @@ export class EditorModel extends Disposable implements IEditorModel {
 	private readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose = this._onDispose.event;
 
+	private disposed = false;
+
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
@@ -834,9 +836,17 @@ export class EditorModel extends Disposable implements IEditorModel {
 	}
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean {
+		return this.disposed;
+	}
+
+	/**
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
 	dispose(): void {
+		this.disposed = true;
 		this._onDispose.fire();
 
 		super.dispose();

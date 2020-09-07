@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import Severity from 'vs/base/common/severity';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -12,8 +11,6 @@ import { IDialogService, IConfirmation, IConfirmationResult, IDialogOptions, ISh
 import { DialogService as HTMLDialogService } from 'vs/workbench/services/dialogs/browser/dialogService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -23,6 +20,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { fromNow } from 'vs/base/common/date';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 interface IMassagedMessageBoxOptions {
 
@@ -51,14 +49,13 @@ export class DialogService implements IDialogService {
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
 		@IThemeService themeService: IThemeService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IProductService productService: IProductService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IElectronService electronService: IElectronService
 	) {
 		this.customImpl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
-		this.nativeImpl = new NativeDialogService(logService, sharedProcessService, electronService, productService, clipboardService);
+		this.nativeImpl = new NativeDialogService(logService, electronService, productService, clipboardService);
 	}
 
 	private get useCustomDialog(): boolean {
@@ -92,12 +89,10 @@ class NativeDialogService implements IDialogService {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IElectronService private readonly electronService: IElectronService,
 		@IProductService private readonly productService: IProductService,
 		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
-		sharedProcessService.registerChannel('dialog', new DialogChannel(this));
 	}
 
 	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
@@ -217,6 +212,7 @@ class NativeDialogService implements IDialogService {
 		}
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
+		const os = await this.electronService.getOS();
 
 		const detailString = (useAgo: boolean): string => {
 			return nls.localize('aboutDetail',
@@ -228,7 +224,7 @@ class NativeDialogService implements IDialogService {
 				process.versions['chrome'],
 				process.versions['node'],
 				process.versions['v8'],
-				`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
+				`${os.type} ${os.arch} ${os.release}${isSnap ? ' snap' : ''}`
 			);
 		};
 

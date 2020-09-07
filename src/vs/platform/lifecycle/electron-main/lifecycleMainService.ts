@@ -14,7 +14,7 @@ import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
@@ -88,7 +88,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Reload a window. All lifecycle event handlers are triggered.
 	 */
-	reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void>;
+	reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void>;
 
 	/**
 	 * Unload a window for the provided reason. All lifecycle event handlers are triggered.
@@ -370,7 +370,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		});
 	}
 
-	async reload(window: ICodeWindow, cli?: ParsedArgs): Promise<void> {
+	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {
 
 		// Only reload when the window has not vetoed this
 		const veto = await this.unload(window, UnloadReason.RELOAD);

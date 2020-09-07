@@ -529,7 +529,7 @@ export class AzureActiveDirectoryService {
 			}
 		} catch (e) {
 			Logger.error('Refreshing token failed');
-			throw e;
+			throw new Error(REFRESH_NETWORK_FAILURE);
 		}
 	}
 

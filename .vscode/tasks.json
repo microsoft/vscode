@@ -125,7 +125,7 @@
 			"label": "Kill Build Web Extensions",
 			"group": "build",
 			"presentation": {
-				"reveal": "never",
+				"reveal": "never"
 			},
 			"problemMatcher": "$tsc"
 		},
@@ -195,5 +195,19 @@
 				"reveal": "silent"
 			}
 		},
+		{
+			"type": "npm",
+			"script": "tsec-compile-check",
+			"problemMatcher": [
+				{
+					"base": "$tsc",
+					"applyTo": "allDocuments",
+					"owner": "tsec"
+				},
+			],
+			"group": "build",
+			"label": "npm: tsec-compile-check",
+			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		}
 	]
 }

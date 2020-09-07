@@ -5,14 +5,14 @@
 
 import * as pfs from 'vs/base/node/pfs';
 import { join } from 'vs/base/common/path';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
 
 export class ConfigurationCache implements IConfigurationCache {
 
 	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
 
-	constructor(private readonly environmentService: INativeEnvironmentService) {
+	constructor(private readonly environmentService: INativeWorkbenchEnvironmentService) {
 	}
 
 	read(key: ConfigurationKey): Promise<string> {
@@ -47,7 +47,7 @@ class CachedConfiguration {
 
 	constructor(
 		{ type, key }: ConfigurationKey,
-		environmentService: INativeEnvironmentService
+		environmentService: INativeWorkbenchEnvironmentService
 	) {
 		this.cachedConfigurationFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', type, key);
 		this.cachedConfigurationFilePath = join(this.cachedConfigurationFolderPath, type === 'workspaces' ? 'workspace.json' : 'configuration.json');

@@ -19,7 +19,7 @@ interface ProviderData {
 	extensionId: ExtensionIdentifier;
 }
 
-export class ExtHostDecorations implements IExtHostDecorations {
+export class ExtHostDecorations implements ExtHostDecorationsShape {
 
 	private static _handlePool = 0;
 
@@ -85,4 +85,4 @@ export class ExtHostDecorations implements IExtHostDecorations {
 }
 
 export const IExtHostDecorations = createDecorator<IExtHostDecorations>('IExtHostDecorations');
-export interface IExtHostDecorations extends ExtHostDecorations, ExtHostDecorationsShape { }
+export interface IExtHostDecorations extends ExtHostDecorations { }

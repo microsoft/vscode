@@ -561,7 +561,7 @@ export class OutlinePane extends ViewPane {
 				return;
 			}
 
-			this._revealTreeSelection(newModel, e.element, !!e.editorOptions.preserveFocus || !e.editorOptions.pinned, e.sideBySide);
+			this._revealTreeSelection(newModel, e.element, !!e.editorOptions.preserveFocus, !!e.editorOptions.pinned, e.sideBySide);
 		}));
 
 		// feature: reveal editor selection in outline
@@ -615,12 +615,13 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, preserveFocus: boolean, aside: boolean): Promise<void> {
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, preserveFocus: boolean, pinned: boolean, aside: boolean): Promise<void> {
 		await this._editorService.openCodeEditor(
 			{
 				resource: model.uri,
 				options: {
 					preserveFocus,
+					pinned,
 					selection: Range.collapseToStart(element.symbol.selectionRange),
 					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 				}

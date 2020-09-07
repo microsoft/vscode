@@ -12,7 +12,7 @@ import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { DesktopRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-browser/remoteExtensionManagementService';
+import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-browser/remoteExtensionManagementService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -43,7 +43,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new DesktopRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer, logService, galleryService, configurationService, productService);
+			const extensionManagementService = new NativeRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer, logService, galleryService, configurationService, productService);
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,

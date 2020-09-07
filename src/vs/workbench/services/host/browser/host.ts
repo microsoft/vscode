@@ -5,13 +5,14 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, ColorScheme } from 'vs/platform/windows/common/windows';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
 export interface IHostService {
 
 	readonly _serviceBrand: undefined;
+
 
 	//#region Focus
 
@@ -32,8 +33,14 @@ export interface IHostService {
 
 	/**
 	 * Attempt to bring the window to the foreground and focus it.
+	 *
+	 * @param options Pass `force: true` if you want to make the window take
+	 * focus even if the application does not have focus currently. This option
+	 * should only be used if it is necessary to steal focus from the current
+	 * focused application which may not be VSCode. It may not be supported
+	 * in all environments.
 	 */
-	focus(): Promise<void>;
+	focus(options?: { force: boolean }): Promise<void>;
 
 	//#endregion
 
@@ -55,6 +62,15 @@ export interface IHostService {
 	 * Switch between fullscreen and normal window.
 	 */
 	toggleFullScreen(): Promise<void>;
+
+	//#endregion
+
+
+	//#region Color Scheme
+
+	readonly colorScheme: ColorScheme;
+
+	readonly onDidChangeColorScheme: Event<void>;
 
 	//#endregion
 

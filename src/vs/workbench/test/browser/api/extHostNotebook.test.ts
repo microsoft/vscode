@@ -56,7 +56,6 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
-				handle: 0,
 				uri: notebookUri,
 				viewType: 'test',
 				versionId: 0,
@@ -81,7 +80,8 @@ suite('NotebookCell#Document', function () {
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
-				selections: [0]
+				selections: [0],
+				visibleRanges: []
 			}]
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
@@ -178,7 +178,7 @@ suite('NotebookCell#Document', function () {
 				cellKind: CellKind.Code,
 				outputs: [],
 			}]]]
-		});
+		}, false);
 
 		await p;
 
@@ -234,7 +234,7 @@ suite('NotebookCell#Document', function () {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 2,
 			changes: [[0, 1, []]]
-		});
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1);
 		assert.equal(cell1.document.isClosed, true); // ref still alive!

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createServer, Server } from 'net';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { createServer, Server } from 'net';
 
 const localize = nls.loadMessageBundle();
 const ON_TEXT = localize('status.text.auto.attach.on', 'Auto Attach: On');
@@ -15,9 +15,11 @@ const TOGGLE_COMMAND = 'extension.node-debug.toggleAutoAttach';
 const JS_DEBUG_SETTINGS = 'debug.javascript';
 const JS_DEBUG_USEPREVIEWAA = 'usePreviewAutoAttach';
 const JS_DEBUG_IPC_KEY = 'jsDebugIpcState';
+const JS_DEBUG_REFRESH_SETTINGS = ['autoAttachSmartPattern', 'autoAttachFilter']; // settings that, when changed, should cause us to refresh js-debug vars
 const NODE_DEBUG_SETTINGS = 'debug.node';
 const AUTO_ATTACH_SETTING = 'autoAttach';
 const LAST_STATE_STORAGE_KEY = 'lastState';
+
 
 type AUTO_ATTACH_VALUES = 'disabled' | 'on' | 'off';
 
@@ -45,10 +47,23 @@ export function activate(context: vscode.ExtensionContext): void {
 		`${JS_DEBUG_SETTINGS}.${JS_DEBUG_USEPREVIEWAA}`,
 	];
 
+	const refreshConfigurationSettings = JS_DEBUG_REFRESH_SETTINGS.map(s => `${JS_DEBUG_SETTINGS}.${s}`);
+
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((e) => {
 			if (effectualConfigurationSettings.some(setting => e.affectsConfiguration(setting))) {
 				updateAutoAttach();
+			} else if (refreshConfigurationSettings.some(setting => e.affectsConfiguration(setting))) {
+				currentState = currentState.then(async s => {
+					if (s.state !== State.OnWithJsDebug) {
+						return s;
+					}
+
+					await transitions[State.OnWithJsDebug].exit?.(context, s.transitionData);
+					await clearJsDebugAttachState(context);
+					const transitionData = await transitions[State.OnWithJsDebug].enter?.(context);
+					return { context, state: State.OnWithJsDebug, transitionData };
+				});
 			}
 		})
 	);
@@ -138,6 +153,7 @@ async function clearJsDebugAttachState(context: vscode.ExtensionContext) {
 interface CachedIpcState {
 	ipcAddress: string;
 	jsDebugPath: string;
+	settingsValue: string;
 }
 
 interface StateTransition<StateData> {
@@ -278,18 +294,34 @@ async function getIpcAddress(context: vscode.ExtensionContext) {
 	const jsDebugPath = vscode.extensions.getExtension('ms-vscode.js-debug-nightly')?.extensionPath
 		|| vscode.extensions.getExtension('ms-vscode.js-debug')?.extensionPath;
 
-	if (cachedIpc && cachedIpc.jsDebugPath === jsDebugPath) {
+	const settingsValue = getJsDebugSettingKey();
+	if (cachedIpc && cachedIpc.jsDebugPath === jsDebugPath && cachedIpc.settingsValue === settingsValue) {
 		return cachedIpc.ipcAddress;
 	}
 
 	const result = await vscode.commands.executeCommand<{ ipcAddress: string; }>(
-		'extension.js-debug.setAutoAttachVariables'
+		'extension.js-debug.setAutoAttachVariables',
+		cachedIpc?.ipcAddress
 	);
 	if (!result) {
 		return;
 	}
 
 	const ipcAddress = result.ipcAddress;
-	await context.workspaceState.update(JS_DEBUG_IPC_KEY, { ipcAddress, jsDebugPath });
+	await context.workspaceState.update(
+		JS_DEBUG_IPC_KEY,
+		{ ipcAddress, jsDebugPath, settingsValue } as CachedIpcState,
+	);
+
 	return ipcAddress;
+}
+
+function getJsDebugSettingKey() {
+	let o: { [key: string]: unknown } = {};
+	const config = vscode.workspace.getConfiguration(JS_DEBUG_SETTINGS);
+	for (const setting of JS_DEBUG_REFRESH_SETTINGS) {
+		o[setting] = config.get(setting);
+	}
+
+	return JSON.stringify(o);
 }
