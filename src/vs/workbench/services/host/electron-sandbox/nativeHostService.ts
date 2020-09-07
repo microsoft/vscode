@@ -9,8 +9,9 @@ import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, ColorScheme } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export class NativeHostService extends Disposable implements IHostService {
 
