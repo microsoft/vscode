@@ -40,7 +40,6 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isMacintosh } from 'vs/base/common/platform';
 
 class Root implements ITreeItem {
