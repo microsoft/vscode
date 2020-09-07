@@ -35,6 +35,7 @@ import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/te
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon } from 'xterm-addon-webgl';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -105,6 +106,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
+	private _webglAddon: WebglAddon | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
@@ -497,7 +499,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		xterm.open(this._xtermElement);
 		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
 			this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
-				xterm.loadAddon(new Addon());
+				this._webglAddon = new Addon();
+				xterm.loadAddon(this._webglAddon);
 			});
 		}
 
@@ -767,7 +770,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		this._xterm.refresh(0, this._xterm.rows - 1);
+		this._webglAddon?.clearTextureAtlas();
+		// TODO: Do other renderers?
 	}
 
 	public focus(force?: boolean): void {
@@ -1228,6 +1232,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
 		if (config.rendererType !== 'experimentalWebgl') {
+			// TODO: Unset/dispose this._webglAddon
+
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
