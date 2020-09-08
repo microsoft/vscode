@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const enum ActionsOrientation {
@@ -47,8 +47,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private _actionRunner: IActionRunner;
 	private _context: unknown;
-	private _orientation: ActionsOrientation;
-	private _triggerKeys: ActionTrigger;
+	private readonly _orientation: ActionsOrientation;
+	private readonly _triggerKeys: ActionTrigger;
+	private _actionIds: string[];
 
 	// View Items
 	viewItems: IActionViewItem[];
@@ -60,16 +61,16 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected actionsList: HTMLElement;
 
 	private _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	readonly onDidBlur = this._onDidBlur.event;
 
 	private _onDidCancel = this._register(new Emitter<void>());
-	readonly onDidCancel: Event<void> = this._onDidCancel.event;
+	readonly onDidCancel = this._onDidCancel.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
+	readonly onDidRun = this._onDidRun.event;
 
 	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
+	readonly onDidBeforeRun = this._onDidBeforeRun.event;
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -92,6 +93,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
 		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
 
+		this._actionIds = [];
 		this.viewItems = [];
 		this.focusedItem = undefined;
 
@@ -245,6 +247,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.domNode;
 	}
 
+	hasAction(action: IAction): boolean {
+		return this._actionIds.includes(action.id);
+	}
+
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
 		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
 
@@ -279,9 +285,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
 				this.viewItems.push(item);
+				this._actionIds.push(action.id);
 			} else {
 				this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
 				this.viewItems.splice(index, 0, item);
+				this._actionIds.splice(index, 0, action.id);
 				index++;
 			}
 		});
@@ -317,12 +325,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
 			dispose(this.viewItems.splice(index, 1));
+			this._actionIds.splice(index, 1);
 		}
 	}
 
 	clear(): void {
 		dispose(this.viewItems);
 		this.viewItems = [];
+		this._actionIds = [];
 		DOM.clearNode(this.actionsList);
 	}
 
@@ -462,6 +472,8 @@ export class ActionBar extends Disposable implements IActionRunner {
 	dispose(): void {
 		dispose(this.viewItems);
 		this.viewItems = [];
+
+		this._actionIds = [];
 
 		DOM.removeNode(this.getContainer());
 

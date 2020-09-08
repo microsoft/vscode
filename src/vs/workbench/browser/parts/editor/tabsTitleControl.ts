@@ -20,7 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
@@ -35,7 +35,7 @@ import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsSer
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
-import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -45,6 +45,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
+import { insert } from 'vs/base/common/arrays';
 
 interface IEditorInputLabel {
 	name?: string;
@@ -74,10 +75,12 @@ export class TabsTitleControl extends TitleControl {
 	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
 
-	private closeOneEditorAction: CloseOneEditorAction;
+	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
+	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
 
-	private tabResourceLabels: ResourceLabels;
+	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
 	private tabLabels: IEditorInputLabel[] = [];
+	private tabActionBars: ActionBar[] = [];
 	private tabDisposables: IDisposable[] = [];
 
 	private dimension: Dimension | undefined;
@@ -107,9 +110,6 @@ export class TabsTitleControl extends TitleControl {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, extensionService, configurationService, fileService);
-
-		this.tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
-		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -426,6 +426,7 @@ export class TabsTitleControl extends TitleControl {
 			this.tabDisposables = dispose(this.tabDisposables);
 			this.tabResourceLabels.clear();
 			this.tabLabels = [];
+			this.tabActionBars = [];
 
 			this.clearEditorActionsToolbar();
 		}
@@ -439,8 +440,8 @@ export class TabsTitleControl extends TitleControl {
 		this.tabLabels.splice(targetIndex, 0, editorLabel);
 
 		// As such we need to redraw each tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
 		});
 
 		// Moving an editor requires a layout to keep the active editor visible
@@ -462,7 +463,7 @@ export class TabsTitleControl extends TitleControl {
 	private doHandleStickyEditorChange(editor: IEditorInput): void {
 
 		// Update tab
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
 
 		// A change to the sticky state requires a layout to keep the active editor visible
 		this.layout(this.dimension);
@@ -535,23 +536,24 @@ export class TabsTitleControl extends TitleControl {
 		this.redraw();
 	}
 
-	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+	private forEachTab(fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
 		this.group.editors.forEach((editor, index) => {
 			this.doWithTab(index, editor, fn);
 		});
 	}
 
-	private withTab(editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+	private withTab(editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
 		this.doWithTab(this.group.getIndexOfEditor(editor), editor, fn);
 	}
 
-	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel) => void): void {
+	private doWithTab(index: number, editor: IEditorInput, fn: (editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar) => void): void {
 		const tabsContainer = assertIsDefined(this.tabsContainer);
 		const tabContainer = tabsContainer.children[index] as HTMLElement;
 		const tabResourceLabel = this.tabResourceLabels.get(index);
 		const tabLabel = this.tabLabels[index];
+		const tabActionBar = this.tabActionBars[index];
 		if (tabContainer && tabResourceLabel && tabLabel) {
-			fn(editor, index, tabContainer, tabResourceLabel, tabLabel);
+			fn(editor, index, tabContainer, tabResourceLabel, tabLabel, tabActionBar);
 		}
 	}
 
@@ -575,26 +577,35 @@ export class TabsTitleControl extends TitleControl {
 		// Tab Editor Label
 		const editorLabel = this.tabResourceLabels.create(tabContainer);
 
-		// Tab Close Button
-		const tabCloseContainer = document.createElement('div');
-		addClass(tabCloseContainer, 'tab-close');
-		tabContainer.appendChild(tabCloseContainer);
+		// Tab Actions
+		const tabActionsContainer = document.createElement('div');
+		addClass(tabActionsContainer, 'tab-actions');
+		tabContainer.appendChild(tabActionsContainer);
+
+		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
+
+		const tabActionBar = new ActionBar(tabActionsContainer, {
+			ariaLabel: localize('ariaLabelTabActions', "Tab actions"),
+			actionRunner: tabActionRunner,
+
+		});
+		tabActionBar.onDidBeforeRun(e => {
+			if (e.action.id === this.closeEditorAction.id) {
+				this.blockRevealActiveTabOnce();
+			}
+		});
+
+		const tabActionBarDisposable = combinedDisposable(tabActionBar, toDisposable(insert(this.tabActionBars, tabActionBar)));
 
 		// Tab Border Bottom
 		const tabBorderBottomContainer = document.createElement('div');
 		addClass(tabBorderBottomContainer, 'tab-border-bottom-container');
 		tabContainer.appendChild(tabBorderBottomContainer);
 
-		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
-
-		const tabActionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
-		tabActionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
-		tabActionBar.onDidBeforeRun(() => this.blockRevealActiveTabOnce());
-
 		// Eventing
 		const eventsDisposable = this.registerTabListeners(tabContainer, index, tabsContainer, tabsScrollbar);
 
-		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBar, tabActionRunner, editorLabel));
+		this.tabDisposables.push(combinedDisposable(eventsDisposable, tabActionBarDisposable, tabActionRunner, editorLabel));
 
 		return tabContainer;
 	}
@@ -657,7 +668,7 @@ export class TabsTitleControl extends TitleControl {
 				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
-				this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: index });
+				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
 			}
 		}));
 
@@ -1002,8 +1013,8 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// For each tab
-		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
+			this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar);
 		});
 
 		// Update Editor Actions Toolbar
@@ -1013,10 +1024,21 @@ export class TabsTitleControl extends TitleControl {
 		this.layout(this.dimension);
 	}
 
-	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
+	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
+		const isTabSticky = this.group.isSticky(index);
+		const options = this.accessor.partOptions;
 
 		// Label
 		this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+
+		// Action
+		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
+		if (!tabActionBar.hasAction(tabAction)) {
+			if (!tabActionBar.isEmpty()) {
+				tabActionBar.clear();
+			}
+			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+		}
 
 		// Borders / Outline
 		const borderRightColor = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
@@ -1024,13 +1046,10 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
-		const isTabSticky = this.group.isSticky(index);
-		const options = this.accessor.partOptions;
-
-		const tabCloseButton = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
+		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
 		['off', 'left', 'right'].forEach(option => {
-			const domAction = tabCloseButton === option ? addClass : removeClass;
-			domAction(tabContainer, `close-button-${option}`);
+			const domAction = tabActionsVisibility === option ? addClass : removeClass;
+			domAction(tabContainer, `tab-actions-${option}`);
 		});
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
@@ -1523,10 +1542,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 				outline-offset: -5px;
 			}
 
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-close .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-close .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-close .action-label,
-			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-close .action-label {
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:hover > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty > .tab-actions .action-label,
+			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-actions .action-label {
 				opacity: 1 !important;
 			}
 		`);
