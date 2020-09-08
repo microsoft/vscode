@@ -46,7 +46,7 @@ export class ElectronMainService implements IElectronMainService {
 
 		// Color Scheme changes
 		nativeTheme.on('updated', () => {
-			let colorScheme;
+			let colorScheme: ColorScheme;
 			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
 				colorScheme = ColorScheme.HIGH_CONTRAST;
 			} else if (nativeTheme.shouldUseDarkColors) {

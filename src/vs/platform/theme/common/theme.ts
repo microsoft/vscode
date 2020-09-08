@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Color theme used by the OS and by color themes.
+ * Color scheme used by the OS and by color themes.
  */
 export enum ColorScheme {
 	DARK = 'dark',
 	LIGHT = 'light',
 	HIGH_CONTRAST = 'hc'
 }
-
-
-
