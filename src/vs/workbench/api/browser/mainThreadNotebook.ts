@@ -402,10 +402,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			options,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
 				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
-				if (!data) {
-					return;
-				}
-
 				mainthreadTextModel.updateLanguages(data.languages);
 				mainthreadTextModel.metadata = data.metadata;
 				mainthreadTextModel.transientOptions = options;
@@ -425,10 +421,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			createNotebook: async (textModel: NotebookTextModel, backupId?: string) => {
 				// open notebook document
 				const data = await this._proxy.$resolveNotebookData(textModel.viewType, textModel.uri, backupId);
-				if (!data) {
-					return;
-				}
-
 				textModel.updateLanguages(data.languages);
 				textModel.metadata = data.metadata;
 				textModel.transientOptions = options;

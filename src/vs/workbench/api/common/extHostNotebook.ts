@@ -904,7 +904,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
-	private readonly _unInitializedDocuments = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
 	private readonly _commandsConverter: CommandsConverter;
@@ -1076,49 +1075,24 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 	}
 
-	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined> {
+	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto> {
 		const provider = this._notebookContentProviders.get(viewType);
-		const revivedUri = URI.revive(uri);
 		if (!provider) {
-			return;
+			throw new Error(`NO provider for '${viewType}'`);
 		}
 
-		const storageRoot = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
-		let document = this._documents.get(revivedUri);
-
-		if (!document) {
-			const that = this;
-			document = this._unInitializedDocuments.get(revivedUri) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
-				emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-					that._onDidChangeNotebookCells.fire(event);
-				},
-				emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-					that._onDidChangeCellOutputs.fire(event);
-				},
-				emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
-					that._onDidChangeCellLanguage.fire(event);
-				},
-				emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-					that._onDidChangeCellMetadata.fire(event);
-				},
-			}, viewType, revivedUri, this, storageRoot);
-			this._unInitializedDocuments.set(revivedUri, document);
-		}
-
-		const rawCells = await provider.provider.openNotebook(URI.revive(uri), { backupId });
-		const dto = {
+		const data = await provider.provider.openNotebook(URI.revive(uri), { backupId });
+		return {
 			metadata: {
 				...notebookDocumentMetadataDefaults,
-				...rawCells.metadata
+				...data.metadata
 			},
-			languages: rawCells.languages,
-			cells: rawCells.cells.map(cell => ({
+			languages: data.languages,
+			cells: data.cells.map(cell => ({
 				...cell,
 				outputs: cell.outputs.map(o => addIdToOutput(o))
 			})),
 		};
-
-		return dto;
 	}
 
 	async $resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void> {
@@ -1406,64 +1380,63 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			const addedCellDocuments: IModelAddedData[] = [];
 
 			for (const modelData of delta.addedDocuments) {
-				const revivedUri = URI.revive(modelData.uri);
+				const uri = URI.revive(modelData.uri);
 				const viewType = modelData.viewType;
 				const entry = this._notebookContentProviders.get(viewType);
 				const storageRoot = entry && (this._extensionStoragePaths.workspaceValue(entry.extension) ?? this._extensionStoragePaths.globalValue(entry.extension));
 
+				if (this._documents.has(uri)) {
+					throw new Error(`adding EXISTING notebook ${uri}`);
+				}
+				const that = this;
 
-				if (!this._documents.has(revivedUri)) {
-					const that = this;
-
-					const document = this._unInitializedDocuments.get(revivedUri) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
-						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-							that._onDidChangeNotebookCells.fire(event);
-						},
-						emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-							that._onDidChangeCellOutputs.fire(event);
-						},
-						emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
-							that._onDidChangeCellLanguage.fire(event);
-						},
-						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-							that._onDidChangeCellMetadata.fire(event);
-						}
-					}, viewType, revivedUri, this, storageRoot);
-
-					this._unInitializedDocuments.delete(revivedUri);
-					if (modelData.metadata) {
-						document.notebookDocument.metadata = {
-							...notebookDocumentMetadataDefaults,
-							...modelData.metadata
-						};
+				const document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
+					emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
+						that._onDidChangeNotebookCells.fire(event);
+					},
+					emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
+						that._onDidChangeCellOutputs.fire(event);
+					},
+					emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
+						that._onDidChangeCellLanguage.fire(event);
+					},
+					emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
+						that._onDidChangeCellMetadata.fire(event);
 					}
+				}, viewType, uri, this, storageRoot);
 
-					document.acceptModelChanged({
-						kind: NotebookCellsChangeType.Initialize,
-						versionId: modelData.versionId,
-						changes: [[
-							0,
-							0,
-							modelData.cells
-						]]
-					}, false);
 
-					// add cell document as vscode.TextDocument
-					addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.notebookDocument, cell)));
+				if (modelData.metadata) {
+					document.notebookDocument.metadata = {
+						...notebookDocumentMetadataDefaults,
+						...modelData.metadata
+					};
+				}
 
-					this._documents.get(revivedUri)?.dispose();
-					this._documents.set(revivedUri, document);
+				document.acceptModelChanged({
+					kind: NotebookCellsChangeType.Initialize,
+					versionId: modelData.versionId,
+					changes: [[
+						0,
+						0,
+						modelData.cells
+					]]
+				}, false);
 
-					// create editor if populated
-					if (modelData.attachedEditor) {
-						this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections, modelData.attachedEditor.visibleRanges);
-						editorChanged = true;
-					}
+				// add cell document as vscode.TextDocument
+				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.notebookDocument, cell)));
+
+				this._documents.get(uri)?.dispose();
+				this._documents.set(uri, document);
+
+				// create editor if populated
+				if (modelData.attachedEditor) {
+					this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections, modelData.attachedEditor.visibleRanges);
+					editorChanged = true;
 				}
 
 				this._documentsAndEditors.$acceptDocumentsAndEditorsDelta({ addedDocuments: addedCellDocuments });
 
-				const document = this._documents.get(revivedUri)!;
 				this._onDidOpenNotebookDocument.fire(document.notebookDocument);
 			}
 		}
