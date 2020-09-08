@@ -103,7 +103,7 @@ export class PreferencesEditor extends EditorPane {
 	}
 
 	createEditor(parent: HTMLElement): void {
-		DOM.addClass(parent, 'preferences-editor');
+		parent.classList.add('preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
@@ -790,7 +790,7 @@ class SideBySidePreferencesWidget extends Widget {
 	) {
 		super();
 
-		DOM.addClass(parentElement, 'side-by-side-preferences-editor');
+		parentElement.classList.add('side-by-side-preferences-editor');
 
 		this.splitview = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
 		this._register(this.splitview);

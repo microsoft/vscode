@@ -13,7 +13,7 @@ import { IExtensionManagementServer, IExtensionManagementServerService, IExtensi
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { append, $, toggleClass, addClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -120,7 +120,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	protected renderHeader(container: HTMLElement): void {
-		addClass(container, 'extension-view-header');
+		container.classList.add('extension-view-header');
 		super.renderHeader(container);
 
 		this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
@@ -704,8 +704,8 @@ export class ExtensionsListView extends ViewPane {
 
 			if (this.bodyTemplate && this.badge) {
 
-				toggleClass(this.bodyTemplate.extensionsList, 'hidden', count === 0);
-				toggleClass(this.bodyTemplate.messageContainer, 'hidden', count > 0);
+				this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
+				this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
 				this.badge.setCount(count);
 
 				if (count === 0 && this.isBodyVisible()) {

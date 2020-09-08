@@ -13,7 +13,7 @@ import { Event as EventOf, Emitter } from 'vs/base/common/event';
 import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { append, $, addClass, toggleClass, Dimension, hide, show } from 'vs/base/browser/dom';
+import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -404,7 +404,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	create(parent: HTMLElement): void {
-		addClass(parent, 'extensions-viewlet');
+		parent.classList.add('extensions-viewlet');
 		this.root = parent;
 
 		const overlay = append(this.root, $('.overlay'));
@@ -500,7 +500,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	layout(dimension: Dimension): void {
 		if (this.root) {
-			toggleClass(this.root, 'narrow', dimension.width <= 300);
+			this.root.classList.toggle('narrow', dimension.width <= 300);
 		}
 		if (this.searchBox) {
 			this.searchBox.layout({ height: 20, width: dimension.width - 34 });

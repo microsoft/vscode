@@ -14,7 +14,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
-import { append, $, addClass, removeClass, finalHandler, join, toggleClass, hide, show, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -362,9 +362,9 @@ export class ExtensionEditor extends EditorPane {
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
 
-		toggleClass(template.name, 'clickable', !!extension.url);
-		toggleClass(template.publisher, 'clickable', !!extension.url);
-		toggleClass(template.rating, 'clickable', !!extension.url);
+		template.name.classList.toggle('clickable', !!extension.url);
+		template.publisher.classList.toggle('clickable', !!extension.url);
+		template.rating.classList.toggle('clickable', !!extension.url);
 		if (extension.url) {
 			this.transientDisposables.add(this.onClick(template.name, () => this.openerService.open(URI.parse(extension.url!))));
 			this.transientDisposables.add(this.onClick(template.rating, () => this.openerService.open(URI.parse(`${extension.url}#review-details`))));
@@ -847,13 +847,13 @@ export class ExtensionEditor extends EditorPane {
 
 		const extensionPack = append(extensionPackReadme, $('div', { class: 'extension-pack' }));
 		if (manifest.extensionPack!.length <= 3) {
-			addClass(extensionPackReadme, 'one-row');
+			extensionPackReadme.classList.add('one-row');
 		} else if (manifest.extensionPack!.length <= 6) {
-			addClass(extensionPackReadme, 'two-rows');
+			extensionPackReadme.classList.add('two-rows');
 		} else if (manifest.extensionPack!.length <= 9) {
-			addClass(extensionPackReadme, 'three-rows');
+			extensionPackReadme.classList.add('three-rows');
 		} else {
-			addClass(extensionPackReadme, 'more-rows');
+			extensionPackReadme.classList.add('more-rows');
 		}
 
 		const extensionPackHeader = append(extensionPack, $('div.header'));
@@ -1436,10 +1436,10 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	private loadContents<T>(loadingTask: () => CacheResult<T>, template: IExtensionEditorTemplate): Promise<T> {
-		addClass(template.content, 'loading');
+		template.content.classList.add('loading');
 
 		const result = this.contentDisposables.add(loadingTask());
-		const onDone = () => removeClass(template.content, 'loading');
+		const onDone = () => template.content.classList.remove('loading');
 		result.promise.then(onDone, onDone);
 
 		return result.promise;
