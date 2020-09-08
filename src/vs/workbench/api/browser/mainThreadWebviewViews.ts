@@ -29,11 +29,13 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 	}
 
 	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
-		const webviewView = this._webviewViews.get(handle);
-		if (!webviewView) {
-			throw new Error('unknown webview view');
-		}
+		const webviewView = this.getWebviewView(handle);
 		webviewView.title = value;
+	}
+
+	public $setWebviewViewDescription(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
+		const webviewView = this.getWebviewView(handle);
+		webviewView.description = value;
 	}
 
 	public $registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void {
@@ -88,6 +90,14 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 
 		provider.dispose();
 		this._webviewViewProviders.delete(viewType);
+	}
+
+	private getWebviewView(handle: string): WebviewView {
+		const webviewView = this._webviewViews.get(handle);
+		if (!webviewView) {
+			throw new Error('unknown webview view');
+		}
+		return webviewView;
 	}
 }
 

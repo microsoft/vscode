@@ -13,6 +13,7 @@ export const IWebviewViewService = createDecorator<IWebviewViewService>('webview
 
 export interface WebviewView {
 	title?: string;
+	description?: string;
 
 	readonly webview: WebviewOverlay;
 

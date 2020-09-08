@@ -23,6 +23,7 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 	#isDisposed = false;
 	#isVisible: boolean;
 	#title: string | undefined;
+	#description: string | undefined;
 
 	constructor(
 		handle: extHostProtocol.WebviewHandle,
@@ -67,6 +68,19 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		if (this.#title !== value) {
 			this.#title = value;
 			this.#proxy.$setWebviewViewTitle(this.#handle, value);
+		}
+	}
+
+	public get description(): string | undefined {
+		this.assertNotDisposed();
+		return this.#description;
+	}
+
+	public set description(value: string | undefined) {
+		this.assertNotDisposed();
+		if (this.#description !== value) {
+			this.#description = value;
+			this.#proxy.$setWebviewViewDescription(this.#handle, value);
 		}
 	}
 

@@ -23,7 +23,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewViewService } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
+import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 declare const ResizeObserver: any;
@@ -158,13 +158,19 @@ export class WebviewViewPane extends ViewPane {
 				await this.extensionService.activateByEvent(`onView:${this.id}`);
 
 				let self = this;
-				await this.webviewViewService.resolve(this.id, {
+				const webviewView: WebviewView = {
 					webview,
 					onDidChangeVisibility: this.onDidChangeBodyVisibility,
 					onDispose: this.onDispose,
+
 					get title() { return self.title; },
-					set title(value: string) { self.updateTitle(value); }
-				}, source.token);
+					set title(value: string) { self.updateTitle(value); },
+
+					get description(): string | undefined { return self.titleDescription; },
+					set description(value: string | undefined) { self.updateTitleDescription(value); },
+				};
+
+				await this.webviewViewService.resolve(this.id, webviewView, source.token);
 			});
 		}
 	}
