@@ -416,7 +416,7 @@ export class UnpinEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, Codicon.pin.classNames);
+		super(id, label, Codicon.pinned.classNames);
 	}
 
 	run(context?: IEditorCommandsContext): Promise<void> {
