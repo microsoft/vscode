@@ -12,7 +12,7 @@ import { registerEditorContribution, ServicesAccessor, registerEditorAction, Edi
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 import { CodeLensProviderRegistry, CodeLens, Command } from 'vs/editor/common/modes';
-import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
+import { CodeLensModel, getCodeLensModel, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -35,7 +35,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _styleClassName: string;
 	private _lenses: CodeLensWidget[] = [];
-	private _currentFindCodeLensSymbolsPromise: CancelablePromise<CodeLensModel> | undefined;
+	private _currentGetCodeLensModel: CancelablePromise<CodeLensModel> | undefined;
 	private _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _modelChangeCounter: number = 0;
@@ -80,7 +80,7 @@ export class CodeLensContribution implements IEditorContribution {
 		this._localDispose();
 		this._globalToDispose.dispose();
 		this._oldCodeLensModels.dispose();
-		dispose(this._currentCodeLensModel);
+		this._currentCodeLensModel?.dispose();
 	}
 
 	private _updateLensStyle(): void {
@@ -99,9 +99,9 @@ export class CodeLensContribution implements IEditorContribution {
 	}
 
 	private _localDispose(): void {
-		if (this._currentFindCodeLensSymbolsPromise) {
-			this._currentFindCodeLensSymbolsPromise.cancel();
-			this._currentFindCodeLensSymbolsPromise = undefined;
+		if (this._currentGetCodeLensModel) {
+			this._currentGetCodeLensModel.cancel();
+			this._currentGetCodeLensModel = undefined;
 			this._modelChangeCounter++;
 		}
 		if (this._currentResolveCodeLensSymbolsPromise) {
@@ -157,13 +157,13 @@ export class CodeLensContribution implements IEditorContribution {
 
 		const scheduler = new RunOnceScheduler(() => {
 			const counterValue = ++this._modelChangeCounter;
-			if (this._currentFindCodeLensSymbolsPromise) {
-				this._currentFindCodeLensSymbolsPromise.cancel();
+			if (this._currentGetCodeLensModel) {
+				this._currentGetCodeLensModel.cancel();
 			}
 
-			this._currentFindCodeLensSymbolsPromise = createCancelablePromise(token => getCodeLensData(model, token));
+			this._currentGetCodeLensModel = createCancelablePromise(token => getCodeLensModel(model, token));
 
-			this._currentFindCodeLensSymbolsPromise.then(result => {
+			this._currentGetCodeLensModel.then(result => {
 				if (counterValue === this._modelChangeCounter) { // only the last one wins
 					if (this._currentCodeLensModel) {
 						this._oldCodeLensModels.add(this._currentCodeLensModel);
