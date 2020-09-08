@@ -312,7 +312,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._register(this._notebook.emitSelections(selections => {
 			// text model emit selection change (for example, undo/redo)
 			// we should update the selection handle wisely
-			// TODO, if the editor is note selected, undo/redo should not change the focused element selection
+			// TODO@rebornix, if the editor is note selected, undo/redo should not change the focused element selection
 			this.updateSelectionsFromEdits(selections);
 		}));
 
@@ -608,13 +608,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []) {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
 		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, beforeSelections, undefined);
-		// TODO, rely on createCell to be sync
+		// TODO@rebornix, rely on createCell to be sync
 		return this.viewCells[index];
 	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean = true): CellViewModel {
 		this._notebook.insertCell2(index, cell, synchronous, pushUndoStop);
-		// TODO, rely on createCell to be sync // this will trigger it to synchronous update
+		// TODO@rebornix, rely on createCell to be sync // this will trigger it to synchronous update
 		return this._viewCells[index];
 	}
 

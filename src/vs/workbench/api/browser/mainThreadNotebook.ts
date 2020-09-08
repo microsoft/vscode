@@ -128,7 +128,7 @@ class DocumentAndEditorState {
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
-	private readonly _notebookProviders = new Map<string, IMainNotebookController>();
+	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, disposable: IDisposable }>();
 	private readonly _notebookKernelProviders = new Map<number, { extension: NotebookExtensionDescription, emitter: Emitter<URI | undefined>, provider: IDisposable }>();
 	private readonly _proxy: ExtHostNotebookShape;
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
@@ -403,12 +403,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookProvider(_extension: NotebookExtensionDescription, _viewType: string, _supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void> {
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void> {
 		const controller: IMainNotebookController = {
-			supportBackup: _supportBackup,
-			options: options,
+			supportBackup,
+			options,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
-				const data = await this._proxy.$resolveNotebookData(_viewType, mainthreadTextModel.uri);
+				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
 				if (!data) {
 					return;
 				}
@@ -460,30 +460,32 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				return this.removeNotebookTextModel(uri);
 			},
 			save: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebook(_viewType, uri, token);
+				return this._proxy.$saveNotebook(viewType, uri, token);
 			},
 			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
-				return this._proxy.$saveNotebookAs(_viewType, uri, target, token);
+				return this._proxy.$saveNotebookAs(viewType, uri, target, token);
 			},
 			backup: async (uri: URI, token: CancellationToken) => {
-				return this._proxy.$backup(_viewType, uri, token);
+				return this._proxy.$backup(viewType, uri, token);
 			}
 		};
 
-		this._notebookProviders.set(_viewType, controller);
-		this._notebookService.registerNotebookController(_viewType, _extension, controller);
+		const disposable = this._notebookService.registerNotebookController(viewType, extension, controller);
+		this._notebookProviders.set(viewType, { controller, disposable });
 		return;
 	}
 
-	async $onNotebookChange(viewType: string, uri: UriComponents): Promise<void> {
+	async $onNotebookChange(_viewType: string, uri: UriComponents): Promise<void> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(uri));
 		textModel?.handleUnknownChange();
 	}
 
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {
-		this._notebookProviders.delete(viewType);
-		this._notebookService.unregisterNotebookProvider(viewType);
-		return;
+		const entry = this._notebookProviders.get(viewType);
+		if (entry) {
+			entry.disposable.dispose();
+			this._notebookProviders.delete(viewType);
+		}
 	}
 
 	async $registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void> {

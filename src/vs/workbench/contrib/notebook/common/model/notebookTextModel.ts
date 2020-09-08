@@ -329,7 +329,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return;
 		}
 
-		this._isUntitled = false; //TODO@rebornix fishy?
+		this._isUntitled = false;
 
 		// prepare remove
 		for (let i = index; i < index + count; i++) {

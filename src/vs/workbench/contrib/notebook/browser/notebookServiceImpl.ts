@@ -542,14 +542,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this._notebookProviders.has(viewType);
 	}
 
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
+	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
 		this._notebookProviders.set(viewType, { extensionData, controller });
 		this._onDidChangeViewTypes.fire();
-	}
-
-	unregisterNotebookProvider(viewType: string): void {
-		this._notebookProviders.delete(viewType);
-		this._onDidChangeViewTypes.fire();
+		return toDisposable(() => {
+			this._notebookProviders.delete(viewType);
+			this._onDidChangeViewTypes.fire();
+		});
 	}
 
 	registerNotebookKernelProvider(provider: INotebookKernelProvider): IDisposable {
@@ -657,7 +656,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 			cell.outputs.forEach((output) => {
 				if (output.outputKind === CellOutputKind.Rich) {
-					// TODO no string[] casting
+					// TODO@rebornix no string[] casting
 					const ret = this._transformMimeTypes(output, output.outputId, textModel.metadata.displayOrder as string[] || []);
 					const orderedMimeTypes = ret.orderedMimeTypes!;
 					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
