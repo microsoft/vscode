@@ -14,7 +14,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class SCMController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.findController';
@@ -44,14 +43,8 @@ export class SCMController extends Disposable implements INotebookEditorContribu
 				this.update();
 
 				if (this._notebookEditor.textModel) {
-					this._localDisposable.add(this._notebookEditor.textModel.onDidChangeContent(() => {
-						this.update();
-					}));
-
 					this._localDisposable.add(this._notebookEditor.textModel.onDidModelChangeProxy((e) => {
-						if (e.kind === NotebookCellsChangeType.ModelChange) {
-							this.update();
-						}
+						this.update();
 					}));
 				}
 			}));

@@ -277,7 +277,6 @@ export interface INotebookTextModel {
 	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
-	onDidChangeContent: Event<NotebookCellsChangeType | undefined>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -384,6 +383,7 @@ export interface NotebookOutputChangedEvent {
 	readonly index: number;
 	readonly versionId: number;
 	readonly outputs: IProcessedOutput[];
+	readonly transient: boolean;
 }
 
 export interface NotebookCellsChangeLanguageEvent {

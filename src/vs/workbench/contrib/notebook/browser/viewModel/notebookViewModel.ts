@@ -323,8 +323,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}));
 
-		this._register(this._notebook.onDidChangeContent(e => {
-			if (e === NotebookCellsChangeType.ChangeDocumentMetadata) {
+		this._register(this._notebook.onDidModelChangeProxy(e => {
+			if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
 				this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
 			}
 		}));

@@ -108,7 +108,6 @@ export class NotebookOperationManager {
 
 class DelayedEmitter {
 	constructor(
-		private readonly _onDidChangeContentEmitter: Emitter<NotebookCellsChangeType | undefined>,
 		private readonly _onDidModelChangeProxy: Emitter<NotebookTextModelChangedEvent>,
 		private readonly _increaseVersion: () => void,
 		private readonly _textModel: NotebookTextModel
@@ -119,7 +118,6 @@ class DelayedEmitter {
 
 	emit(data: {
 		triggerDirty: { value: boolean } | undefined,
-		contentChange: { value: NotebookCellsChangeType | undefined } | undefined,
 		cellsChange: { value: { synchronous: boolean, splices: NotebookCellTextModelSplice<NotebookCellTextModel>[] } } | undefined,
 		modelProxyChange: { value: NotebookTextModelChangedEvent } | undefined,
 	}) {
@@ -127,10 +125,6 @@ class DelayedEmitter {
 
 		if (data.triggerDirty && data.triggerDirty.value) {
 			this._textModel.setDirty(true);
-		}
-
-		if (data.contentChange) {
-			this._onDidChangeContentEmitter.fire(data.contentChange.value);
 		}
 
 		if (data.modelProxyChange) {
@@ -157,8 +151,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	get emitSelections() { return this._emitSelections.event; }
 	private _onDidModelChangeProxy = this._register(new Emitter<NotebookTextModelChangedEvent>());
 	get onDidModelChangeProxy(): Event<NotebookTextModelChangedEvent> { return this._onDidModelChangeProxy.event; }
-	private _onDidChangeContent = this._register(new Emitter<NotebookCellsChangeType | undefined>());
-	onDidChangeContent: Event<NotebookCellsChangeType | undefined> = this._onDidChangeContent.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -203,7 +195,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._operationManager = new NotebookOperationManager(this._undoService, uri);
 		this._eventEmitter = new DelayedEmitter(
-			this._onDidChangeContent,
 			this._onDidModelChangeProxy,
 			() => { this._increaseVersionId(); },
 			this
@@ -250,7 +241,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
 				this.setDirty(true);
 				this._increaseVersionId();
-				this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+				// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+				this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
@@ -340,7 +332,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = cell.onDidChangeContent(() => {
 				this.setDirty(true);
 				this._increaseVersionId();
-				this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+				// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+				this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
+
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
 			this._mapping.set(cell.handle, cell);
@@ -370,7 +364,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// should be deferred
 		this._eventEmitter.emit({
 			triggerDirty: { value: true },
-			contentChange: { value: NotebookCellsChangeType.ModelChange },
 			cellsChange: { value: { synchronous: synchronous, splices: diffs } },
 			modelProxyChange: {
 				value: {
@@ -423,7 +416,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
-		this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeDocumentMetadata);
+		// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeDocumentMetadata);
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, versionId: this.versionId, metadata: this.metadata, synchronous: true });
+
 	}
 
 	insertTemplateCell(cell: NotebookCellTextModel) {
@@ -439,12 +434,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._isUntitled = false;
 			this.setDirty(true);
 			this._increaseVersionId();
-			this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+			// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
+
 		});
 
 		this._cellListeners.set(cell.handle, dirtyStateListener);
 		this.setDirty(false);
-		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
+		// this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
@@ -468,7 +465,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this.setDirty(true);
 				this._increaseVersionId();
-				this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+				// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
+				this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
 			});
 
 			this._cellListeners.set(cells[i].handle, dirtyStateListener);
@@ -476,7 +474,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this.cells.splice(index, 0, ...cells);
 		this.setDirty(true);
-		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
+		// this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._increaseVersionId();
 
@@ -504,7 +502,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 		this.cells.splice(index, count);
 		this.setDirty(true);
-		this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
+		// this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous });
@@ -556,7 +554,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._eventEmitter.emit({
 			triggerDirty: { value: triggerDirtyChange },
-			contentChange: { value: NotebookCellsChangeType.ChangeCellMetadata },
 			cellsChange: undefined,
 			modelProxyChange: {
 				value: { kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this.cells.indexOf(cell), metadata: cell.metadata, synchronous: true }
@@ -572,7 +569,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 			this._eventEmitter.emit({
 				triggerDirty: { value: !this.transientOptions.transientOutputs },
-				contentChange: !this.transientOptions.transientOutputs ? { value: NotebookCellsChangeType.Output } : undefined,
 				cellsChange: undefined,
 				modelProxyChange: {
 					value: {
@@ -580,6 +576,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						versionId: this.versionId,
 						index: this.cells.indexOf(cell),
 						outputs: cell.outputs ?? [],
+						transient: this.transientOptions.transientOutputs,
 						synchronous: true
 					}
 				}
@@ -655,7 +652,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cells = this.cells.splice(index, length);
 			this.cells.splice(newIdx, 0, ...cells);
 			this.setDirty(true);
-			this._onDidChangeContent.fire(NotebookCellsChangeType.Move);
+			// this._onDidChangeContent.fire(NotebookCellsChangeType.Move);
 
 			this._increaseVersionId();
 			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous });
