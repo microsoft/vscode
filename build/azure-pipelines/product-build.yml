@@ -91,7 +91,7 @@ stages:
     container: vscode-armhf
     variables:
       VSCODE_ARCH: armhf
-      NPM_ARCH: arm
+      NPM_ARCH: armv7l
     steps:
     - template: linux/product-build-linux.yml
 
