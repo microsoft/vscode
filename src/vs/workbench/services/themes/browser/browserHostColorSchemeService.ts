@@ -29,6 +29,9 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 		window.matchMedia('(prefers-color-scheme: dark)').addListener(() => {
 			this._onDidSchemeChangeEvent.fire();
 		});
+		window.matchMedia('(forced-colors: active)').addListener(() => {
+			this._onDidSchemeChangeEvent.fire();
+		});
 	}
 
 	get onDidChangeColorScheme(): Event<void> {
@@ -36,7 +39,9 @@ export class BrowserHostColorSchemeService extends Disposable implements IHostCo
 	}
 
 	get colorScheme(): ColorScheme {
-		if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
+		if (window.matchMedia(`(forced-colors: active)`).matches) {
+			return ColorScheme.HIGH_CONTRAST;
+		} else if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
 			return ColorScheme.LIGHT;
 		} else if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
 			return ColorScheme.DARK;

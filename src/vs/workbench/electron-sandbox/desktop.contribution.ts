@@ -9,7 +9,7 @@ import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -254,13 +254,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'type': 'boolean',
 				'default': false,
 				'description': nls.localize('closeWhenEmpty', "Controls whether closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
-			},
-			'window.autoDetectHighContrast': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme, and to dark theme when switching away from a high contrast theme."),
-				'scope': ConfigurationScope.APPLICATION,
-				'included': isWindows || isMacintosh
 			},
 			'window.doubleClickIconToClose': {
 				'type': 'boolean',

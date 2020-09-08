@@ -438,6 +438,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 		};
+		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
 		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}
