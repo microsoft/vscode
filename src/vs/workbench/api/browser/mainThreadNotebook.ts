@@ -14,9 +14,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
@@ -59,7 +60,7 @@ class DocumentAndEditorState {
 			const apiEditors = [];
 			for (let id in after.textEditors) {
 				const editor = after.textEditors.get(id)!;
-				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.textModel!.selections, visibleRanges: editor.visibleRanges });
+				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.getSelectionHandles(), visibleRanges: editor.visibleRanges });
 			}
 
 			return {
@@ -73,7 +74,7 @@ class DocumentAndEditorState {
 		const addedAPIEditors = editorDelta.added.map(add => ({
 			id: add.getId(),
 			documentUri: add.uri!,
-			selections: add.textModel!.selections || [],
+			selections: add.getSelectionHandles(),
 			visibleRanges: add.visibleRanges
 		}));
 
@@ -231,7 +232,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			if (!this._editorEventListenersMapping.has(editor.getId())) {
 				const disposableStore = new DisposableStore();
 				disposableStore.add(editor.onDidChangeVisibleRanges(() => {
-					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges } });
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: { ranges: editor.visibleRanges }, selections: null });
+				}));
+
+				disposableStore.add(editor.onDidChangeSelection(() => {
+					const selectionHandles = editor.getSelectionHandles();
+					this._proxy.$acceptEditorPropertiesChanged(editor.getId(), { visibleRanges: null, selections: { selections: selectionHandles } });
 				}));
 
 				this._editorEventListenersMapping.set(editor.getId(), disposableStore);
@@ -256,21 +262,49 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			notebookEditorAddedHandler(editor);
 		});
 
-		const notebookDocumentAddedHandler = (textModel: NotebookTextModel) => {
-			if (this._documentEventListenersMapping.has(textModel.uri)) {
-				return;
-			}
-			const disposableStore = new DisposableStore();
-			disposableStore.add(textModel.onDidModelChangeProxy(e => {
-				this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
-				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: { selections: textModel!.selections }, metadata: null });
-			}));
-			disposableStore.add(textModel.onDidSelectionChange(e => {
-				const selectionsChange = e ? { selections: e } : null;
-				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: selectionsChange, metadata: null });
-			}));
+		const cellToDto = (cell: NotebookCellTextModel): IMainCellDto => {
+			return {
+				handle: cell.handle,
+				uri: cell.uri,
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: cell.metadata
+			};
+		};
 
-			this._documentEventListenersMapping.set(textModel.uri, disposableStore);
+
+		const notebookDocumentAddedHandler = (textModel: NotebookTextModel) => {
+			if (!this._editorEventListenersMapping.has(textModel.uri.toString())) {
+				const disposableStore = new DisposableStore();
+				disposableStore.add(textModel!.onDidChangeContent(e => {
+					const data =
+						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
+							? {
+								kind: e.kind,
+								versionId: e.versionId,
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+							}
+							: (
+								e.kind === NotebookCellsChangeType.Move
+									? {
+										kind: e.kind,
+										index: e.index,
+										length: e.length,
+										newIdx: e.newIdx,
+										versionId: e.versionId,
+										cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
+									}
+									: e
+							);
+					this._proxy.$acceptModelChanged(textModel.uri, data, textModel.isDirty);
+					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: null });
+				}));
+
+				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
+			}
 		};
 
 		this._notebookService.listNotebookDocuments().forEach(notebookDocumentAddedHandler);
@@ -432,7 +466,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					textModel.insertTemplateCell(mainCell);
 				}
 
-				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: null, metadata: textModel.metadata });
+				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
 				return;
 			},
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
@@ -542,7 +576,16 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata): Promise<void> {
 		this.logService.debug('MainThreadNotebooks#updateNotebookCellMetadata', resource.path, handle, metadata);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		textModel?.changeCellMetadata(handle, metadata, true);
+		if (!textModel) {
+			return;
+		}
+
+		const index = textModel.cells.findIndex(cell => cell.handle === handle);
+		if (index < 0) {
+			return;
+		}
+
+		textModel.applyEdit(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata }], true);
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {
@@ -551,7 +594,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		if (textModel) {
 			this._notebookService.transformSpliceOutputs(textModel, splices);
-			textModel.spliceNotebookCellOutputs(cellHandle, splices);
+			textModel._spliceNotebookCellOutputs(cellHandle, splices);
 		}
 	}
 
