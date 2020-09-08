@@ -279,7 +279,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			if (!this._editorEventListenersMapping.has(doc.toString())) {
 				const disposableStore = new DisposableStore();
 				const textModel = this._notebookService.getNotebookTextModel(doc);
-				disposableStore.add(textModel!.onDidModelChangeProxy(e => {
+				disposableStore.add(textModel!.onDidChangeContent(e => {
 					const data =
 						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
 							? {

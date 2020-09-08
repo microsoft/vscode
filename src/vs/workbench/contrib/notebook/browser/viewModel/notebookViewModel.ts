@@ -308,7 +308,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this.selectionHandles = endSelectionHandles;
 		};
 
-		this._register(this._notebook.onDidModelChangeProxy(e => {
+		this._register(this._notebook.onDidChangeContent(e => {
 			let changes: NotebookCellTextModelSplice<ICell>[] = [];
 
 			if (e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize) {
@@ -323,7 +323,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}));
 
-		this._register(this._notebook.onDidModelChangeProxy(e => {
+		this._register(this._notebook.onDidChangeContent(e => {
 			if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
 				this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
 			}

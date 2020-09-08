@@ -149,8 +149,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 	private readonly _emitSelections = this._register(new Emitter<number[]>());
 	get emitSelections() { return this._emitSelections.event; }
-	private _onDidModelChangeProxy = this._register(new Emitter<NotebookTextModelChangedEvent>());
-	get onDidModelChangeProxy(): Event<NotebookTextModelChangedEvent> { return this._onDidModelChangeProxy.event; }
+	private _onDidChangeContent = this._register(new Emitter<NotebookTextModelChangedEvent>());
+	get onDidChangeContent(): Event<NotebookTextModelChangedEvent> { return this._onDidChangeContent.event; }
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -195,7 +195,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._operationManager = new NotebookOperationManager(this._undoService, uri);
 		this._eventEmitter = new DelayedEmitter(
-			this._onDidModelChangeProxy,
+			this._onDidChangeContent,
 			() => { this._increaseVersionId(); },
 			this
 		);
@@ -242,7 +242,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this.setDirty(true);
 				this._increaseVersionId();
 				// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
-				this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
+				this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
 			});
 
 			this._cellListeners.set(mainCells[i].handle, dirtyStateListener);
@@ -333,7 +333,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this.setDirty(true);
 				this._increaseVersionId();
 				// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
-				this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
+				this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
 
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
@@ -417,7 +417,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
 		// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeDocumentMetadata);
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, versionId: this.versionId, metadata: this.metadata, synchronous: true });
+		this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, versionId: this.versionId, metadata: this.metadata, synchronous: true });
 
 	}
 
@@ -435,7 +435,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this.setDirty(true);
 			this._increaseVersionId();
 			// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
+			this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
 
 		});
 
@@ -443,7 +443,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.setDirty(false);
 		// this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
-		this._onDidModelChangeProxy.fire({
+		this._onDidChangeContent.fire({
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: this._versionId, changes:
 				[[
@@ -466,7 +466,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				this.setDirty(true);
 				this._increaseVersionId();
 				// this._onDidChangeContent.fire(NotebookCellsChangeType.ChangeCellContent);
-				this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
+				this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true });
 			});
 
 			this._cellListeners.set(cells[i].handle, dirtyStateListener);
@@ -478,7 +478,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._increaseVersionId();
 
-		this._onDidModelChangeProxy.fire({
+		this._onDidChangeContent.fire({
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: this._versionId, changes:
 				[[
@@ -505,7 +505,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		// this._onDidChangeContent.fire(NotebookCellsChangeType.ModelChange);
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous });
+		this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous });
 	}
 
 	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
@@ -599,7 +599,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			cell.language = languageId;
 
 			this._increaseVersionId();
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this.cells.indexOf(cell), language: languageId, synchronous: true });
+			this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this.cells.indexOf(cell), language: languageId, synchronous: true });
 		}
 	}
 
@@ -655,7 +655,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			// this._onDidChangeContent.fire(NotebookCellsChangeType.Move);
 
 			this._increaseVersionId();
-			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous });
+			this._onDidChangeContent.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous });
 		}
 
 		// todo, we can't emit this change as it will create a new view model and that will hold

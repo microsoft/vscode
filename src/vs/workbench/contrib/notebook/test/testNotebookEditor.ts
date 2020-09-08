@@ -337,8 +337,8 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	) {
 		super();
 
-		if (_notebook && _notebook.onDidModelChangeProxy) {
-			this._register(_notebook.onDidModelChangeProxy(() => {
+		if (_notebook && _notebook.onDidChangeContent) {
+			this._register(_notebook.onDidChangeContent(() => {
 				this._dirty = true;
 				this._onDidChangeDirty.fire();
 				this._onDidChangeContent.fire();

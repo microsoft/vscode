@@ -145,7 +145,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		this._register(this._notebook);
 
-		this._register(this._notebook.onDidModelChangeProxy(e => {
+		this._register(this._notebook.onDidChangeContent(e => {
 			if (e.kind !== NotebookCellsChangeType.Initialize) {
 				this._onDidChangeContent.fire();
 			}
