@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { hash } from 'vs/base/common/hash';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { LRUCache } from 'vs/base/common/map';
+import { MovingAverage } from 'vs/base/common/numbers';
 import { ITextModel } from 'vs/editor/common/model';
 import { LanguageSelector, score } from 'vs/editor/common/modes/languageSelector';
 import { shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
@@ -172,5 +175,44 @@ export class LanguageFeatureRegistry<T> {
 		} else {
 			return 0;
 		}
+	}
+}
+
+
+export class LanguageFeatureRequestDelays {
+
+	private readonly _cache = new LRUCache<string, MovingAverage>(50, 0.7);
+
+	constructor(
+		private readonly _registry: LanguageFeatureRegistry<any>,
+		readonly min: number,
+		readonly max: number = Number.MAX_SAFE_INTEGER,
+	) { }
+
+	private _key(model: ITextModel): string {
+		return model.id + hash(this._registry.all(model));
+	}
+
+	private _clamp(value: number | undefined): number {
+		if (value === undefined) {
+			return this.min;
+		} else {
+			return Math.min(this.max, Math.max(this.min, Math.floor(value * 1.3)));
+		}
+	}
+
+	get(model: ITextModel): number {
+		const key = this._key(model);
+		return this._clamp(this._cache.get(key)?.value);
+	}
+
+	update(model: ITextModel, value: number) {
+		const key = this._key(model);
+		let avg = this._cache.get(key);
+		if (!avg) {
+			avg = new MovingAverage();
+			this._cache.set(key, avg);
+		}
+		avg.update(value);
 	}
 }
