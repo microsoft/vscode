@@ -107,35 +107,44 @@ export function randomTestActivate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	function getRandomOutput(): vscode.CellOutput {
-		const r = Math.random() > 0.5;
-		return r ? {
-			outputKind: vscode.CellOutputKind.Rich,
-			data: {
-				'text/html': ['<div>html output</div>\n<img src="https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png" />']
-			}
-		} : {
-				outputKind: vscode.CellOutputKind.Text,
-				text: 'text output'
-			};
+	context.subscriptions.push(vscode.notebook.registerNotebookKernelProvider({ filenamePattern: '*.random-nb' }, {
+		provideKernels(_document: vscode.NotebookDocument, _token: vscode.CancellationToken) {
+			return [new TestKernel()];
+		}
+	}));
+}
+
+class TestKernel {
+	readonly label = 'notebookRandomTest';
+	async executeAllCells(_document: vscode.NotebookDocument) {
+		for (let i = 0; i < _document.cells.length; i++) {
+			_document.cells[i].outputs = [getRandomOutput()];
+		}
 	}
 
-	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookRandomTest', ['*.random-nb'], {
-		label: 'notebookRandomTest',
-		executeAllCells: async (_document: vscode.NotebookDocument) => {
-			for (let i = 0; i < _document.cells.length; i++) {
-				_document.cells[i].outputs = [getRandomOutput()];
-			}
-		},
-		cancelAllCellsExecution: async () => { },
-		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined) => {
-			if (!_cell) {
-				_cell = _document.cells[0];
-			}
+	async cancelAllCellsExecution() { }
 
-			_cell.outputs = [getRandomOutput()];
-			return;
-		},
-		cancelCellExecution: async () => { }
-	}));
+	async executeCell(_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined) {
+		if (!_cell) {
+			_cell = _document.cells[0];
+		}
+
+		_cell.outputs = [getRandomOutput()];
+		return;
+	}
+
+	async cancelCellExecution() { }
+}
+
+function getRandomOutput(): vscode.CellOutput {
+	const r = Math.random() > 0.5;
+	return r ? {
+		outputKind: vscode.CellOutputKind.Rich,
+		data: {
+			'text/html': ['<div>html output</div>\n<img src="https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png" />']
+		}
+	} : {
+			outputKind: vscode.CellOutputKind.Text,
+			text: 'text output'
+		};
 }
