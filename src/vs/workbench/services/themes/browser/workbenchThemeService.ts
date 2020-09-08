@@ -35,7 +35,7 @@ import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/co
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IHostColorService } from 'vs/workbench/services/themes/common/hostColorService';
 
 
 // implementation
@@ -106,7 +106,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
-		@IHostService private readonly hostService: IHostService,
+		@IHostColorService private readonly hostColorService: IHostColorService,
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -325,7 +325,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		this.hostService.onDidChangeColorScheme(() => this.handlePreferredSchemeUpdated());
+		this.hostColorService.onDidChangeColorScheme(() => this.handlePreferredSchemeUpdated());
 	}
 
 	private async handlePreferredSchemeUpdated() {
@@ -352,11 +352,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	private getPreferredColorScheme(): ColorScheme | undefined {
 		const detectHCThemeSetting = this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC);
-		if (this.hostService.colorScheme === ColorScheme.HIGH_CONTRAST && detectHCThemeSetting) {
+		if (this.hostColorService.colorScheme === ColorScheme.HIGH_CONTRAST && detectHCThemeSetting) {
 			return ColorScheme.HIGH_CONTRAST;
 		}
 		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			const osScheme = this.hostService.colorScheme;
+			const osScheme = this.hostColorService.colorScheme;
 			if (osScheme !== ColorScheme.HIGH_CONTRAST) {
 				return osScheme;
 			}

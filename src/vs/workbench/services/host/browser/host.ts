@@ -5,7 +5,6 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 
 export const IHostService = createDecorator<IHostService>('hostService');
@@ -65,16 +64,6 @@ export interface IHostService {
 	toggleFullScreen(): Promise<void>;
 
 	//#endregion
-
-
-	//#region Color Scheme
-
-	readonly colorScheme: ColorScheme;
-
-	readonly onDidChangeColorScheme: Event<void>;
-
-	//#endregion
-
 
 	//#region Lifecycle
 

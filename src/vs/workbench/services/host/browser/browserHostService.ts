@@ -329,19 +329,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-
-	//#region Color Scheme
-
-	// TODO@martin TODO@ben this currently does not support detecting changes
-	onDidChangeColorScheme = Event.None;
-
-	get colorScheme() {
-		return this.environmentService.configuration.colorScheme;
-	}
-
-	//#endregion
-
-
 	//#region Lifecycle
 
 	async restart(): Promise<void> {
