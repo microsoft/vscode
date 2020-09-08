@@ -25,7 +25,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -177,7 +177,7 @@ class CodeLensAdapter {
 	}
 
 	releaseCodeLenses(cachedId: number): void {
-		dispose(this._disposables.get(cachedId));
+		this._disposables.get(cachedId)?.dispose();
 		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
@@ -455,7 +455,7 @@ class CodeActionAdapter {
 	}
 
 	public releaseCodeActions(cachedId: number): void {
-		dispose(this._disposables.get(cachedId));
+		this._disposables.get(cachedId)?.dispose();
 		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
@@ -938,7 +938,7 @@ class SuggestAdapter {
 	}
 
 	releaseCompletionItems(id: number): any {
-		dispose(this._disposables.get(id));
+		this._disposables.get(id)?.dispose();
 		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
