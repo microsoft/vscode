@@ -115,7 +115,7 @@ function getRpmBuildPath(rpmArch) {
 }
 
 function getRpmPackageArch(arch) {
-	return { x64: 'x86_64', armhf: 'armhf', arm64: 'arm64' }[arch];
+	return { x64: 'x86_64', armhf: 'armv7hl', arm64: 'aarch64' }[arch];
 }
 
 function prepareRpmPackage(arch) {
