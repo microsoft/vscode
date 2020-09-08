@@ -30,6 +30,12 @@ export const EditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNot
 export const EditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
 export const EditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 
+/** TODO@ben remove me eventually */
+/** @deprecated */
+export const Deprecated_EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
+/** @deprecated */
+export const Deprecated_EditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
+
 // Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');

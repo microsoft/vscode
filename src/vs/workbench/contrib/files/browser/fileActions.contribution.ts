@@ -10,7 +10,7 @@ import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTI
 import { SyncActionDescriptor, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, DirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, ReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -259,7 +259,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: SAVE_FILE_LABEL,
-		precondition: DirtyEditorContext
+		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.or(
 		// Untitled Editors
@@ -269,7 +269,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 			// Not: editor groups
 			OpenEditorsGroupContext.toNegated(),
 			// Not: readonly editors
-			ReadonlyEditorContext.toNegated(),
+			OpenEditorsReadonlyEditorContext.toNegated(),
 			// Not: auto save after short delay
 			AutoSaveAfterShortDelayContext.toNegated()
 		)
@@ -282,13 +282,13 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize('revert', "Revert File"),
-		precondition: DirtyEditorContext
+		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.and(
 		// Not: editor groups
 		OpenEditorsGroupContext.toNegated(),
 		// Not: readonly editors
-		ReadonlyEditorContext.toNegated(),
+		OpenEditorsReadonlyEditorContext.toNegated(),
 		// Not: untitled editors (revert closes them)
 		ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled),
 		// Not: auto save after short delay
@@ -314,7 +314,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: {
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
 		title: nls.localize('compareWithSaved', "Compare with Saved"),
-		precondition: DirtyEditorContext
+		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, AutoSaveAfterShortDelayContext.toNegated(), WorkbenchListDoubleSelection.toNegated())
 });

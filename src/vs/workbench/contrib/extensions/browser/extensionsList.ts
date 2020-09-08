@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extension';
-import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -135,7 +135,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
-		addClass(data.element, 'loading');
+		data.element.classList.add('loading');
 
 		data.root.removeAttribute('aria-label');
 		data.root.removeAttribute('data-extension-id');
@@ -150,7 +150,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	}
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
-		removeClass(data.element, 'loading');
+		data.element.classList.remove('loading');
 		data.root.setAttribute('data-extension-id', extension.identifier.id);
 
 		if (extension.state !== ExtensionState.Uninstalled && !extension.server) {
@@ -168,7 +168,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
 				isDisabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			}
-			toggleClass(data.root, 'disabled', isDisabled);
+			data.root.classList.toggle('disabled', isDisabled);
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
