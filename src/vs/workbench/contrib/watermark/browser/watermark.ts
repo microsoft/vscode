@@ -141,7 +141,6 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 				const dd = dom.append(dl, $('dd'));
 				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
 				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
-				dd.innerHTML = keybinding.element.outerHTML;
 			});
 		};
 
