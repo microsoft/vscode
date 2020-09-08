@@ -215,7 +215,6 @@ export class ExtHostNotebookDocument extends Disposable {
 
 	private _metadata: Required<vscode.NotebookDocumentMetadata> = notebookDocumentMetadataDefaults;
 	private _metadataChangeListener: IDisposable;
-	private _displayOrder: string[] = [];
 	private _versionId = 0;
 	private _isDirty: boolean = false;
 	private _backupCounter = 1;
@@ -284,8 +283,6 @@ export class ExtHostNotebookDocument extends Disposable {
 				get cells(): ReadonlyArray<vscode.NotebookCell> { return that._cells.map(cell => cell.cell); },
 				get languages() { return that._languages; },
 				set languages(value: string[]) { that._trySetLanguages(value); },
-				get displayOrder() { return that._displayOrder; },
-				set displayOrder(value: string[]) { that._displayOrder = value; },
 				get metadata() { return that._metadata; },
 				set metadata(value: Required<vscode.NotebookDocumentMetadata>) { that._updateMetadata(value); },
 			});
