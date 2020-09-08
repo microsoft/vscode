@@ -13,9 +13,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService } from 'vs/platform/log/common/log';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
@@ -261,12 +262,44 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			notebookEditorAddedHandler(editor);
 		});
 
+		const cellToDto = (cell: NotebookCellTextModel): IMainCellDto => {
+			return {
+				handle: cell.handle,
+				uri: cell.uri,
+				source: cell.textBuffer.getLinesContent(),
+				eol: cell.textBuffer.getEOL(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: cell.metadata
+			};
+		};
+
 		const notebookDocumentAddedHandler = (doc: URI) => {
 			if (!this._editorEventListenersMapping.has(doc.toString())) {
 				const disposableStore = new DisposableStore();
 				const textModel = this._notebookService.getNotebookTextModel(doc);
 				disposableStore.add(textModel!.onDidModelChangeProxy(e => {
-					this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
+					const data =
+						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
+							? {
+								kind: e.kind,
+								versionId: e.versionId,
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+							}
+							: (
+								e.kind === NotebookCellsChangeType.Move
+									? {
+										kind: e.kind,
+										index: e.index,
+										length: e.length,
+										newIdx: e.newIdx,
+										versionId: e.versionId,
+										cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
+									}
+									: e
+							);
+					this._proxy.$acceptModelChanged(textModel!.uri, data, textModel!.isDirty);
 					this._proxy.$acceptDocumentPropertiesChanged(doc, { metadata: null });
 				}));
 

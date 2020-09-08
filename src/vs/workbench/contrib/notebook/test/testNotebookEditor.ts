@@ -337,7 +337,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	) {
 		super();
 
-		if (_notebook && _notebook.onDidChangeCells) {
+		if (_notebook && _notebook.onDidChangeContent) {
 			this._register(_notebook.onDidChangeContent(() => {
 				this._dirty = true;
 				this._onDidChangeDirty.fire();

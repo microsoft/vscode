@@ -22,7 +22,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellEditOperation, ICellReplaceEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEvent, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellEditOperation, ICellReplaceEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ResourceMap } from 'vs/base/common/map';
@@ -316,7 +316,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		this._backup = undefined;
 	}
 
-	acceptModelChanged(event: NotebookCellsChangedEvent, isDirty: boolean): void {
+	acceptModelChanged(event: NotebookCellsChangedEventDto, isDirty: boolean): void {
 		this._versionId = event.versionId;
 		this._isDirty = isDirty;
 		if (event.kind === NotebookCellsChangeType.Initialize) {
@@ -327,10 +327,6 @@ export class ExtHostNotebookDocument extends Disposable {
 			this._moveCell(event.index, event.newIdx);
 		} else if (event.kind === NotebookCellsChangeType.Output) {
 			this._setCellOutputs(event.index, event.outputs);
-		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
-			this._clearCellOutputs(event.index);
-		} else if (event.kind === NotebookCellsChangeType.CellsClearOutput) {
-			this._clearAllCellOutputs();
 		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
 			this._changeCellLanguage(event.index, event.language);
 		} else if (event.kind === NotebookCellsChangeType.ChangeCellMetadata) {
@@ -422,25 +418,6 @@ export class ExtHostNotebookDocument extends Disposable {
 		const cell = this._cells[index];
 		cell.setOutputs(outputs);
 		this._emitter.emitCellOutputsChange({ document: this.notebookDocument, cells: [cell.cell] });
-	}
-
-	private _clearCellOutputs(index: number): void {
-		const cell = this._cells[index].cell;
-		cell.outputs = [];
-		const event: vscode.NotebookCellOutputsChangeEvent = { document: this.notebookDocument, cells: [cell] };
-		this._emitter.emitCellOutputsChange(event);
-	}
-
-	private _clearAllCellOutputs(): void {
-		const modifedCells: vscode.NotebookCell[] = [];
-		this._cells.forEach(({ cell }) => {
-			if (cell.outputs.length !== 0) {
-				cell.outputs = [];
-				modifedCells.push(cell);
-			}
-		});
-		const event: vscode.NotebookCellOutputsChangeEvent = { document: this.notebookDocument, cells: modifedCells };
-		this._emitter.emitCellOutputsChange(event);
 	}
 
 	private _changeCellLanguage(index: number, language: string): void {
@@ -1279,7 +1256,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._webviewComm.get(editorId)?.onDidReceiveMessage(forRendererType, message);
 	}
 
-	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent, isDirty: boolean): void {
+	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void {
 		const document = this._documents.get(URI.revive(uriComponents));
 		if (document) {
 			document.acceptModelChanged(event, isDirty);

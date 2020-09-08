@@ -23,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -251,8 +251,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 
-		this._register(this._notebook.onDidChangeCells(e => {
-			const diffs = e.splices.map(splice => {
+		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
+			const diffs = changes.map(splice => {
 				return [splice[0], splice[1], splice[2].map(cell => {
 					return createCellViewModel(this._instantiationService, this, cell as NotebookCellTextModel);
 				})] as [number, number, CellViewModel[]];
@@ -275,7 +275,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 
 			this._onDidChangeViewCells.fire({
-				synchronous: e.synchronous,
+				synchronous: synchronous,
 				splices: diffs
 			});
 
@@ -306,6 +306,21 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 
 			this.selectionHandles = endSelectionHandles;
+		};
+
+		this._register(this._notebook.onDidModelChangeProxy(e => {
+			let changes: NotebookCellTextModelSplice<ICell>[] = [];
+
+			if (e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize) {
+				changes = e.changes;
+				compute(changes, e.synchronous);
+				return;
+			} else if (e.kind === NotebookCellsChangeType.Move) {
+				compute([[e.index, e.length, []]], e.synchronous);
+				compute([[e.newIdx, 0, e.cells]], e.synchronous);
+			} else {
+				return;
+			}
 		}));
 
 		this._register(this._notebook.onDidChangeContent(e => {
