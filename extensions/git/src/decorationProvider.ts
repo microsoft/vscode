@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, workspace, Uri, Disposable, Event, EventEmitter, Decoration, DecorationProvider, ThemeColor, TextDocument } from 'vscode';
+import { window, workspace, Uri, Disposable, Event, EventEmitter, Decoration, DecorationProvider, ThemeColor } from 'vscode';
 import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
@@ -21,7 +21,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 	constructor(private model: Model) {
 		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
-			filterEvent(workspace.onDidSaveTextDocument, this.isIgnoreConfig),
+			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
 		));
@@ -76,13 +76,6 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 				}
 			});
 		}
-	}
-
-	private isIgnoreConfig(document: TextDocument): boolean {
-		return (
-			document.fileName.endsWith('.gitignore') ||
-			document.fileName.replace(/\\/g, '/').endsWith('.git/info/exclude')
-		);
 	}
 
 	dispose(): void {
