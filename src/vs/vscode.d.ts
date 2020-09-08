@@ -1160,7 +1160,7 @@ declare module 'vscode' {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * ~~Show the text editor.~~
+		 * Show the text editor.
 		 *
 		 * @deprecated Use [window.showTextDocument](#window.showTextDocument) instead.
 		 *
@@ -1170,7 +1170,7 @@ declare module 'vscode' {
 		show(column?: ViewColumn): void;
 
 		/**
-		 * ~~Hide the text editor.~~
+		 * Hide the text editor.
 		 *
 		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
 		 * This method shows unexpected behavior and will be removed in the next major update.
@@ -2498,9 +2498,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * ~~MarkedString can be used to render human-readable text. It is either a markdown string
+	 * MarkedString can be used to render human-readable text. It is either a markdown string
 	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.~~
+	 * markdown strings will be sanitized - that means html will be escaped.
 	 *
 	 * @deprecated This type is deprecated, please use [`MarkdownString`](#MarkdownString) instead.
 	 */
@@ -2753,7 +2753,7 @@ declare module 'vscode' {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
-		 * ~~Creates a new symbol information object.~~
+		 * Creates a new symbol information object.
 		 *
 		 * @deprecated Please use the constructor taking a [location](#Location) object.
 		 *
@@ -3874,12 +3874,12 @@ declare module 'vscode' {
 		/**
 		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
 		 *
-		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
+		 * An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
-		 * [insertText](#CompletionItem.insertText) is ignored.~~
+		 * [insertText](#CompletionItem.insertText) is ignored.
 		 *
-		 * ~~The [range](#Range) of the edit must be single-line and on the same
-		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
+		 * The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
 		 */
 		textEdit?: TextEdit;
 
@@ -5220,7 +5220,7 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 
 		/**
-		 * ~~Reveal this channel in the UI.~~
+		 * Reveal this channel in the UI.
 		 *
 		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
 		 *
@@ -6179,7 +6179,7 @@ declare module 'vscode' {
 		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
-		 * ~~Creates a new task.~~
+		 * Creates a new task.
 		 *
 		 * @deprecated Use the new constructors that allow specifying a scope for the task.
 		 *
@@ -8134,8 +8134,8 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * ~~Show progress in the Source Control viewlet while running the given callback and while
-		 * its returned promise isn't resolve or rejected.~~
+		 * Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.
 		 *
 		 * @deprecated Use `withProgress` instead.
 		 *
@@ -9571,8 +9571,8 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * ~~The folder that is open in the editor. `undefined` when no folder
-		 * has been opened.~~
+		 * The folder that is open in the editor. `undefined` when no folder
+		 * has been opened.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
@@ -9952,7 +9952,7 @@ declare module 'vscode' {
 		export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
 
 		/**
-		 * ~~Register a task provider.~~
+		 * Register a task provider.
 		 *
 		 * @deprecated Use the corresponding function on the `tasks` namespace instead
 		 *
@@ -10691,8 +10691,8 @@ declare module 'vscode' {
 	export namespace scm {
 
 		/**
-		 * ~~The [input box](#SourceControlInputBox) for the last source control
-		 * created by the extension.~~
+		 * The [input box](#SourceControlInputBox) for the last source control
+		 * created by the extension.
 		 *
 		 * @deprecated Use SourceControl.inputBox instead
 		 */
