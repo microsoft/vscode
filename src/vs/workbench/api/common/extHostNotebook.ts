@@ -1378,14 +1378,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					}
 				}, viewType, { ...notebookDocumentMetadataDefaults, ...modelData.metadata }, uri, this, storageRoot);
 
-
-				if (modelData.metadata) {
-					document.notebookDocument.metadata = {
-						...notebookDocumentMetadataDefaults,
-						...modelData.metadata
-					};
-				}
-
 				document.acceptModelChanged({
 					kind: NotebookCellsChangeType.Initialize,
 					versionId: modelData.versionId,
