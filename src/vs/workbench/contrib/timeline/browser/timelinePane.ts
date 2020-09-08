@@ -32,7 +32,7 @@ import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, T
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,6 +41,7 @@ import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntr
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const ItemHeight = 22;
 
@@ -1117,7 +1118,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === LIGHT ? item.icon : item.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {

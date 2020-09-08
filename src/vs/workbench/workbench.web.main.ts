@@ -50,6 +50,7 @@ import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
+import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
