@@ -6,7 +6,7 @@
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
@@ -24,7 +24,7 @@ export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
 
 export interface IStartArguments {
-	args: ParsedArgs;
+	args: NativeParsedArgs;
 	userEnv: IProcessEnvironment;
 }
 
@@ -33,7 +33,7 @@ export interface IRemoteDiagnosticOptions {
 	includeWorkspaceMetadata?: boolean;
 }
 
-function parseOpenUrl(args: ParsedArgs): URI[] {
+function parseOpenUrl(args: NativeParsedArgs): URI[] {
 	if (args['open-url'] && args._urls && args._urls.length > 0) {
 		// --open-url must contain -- followed by the url(s)
 		// process.argv is used over args._ as args._ are resolved to file paths at this point
@@ -52,7 +52,7 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 
 export interface ILaunchMainService {
 	readonly _serviceBrand: undefined;
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
@@ -70,7 +70,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	async start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// Since we now start to open a window, make sure the app has focus.
@@ -103,7 +103,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
-	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	private startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 

@@ -1746,9 +1746,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super.dispose();
 	}
 
-	toJSON(): object {
+	toJSON(): { notebookUri: URI | undefined } {
 		return {
-			notebookHandle: this.viewModel?.handle
+			notebookUri: this.viewModel?.uri,
 		};
 	}
 }
@@ -1789,7 +1789,7 @@ export const notebookOutputContainerColor = registerColor('notebook.outputContai
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
-// TODO currently also used for toolbar border, if we keep all of this, pick a generic name
+// TODO@rebornix currently also used for toolbar border, if we keep all of this, pick a generic name
 export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparator', {
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),

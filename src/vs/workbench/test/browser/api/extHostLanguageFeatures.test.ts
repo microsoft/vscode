@@ -22,7 +22,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/gotoSymbol/documentSymbols';
 import * as modes from 'vs/editor/common/modes';
-import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
+import { getCodeLensModel } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition, getDeclarationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/goToSymbol';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
@@ -189,7 +189,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensData(model, CancellationToken.None);
+		const value = await getCodeLensModel(model, CancellationToken.None);
 		assert.equal(value.lenses.length, 1);
 	});
 
@@ -207,7 +207,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensData(model, CancellationToken.None);
+		const value = await getCodeLensModel(model, CancellationToken.None);
 		assert.equal(value.lenses.length, 1);
 		const [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));
@@ -224,7 +224,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		await rpcProtocol.sync();
-		const value = await getCodeLensData(model, CancellationToken.None);
+		const value = await getCodeLensModel(model, CancellationToken.None);
 		assert.equal(value.lenses.length, 1);
 		let [data] = value.lenses;
 		const symbol = await Promise.resolve(data.provider.resolveCodeLens!(model, data.symbol, CancellationToken.None));

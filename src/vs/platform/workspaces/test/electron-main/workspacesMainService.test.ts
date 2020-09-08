@@ -138,7 +138,7 @@ suite('WorkspacesMainService', () => {
 		return service.createUntitledWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
-	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
+	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS));
 	const logService = new NullLogService();
 
 	let service: WorkspacesMainService;

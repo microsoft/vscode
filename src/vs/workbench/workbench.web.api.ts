@@ -147,12 +147,19 @@ interface IWindowIndicator {
 	command?: string;
 }
 
+enum ColorScheme {
+	DARK = 'dark',
+	LIGHT = 'light',
+	HIGH_CONTRAST = 'hc'
+}
+
+
 interface IInitialColorTheme {
 
 	/**
 	 * Initial color theme type.
 	 */
-	themeType: 'light' | 'dark' | 'hc';
+	themeType: ColorScheme;
 
 	/**
 	 * A list of workbench colors to apply initially.
@@ -245,6 +252,8 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Session id of the current authenticated user
+	 *
+	 * @deprecated Instead pass current authenticated user info through [credentialsProvider](#credentialsProvider)
 	 */
 	readonly authenticationSessionId?: string;
 
@@ -297,8 +306,9 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * Enables user data sync by default and syncs into the current authenticated user account
-	 * using the provided [authenticationSessionId}(#authenticationSessionId).
+	 * Enables Settings Sync by default.
+	 *
+	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
 	 */
 	readonly enableSyncByDefault?: boolean;
 

@@ -13,6 +13,7 @@ export interface IHostService {
 
 	readonly _serviceBrand: undefined;
 
+
 	//#region Focus
 
 	/**
@@ -63,7 +64,6 @@ export interface IHostService {
 	toggleFullScreen(): Promise<void>;
 
 	//#endregion
-
 
 	//#region Lifecycle
 

@@ -6266,7 +6266,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return an array of tasks
 		 */
-		provideTasks(token?: CancellationToken): ProviderResult<T[]>;
+		provideTasks(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
@@ -6281,7 +6281,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The resolved task
 		 */
-		resolveTask(task: T, token?: CancellationToken): ProviderResult<T>;
+		resolveTask(task: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**

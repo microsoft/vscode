@@ -25,7 +25,7 @@ suite('NotebookViewModel', () => {
 	const modeService = instantiationService.get(IModeService);
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel(0, 'notebook', false, URI.parse('test'), undoRedoService, textModelService, modeService);
+		const notebook = new NotebookTextModel('notebook', false, URI.parse('test'), undoRedoService, textModelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);

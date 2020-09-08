@@ -28,6 +28,7 @@ import { localize } from 'vs/nls';
 import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
+import { Barrier } from 'vs/base/common/async';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -82,7 +83,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return this._protocolPromise;
 	}
 
-	private _startInsideIframe(): Promise<IMessagePassingProtocol> {
+	private async _startInsideIframe(): Promise<IMessagePassingProtocol> {
 		const emitter = this._register(new Emitter<VSBuffer>());
 
 		const iframe = document.createElement('iframe');
@@ -111,6 +112,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframeContent = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 		iframe.setAttribute('src', iframeContent);
 
+		const barrier = new Barrier();
+		let port!: MessagePort;
+
 		this._register(dom.addDisposableListener(window, 'message', (event) => {
 			if (event.source !== iframe.contentWindow) {
 				return;
@@ -129,38 +133,68 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				return;
 			}
 			const { data } = event.data;
+			if (barrier.isOpen() || !(data instanceof MessagePort)) {
+				console.warn('UNEXPECTED message', event);
+				this._onDidExit.fire([81, 'UNEXPECTED message']);
+				return;
+			}
+			port = data;
+			barrier.open();
+		}));
+
+		document.body.appendChild(iframe);
+		this._register(toDisposable(() => iframe.remove()));
+
+		// await MessagePort and use it to directly communicate
+		// with the worker extension host
+		await barrier.wait();
+
+		port.onmessage = (event) => {
+			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
 				this._onDidExit.fire([77, 'UNKNOWN data received']);
 				return;
 			}
 			emitter.fire(VSBuffer.wrap(new Uint8Array(data, 0, data.byteLength)));
-		}));
+		};
 
 		const protocol: IMessagePassingProtocol = {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				iframe.contentWindow!.postMessage({
-					vscodeWebWorkerExtHostId,
-					data: data
-				}, '*', [data]);
+				port.postMessage(data, [data]);
 			}
 		};
-
-		document.body.appendChild(iframe);
-		this._register(toDisposable(() => iframe.remove()));
 
 		return this._performHandshake(protocol);
 	}
 
-	private _startOutsideIframe(): Promise<IMessagePassingProtocol> {
+	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
 		const emitter = new Emitter<VSBuffer>();
 
 		const url = getWorkerBootstrapUrl(require.toUrl('../worker/extensionHostWorkerMain.js'), 'WorkerExtensionHost');
 		const worker = new Worker(url, { name: 'WorkerExtensionHost' });
 
+		const barrier = new Barrier();
+		let port!: MessagePort;
+
 		worker.onmessage = (event) => {
+			const { data } = event;
+			if (barrier.isOpen() || !(data instanceof MessagePort)) {
+				console.warn('UNEXPECTED message', event);
+				this._onDidExit.fire([81, 'UNEXPECTED message']);
+				return;
+			}
+			port = data;
+			barrier.open();
+		};
+
+		// await MessagePort and use it to directly communicate
+		// with the worker extension host
+		await barrier.wait();
+
+		port.onmessage = (event) => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -184,7 +218,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			onMessage: emitter.event,
 			send: vsbuf => {
 				const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-				worker.postMessage(data, [data]);
+				port.postMessage(data, [data]);
 			}
 		};
 

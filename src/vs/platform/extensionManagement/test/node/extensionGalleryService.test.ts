@@ -53,7 +53,7 @@ suite('Extension Gallery Service', () => {
 
 	test('marketplace machine id', () => {
 		const args = ['--user-data-dir', marketplaceHome];
-		const environmentService = new EnvironmentService(parseArgs(args, OPTIONS), process.execPath);
+		const environmentService = new EnvironmentService(parseArgs(args, OPTIONS));
 		const storageService: IStorageService = new TestStorageService();
 
 		return resolveMarketplaceHeaders(product.version, environmentService, fileService, storageService).then(headers => {

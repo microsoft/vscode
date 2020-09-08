@@ -109,7 +109,7 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('inspect-extensions', inspectExtensions);
 		}
 
-		// Open debug window as new window. Pass ParsedArgs over.
+		// Open debug window as new window. Pass arguments over.
 		await this.workspaceProvider.open(debugWorkspace, {
 			reuse: false, 								// debugging always requires a new window
 			payload: Array.from(environment.entries())	// mandatory properties to enable debugging

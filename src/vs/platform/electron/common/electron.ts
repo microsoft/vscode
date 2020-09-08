@@ -8,6 +8,14 @@ import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDial
 import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+
+export interface IOSProperties {
+	type: string;
+	release: string;
+	arch: string;
+	platform: string;
+}
 
 export interface ICommonElectronService {
 
@@ -26,6 +34,8 @@ export interface ICommonElectronService {
 	readonly onWindowBlur: Event<number>;
 
 	readonly onOSResume: Event<unknown>;
+
+	readonly onColorSchemeChange: Event<ColorScheme>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -73,6 +83,7 @@ export interface ICommonElectronService {
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 	isAdmin(): Promise<boolean>;
 	getTotalMem(): Promise<number>;
+	getOS(): Promise<IOSProperties>;
 
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
