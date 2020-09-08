@@ -136,17 +136,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	private readonly _onDidChangeContent = this._register(new Emitter<NotebookTextModelChangedEvent>());
-	private readonly _onDidChangeMetadata = this._register(new Emitter<NotebookDocumentMetadata>());
-
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	readonly onDidChangeContent = this._onDidChangeContent.event;
-	readonly onDidChangeMetadata = this._onDidChangeMetadata.event;
-
 	private _cellhandlePool: number = 0;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[];
-
 	private _languages: string[] = [];
 	private _allLanguages: boolean = false;
 
@@ -165,23 +160,12 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
 	transientOptions: TransientOptions = { transientMetadata: {}, transientOutputs: false };
 	private _versionId = 0;
-
-	//#region selection TODO@rebornix this shouldn't be here
-
-	private readonly _emitSelections = this._register(new Emitter<number[]>());
-	readonly emitSelections = this._emitSelections.event;
-	private _onDidSelectionChangeProxy = this._register(new Emitter<number[] | null>());
-	readonly onDidSelectionChange = this._onDidSelectionChangeProxy.event;
-
-
 	private _operationManager: NotebookOperationManager;
 	private _eventEmitter: DelayedEmitter;
 
 	private _dirty = false;
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-
-
 
 	constructor(
 		readonly viewType: string,
