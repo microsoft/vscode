@@ -4,7 +4,7 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-59 results - 40 files
+57 results - 39 files
 
 src/vs/base/browser/markdownRenderer.ts:
   156  				const strValue = values[0];
@@ -381,16 +381,6 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
   603  
   604  		return dragImageContainer;
   605  	}
-
-src/vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets.ts:
-  77  			return;
-  78  		}
-  79  
-  80: 		this.leftContributedItemsContainer.innerHTML = '';
-  81: 		this.rightContributedItemsContainer.innerHTML = '';
-  82  		this.itemsDisposable.clear();
-  83  
-  84  		const items = this.notebookCellStatusBarService.getEntries(this.currentContext.cell.uri);
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
