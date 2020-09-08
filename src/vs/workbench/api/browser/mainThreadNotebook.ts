@@ -7,6 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -134,7 +135,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
 	private _currentState?: DocumentAndEditorState;
 	private _editorEventListenersMapping: Map<string, DisposableStore> = new Map();
-	private _documentEventListenersMapping: Map<string, DisposableStore> = new Map();
+	private _documentEventListenersMapping: ResourceMap<DisposableStore> = new ResourceMap();
 	private readonly _cellStatusBarEntries: Map<number, IDisposable> = new Map();
 
 	constructor(
@@ -162,11 +163,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async removeNotebookTextModel(uri: URI): Promise<void> {
+		// TODO@rebornix remove this? obsolete?
 		// TODO@rebornix, remove cell should use emitDelta as well to ensure document/editor events are sent together
 		this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
-		let textModelDisposableStore = this._documentEventListenersMapping.get(uri.toString());
-		textModelDisposableStore?.dispose();
-		this._documentEventListenersMapping.delete(URI.from(uri).toString());
+		this._documentEventListenersMapping.get(uri)?.dispose();
+		this._documentEventListenersMapping.delete(uri);
 	}
 
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
@@ -255,40 +256,32 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			notebookEditorAddedHandler(editor);
 		});
 
-		const notebookDocumentAddedHandler = (doc: URI) => {
-			if (!this._editorEventListenersMapping.has(doc.toString())) {
-				const disposableStore = new DisposableStore();
-				const textModel = this._notebookService.getNotebookTextModel(doc);
-				disposableStore.add(textModel!.onDidModelChangeProxy(e => {
-					this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
-					this._proxy.$acceptDocumentPropertiesChanged(doc, { selections: { selections: textModel!.selections }, metadata: null });
-				}));
-				disposableStore.add(textModel!.onDidSelectionChange(e => {
-					const selectionsChange = e ? { selections: e } : null;
-					this._proxy.$acceptDocumentPropertiesChanged(doc, { selections: selectionsChange, metadata: null });
-				}));
-
-				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
+		const notebookDocumentAddedHandler = (textModel: NotebookTextModel) => {
+			if (this._documentEventListenersMapping.has(textModel.uri)) {
+				return;
 			}
+			const disposableStore = new DisposableStore();
+			disposableStore.add(textModel.onDidModelChangeProxy(e => {
+				this._proxy.$acceptModelChanged(textModel!.uri, e, textModel!.isDirty);
+				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: { selections: textModel!.selections }, metadata: null });
+			}));
+			disposableStore.add(textModel.onDidSelectionChange(e => {
+				const selectionsChange = e ? { selections: e } : null;
+				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { selections: selectionsChange, metadata: null });
+			}));
+
+			this._documentEventListenersMapping.set(textModel.uri, disposableStore);
 		};
 
-		this._register(this._notebookService.onNotebookDocumentAdd((documents) => {
-			documents.forEach(doc => {
-				notebookDocumentAddedHandler(doc);
-			});
+		this._notebookService.listNotebookDocuments().forEach(notebookDocumentAddedHandler);
+		this._register(this._notebookService.onDidAddNotebookDocument(document => {
+			notebookDocumentAddedHandler(document);
 			this._updateState();
 		}));
 
-		this._notebookService.listNotebookDocuments().forEach((doc) => {
-			notebookDocumentAddedHandler(doc.uri);
-		});
-
-		this._register(this._notebookService.onNotebookDocumentRemove((documents) => {
-			documents.forEach(doc => {
-				this._documentEventListenersMapping.get(doc.toString())?.dispose();
-				this._documentEventListenersMapping.delete(doc.toString());
-			});
-
+		this._register(this._notebookService.onDidRemoveNotebookDocument(uri => {
+			this._documentEventListenersMapping.get(uri)?.dispose();
+			this._documentEventListenersMapping.delete(uri);
 			this._updateState();
 		}));
 
