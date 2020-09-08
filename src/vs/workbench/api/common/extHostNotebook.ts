@@ -212,8 +212,7 @@ export class ExtHostNotebookDocument extends Disposable {
 	private _cellDisposableMapping = new Map<number, DisposableStore>();
 
 	private _notebook: vscode.NotebookDocument | undefined;
-
-	private _metadata: Required<vscode.NotebookDocumentMetadata> = notebookDocumentMetadataDefaults;
+	private _metadata: Required<vscode.NotebookDocumentMetadata>;
 	private _metadataChangeListener: IDisposable;
 	private _displayOrder: string[] = [];
 	private _versionId = 0;
@@ -230,13 +229,14 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _documentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
+		metadata: Required<vscode.NotebookDocumentMetadata>,
 		public readonly uri: URI,
 		public readonly renderingHandler: ExtHostNotebookOutputRenderingHandler,
 		private readonly _storagePath: URI | undefined
 	) {
 		super();
 
-		const observableMetadata = getObservable(notebookDocumentMetadataDefaults);
+		const observableMetadata = getObservable(metadata);
 		this._metadata = observableMetadata.proxy;
 		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
 			this._tryUpdateMetadata();
@@ -881,7 +881,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernelProviders = new Map<number, ExtHostNotebookKernelProviderAdapter>();
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
-	private readonly _unInitializedDocuments = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor; }>();
 	private readonly _webviewComm = new Map<string, ExtHostWebviewCommWrapper>();
 	private readonly _commandsConverter: CommandsConverter;
@@ -1058,31 +1057,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	async $resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined> {
 		const provider = this._notebookContentProviders.get(viewType);
-		const revivedUri = URI.revive(uri);
 		if (!provider) {
 			return;
-		}
-
-		const storageRoot = this._extensionStoragePaths.workspaceValue(provider.extension) ?? this._extensionStoragePaths.globalValue(provider.extension);
-		let document = this._documents.get(revivedUri);
-
-		if (!document) {
-			const that = this;
-			document = this._unInitializedDocuments.get(revivedUri) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
-				emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
-					that._onDidChangeNotebookCells.fire(event);
-				},
-				emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void {
-					that._onDidChangeCellOutputs.fire(event);
-				},
-				emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void {
-					that._onDidChangeCellLanguage.fire(event);
-				},
-				emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
-					that._onDidChangeCellMetadata.fire(event);
-				},
-			}, viewType, revivedUri, this, storageRoot);
-			this._unInitializedDocuments.set(revivedUri, document);
 		}
 
 		const rawCells = await provider.provider.openNotebook(URI.revive(uri), { backupId });
@@ -1394,7 +1370,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				if (!this._documents.has(revivedUri)) {
 					const that = this;
 
-					const document = this._unInitializedDocuments.get(revivedUri) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
+					const document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, {
 						emitModelChange(event: vscode.NotebookCellsChangeEvent): void {
 							that._onDidChangeNotebookCells.fire(event);
 						},
@@ -1407,15 +1383,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
 							that._onDidChangeCellMetadata.fire(event);
 						}
-					}, viewType, revivedUri, this, storageRoot);
-
-					this._unInitializedDocuments.delete(revivedUri);
-					if (modelData.metadata) {
-						document.notebookDocument.metadata = {
-							...notebookDocumentMetadataDefaults,
-							...modelData.metadata
-						};
-					}
+					}, viewType, { ...notebookDocumentMetadataDefaults, ...modelData.metadata }, revivedUri, this, storageRoot);
 
 					document.acceptModelChanged({
 						kind: NotebookCellsChangeType.Initialize,
