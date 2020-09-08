@@ -503,42 +503,15 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	// Iterate over detailed descriptions, find max height
 	private measureMaxDetailsHeight(): number {
-
 		let maxDetailsPaneHeight = 0;
-		this.options.forEach((option, index) => {
-
-			this.selectionDetailsPane.innerText = '';
-
-			if (option.description) {
-				if (option.descriptionIsMarkdown) {
-					this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(option.description));
-				} else {
-					this.selectionDetailsPane.innerText = option.description;
-				}
-				this.selectionDetailsPane.style.display = 'block';
-			} else {
-				this.selectionDetailsPane.style.display = 'none';
-			}
+		this.options.forEach((_option, index) => {
+			this.updateDetail(index);
 
 			if (this.selectionDetailsPane.offsetHeight > maxDetailsPaneHeight) {
 				maxDetailsPaneHeight = this.selectionDetailsPane.offsetHeight;
 			}
 		});
 
-		// Reset description to selected
-
-		this.selectionDetailsPane.innerText = '';
-		const description = this.options[this.selected].description || null;
-		const descriptionIsMarkdown = this.options[this.selected].descriptionIsMarkdown || null;
-
-		if (description) {
-			if (descriptionIsMarkdown) {
-				this.selectionDetailsPane.appendChild(this.renderDescriptionMarkdown(description));
-			} else {
-				this.selectionDetailsPane.innerText = description;
-			}
-			this.selectionDetailsPane.style.display = 'block';
-		}
 		return maxDetailsPaneHeight;
 	}
 
@@ -675,6 +648,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			} else {
 				this.selectDropDownContainer.style.height = (listHeight + verticalPadding) + 'px';
 			}
+
+			this.updateDetail(this.selected);
 
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
 
@@ -870,8 +845,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			return;
 		}
 
+		this.updateDetail(e.indexes[0]);
+	}
+
+	private updateDetail(selectedIndex: number): void {
 		this.selectionDetailsPane.innerText = '';
-		const selectedIndex = e.indexes[0];
 		const description = this.options[selectedIndex].description;
 		const descriptionIsMarkdown = this.options[selectedIndex].descriptionIsMarkdown;
 
