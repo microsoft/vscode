@@ -1,0 +1,493 @@
+# Query: .innerHTML = 
+# Flags: CaseSensitive WordMatch
+# Including: src/vs/**/*.{t,j}s
+# Excluding: *.test.ts
+# ContextLines: 3
+
+59 results - 40 files
+
+src/vs/base/browser/markdownRenderer.ts:
+  156  				const strValue = values[0];
+  157  				const span = element.querySelector(`div[data-code="${id}"]`);
+  158  				if (span) {
+  159: 					span.innerHTML = strValue;
+  160  				}
+  161  			}).catch(err => {
+  162  				// ignore
+
+  238  		return true;
+  239  	}
+  240  
+  241: 	element.innerHTML = insane(renderedMarkdown, {
+  242  		allowedSchemes,
+  243  		// allowedTags should included everything that markdown renders to.
+  244  		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
+
+src/vs/base/browser/ui/codicons/codiconStyles.ts:
+  20  		for (let c of iconRegistry.all) {
+  21  			rules.push(formatRule(c));
+  22  		}
+  23: 		codiconStyleSheet.innerHTML = rules.join('\n');
+  24  	}
+  25  
+  26  	const delayer = new RunOnceScheduler(updateAll, 0);
+
+src/vs/base/browser/ui/contextview/contextview.ts:
+  157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
+  158  				this.container.appendChild(this.shadowRootHostElement);
+  159  				this.shadowRoot = this.shadowRootHostElement.attachShadow({ mode: 'open' });
+  160: 				this.shadowRoot.innerHTML = `
+  161  					<style>
+  162  						${SHADOW_ROOT_CSS}
+  163  					</style>
+
+src/vs/base/browser/ui/list/listWidget.ts:
+  826  
+  827  		const newStyles = content.join('\n');
+  828  		if (newStyles !== this.styleElement.innerHTML) {
+  829: 			this.styleElement.innerHTML = newStyles;
+  830  		}
+  831  	}
+  832  }
+
+src/vs/base/browser/ui/menu/menu.ts:
+  229  	private initializeStyleSheet(container: HTMLElement): void {
+  230  		if (isInShadowDOM(container)) {
+  231  			this.styleSheet = createStyleSheet(container);
+  232: 			this.styleSheet.innerHTML = MENU_WIDGET_CSS;
+  233  		} else {
+  234  			if (!Menu.globalStyleSheet) {
+  235  				Menu.globalStyleSheet = createStyleSheet();
+  236: 				Menu.globalStyleSheet.innerHTML = MENU_WIDGET_CSS;
+  237  			}
+  238  
+  239  			this.styleSheet = Menu.globalStyleSheet;
+
+src/vs/base/browser/ui/menu/menubar.ts:
+  548  			}
+  549  
+  550  			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
+  551: 			titleElement.innerHTML = innerHtml;
+  552  		} else {
+  553: 			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
+  554  		}
+  555  
+  556  		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
+
+src/vs/base/browser/ui/sash/sash.ts:
+  266  				}
+  267  			}
+  268  
+  269: 			style.innerHTML = `* { cursor: ${cursor} !important; }`;
+  270  		};
+  271  
+  272  		const disposables = new DisposableStore();
+
+src/vs/base/browser/ui/selectBox/selectBoxCustom.ts:
+  367  			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
+  368  		}
+  369  
+  370: 		this.styleElement.innerHTML = content.join('\n');
+  371  
+  372  		this.applyStyles();
+  373  	}
+
+  705  			});
+  706  
+  707  
+  708: 			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
+  709  			elementWidth = dom.getTotalWidth(container);
+  710  		}
+  711  
+
+src/vs/base/browser/ui/tree/abstractTree.ts:
+  1476  
+  1477  		const newStyles = content.join('\n');
+  1478  		if (newStyles !== this.styleElement.innerHTML) {
+  1479: 			this.styleElement.innerHTML = newStyles;
+  1480  		}
+  1481  
+  1482  		this.view.style(styles);
+
+src/vs/base/parts/quickinput/browser/quickInput.ts:
+  1693  			}
+  1694  			const newStyles = content.join('\n');
+  1695  			if (newStyles !== this.ui.styleSheet.innerHTML) {
+  1696: 				this.ui.styleSheet.innerHTML = newStyles;
+  1697  			}
+  1698  		}
+  1699  	}
+
+src/vs/code/electron-browser/workbench/workbench.js:
+  124  	const style = document.createElement('style');
+  125  	style.className = 'initialShellColors';
+  126  	document.head.appendChild(style);
+  127: 	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
+  128  
+  129  	if (data && data.layoutInfo) {
+  130  		// restore parts if possible (we might not always store layout info)
+
+  150  
+  151  		if (configuration.folderUri || configuration.workspace) {
+  152  			// folder or workspace -> status bar color, sidebar
+  153: 			splash.innerHTML = `
+  154  			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;"></div>
+  155  			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
+  156  			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};"></div>
+
+  158  			`;
+  159  		} else {
+  160  			// empty -> speical status bar color, no sidebar
+  161: 			splash.innerHTML = `
+  162  			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;"></div>
+  163  			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
+  164  			<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${colorInfo.statusBarNoFolderBackground};"></div>
+
+src/vs/code/electron-sandbox/issue/issueReporterMain.ts:
+   57  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+   58  	addClass(document.body, platformClass); // used by our fonts
+   59  
+   60: 	document.body.innerHTML = BaseHtml();
+   61  	const issueReporter = new IssueReporter(configuration);
+   62  	issueReporter.render();
+   63  	document.body.style.display = 'block';
+
+  244  			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
+  245  		}
+  246  
+  247: 		styleTag.innerHTML = content.join('\n');
+  248  		document.head.appendChild(styleTag);
+  249  		document.body.style.color = styles.color || '';
+  250  	}
+
+src/vs/code/electron-sandbox/processExplorer/processExplorerMain.ts:
+  282  		this.listeners.clear();
+  283  
+  284  		const tableHead = document.createElement('thead');
+  285: 		tableHead.innerHTML = `<tr>
+  286  			<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
+  287  			<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
+  288  			<th scope="col" class="pid">${localize('pid', "PID")}</th>
+
+  319  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
+  320  		}
+  321  
+  322: 		styleTag.innerHTML = content.join('\n');
+  323  		if (document.head) {
+  324  			document.head.appendChild(styleTag);
+  325  		}
+
+src/vs/editor/browser/view/domLineBreaksComputer.ts:
+  107  		allCharOffsets[i] = tmp[0];
+  108  		allVisibleColumns[i] = tmp[1];
+  109  	}
+  110: 	containerDomNode.innerHTML = sb.build();
+  111  
+  112  	containerDomNode.style.position = 'absolute';
+  113  	containerDomNode.style.top = '10000';
+
+src/vs/editor/browser/view/viewLayer.ts:
+  507  	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
+  508  		const lastChild = <HTMLElement>this.domNode.lastChild;
+  509  		if (domNodeIsEmpty || !lastChild) {
+  510: 			this.domNode.innerHTML = newLinesHTML;
+  511  		} else {
+  512  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
+  513  		}
+
+  525  	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
+  526  		const hugeDomNode = document.createElement('div');
+  527  
+  528: 		hugeDomNode.innerHTML = invalidLinesHTML;
+  529  
+  530  		for (let i = 0; i < ctx.linesLength; i++) {
+  531  			const line = ctx.lines[i];
+
+src/vs/editor/browser/widget/diffEditorWidget.ts:
+  2157  
+  2158  		let domNode = document.createElement('div');
+  2159  		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
+  2160: 		domNode.innerHTML = sb.build();
+  2161  		Configuration.applyFontInfoSlow(domNode, fontInfo);
+  2162  
+  2163  		let marginDomNode = document.createElement('div');
+  2164  		marginDomNode.className = 'inline-deleted-margin-view-zone';
+  2165: 		marginDomNode.innerHTML = marginHTML.join('');
+  2166  		Configuration.applyFontInfoSlow(marginDomNode, fontInfo);
+  2167  
+  2168  		return {
+
+src/vs/editor/standalone/browser/colorizer.ts:
+  40  		let text = domNode.firstChild ? domNode.firstChild.nodeValue : '';
+  41  		domNode.className += ' ' + theme;
+  42  		let render = (str: string) => {
+  43: 			domNode.innerHTML = str;
+  44  		};
+  45  		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
+  46  	}
+
+src/vs/editor/standalone/browser/standaloneThemeServiceImpl.ts:
+  211  		if (!this._globalStyleElement) {
+  212  			this._globalStyleElement = dom.createStyleSheet();
+  213  			this._globalStyleElement.className = 'monaco-colors';
+  214: 			this._globalStyleElement.innerHTML = this._css;
+  215  			this._styleElements.push(this._globalStyleElement);
+  216  		}
+  217  		return Disposable.None;
+
+  220  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
+  221  		const styleElement = dom.createStyleSheet(domNode);
+  222  		styleElement.className = 'monaco-colors';
+  223: 		styleElement.innerHTML = this._css;
+  224  		this._styleElements.push(styleElement);
+  225  		return {
+  226  			dispose: () => {
+
+  290  		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
+  291  
+  292  		this._css = cssRules.join('\n');
+  293: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
+  294  
+  295  		TokenizationRegistry.setColorMap(colorMap);
+  296  		this._onColorThemeChange.fire(theme);
+
+src/vs/editor/test/browser/controller/imeTester.ts:
+  55  			let content = this._model.getModelLineContent(i);
+  56  			r += content + '<br/>';
+  57  		}
+  58: 		output.innerHTML = r;
+  59  	}
+  60  }
+  61  
+
+  69  	let title = document.createElement('div');
+  70  	title.className = 'title';
+  71  
+  72: 	title.innerHTML = description + '. Type <strong>' + inputStr + '</strong>';
+  73  	container.appendChild(title);
+  74  
+  75  	let startBtn = document.createElement('button');
+
+src/vs/workbench/browser/parts/compositePart.ts:
+  414  		const $this = this;
+  415  		return {
+  416  			updateTitle: (id, title, keybinding) => {
+  417: 				titleLabel.innerHTML = strings.escape(title);
+  418  				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
+  419  			},
+  420  
+
+src/vs/workbench/browser/parts/statusbar/statusbarPart.ts:
+  672  			this.styleElement = createStyleSheet(container);
+  673  		}
+  674  
+  675: 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
+  676  	}
+  677  
+  678  	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
+
+src/vs/workbench/contrib/comments/browser/commentsView.ts:
+  109  			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
+  110  		}
+  111  
+  112: 		styleElement.innerHTML = content.join('\n');
+  113  	}
+  114  
+  115  	private async renderComments(): Promise<void> {
+
+src/vs/workbench/contrib/comments/browser/commentThreadWidget.ts:
+  692  		}
+  693  
+  694  		if (label) {
+  695: 			this._headingLabel.innerHTML = strings.escape(label);
+  696  			this._headingLabel.setAttribute('aria-label', label);
+  697  		}
+  698  	}
+
+  916  			font-weight: ${fontInfo.fontWeight};
+  917  		}`);
+  918  
+  919: 		this._styleElement.innerHTML = content.join('\n');
+  920  
+  921  		// Editor decorations should also be responsive to theme changes
+  922  		this.setCommentEditorDecorations();
+
+src/vs/workbench/contrib/debug/browser/repl.ts:
+  306  			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+  307  
+  308  			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
+  309: 			this.styleElement.innerHTML = `
+  310  				.repl .repl-tree .expression {
+  311  					font-size: ${fontSize}px;
+  312  					font-family: ${fontFamily};
+
+src/vs/workbench/contrib/debug/browser/statusbarColorProvider.ts:
+  84  			this.styleElement = createStyleSheet(container);
+  85  		}
+  86  
+  87: 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
+  88  	}
+  89  
+  90  	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
+
+src/vs/workbench/contrib/files/browser/views/explorerView.ts:
+  812  
+  813  		const newStyles = content.join('\n');
+  814  		if (newStyles !== this.styleElement.innerHTML) {
+  815: 			this.styleElement.innerHTML = newStyles;
+  816  		}
+  817  	}
+  818  
+
+src/vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList.ts:
+  222  
+  223  		const newStyles = content.join('\n');
+  224  		if (newStyles !== this.styleElement.innerHTML) {
+  225: 			this.styleElement.innerHTML = newStyles;
+  226  		}
+  227  	}
+  228  }
+
+src/vs/workbench/contrib/notebook/browser/view/notebookCellList.ts:
+  1033  
+  1034  		const newStyles = content.join('\n');
+  1035  		if (newStyles !== this.styleElement.innerHTML) {
+  1036: 			this.styleElement.innerHTML = newStyles;
+  1037  		}
+  1038  	}
+  1039  
+
+src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
+  443  
+  444  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+  445  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
+  446: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
+  447  
+  448  		// Remove all rendered content nodes after the
+  449  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
+
+  587  
+  588  	private getDragImageImpl(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
+  589  		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
+  590: 		dragImageContainer.innerHTML = templateData.container.innerHTML;
+  591  
+  592  		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
+  593  		if (!editorContainer) {
+
+  599  			return null;
+  600  		}
+  601  
+  602: 		editorContainer.innerHTML = richEditorText;
+  603  
+  604  		return dragImageContainer;
+  605  	}
+
+src/vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets.ts:
+  77  			return;
+  78  		}
+  79  
+  80: 		this.leftContributedItemsContainer.innerHTML = '';
+  81: 		this.rightContributedItemsContainer.innerHTML = '';
+  82  		this.itemsDisposable.clear();
+  83  
+  84  		const items = this.notebookCellStatusBarService.getEntries(this.currentContext.cell.uri);
+
+src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
+  375  					addMouseoverListeners(outputNode, outputId);
+  376  					const content = data.content;
+  377  					if (content.type === RenderOutputType.Html) {
+  378: 						outputNode.innerHTML = content.htmlContent;
+  379  						cellOutputContainer.appendChild(outputNode);
+  380  						domEval(outputNode);
+  381  					} else {
+
+src/vs/workbench/contrib/sash/browser/sash.ts:
+  35  		const size = clamp(this.configurationService.getValue<number>(this.configurationName) ?? minSize, minSize, maxSize);
+  36  
+  37  		// Update styles
+  38: 		this.stylesheet.innerHTML = `
+  39  			.monaco-sash.vertical { cursor: ew-resize; top: 0; width: ${size}px; height: 100%; }
+  40  			.monaco-sash.horizontal { cursor: ns-resize; left: 0; width: 100%; height: ${size}px; }
+  41  			.monaco-sash:not(.disabled).orthogonal-start::before, .monaco-sash:not(.disabled).orthogonal-end::after { content: ' '; height: ${size * 2}px; width: ${size * 2}px; z-index: 100; display: block; cursor: all-scroll; position: absolute; }
+
+src/vs/workbench/contrib/scm/browser/dirtydiffDecorator.ts:
+  1301  
+  1302  	private setViewState(state: IViewState): void {
+  1303  		this.viewState = state;
+  1304: 		this.stylesheet.innerHTML = `
+  1305  			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
+  1306  			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
+  1307  				opacity: ${state.visibility === 'always' ? 1 : 0};
+
+src/vs/workbench/contrib/watermark/browser/watermark.ts:
+  141  				const dd = dom.append(dl, $('dd'));
+  142  				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
+  143  				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
+  144: 				dd.innerHTML = keybinding.element.outerHTML;
+  145  			});
+  146  		};
+  147  
+
+src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
+  61  				}
+  62  			}
+  63  		}
+  64: 		this._styleElement.innerHTML = cssRules.join('\n');
+  65  	}
+  66  }
+
+src/vs/workbench/contrib/webview/browser/pre/main.js:
+  386  			// apply default styles
+  387  			const defaultStyles = newDocument.createElement('style');
+  388  			defaultStyles.id = '_defaultStyles';
+  389: 			defaultStyles.innerHTML = defaultCssRules;
+  390  			newDocument.head.prepend(defaultStyles);
+  391  
+  392  			applyStyles(newDocument, newDocument.body);
+
+src/vs/workbench/contrib/welcome/page/browser/welcomePage.ts:
+  328  
+  329  		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
+  330  		if (prodName) {
+  331: 			prodName.innerHTML = this.productService.nameLong;
+  332  		}
+  333  
+  334  		recentlyOpened.then(({ workspaces }) => {
+
+src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
+  281  
+  282  				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
+  283  				if (!strings.endsWith(input.resource.path, '.md')) {
+  284: 					this.content.innerHTML = content;
+  285  					this.updateSizeClasses();
+  286  					this.decorateContent();
+  287  					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
+
+  303  				const innerContent = document.createElement('div');
+  304  				innerContent.classList.add('walkThroughContent'); // only for markdown files
+  305  				const markdown = this.expandMacros(content);
+  306: 				innerContent.innerHTML = marked(markdown, { renderer });
+  307  				this.content.appendChild(innerContent);
+  308  
+  309  				model.snippets.forEach((snippet, i) => {
+
+src/vs/workbench/services/textMate/browser/abstractTextMateService.ts:
+  312  		grammarFactory.setTheme(theme, tokenColorMap);
+  313  		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
+  314  		let cssRules = generateTokensCSSForColorMap(colorMap);
+  315: 		this._styleElement.innerHTML = cssRules;
+  316  		TokenizationRegistry.setColorMap(colorMap);
+  317  	}
+  318  
+
+src/vs/workbench/services/themes/browser/workbenchThemeService.ts:
+  692  		const elStyle = document.createElement('style');
+  693  		elStyle.type = 'text/css';
+  694  		elStyle.className = rulesClassName;
+  695: 		elStyle.innerHTML = styleSheetContent;
+  696  		document.head.appendChild(elStyle);
+  697  	} else {
+  698: 		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
+  699  	}
+  700  }
+  701  
