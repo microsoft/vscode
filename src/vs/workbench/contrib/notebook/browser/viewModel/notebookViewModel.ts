@@ -327,13 +327,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
 				this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
 			}
-		}));
 
-		this._register(this._notebook.emitSelections(selections => {
-			// text model emit selection change (for example, undo/redo)
-			// we should update the selection handle wisely
-			// TODO, if the editor is note selected, undo/redo should not change the focused element selection
-			this.updateSelectionsFromEdits(selections);
+			if (e.endSelections) {
+				this.updateSelectionsFromEdits(e.endSelections);
+			}
 		}));
 
 		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
@@ -849,7 +846,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				insertContent,
 				cell,
 				{
-					insertCell: (index: number, cell: NotebookCellTextModel) => {
+					insertCell: (index: number, cell: NotebookCellTextModel, endSelections?: number[]) => {
 						this.insertCell(index, cell, true, false);
 					},
 					deleteCell: (index: number) => {
@@ -903,7 +900,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				insertContent,
 				below,
 				{
-					insertCell: (index: number, cell: NotebookCellTextModel) => {
+					insertCell: (index: number, cell: NotebookCellTextModel, endSelections?: number[]) => {
 						this.insertCell(index, cell, true, false);
 					},
 					deleteCell: (index: number) => {

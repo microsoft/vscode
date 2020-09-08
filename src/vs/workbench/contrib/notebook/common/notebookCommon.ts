@@ -407,7 +407,7 @@ export interface NotebookDocumentChangeMetadataEvent {
 }
 
 export type NotebookCellsChangedEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
-export type NotebookTextModelChangedEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent) & { synchronous: boolean; };
+export type NotebookTextModelChangedEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent) & { synchronous: boolean; endSelections?: number[] };
 
 export const enum CellEditType {
 	Replace = 1,

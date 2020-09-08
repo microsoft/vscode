@@ -148,8 +148,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 	private _onDidChangeContent = this._register(new Emitter<NotebookTextModelChangedEvent>());
 	get onDidChangeContent(): Event<NotebookTextModelChangedEvent> { return this._onDidChangeContent.event; }
-	private readonly _emitSelections = this._register(new Emitter<number[]>());
-	get emitSelections() { return this._emitSelections.event; }
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -353,9 +351,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
-			insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
-			deleteCell: (index) => { this._removeCell(index, 1, true); },
-			emitSelections: (selections) => { this._emitSelections.fire(selections); }
+			insertCell: (index, cell, endSelections?: number[]) => { this._insertNewCell(index, [cell], true, endSelections); },
+			deleteCell: (index, endSelections?: number[]) => { this._removeCell(index, 1, true, endSelections); },
 		}, undefined, undefined));
 
 		// should be deferred
@@ -469,7 +466,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean): void {
+	private _insertNewCell(index: number, cells: NotebookCellTextModel[], synchronous: boolean, endSelections?: number[]): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
@@ -496,7 +493,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 							0,
 							cells
 						]],
-					synchronous
+					synchronous,
+					endSelections: endSelections
 				}
 			}
 		});
@@ -504,7 +502,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	private _removeCell(index: number, count: number, synchronous: boolean) {
+	private _removeCell(index: number, count: number, synchronous: boolean, endSelections?: number[]) {
 		this._isUntitled = false;
 
 		for (let i = index; i < index + count; i++) {
@@ -515,7 +513,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells.splice(index, count);
 		this._eventEmitter.emit({
 			triggerDirty: { value: true },
-			modelContentChange: { value: { kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous } }
+			modelContentChange: { value: { kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous, endSelections } }
 		});
 	}
 
@@ -553,8 +551,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 							return;
 						}
 						this._changeCellMetadata(cell.handle, newMetadata, false);
-					},
-					emitSelections: (selections) => { this._emitSelections.fire(selections); }
+					}
 				}));
 			}
 			// should be deferred
@@ -617,33 +614,24 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
-				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
-				deleteCell: (index) => { this._removeCell(index, 1, true); },
-				emitSelections: (selections) => { this._emitSelections.fire(selections); }
+				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
+				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
 			}, beforeSelections, endSelections));
 		}
 
-		this._insertNewCell(index, [cell], synchronous);
-
-		if (endSelections) {
-			this._emitSelections.fire(endSelections);
-		}
+		this._insertNewCell(index, [cell], synchronous, endSelections);
 	}
 
 	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
 		const cell = this.cells[index];
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new DeleteCellEdit(this.uri, index, cell, {
-				insertCell: (index, cell) => { this._insertNewCell(index, [cell], true); },
-				deleteCell: (index) => { this._removeCell(index, 1, true); },
-				emitSelections: (selections) => { this._emitSelections.fire(selections); }
+				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
+				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
 			}, beforeSelections, endSelections));
 		}
 
-		this._removeCell(index, 1, synchronous);
-		if (endSelections) {
-			this._emitSelections.fire(endSelections);
-		}
+		this._removeCell(index, 1, synchronous, endSelections);
 	}
 
 	moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
@@ -652,7 +640,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
 					this.moveCellToIdx(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
 				},
-				emitSelections: (selections) => { this._emitSelections.fire(selections); }
 			}, beforeSelections, endSelections));
 		}
 
@@ -664,14 +651,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this.cells.splice(newIdx, 0, ...cells);
 			this._eventEmitter.emit({
 				triggerDirty: { value: true },
-				modelContentChange: { value: { kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous } }
+				modelContentChange: { value: { kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous, endSelections } }
 			});
-		}
-
-		// todo, we can't emit this change as it will create a new view model and that will hold
-		// a new reference to the document, thus
-		if (endSelections) {
-			this._emitSelections.fire(endSelections);
 		}
 
 		return true;
@@ -696,12 +677,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const newCells = [];
 		for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
 			const cell = this.createCellTextModel(newLinesContents[j], language, kind, [], undefined);
-			this.insertCell(insertIndex, cell, true, false, undefined, undefined);
+			this.insertCell(insertIndex, cell, true, false, undefined, j === newLinesContents.length - 1 ? endSelections : undefined);
 			newCells.push(cell);
-		}
-
-		if (endSelections) {
-			this._emitSelections.fire(endSelections);
 		}
 	}
 	//#endregion
