@@ -771,9 +771,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 						},
 						deleteCell: (index: number) => {
 							this.deleteCell(index, true, false);
-						},
-						emitSelections: (selections: number[]) => {
-							this.updateSelectionsFromEdits(selections);
 						}
 					}
 				));
@@ -850,9 +847,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					},
 					createCellViewModel: (cell: NotebookCellTextModel) => {
 						return createCellViewModel(this._instantiationService, this, cell);
-					},
-					emitSelections: (selections: number[]) => {
-						this.updateSelectionsFromEdits(selections);
 					}
 				})
 			);
@@ -904,9 +898,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					},
 					createCellViewModel: (cell: NotebookCellTextModel) => {
 						return createCellViewModel(this._instantiationService, this, cell);
-					},
-					emitSelections: (selections: number[]) => {
-						this.updateSelectionsFromEdits(selections);
 					}
 				})
 			);
