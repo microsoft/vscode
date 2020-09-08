@@ -1223,7 +1223,7 @@ interface IEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
-	pinnedTabSizing?: 'compact' | 'shrink' | 'inherit';
+	pinnedTabSizing?: 'compact' | 'shrink' | 'standard';
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;

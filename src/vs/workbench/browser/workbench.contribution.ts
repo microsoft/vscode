@@ -88,12 +88,12 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
-				'enum': ['compact', 'shrink', 'inherit'],
+				'enum': ['compact', 'shrink', 'standard'],
 				'default': 'compact',
 				'enumDescriptions': [
 					nls.localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
 					nls.localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name."),
-					nls.localize('workbench.editor.pinnedTabSizing.inherit', "A pinned tab inherits the look of non pinned tabs.")
+					nls.localize('workbench.editor.pinnedTabSizing.standard', "A pinned tab inherits the look of non pinned tabs.")
 				],
 				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the begining of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
 			},
