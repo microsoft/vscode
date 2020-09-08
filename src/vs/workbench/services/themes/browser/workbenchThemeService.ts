@@ -13,7 +13,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
-import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry, ThemeType, LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -34,6 +34,9 @@ import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbenc
 import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
+
 
 // implementation
 
@@ -91,16 +94,19 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private readonly onProductIconThemeChange: Emitter<IWorkbenchProductIconTheme>;
 	private readonly productIconThemeWatcher: ThemeFileWatcher;
 
+	private themeSettingIdBeforeSchemeSwitch: string | undefined;
+
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
@@ -124,8 +130,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
-		if (environmentService.configuration.highContrast && themeData?.baseTheme !== HIGH_CONTRAST) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(HIGH_CONTRAST);
+
+		// the preferred color scheme (high contrast, light, dark) has changed since the last start
+		const preferredColorScheme = this.getPreferredColorScheme();
+
+		if (preferredColorScheme && themeData?.type !== preferredColorScheme && this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL) !== preferredColorScheme) {
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(preferredColorScheme);
 		}
 		if (!themeData) {
 			const initialColorTheme = environmentService.options?.initialColorTheme;
@@ -134,7 +144,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 		}
 		if (!themeData) {
-			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? LIGHT : DARK);
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(isWeb ? ColorScheme.LIGHT : ColorScheme.DARK);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
@@ -167,10 +177,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			}
 			const theme = await this.colorThemeRegistry.findThemeBySettingsId(this.settings.colorTheme, DEFAULT_COLOR_THEME_ID);
 
-			const persistedColorScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
 			const preferredColorScheme = this.getPreferredColorScheme();
-			if (persistedColorScheme && preferredColorScheme && persistedColorScheme !== preferredColorScheme) {
-				return this.applyPreferredColorTheme(preferredColorScheme);
+			const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+			if (preferredColorScheme !== prevScheme) {
+				this.storageService.store(PERSISTED_OS_COLOR_SCHEME, preferredColorScheme, StorageScope.GLOBAL);
+				if (preferredColorScheme && theme?.type !== preferredColorScheme) {
+					return this.applyPreferredColorTheme(preferredColorScheme);
+				}
 			}
 			return this.setColorTheme(theme && theme.id, undefined);
 		};
@@ -201,17 +214,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (e.affectsConfiguration(ThemeSettings.COLOR_THEME)) {
 				this.restoreColorTheme();
 			}
-			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			if (e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME) || e.affectsConfiguration(ThemeSettings.DETECT_HC)) {
 				this.handlePreferredSchemeUpdated();
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && this.getPreferredColorScheme() === DARK) {
-				this.applyPreferredColorTheme(DARK);
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_DARK_THEME) && this.getPreferredColorScheme() === ColorScheme.DARK) {
+				this.applyPreferredColorTheme(ColorScheme.DARK);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && this.getPreferredColorScheme() === LIGHT) {
-				this.applyPreferredColorTheme(LIGHT);
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_LIGHT_THEME) && this.getPreferredColorScheme() === ColorScheme.LIGHT) {
+				this.applyPreferredColorTheme(ColorScheme.LIGHT);
 			}
-			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === HIGH_CONTRAST) {
-				this.applyPreferredColorTheme(HIGH_CONTRAST);
+			if (e.affectsConfiguration(ThemeSettings.PREFERRED_HC_THEME) && this.getPreferredColorScheme() === ColorScheme.HIGH_CONTRAST) {
+				this.applyPreferredColorTheme(ColorScheme.HIGH_CONTRAST);
 			}
 			if (e.affectsConfiguration(ThemeSettings.FILE_ICON_THEME)) {
 				this.restoreFileIconTheme();
@@ -312,40 +325,52 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		window.matchMedia('(prefers-color-scheme: dark)').addListener(async () => this.handlePreferredSchemeUpdated());
+		this.hostColorService.onDidChangeColorScheme(() => this.handlePreferredSchemeUpdated());
 	}
 
 	private async handlePreferredSchemeUpdated() {
 		const scheme = this.getPreferredColorScheme();
-		this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
-		if (scheme) {
-			return this.applyPreferredColorTheme(scheme);
-		}
-		return undefined;
-	}
-
-	private getPreferredColorScheme(): ThemeType | undefined {
-		const detectHCThemeSetting = this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC);
-		if (this.environmentService.configuration.highContrast && detectHCThemeSetting) {
-			return HIGH_CONTRAST;
-		}
-		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			if (window.matchMedia(`(prefers-color-scheme: light)`).matches) {
-				return LIGHT;
-			} else if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
-				return DARK;
+		const prevScheme = this.storageService.get(PERSISTED_OS_COLOR_SCHEME, StorageScope.GLOBAL);
+		if (scheme !== prevScheme) {
+			this.storageService.store(PERSISTED_OS_COLOR_SCHEME, scheme, StorageScope.GLOBAL);
+			if (scheme) {
+				if (!prevScheme) {
+					// remember the theme before scheme switching
+					this.themeSettingIdBeforeSchemeSwitch = this.settings.colorTheme;
+				}
+				return this.applyPreferredColorTheme(scheme);
+			} else if (prevScheme && this.themeSettingIdBeforeSchemeSwitch) {
+				// reapply the theme before scheme switching
+				const theme = await this.colorThemeRegistry.findThemeBySettingsId(this.themeSettingIdBeforeSchemeSwitch, undefined);
+				if (theme) {
+					this.setColorTheme(theme.id, 'auto');
+				}
 			}
 		}
 		return undefined;
 	}
 
-	private async applyPreferredColorTheme(type: ThemeType): Promise<IWorkbenchColorTheme | null> {
-		const settingId = type === DARK ? ThemeSettings.PREFERRED_DARK_THEME : type === LIGHT ? ThemeSettings.PREFERRED_LIGHT_THEME : ThemeSettings.PREFERRED_HC_THEME;
+	private getPreferredColorScheme(): ColorScheme | undefined {
+		const detectHCThemeSetting = this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC);
+		if (this.hostColorService.colorScheme === ColorScheme.HIGH_CONTRAST && detectHCThemeSetting) {
+			return ColorScheme.HIGH_CONTRAST;
+		}
+		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_COLOR_SCHEME)) {
+			const osScheme = this.hostColorService.colorScheme;
+			if (osScheme !== ColorScheme.HIGH_CONTRAST) {
+				return osScheme;
+			}
+		}
+		return undefined;
+	}
+
+	private async applyPreferredColorTheme(type: ColorScheme): Promise<IWorkbenchColorTheme | null> {
+		const settingId = type === ColorScheme.DARK ? ThemeSettings.PREFERRED_DARK_THEME : type === ColorScheme.LIGHT ? ThemeSettings.PREFERRED_LIGHT_THEME : ThemeSettings.PREFERRED_HC_THEME;
 		const themeSettingId = this.configurationService.getValue<string>(settingId);
 		if (themeSettingId) {
 			const theme = await this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
 			if (theme) {
-				return this.setColorTheme(theme.id, 'auto');
+				return this.setColorTheme(theme.id, ConfigurationTarget.USER);
 			}
 		}
 		return null;
@@ -404,7 +429,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		return false;
 	}
 
-
 	private updateDynamicCSSRules(themeData: IColorTheme) {
 		const cssRules = new Set<string>();
 		const ruleCollector = {
@@ -414,6 +438,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 		};
+		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
 		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
 	}

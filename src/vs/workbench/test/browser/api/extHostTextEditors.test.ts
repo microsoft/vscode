@@ -40,7 +40,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 				EOL: '\n',
 			}]
 		});
-		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors);
+		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors, null!);
 	});
 
 	test('uses version id if document available', async () => {

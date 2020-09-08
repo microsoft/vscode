@@ -20,7 +20,6 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -371,7 +370,6 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public async getGlobalBufferTerm(): Promise<string> {
 		if (this._editor.getOption(EditorOption.find).globalFindClipboard
-			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
@@ -382,7 +380,6 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public setGlobalBufferTerm(text: string): void {
 		if (this._editor.getOption(EditorOption.find).globalFindClipboard
-			&& this._clipboardService
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
@@ -406,7 +403,7 @@ export class FindController extends CommonFindController implements IFindControl
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IStorageKeysSyncRegistryService private readonly _storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@optional(IClipboardService) clipboardService: IClipboardService,
+		@IClipboardService clipboardService: IClipboardService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService);
 		this._widget = null;

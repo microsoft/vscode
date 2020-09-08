@@ -5626,6 +5626,9 @@ declare module 'vscode' {
 		/**
 		 * Get the absolute path of a resource contained in the extension.
 		 *
+		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
+		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
 		 */
@@ -6206,6 +6209,13 @@ declare module 'vscode' {
 		name: string;
 
 		/**
+		 * A human-readable string which is rendered less prominently on a separate line in places
+		 * where the task's name is displayed. Supports rendering of [theme icons](#ThemeIcon)
+		 * via the `$(<name>)`-syntax.
+		 */
+		detail?: string;
+
+		/**
 		 * The task's execution engine
 		 */
 		execution?: ProcessExecution | ShellExecution | CustomExecution;
@@ -6256,7 +6266,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return an array of tasks
 		 */
-		provideTasks(token?: CancellationToken): ProviderResult<T[]>;
+		provideTasks(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
@@ -6271,7 +6281,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The resolved task
 		 */
-		resolveTask(task: T, token?: CancellationToken): ProviderResult<T>;
+		resolveTask(task: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**

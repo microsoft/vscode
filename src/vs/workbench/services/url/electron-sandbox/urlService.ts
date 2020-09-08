@@ -66,7 +66,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		const result = await super.open(uri, options);
 
 		if (result) {
-			await this.electronService.focusWindow();
+			await this.electronService.focusWindow({ force: true /* Application may not be active */ });
 		}
 
 		return result;

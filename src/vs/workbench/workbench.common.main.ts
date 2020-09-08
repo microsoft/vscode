@@ -232,6 +232,9 @@ import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
 
+// Keybindings Contributions
+import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
+
 // Execution
 import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 

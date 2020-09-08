@@ -112,6 +112,7 @@ declare module 'vscode' {
 		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
 
 		/**
+		 * @deprecated - getSession should now trigger extension activation.
 		 * Fires with the provider id that was registered or unregistered.
 		 */
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
@@ -737,6 +738,22 @@ declare module 'vscode' {
 
 	//#region debug
 
+	/**
+	 * A DebugProtocolVariableContainer is an opaque stand-in type for the intersection of the Scope and Variable types defined in the Debug Adapter Protocol.
+	 * See https://microsoft.github.io/debug-adapter-protocol/specification#Types_Scope and https://microsoft.github.io/debug-adapter-protocol/specification#Types_Variable.
+	 */
+	export interface DebugProtocolVariableContainer {
+		// Properties: the intersection of DAP's Scope and Variable types.
+	}
+
+	/**
+	 * A DebugProtocolVariable is an opaque stand-in type for the Variable type defined in the Debug Adapter Protocol.
+	 * See https://microsoft.github.io/debug-adapter-protocol/specification#Types_Variable.
+	 */
+	export interface DebugProtocolVariable {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_Variable).
+	}
+
 	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
@@ -956,19 +973,17 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
+		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
+		 */
+		iconColor?: ThemeColor;
+
+		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
 		constructor(label: TreeItemLabel, collapsibleState?: TreeItemCollapsibleState);
 	}
 	//#endregion
-
-	/**
-	 * A task to execute
-	 */
-	export class Task2 extends Task {
-		detail?: string;
-	}
 
 	//#region Task presentation group: https://github.com/microsoft/vscode/issues/47265
 	export interface TaskPresentationOptions {
@@ -1186,7 +1201,7 @@ declare module 'vscode' {
 
 	export interface NotebookCellMetadata {
 		/**
-		 * Controls if the content of a cell is editable or not.
+		 * Controls whether a cell's editor is editable/readonly.
 		 */
 		editable?: boolean;
 
@@ -1312,7 +1327,6 @@ declare module 'vscode' {
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		languages: string[];
-		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
 	}
 
@@ -1335,16 +1349,43 @@ declare module 'vscode' {
 		contains(uri: Uri): boolean
 	}
 
+	export interface WorkspaceEdit {
+		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+	}
+
 	export interface NotebookEditorCellEdit {
 
-		replaceCells(from: number, to: number, cells: NotebookCellData[]): void;
-		replaceOutputs(index: number, outputs: CellOutput[]): void;
+		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
+		replaceOutput(index: number, outputs: CellOutput[]): void;
 		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 
 		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		/** @deprecated */
 		delete(index: number): void;
+	}
+
+	export interface NotebookCellRange {
+		readonly start: number;
+		readonly end: number;
+	}
+
+	export enum NotebookEditorRevealType {
+		/**
+		 * The range will be revealed with as little scrolling as possible.
+		 */
+		Default = 0,
+		/**
+		 * The range will always be revealed in the center of the viewport.
+		 */
+		InCenter = 1,
+		/**
+		 * If the range is outside the viewport, it will be revealed in the center of the viewport.
+		 * Otherwise, it will be revealed with as little scrolling as possible.
+		 */
+		InCenterIfOutsideViewport = 2,
 	}
 
 	export interface NotebookEditor {
@@ -1357,6 +1398,12 @@ declare module 'vscode' {
 		 * The primary selected cell on this notebook editor.
 		 */
 		readonly selection?: NotebookCell;
+
+
+		/**
+		 * The current visible ranges in the editor (vertically).
+		 */
+		readonly visibleRanges: NotebookCellRange[];
 
 		/**
 		 * The column in which this editor shows.
@@ -1402,6 +1449,8 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+
+		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
 
 	export interface NotebookOutputSelector {
@@ -1462,6 +1511,16 @@ declare module 'vscode' {
 	export interface NotebookCellMetadataChangeEvent {
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
+	}
+
+	export interface NotebookEditorSelectionChangeEvent {
+		readonly notebookEditor: NotebookEditor;
+		readonly selection?: NotebookCell;
+	}
+
+	export interface NotebookEditorVisibleRangesChangeEvent {
+		readonly notebookEditor: NotebookEditor;
+		readonly visibleRanges: ReadonlyArray<NotebookCellRange>;
 	}
 
 	export interface NotebookCellData {
@@ -1593,6 +1652,7 @@ declare module 'vscode' {
 		readonly id?: string;
 		label: string;
 		description?: string;
+		detail?: string;
 		isPreferred?: boolean;
 		preloads?: Uri[];
 		executeCell(document: NotebookDocument, cell: NotebookCell): void;
@@ -1602,13 +1662,12 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookDocumentFilter {
-		viewType?: string;
-		filenamePattern?: GlobPattern;
-		excludeFileNamePattern?: GlobPattern;
+		viewType?: string | string[];
+		filenamePattern?: GlobPattern | { include: GlobPattern; exclude: GlobPattern };
 	}
 
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
-		onDidChangeKernels?: Event<void>;
+		onDidChangeKernels?: Event<NotebookDocument | undefined>;
 		provideKernels(document: NotebookDocument, token: CancellationToken): ProviderResult<T[]>;
 		resolveKernel?(kernel: T, document: NotebookDocument, webview: NotebookCommunication, token: CancellationToken): ProviderResult<void>;
 	}
@@ -1665,12 +1724,6 @@ declare module 'vscode' {
 			provider: NotebookKernelProvider
 		): Disposable;
 
-		export function registerNotebookKernel(
-			id: string,
-			selectors: GlobPattern[],
-			kernel: NotebookKernel
-		): Disposable;
-
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -1680,11 +1733,13 @@ declare module 'vscode' {
 		 */
 		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
 
-		export let visibleNotebookEditors: NotebookEditor[];
+		export const visibleNotebookEditors: NotebookEditor[];
 		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
-		export let activeNotebookEditor: NotebookEditor | undefined;
+		export const activeNotebookEditor: NotebookEditor | undefined;
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
@@ -2010,10 +2065,8 @@ declare module 'vscode' {
 		/**
 		 * Event fired when the view is disposed.
 		 *
-		 * Views are disposed of in a few cases:
-		 *
-		 * - When a view is collapsed and `retainContextWhenHidden` has not been set.
-		 * - When a view is hidden by a user.
+		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
+		 * right clicks in a view and unchecks the webview view).
 		 *
 		 * Trying to use the view after it has been disposed throws an exception.
 		 */
@@ -2027,7 +2080,14 @@ declare module 'vscode' {
 		readonly visible: boolean;
 
 		/**
-		 * Event fired when the visibility of the view changes
+		 * Event fired when the visibility of the view changes.
+		 *
+		 * Actions that trigger a visibility change:
+		 *
+		 * - The view is collapsed or expanded.
+		 * - The user switches to a different view group in the sidebar or panel.
+		 *
+		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
 		 */
 		readonly onDidChangeVisibility: Event<void>;
 	}
@@ -2036,8 +2096,10 @@ declare module 'vscode' {
 		/**
 		 * Persisted state from the webview content.
 		 *
-		 * To save resources, VS Code normally deallocates webview views that are not visible. For example, if the user
-		 * collapse a view or switching to another top level activity, the underlying webview document is deallocates.
+		 * To save resources, VS Code normally deallocates webview documents (the iframe content) that are not visible.
+		 * For example, when the user collapse a view or switches to another top level activity in the sidebar, the
+		 * `WebviewView` itself is kept alive but the webview's underlying document is deallocated. It is recreated when
+		 * the view becomes visible again.
 		 *
 		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
 		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to
@@ -2073,7 +2135,7 @@ declare module 'vscode' {
 		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
 		 * first loaded or when the user hides and then shows a view again.
 		 *
-		 * @param webviewView Webview panel to restore. The serializer should take ownership of this panel. The
+		 * @param webviewView Webview view to restore. The serializer should take ownership of this view. The
 		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
 		 * @param context Additional metadata about the view being resolved.
 		 * @param token Cancellation token indicating that the view being provided is no longer needed.
@@ -2099,20 +2161,20 @@ declare module 'vscode' {
 			 */
 			readonly webviewOptions?: {
 				/**
-				 * Controls if the webview panel's content (iframe) is kept around even when the panel
+				 * Controls if the webview element itself (iframe) is kept around even when the view
 				 * is no longer visible.
 				 *
-				 * Normally the webview's html context is created when the panel becomes visible
+				 * Normally the webview's html context is created when the view becomes visible
 				 * and destroyed when it is hidden. Extensions that have complex state
 				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
 				 * context around, even when the webview moves to a background tab. When a webview using
 				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
-				 * When the panel becomes visible again, the context is automatically restored
+				 * When the view becomes visible again, the context is automatically restored
 				 * in the exact same state it was in originally. You cannot send messages to a
 				 * hidden webview, even with `retainContextWhenHidden` enabled.
 				 *
 				 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-				 * your panel's context cannot be quickly saved and restored.
+				 * your view's context cannot be quickly saved and restored.
 				 */
 				readonly retainContextWhenHidden?: boolean;
 			};

@@ -7,9 +7,10 @@ import { createDecorator, IInstantiationService } from 'vs/platform/instantiatio
 import { URI } from 'vs/base/common/uri';
 import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Event } from 'vs/base/common/event';
 
 export const INotebookEditorModelResolverService = createDecorator<INotebookEditorModelResolverService>('INotebookModelResolverService');
 
@@ -70,15 +71,27 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 	async resolve(resource: URI, viewType?: string, editorId?: string | undefined): Promise<IReference<INotebookEditorModel>> {
 		const reference = this._data.acquire(resource.toString(), viewType, editorId);
 		const model = await reference.object;
+		NotebookModelResolverService._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType, editorId));
 		return {
 			object: model,
 			dispose() { reference.dispose(); }
 		};
 	}
+
+	private static _autoReferenceDirtyModel(model: INotebookEditorModel, ref: () => IDisposable) {
+
+		const references = new DisposableStore();
+		const listener = model.notebook.onDidChangeDirty(() => {
+			if (model.notebook.isDirty) {
+				references.add(ref());
+			} else {
+				references.clear();
+			}
+		});
+
+		Event.once(model.notebook.onWillDispose)(() => {
+			listener.dispose();
+			references.dispose();
+		});
+	}
 }
-
-// notebookService.onDidAddDocument
-
-// resolve()
-
-// notebookService.onDidRemoveDocument ...

@@ -29,10 +29,12 @@ import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/brow
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
 import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
@@ -48,9 +50,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	private readonly _editorProviders = new Map<string, IDisposable>();
 
 	constructor(
+		context: extHostProtocol.IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
 		private readonly mainThreadWebviewPanels: MainThreadWebviewPanels,
-		context: extHostProtocol.IExtHostContext,
+		@IExtensionService extensionService: IExtensionService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
@@ -63,7 +66,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 		this._proxyCustomEditors = context.getProxy(extHostProtocol.ExtHostContext.ExtHostCustomEditors);
 
-		workingCopyFileService.registerWorkingCopyProvider((editorResource) => {
+		this._register(workingCopyFileService.registerWorkingCopyProvider((editorResource) => {
 			const matchedWorkingCopies: IWorkingCopy[] = [];
 
 			for (const workingCopy of workingCopyService.workingCopies) {
@@ -74,7 +77,18 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				}
 			}
 			return matchedWorkingCopies;
-		});
+		}));
+
+		// This reviver's only job is to activate custom editor extensions.
+		this._register(_webviewWorkbenchService.registerResolver({
+			canResolve: (webview: WebviewInput) => {
+				if (webview instanceof CustomEditorInput) {
+					extensionService.activateByEvent(`onCustomEditor:${webview.viewType}`);
+				}
+				return false;
+			},
+			resolveWebview: () => { throw new Error('not implemented'); }
+		}));
 	}
 
 	dispose() {

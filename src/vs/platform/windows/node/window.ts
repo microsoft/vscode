@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWindowConfiguration, IPath, IOpenFileRequest, IPathData } from 'vs/platform/windows/common/windows';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { ExportData } from 'vs/base/common/performance';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export const enum OpenContext {
 
@@ -34,59 +30,6 @@ export const enum OpenContext {
 	API
 }
 
-export interface IRunActionInWindowRequest {
-	id: string;
-	from: 'menu' | 'touchbar' | 'mouse';
-	args?: any[];
-}
-
-export interface IRunKeybindingInWindowRequest {
-	userSettingsLabel: string;
-}
-
-export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
-	mainPid: number;
-
-	windowId: number;
-	machineId: string;
-
-	appRoot: string;
-	execPath: string;
-	backupPath?: string;
-
-	nodeCachedDataDir?: string;
-	partsSplashPath: string;
-
-	workspace?: IWorkspaceIdentifier;
-	folderUri?: ISingleFolderWorkspaceIdentifier;
-
-	isInitialStartup?: boolean;
-	logLevel: LogLevel;
-	zoomLevel?: number;
-	fullscreen?: boolean;
-	maximized?: boolean;
-	accessibilitySupport?: boolean;
-	perfEntries: ExportData;
-
-	userEnv: platform.IProcessEnvironment;
-	filesToWait?: IPathsToWaitFor;
-}
-
-export interface INativeOpenFileRequest extends IOpenFileRequest {
-	termProgram?: string;
-	filesToWait?: IPathsToWaitForData;
-}
-
-export interface IPathsToWaitFor extends IPathsToWaitForData {
-	paths: IPath[];
-	waitMarkerFileUri: URI;
-}
-
-export interface IPathsToWaitForData {
-	paths: IPathData[];
-	waitMarkerFileUri: UriComponents;
-}
-
 export interface IWindowContext {
 	openedWorkspace?: IWorkspaceIdentifier;
 	openedFolderUri?: URI;
@@ -100,7 +43,6 @@ export interface IBestWindowOrFolderOptions<W extends IWindowContext> {
 	newWindow: boolean;
 	context: OpenContext;
 	fileUri?: URI;
-	userHome?: string;
 	codeSettingsFolder?: string;
 	localWorkspaceResolver: (workspace: IWorkspaceIdentifier) => IResolvedWorkspace | null;
 }

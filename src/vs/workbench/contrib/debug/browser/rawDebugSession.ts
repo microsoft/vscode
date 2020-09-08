@@ -626,7 +626,7 @@ export class RawDebugSession implements IDisposable {
 					// We are in shutdown silently complete
 					completeDispatch();
 				} else {
-					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debug adapter found. Can not send '{0}'.", command)));
+					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debugger available found. Can not send '{0}'.", command)));
 				}
 				return;
 			}

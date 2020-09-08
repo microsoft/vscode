@@ -9,7 +9,7 @@ import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -17,7 +17,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsDevelopmentContext, IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
-import { NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
@@ -45,7 +45,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: CloseCurrentWindowAction.ID, // close the window when the last editor is closed by reusing the same keybinding
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
+			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 			handler: accessor => {
 				const electronService = accessor.get(IElectronService);
@@ -255,13 +255,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'default': false,
 				'description': nls.localize('closeWhenEmpty', "Controls whether closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
 			},
-			'window.autoDetectHighContrast': {
-				'type': 'boolean',
-				'default': true,
-				'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
-				'scope': ConfigurationScope.APPLICATION,
-				'included': isWindows
-			},
 			'window.doubleClickIconToClose': {
 				'type': 'boolean',
 				'default': false,
@@ -311,6 +304,31 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to a Microsoft online service. \nThis option requires restart to take effect."),
 				'default': true,
 				'tags': ['usesOnlineServices']
+			}
+		}
+	});
+
+	// Keybinding
+	registry.registerConfiguration({
+		'id': 'keyboard',
+		'order': 15,
+		'type': 'object',
+		'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+		'properties': {
+			'keyboard.touchbar.enabled': {
+				'type': 'boolean',
+				'default': true,
+				'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
+				'included': isMacintosh
+			},
+			'keyboard.touchbar.ignored': {
+				'type': 'array',
+				'items': {
+					'type': 'string'
+				},
+				'default': [],
+				'markdownDescription': nls.localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`.'),
+				'included': isMacintosh
 			}
 		}
 	});

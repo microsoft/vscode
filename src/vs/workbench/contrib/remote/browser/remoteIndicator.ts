@@ -12,7 +12,7 @@ import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerActi
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -21,7 +21,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { RemoteConnectionState } from 'vs/workbench/browser/contextkeys';
 import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 
@@ -38,7 +37,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private remoteAuthority = this.environmentService.configuration.remoteAuthority;
 	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
-	private connectionStateContextKey = RemoteConnectionState.bindTo(this.contextKeyService);
+	private connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,

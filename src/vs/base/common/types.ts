@@ -258,14 +258,12 @@ export type UriDto<T> = { [K in keyof T]: T[K] extends URI
 /**
  * Mapped-type that replaces all occurrences of URI with UriComponents and
  * drops all functions.
- * todo@joh use toJSON-results
  */
-export type Dto<T> = { [K in keyof T]: T[K] extends { toJSON(): infer U }
+export type Dto<T> = T extends { toJSON(): infer U }
 	? U
-	: T[K] extends Function
-	? never
-	: Dto<T[K]> };
-
+	: T extends object
+	? { [k in keyof T]: Dto<T[k]>; }
+	: T;
 
 export function NotImplementedProxy<T>(name: string): { new(): T } {
 	return <any>class {

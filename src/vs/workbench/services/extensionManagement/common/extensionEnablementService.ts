@@ -12,13 +12,15 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, isAuthenticaionProviderExtension, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { StorageManager } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
+import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -40,6 +42,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IProductService private readonly productService: IProductService,
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 	) {
 		super();
 		this.storageManger = this._register(new StorageManager(storageService));
@@ -66,7 +70,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	canChangeEnablement(extension: IExtension): boolean {
-		if (extension.manifest && extension.manifest.contributes && extension.manifest.contributes.localizations && extension.manifest.contributes.localizations.length) {
+		try {
+			this.throwErrorIfCannotChangeEnablement(extension);
+		} catch (error) {
 			return false;
 		}
 		const enablementState = this.getEnablementState(extension);
@@ -76,11 +82,47 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		return true;
 	}
 
+	private throwErrorIfCannotChangeEnablement(extension: IExtension): void {
+		if (isLanguagePackExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable language pack extension', "Cannot disable {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
+		}
+
+		if (this.userDataAutoSyncService.isEnabled() && this.userDataSyncAccountService.account &&
+			isAuthenticaionProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
+			throw new Error(localize('cannot disable auth extension', "Cannot disable {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
+		}
+	}
+
+	canChangeWorkspaceEnablement(extension: IExtension): boolean {
+		if (!this.canChangeEnablement(extension)) {
+			return false;
+		}
+		try {
+			this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
+		} catch (error) {
+			return false;
+		}
+		return true;
+	}
+
+	private throwErrorIfCannotChangeWorkspaceEnablement(extension: IExtension): void {
+		if (!this.hasWorkspace) {
+			throw new Error(localize('noWorkspace', "No workspace."));
+		}
+		if (isAuthenticaionProviderExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable auth extension in workspace', "Cannot disable {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+		}
+	}
+
 	async setEnablement(extensions: IExtension[], newState: EnablementState): Promise<boolean[]> {
 
 		const workspace = newState === EnablementState.DisabledWorkspace || newState === EnablementState.EnabledWorkspace;
-		if (workspace && !this.hasWorkspace) {
-			return Promise.reject(new Error(localize('noWorkspace', "No workspace.")));
+		for (const extension of extensions) {
+			if (workspace) {
+				this.throwErrorIfCannotChangeWorkspaceEnablement(extension);
+			} else {
+				this.throwErrorIfCannotChangeEnablement(extension);
+			}
 		}
 
 		const result = await Promise.all(extensions.map(e => this._setEnablement(e, newState)));
@@ -316,4 +358,4 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 }
 
-registerSingleton(IWorkbenchExtensionEnablementService, ExtensionEnablementService, true);
+registerSingleton(IWorkbenchExtensionEnablementService, ExtensionEnablementService);

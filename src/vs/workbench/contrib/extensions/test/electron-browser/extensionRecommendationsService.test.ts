@@ -30,11 +30,9 @@ import { URI } from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IPager } from 'vs/base/common/paging';
-import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ConfigurationKey, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITextModel } from 'vs/editor/common/model';
@@ -58,6 +56,8 @@ import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -165,10 +165,9 @@ const noAssets: IGalleryExtensionAssets = {
 };
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
-	const galleryExtension = <IGalleryExtension>Object.create({});
-	assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
-	assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
-	assign(galleryExtension.assets, assets);
+	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
+	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
+	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: uuid.generateUuid() };
 	return <IGalleryExtension>galleryExtension;
 }
@@ -199,11 +198,18 @@ suite('ExtensionRecommendationsService Test', () => {
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
-		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
-		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
-		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+			onInstallExtension: installEvent.event,
+			onDidInstallExtension: didInstallEvent.event,
+			onUninstallExtension: uninstallEvent.event,
+			onDidUninstallExtension: didUninstallEvent.event,
+			async getInstalled() { return []; },
+			async canInstall() { return true; },
+			async getExtensionsReport() { return []; },
+		});
+		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+			async whenInstalledExtensionsRegistered() { return true; }
+		});
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, NativeURLService);
@@ -231,6 +237,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		experimentService = instantiationService.createInstance(TestExperimentService);
 		instantiationService.stub(IExperimentService, experimentService);
+		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
 		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 
 		onModelAddedEvent = new Emitter<ITextModel>();
@@ -338,20 +345,18 @@ suite('ExtensionRecommendationsService Test', () => {
 		return testNoPromptForValidRecommendations([]);
 	});
 
-	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', () => {
-		return setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-			return testObject.activationPromise.then(() => {
-				const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', async () => {
+		await setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions);
+		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		await testObject.activationPromise;
 
-				assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
-				mockTestData.validRecommendedExtensions.forEach(x => {
-					assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
-				});
-
-				assert.ok(prompted);
-			});
+		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
+		assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
+		mockTestData.validRecommendedExtensions.forEach(x => {
+			assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
 		});
+
+		assert.ok(prompted);
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if they are already installed', () => {

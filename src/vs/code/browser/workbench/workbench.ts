@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
-import product from 'vs/platform/product/common/product';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -27,6 +26,13 @@ interface ICredential {
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	constructor(credentials: ICredential[]) {
+		this._credentials = credentials;
+		for (const { service, account, password } of this._credentials) {
+			this.setPassword(service, account, password);
+		}
+	}
 
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
@@ -302,8 +308,6 @@ class WindowIndicator implements IWindowIndicator {
 	readonly tooltip: string;
 	readonly command: string | undefined;
 
-	readonly commandImpl: ICommand | undefined = undefined;
-
 	constructor(workspace: IWorkspace) {
 		let repositoryOwner: string | undefined = undefined;
 		let repositoryName: string | undefined = undefined;
@@ -321,20 +325,16 @@ class WindowIndicator implements IWindowIndicator {
 			}
 		}
 
+		// Repo
 		if (repositoryName && repositoryOwner) {
-			this.label = localize('openInDesktopLabel', "$(remote) Open in Desktop");
-			this.tooltip = localize('openInDesktopTooltip', "Open in Desktop");
-			this.command = '_web.openInDesktop';
-			this.commandImpl = {
-				id: this.command,
-				handler: () => {
-					const protocol = product.quality === 'stable' ? 'vscode' : 'vscode-insiders';
-					window.open(`${protocol}://vscode.git/clone?url=${encodeURIComponent(`https://github.com/${repositoryOwner}/${repositoryName}.git`)}`);
-				}
-			};
-		} else {
-			this.label = localize('playgroundLabel', "Web Playground");
-			this.tooltip = this.label;
+			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+		}
+
+		// No Repo
+		else {
+			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
+			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
 		}
 	}
 }
@@ -416,16 +416,10 @@ class WindowIndicator implements IWindowIndicator {
 		title: localize('home', "Home")
 	};
 
-	// Commands
-	const commands: ICommand[] = [];
-
 	// Window indicator (unless connected to a remote)
 	let windowIndicator: WindowIndicator | undefined = undefined;
 	if (!workspaceProvider.hasRemote()) {
 		windowIndicator = new WindowIndicator(workspace);
-		if (windowIndicator.commandImpl) {
-			commands.push(windowIndicator.commandImpl);
-		}
 	}
 
 	// Product Quality Change Handler
@@ -443,15 +437,25 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
+	// Find credentials from DOM
+	const credentialsElement = document.getElementById('vscode-workbench-credentials');
+	const credentialsElementAttribute = credentialsElement ? credentialsElement.getAttribute('data-settings') : undefined;
+	let credentials = undefined;
+	if (credentialsElementAttribute) {
+		try {
+			credentials = JSON.parse(credentialsElementAttribute);
+		} catch (error) { /* Invalid credentials are passed. Ignore. */ }
+	}
+	const credentialsProvider = new LocalStorageCredentialsProvider(credentials || []);
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
 		homeIndicator,
-		commands,
 		windowIndicator,
 		productQualityChangeHandler,
 		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		credentialsProvider
 	});
 })();

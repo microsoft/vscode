@@ -94,6 +94,11 @@ export const process = (window as any).vscode.process as {
 	 * A listener on the process. Only a small subset of listener types are allowed.
 	 */
 	on: (type: string, callback: Function) => void;
+
+	/**
+	 * A list of versions for the current node.js/electron configuration.
+	 */
+	versions: { [key: string]: string | undefined };
 };
 
 export const context = (window as any).vscode.context as {
