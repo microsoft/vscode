@@ -7,10 +7,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IHostColorService } from 'vs/workbench/services/themes/common/hostColorService';
+import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
-export class BrowserHostColorService extends Disposable implements IHostColorService {
+export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -46,4 +46,4 @@ export class BrowserHostColorService extends Disposable implements IHostColorSer
 
 }
 
-registerSingleton(IHostColorService, BrowserHostColorService, true);
+registerSingleton(IHostColorSchemeService, BrowserHostColorSchemeService, true);

@@ -9,9 +9,9 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostColorService } from 'vs/workbench/services/themes/common/hostColorService';
+import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 
-export class NativeHostColorService extends Disposable implements IHostColorService {
+export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -42,4 +42,4 @@ export class NativeHostColorService extends Disposable implements IHostColorServ
 
 }
 
-registerSingleton(IHostColorService, NativeHostColorService, true);
+registerSingleton(IHostColorSchemeService, NativeHostColorSchemeService, true);

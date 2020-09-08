@@ -35,7 +35,7 @@ import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/co
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IHostColorService } from 'vs/workbench/services/themes/common/hostColorService';
+import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 
 
 // implementation
@@ -106,7 +106,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IExtensionResourceLoaderService private readonly extensionResourceLoaderService: IExtensionResourceLoaderService,
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService,
-		@IHostColorService private readonly hostColorService: IHostColorService,
+		@IHostColorSchemeService private readonly hostColorService: IHostColorSchemeService,
 	) {
 		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
