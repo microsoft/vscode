@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
@@ -198,10 +197,10 @@ export class ExtensionsListView extends ViewPane {
 		};
 
 		switch (parsedQuery.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
-			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
-			case 'publishedDate': options = assign(options, { sortBy: SortBy.PublishedDate }); break;
+			case 'installs': options.sortBy = SortBy.InstallCount; break;
+			case 'rating': options.sortBy = SortBy.WeightedRating; break;
+			case 'name': options.sortBy = SortBy.Title; break;
+			case 'publishedDate': options.sortBy = SortBy.PublishedDate; break;
 		}
 
 		const successCallback = (model: IPagedModel<IExtension>) => {
@@ -472,13 +471,15 @@ export class ExtensionsListView extends ViewPane {
 		const text = query.value;
 
 		if (/\bext:([^\s]+)\b/g.test(text)) {
-			options = assign(options, { text, source: 'file-extension-tags' });
+			options.text = text;
+			options.source = 'file-extension-tags';
 			return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
 		}
 
 		let preferredResults: string[] = [];
 		if (text) {
-			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
+			options.text = text.substr(0, 350);
+			options.source = 'searchText';
 			if (!hasUserDefinedSortOrder) {
 				const searchExperiments = await this.getSearchExperiments();
 				for (const experiment of searchExperiments) {
@@ -544,7 +545,9 @@ export class ExtensionsListView extends ViewPane {
 		const names = await this.experimentService.getCuratedExtensionsList(value);
 		if (Array.isArray(names) && names.length) {
 			options.source = `curated:${value}`;
-			const pager = await this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }), token);
+			options.names = names;
+			options.pageSize = names.length;
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
 			this.sortFirstPage(pager, names);
 			return this.getPagedModel(pager || []);
 		}

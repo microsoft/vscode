@@ -6,7 +6,7 @@
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
 import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier, DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { assign, getOrDefault } from 'vs/base/common/objects';
+import { getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestService, asJson, asText } from 'vs/platform/request/common/request';
@@ -158,7 +158,7 @@ class Query {
 	get flags(): number { return this.state.flags; }
 
 	withPage(pageNumber: number, pageSize: number = this.state.pageSize): Query {
-		return new Query(assign({}, this.state, { pageNumber, pageSize }));
+		return new Query({ ...this.state, pageNumber, pageSize });
 	}
 
 	withFilter(filterType: FilterType, ...values: string[]): Query {
@@ -167,23 +167,23 @@ class Query {
 			...values.length ? values.map(value => ({ filterType, value })) : [{ filterType }]
 		];
 
-		return new Query(assign({}, this.state, { criteria }));
+		return new Query({ ...this.state, criteria });
 	}
 
 	withSortBy(sortBy: SortBy): Query {
-		return new Query(assign({}, this.state, { sortBy }));
+		return new Query({ ...this.state, sortBy });
 	}
 
 	withSortOrder(sortOrder: SortOrder): Query {
-		return new Query(assign({}, this.state, { sortOrder }));
+		return new Query({ ...this.state, sortOrder });
 	}
 
 	withFlags(...flags: Flags[]): Query {
-		return new Query(assign({}, this.state, { flags: flags.reduce((r, f) => r | f, 0) }));
+		return new Query({ ...this.state, flags: flags.reduce<number>((r, f) => r | f, 0) });
 	}
 
 	withAssetTypes(...assetTypes: string[]): Query {
-		return new Query(assign({}, this.state, { assetTypes }));
+		return new Query({ ...this.state, assetTypes });
 	}
 
 	get raw(): any {
@@ -524,12 +524,13 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		}
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const data = JSON.stringify(query.raw);
-			const headers = assign({}, commonHeaders, {
+			const headers = {
+				...commonHeaders,
 				'Content-Type': 'application/json',
 				'Accept': 'application/json;api-version=3.0-preview.1',
 				'Accept-Encoding': 'gzip',
-				'Content-Length': data.length
-			});
+				'Content-Length': String(data.length)
+			};
 
 			return this.requestService.request({
 				type: 'POST',
@@ -585,7 +586,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				]
 			}
 		*/
-		const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
+		const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', { ...data, duration });
 
 		const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
 		const downloadAsset = operationParam ? {
@@ -670,12 +671,12 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	private getAsset(asset: IGalleryExtensionAsset, options: IRequestOptions = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
 		return this.commonHeadersPromise.then(commonHeaders => {
 			const baseOptions = { type: 'GET' };
-			const headers = assign({}, commonHeaders, options.headers || {});
-			options = assign({}, options, baseOptions, { headers });
+			const headers = { ...commonHeaders, ...(options.headers || {}) };
+			options = { ...options, ...baseOptions, headers };
 
 			const url = asset.uri;
 			const fallbackUrl = asset.fallbackUri;
-			const firstOptions = assign({}, options, { url });
+			const firstOptions = { ...options, url };
 
 			return this.requestService.request(firstOptions, token)
 				.then(context => {
@@ -702,7 +703,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					};
 					this.telemetryService.publicLog2<GalleryServiceCDNFallbackEvent, GalleryServiceCDNFallbackClassification>('galleryService:cdnFallback', { url, message });
 
-					const fallbackOptions = assign({}, options, { url: fallbackUrl });
+					const fallbackOptions = { ...options, url: fallbackUrl };
 					return this.requestService.request(fallbackOptions, token);
 				});
 		});

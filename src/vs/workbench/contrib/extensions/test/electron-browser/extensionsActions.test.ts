@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import * as ExtensionsActions from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -2494,20 +2493,20 @@ suite('LocalInstallAction', () => {
 });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-	properties = assign({
+	manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
+	properties = {
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
-		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) }
-	}, properties);
+		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+		...properties
+	};
 	return <ILocalExtension>Object.create({ manifest, ...properties });
 }
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-	const galleryExtension = <IGalleryExtension>Object.create({});
-	assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
-	assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
-	assign(galleryExtension.assets, assets);
+	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
+	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
+	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 	return <IGalleryExtension>galleryExtension;
 }

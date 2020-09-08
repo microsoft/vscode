@@ -37,7 +37,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
-import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionsTree, ExtensionData, ExtensionsGridView, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
@@ -361,7 +360,7 @@ export class ExtensionEditor extends EditorPane {
 			]
 		}
 		*/
-		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
+		this.telemetryService.publicLog('extensionGallery:openExtension', { ...extension.telemetryData, ...recommendationsData });
 
 		toggleClass(template.name, 'clickable', !!extension.url);
 		toggleClass(template.publisher, 'clickable', !!extension.url);
@@ -556,7 +555,7 @@ export class ExtensionEditor extends EditorPane {
 					]
 				}
 			*/
-			this.telemetryService.publicLog('extensionEditor:navbarChange', assign(extension.telemetryData, { navItem: id }));
+			this.telemetryService.publicLog('extensionEditor:navbarChange', { ...extension.telemetryData, navItem: id });
 		}
 
 		this.contentDisposables.clear();
