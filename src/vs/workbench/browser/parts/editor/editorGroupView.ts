@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorStickyContext, EditorPinnedContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorStickyContext, EditorPinnedContext, Deprecated_EditorPinnedContext, Deprecated_EditorDirtyContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -218,7 +218,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
 		const groupActiveEditorDirtyContext = EditorDirtyContext.bindTo(contextKeyService);
+		const deprecatedGroupActiveEditorDirtyContext = Deprecated_EditorDirtyContext.bindTo(contextKeyService);
 		const groupActiveEditorPinnedContext = EditorPinnedContext.bindTo(contextKeyService);
+		const deprecatedGroupActiveEditorPinnedContext = Deprecated_EditorPinnedContext.bindTo(contextKeyService);
 		const groupActiveEditorStickyContext = EditorStickyContext.bindTo(contextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyService);
 
@@ -230,9 +232,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			const activeEditor = this._group.activeEditor;
 			if (activeEditor) {
 				groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-				activeEditorListener.value = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving()));
+				deprecatedGroupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+				activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
+					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+					deprecatedGroupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+				});
 			} else {
 				groupActiveEditorDirtyContext.set(false);
+				deprecatedGroupActiveEditorDirtyContext.set(false);
 			}
 		};
 
@@ -247,6 +254,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				case GroupChangeKind.EDITOR_PIN:
 					if (e.editor && e.editor === this._group.activeEditor) {
 						groupActiveEditorPinnedContext.set(this._group.isPinned(this._group.activeEditor));
+						deprecatedGroupActiveEditorPinnedContext.set(this._group.isPinned(this._group.activeEditor));
 					}
 					break;
 				case GroupChangeKind.EDITOR_STICKY:
