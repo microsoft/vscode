@@ -179,6 +179,10 @@ export class LanguageFeatureRegistry<T> {
 }
 
 
+/**
+ * Keeps moving average per model and set of providers so that requests
+ * can be debounce according to the provider performance
+ */
 export class LanguageFeatureRequestDelays {
 
 	private readonly _cache = new LRUCache<string, MovingAverage>(50, 0.7);
