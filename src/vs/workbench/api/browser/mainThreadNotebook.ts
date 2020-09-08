@@ -8,6 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -456,9 +457,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 				if (data.cells.length) {
 					textModel.initialize(data!.cells);
-				} else {
-					const mainCell = textModel.createCellTextModel('', textModel.resolvedLanguages.length ? textModel.resolvedLanguages[0] : '', CellKind.Code, [], undefined);
-					textModel.insertTemplateCell(mainCell);
+				} else if (textModel.uri.scheme === Schemas.untitled) {
+					textModel.initialize([{
+						cellKind: CellKind.Code,
+						language: textModel.resolvedLanguages.length ? textModel.resolvedLanguages[0] : '',
+						outputs: [],
+						metadata: undefined,
+						source: ''
+					}]);
 				}
 
 				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
@@ -604,7 +610,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
-			textModel.handleEdit(label, () => {
+			textModel.handleUnknownEdit(label, () => {
 				return this._proxy.$undoNotebook(textModel.viewType, textModel.uri, editId, textModel.isDirty);
 			}, () => {
 				return this._proxy.$redoNotebook(textModel.viewType, textModel.uri, editId, textModel.isDirty);
