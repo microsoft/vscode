@@ -64,7 +64,7 @@ steps:
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 yarn --frozen-lockfile --arch=$(VSCODE_ARCH)
+    CHILD_CONCURRENCY=1 npm_config_arch=$(VSCODE_ARCH) yarn --frozen-lockfile
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
