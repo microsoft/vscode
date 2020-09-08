@@ -82,7 +82,7 @@ function getElectron(arch) {
     return () => {
         const electronOpts = _.extend({}, exports.config, {
             platform: process.platform,
-            arch,
+            arch: arch === 'armhf' ? 'arm' : arch,
             ffmpegChromium: true,
             keepDefaultApp: true
         });

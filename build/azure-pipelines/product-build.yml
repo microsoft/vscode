@@ -16,6 +16,9 @@ resources:
   - container: vscode-arm64
     image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
     endpoint: VSCodeHub
+  - container: vscode-armhf
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-armhf
+    endpoint: VSCodeHub
   - container: snapcraft
     image: snapcore/snapcraft:stable
 
@@ -84,10 +87,11 @@ stages:
 
   - job: LinuxArmhf
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARMHF'], 'true'))
+    container: vscode-armhf
     variables:
       VSCODE_ARCH: armhf
     steps:
-    - template: linux/product-build-linux-multiarch.yml
+    - template: linux/product-build-linux.yml
 
   - job: LinuxArm64
     condition: and(succeeded(), eq(variables['VSCODE_BUILD_LINUX_ARM64'], 'true'))
