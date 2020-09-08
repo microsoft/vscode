@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as types from 'vs/base/common/types';
+import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, EditorStickyContext, EditorsOrder } from 'vs/workbench/common/editor';
@@ -59,19 +59,19 @@ export interface ActiveEditorMoveArguments {
 }
 
 const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
-	if (!types.isObject(arg)) {
+	if (!isObject(arg)) {
 		return false;
 	}
 
-	if (!types.isString(arg.to)) {
+	if (!isString(arg.to)) {
 		return false;
 	}
 
-	if (!types.isUndefined(arg.by) && !types.isString(arg.by)) {
+	if (!isUndefined(arg.by) && !isString(arg.by)) {
 		return false;
 	}
 
-	if (!types.isUndefined(arg.value) && !types.isNumber(arg.value)) {
+	if (!isUndefined(arg.value) && !isNumber(arg.value)) {
 		return false;
 	}
 
@@ -451,7 +451,7 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	if (context && typeof context.editorIndex === 'number') {
 		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
 	} else {
-		editorToCopy = types.withNullAsUndefined(sourceGroup.activeEditor);
+		editorToCopy = withNullAsUndefined(sourceGroup.activeEditor);
 	}
 
 	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
@@ -478,23 +478,20 @@ function registerSplitEditorCommands() {
 function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
+		id: CLOSE_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
-		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
+		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
-
-			const activeGroup = editorGroupService.activeGroup;
-			if (contexts.length === 0) {
-				contexts.push({ groupId: activeGroup.id }); // active group as fallback
-			}
-
-			return Promise.all(distinct(contexts.map(c => c.groupId)).map(async groupId => {
-				const group = editorGroupService.getGroup(groupId);
+			const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
+			return Promise.all(groups.map(async group => {
 				if (group) {
-					return group.closeEditors({ savedOnly: true, excludeSticky: true });
+					const editorsToClose = coalesce(editors
+						.filter(editor => editor.groupId === group.id)
+						.map(editor => typeof editor.editorIndex === 'number' ? group.getEditorByIndex(editor.editorIndex) : group.activeEditor));
+
+					return group.closeEditors(editorsToClose);
 				}
 			}));
 		}
@@ -506,48 +503,9 @@ function registerCloseEditorCommands() {
 		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
-			const distinctGroupIds = distinct(contexts.map(c => c.groupId));
-
-			if (distinctGroupIds.length === 0) {
-				distinctGroupIds.push(editorGroupService.activeGroup.id);
-			}
-
-			return Promise.all(distinctGroupIds.map(async groupId => {
-				const group = editorGroupService.getGroup(groupId);
+			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
 				if (group) {
 					return group.closeAllEditors({ excludeSticky: true });
-				}
-			}));
-		}
-	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: CLOSE_EDITOR_COMMAND_ID,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
-		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
-
-			const activeGroup = editorGroupService.activeGroup;
-			if (contexts.length === 0 && activeGroup.activeEditor) {
-				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });  // active editor as fallback
-			}
-
-			const groupIds = distinct(contexts.map(context => context.groupId));
-
-			return Promise.all(groupIds.map(async groupId => {
-				const group = editorGroupService.getGroup(groupId);
-				if (group) {
-					const editors = coalesce(contexts
-						.filter(context => context.groupId === groupId)
-						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor));
-
-					return group.closeEditors(editors);
 				}
 			}));
 		}
@@ -577,33 +535,39 @@ function registerCloseEditorCommands() {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+			return Promise.all(getEditorsContext(accessor, resourceOrContext, context).groups.map(async group => {
+				if (group) {
+					return group.closeEditors({ savedOnly: true, excludeSticky: true });
+				}
+			}));
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: undefined,
 		primary: undefined,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
-
-			const activeGroup = editorGroupService.activeGroup;
-			if (contexts.length === 0 && activeGroup.activeEditor) {
-				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });  // active editor as fallback
-			}
-
-			const groupIds = distinct(contexts.map(context => context.groupId));
-
-			return Promise.all(groupIds.map(async groupId => {
-				const group = editorGroupService.getGroup(groupId);
+			const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
+			return Promise.all(groups.map(async group => {
 				if (group) {
-					const editors = contexts
-						.filter(context => context.groupId === groupId)
-						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor);
+					const editorsToKeep = editors
+						.filter(editor => editor.groupId === group.id)
+						.map(editor => typeof editor.editorIndex === 'number' ? group.getEditorByIndex(editor.editorIndex) : group.activeEditor);
 
-					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => !editors.includes(editor));
+					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => !editorsToKeep.includes(editor));
 
-					if (group.activeEditor) {
-						group.pinEditor(group.activeEditor);
+					for (const editorToKeep of editorsToKeep) {
+						if (editorToKeep) {
+							group.pinEditor(editorToKeep);
+						}
 					}
 
 					return group.closeEditors(editorsToClose);
@@ -631,6 +595,22 @@ function registerCloseEditorCommands() {
 		}
 	});
 
+	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		if (group) {
+			await group.closeAllEditors();
+
+			if (group.count === 0 && editorGroupService.getGroup(group.id) /* could be gone by now */) {
+				editorGroupService.removeGroup(group); // only remove group if it is now empty
+			}
+		}
+	});
+}
+
+function registerOtherEditorCommands(): void {
+
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: KEEP_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
@@ -649,7 +629,7 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: PIN_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(EditorStickyContext.toNegated(), ContextKeyExpr.has('config.workbench.editor.showTabs')),
+		when: EditorStickyContext.toNegated(),
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
@@ -664,7 +644,7 @@ function registerCloseEditorCommands() {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: UNPIN_EDITOR_COMMAND_ID,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(EditorStickyContext, ContextKeyExpr.has('config.workbench.editor.showTabs')),
+		when: EditorStickyContext,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
@@ -696,19 +676,27 @@ function registerCloseEditorCommands() {
 			return quickInputService.quickAccess.show(ActiveGroupEditorsByMostRecentlyUsedQuickAccess.PREFIX);
 		}
 	});
+}
 
-	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, async (accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
-		const editorGroupService = accessor.get(IEditorGroupsService);
+function getEditorsContext(accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext): { editors: IEditorCommandsContext[], groups: Array<IEditorGroup | undefined> } {
+	const editorGroupService = accessor.get(IEditorGroupsService);
+	const listService = accessor.get(IListService);
 
-		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
-		if (group) {
-			await group.closeAllEditors();
+	const editorContext = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), listService, editorGroupService);
 
-			if (group.count === 0 && editorGroupService.getGroup(group.id) /* could be gone by now */) {
-				editorGroupService.removeGroup(group); // only remove group if it is now empty
-			}
-		}
-	});
+	const activeGroup = editorGroupService.activeGroup;
+	if (editorContext.length === 0 && activeGroup.activeEditor) {
+		// add the active editor as fallback
+		editorContext.push({
+			groupId: activeGroup.id,
+			editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor)
+		});
+	}
+
+	return {
+		editors: editorContext,
+		groups: distinct(editorContext.map(context => context.groupId)).map(groupId => editorGroupService.getGroup(groupId))
+	};
 }
 
 function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
@@ -731,12 +719,16 @@ function resolveCommandsContext(editorGroupService: IEditorGroupsService, contex
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
-	let editor = group && context && typeof context.editorIndex === 'number' ? types.withNullAsUndefined(group.getEditorByIndex(context.editorIndex)) : undefined;
+	let editor = group && context && typeof context.editorIndex === 'number' ? withNullAsUndefined(group.getEditorByIndex(context.editorIndex)) : undefined;
 
 	// Fallback to active group as needed
 	if (!group) {
 		group = editorGroupService.activeGroup;
-		editor = <EditorInput>group.activeEditor;
+	}
+
+	// Fallback to active editor as needed
+	if (!editor) {
+		editor = withNullAsUndefined(group.activeEditor);
 	}
 
 	return { group, editor };
@@ -803,6 +795,7 @@ export function setup(): void {
 	registerDiffEditorCommands();
 	registerOpenEditorAtIndexCommands();
 	registerCloseEditorCommands();
+	registerOtherEditorCommands();
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
 }
