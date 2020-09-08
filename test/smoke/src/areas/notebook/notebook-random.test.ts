@@ -286,6 +286,10 @@ function getActions(app: Application): INotebookActions {
 		changeCellToMarkdown: () => app.code.dispatchKeybinding('m'),
 		changeCellToCode: () => app.code.dispatchKeybinding('y'),
 		putCellInEditMode: () => n.editCell(),
-		deleteCell: () => n.deleteActiveCell()
+		deleteCell: () => n.deleteActiveCell(),
+		collapseInput: () => qa.runCommand('notebook.cell.collapseCellContent'),
+		expandInput: () => qa.runCommand('notebook.cell.expandCellContent'),
+		collapseOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
+		expandOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
 	};
 }
