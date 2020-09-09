@@ -1350,6 +1350,7 @@ declare module 'vscode' {
 	}
 
 	export interface WorkspaceEdit {
+		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
