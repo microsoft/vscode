@@ -1314,15 +1314,18 @@
         },
         {
           "command": "git.commitNoVerify",
-          "group": "1_commit@6"
+          "group": "1_commit@6",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedNoVerify",
-          "group": "1_commit@7"
+          "group": "1_commit@7",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitAllNoVerify",
-          "group": "1_commit@8"
+          "group": "1_commit@8",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedAmend",
@@ -1334,11 +1337,13 @@
         },
         {
           "command": "git.commitStagedAmendNoVerify",
-          "group": "2_amend@3"
+          "group": "2_amend@3",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitAllAmendNoVerify",
-          "group": "2_amend@4"
+          "group": "2_amend@4",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedSigned",
@@ -1350,11 +1355,13 @@
         },
         {
           "command": "git.commitStagedSignedNoVerify",
-          "group": "3_signoff@3"
+          "group": "3_signoff@3",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitAllSignedNoVerify",
-          "group": "3_signoff@4"
+          "group": "3_signoff@4",
+          "when": "config.git.allowNoVerifyCommit"
         }
       ],
       "git.changes": [
