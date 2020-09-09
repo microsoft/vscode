@@ -40,7 +40,7 @@ node build/azure-pipelines/common/createAsset.js "$PLATFORM_DEB" package "$DEB_F
 
 # Publish RPM
 case $VSCODE_ARCH in
-	x64) RPM_ARCH="amd64" ;;
+	x64) RPM_ARCH="x86_64" ;;
 	armhf) RPM_ARCH="armv7hl" ;;
 	arm64) RPM_ARCH="aarch64" ;;
 	*) RPM_ARCH="$VSCODE_ARCH" ;;
