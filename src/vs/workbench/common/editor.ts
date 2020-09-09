@@ -25,10 +25,10 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
 // Editor State Context Keys
-export const EditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
-export const EditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
-export const EditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
-export const EditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
+export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
+export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
+export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
+export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 
 /** TODO@ben remove me eventually */
 /** @deprecated */
