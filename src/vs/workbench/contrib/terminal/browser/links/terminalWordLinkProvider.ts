@@ -50,7 +50,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			const chars = cellData.getChars();
 			const width = cellData.getWidth();
 
-			// Add a link if this is a separator and also remove trailing colon if exists
+			// Add a link if this is a separator
 			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
 				if (startX !== -1) {
 					result.push(this._createTerminalLink(startX, x, y, text, activateCallback));
@@ -68,7 +68,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			text += chars;
 		}
 
-		// Add the final link if there is one and also remove trailing colon if exists
+		// Add the final link if there is one
 		if (startX !== -1) {
 			result.push(this._createTerminalLink(startX, line.length, y, text, activateCallback));
 		}
@@ -77,6 +77,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private _createTerminalLink(startX: number, endX: number, y: number, text: string, activateCallback: XtermLinkMatcherHandler): TerminalLink {
+		// Remove trailing colon if there is one so the link is more useful
 		if (text.length > 0 && text.charAt(text.length - 1) === ':') {
 			text = text.slice(0, -1);
 			endX--;
