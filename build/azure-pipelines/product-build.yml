@@ -135,11 +135,27 @@ stages:
     steps:
     - template: darwin/product-build-darwin.yml
 
+- stage: macOSARM64
+  dependsOn:
+  - Compile
+  condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
+  pool:
+    vmImage: macOS-latest
+  jobs:
+  - job: macOSARM64
+    condition: and(succeeded(), eq(variables['VSCODE_BUILD_MACOS_ARM64'], 'true'))
+    timeoutInMinutes: 90
+    variables:
+      VSCODE_ARCH: arm64
+    steps:
+    - template: darwin/product-build-darwin.yml
+
 - stage: Mooncake
   dependsOn:
   - Windows
   - Linux
   - macOS
+  - macOSARM64
   condition: and(succeededOrFailed(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'))
   pool:
     vmImage: 'Ubuntu-18.04'
@@ -154,6 +170,7 @@ stages:
   - Windows
   - Linux
   - macOS
+  - macOSARM64
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), or(eq(variables['VSCODE_RELEASE'], 'true'), and(or(eq(variables['VSCODE_QUALITY'], 'insider'), eq(variables['VSCODE_QUALITY'], 'exploration')), eq(variables['Build.Reason'], 'Schedule'))))
   pool:
     vmImage: 'Ubuntu-18.04'
