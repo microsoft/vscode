@@ -1065,14 +1065,14 @@ export class TabsTitleControl extends TitleControl {
 			removeClass(tabContainer, 'has-icon');
 		}
 
-		['compact', 'shrink', 'standard'].forEach(option => {
+		['compact', 'shrink', 'normal'].forEach(option => {
 			const domAction = isTabSticky && options.pinnedTabSizing === option ? addClass : removeClass;
 			domAction(tabContainer, `sticky-${option}`);
 		});
 
 		// Sticky compact/shrink tabs need a position to remain at their location
 		// when scrolling to stay in view (requirement for position: sticky)
-		if (isTabSticky && options.pinnedTabSizing !== 'standard') {
+		if (isTabSticky && options.pinnedTabSizing !== 'normal') {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
