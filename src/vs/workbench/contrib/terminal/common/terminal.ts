@@ -70,7 +70,13 @@ export const DEFAULT_LETTER_SPACING = 0;
 export const MINIMUM_LETTER_SPACING = -5;
 export const DEFAULT_LINE_HEIGHT = 1;
 
-export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
+export const MINIMUM_FONT_WEIGHT = 1;
+export const MAXIMUM_FONT_WEIGHT = 1000;
+export const DEFAULT_FONT_WEIGHT = 'normal';
+export const DEFAULT_BOLD_FONT_WEIGHT = 'bold';
+export const SUGGESTIONS_FONT_WEIGHT = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+
+export type FontWeight = 'normal' | 'bold' | number;
 
 export interface ITerminalConfiguration {
 	shell: {
