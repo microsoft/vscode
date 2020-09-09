@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -13,7 +14,7 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 

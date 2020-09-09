@@ -5,18 +5,13 @@
 
 import { IExtensionTipsService, IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -36,19 +31,13 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 	private readonly tasExperimentService: ITASExperimentService | undefined;
 
 	constructor(
-		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
+		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, extensionsWorkbenchService, extensionManagementService, storageKeysSyncRegistryService);
+		super(promptedExtensionRecommendations);
 		this.tasExperimentService = tasExperimentService;
 
 		/*
@@ -114,10 +103,10 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	private async promptImportantExeBasedRecommendations(recommendations: string[], importantExeBasedRecommendations: Map<string, IExecutableBasedExtensionTip>): Promise<void> {
-		if (this.hasToIgnoreRecommendationNotifications()) {
+		if (this.promptedExtensionRecommendations.hasToIgnoreRecommendationNotifications()) {
 			return;
 		}
-		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
+		recommendations = this.promptedExtensionRecommendations.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
 			return;
 		}
@@ -142,7 +131,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			}
 
 			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-			this.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
+			this.promptedExtensionRecommendations.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
 		}
 	}
 

@@ -17,7 +17,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, reset, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
+import { append, $, reset, Dimension, clearNode } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -26,7 +26,6 @@ import { EnablementState } from 'vs/workbench/services/extensionManagement/commo
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { writeFile } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
@@ -258,7 +257,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		addClass(parent, 'runtime-extensions-editor');
+		parent.classList.add('runtime-extensions-editor');
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
@@ -329,7 +328,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 				data.elementDisposables = dispose(data.elementDisposables);
 
-				toggleClass(data.root, 'odd', index % 2 === 1);
+				data.root.classList.toggle('odd', index % 2 === 1);
 
 				const onError = Event.once(domEvent(data.icon, 'error'));
 				onError(() => data.icon.src = element.marketplaceInfo.iconUrlFallback, null, data.elementDisposables);
@@ -664,7 +663,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
 		@IElectronService private readonly _electronService: IElectronService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
 		super(id, label, undefined, false);

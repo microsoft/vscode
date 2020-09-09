@@ -6,9 +6,8 @@
 import { URI } from 'vs/base/common/uri';
 import { join, } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { env as processEnv } from 'vs/base/common/process';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
 import { isNonEmptyArray } from 'vs/base/common/arrays';

@@ -24,6 +24,8 @@ export class NativeHostService extends Disposable implements IHostService {
 		super();
 	}
 
+	//#region Focus
+
 	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
 	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
 		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronService.windowId), () => this.hasFocus),
@@ -43,6 +45,11 @@ export class NativeHostService extends Disposable implements IHostService {
 
 		return activeWindowId === this.electronService.windowId;
 	}
+
+	//#endregion
+
+
+	//#region Window
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -82,8 +89,13 @@ export class NativeHostService extends Disposable implements IHostService {
 		return this.electronService.toggleFullScreen();
 	}
 
-	focus(): Promise<void> {
-		return this.electronService.focusWindow();
+	//#endregion
+
+
+	//#region Lifecycle
+
+	focus(options?: { force: boolean }): Promise<void> {
+		return this.electronService.focusWindow(options);
 	}
 
 	restart(): Promise<void> {
@@ -93,6 +105,8 @@ export class NativeHostService extends Disposable implements IHostService {
 	reload(): Promise<void> {
 		return this.electronService.reload();
 	}
+
+	//#endregion
 }
 
 registerSingleton(IHostService, NativeHostService, true);

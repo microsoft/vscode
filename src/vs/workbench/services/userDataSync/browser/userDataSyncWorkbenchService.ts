@@ -246,6 +246,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async turnOn(): Promise<void> {
+		if (!this.authenticationProviders.length) {
+			throw new Error(localize('no authentication providers', "Settings sync cannot be turned on because there are no authentication providers available."));
+		}
 		if (this.userDataAutoSyncService.isEnabled()) {
 			return;
 		}
@@ -588,13 +591,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.currentSessionId = undefined;
 		await this.update();
 
-		this.notificationService.notify({
-			severity: Severity.Error,
-			message: localize('successive auth failures', "Settings sync was turned off because of successive authorization failures. Please sign in again to continue synchronizing"),
-			actions: {
-				primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
-			}
-		});
+		if (this.userDataAutoSyncService.isEnabled()) {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),
+				actions: {
+					primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
+				}
+			});
+		}
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {

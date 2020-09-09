@@ -34,6 +34,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -64,6 +66,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getSelectionHandles(): number[] {
+		return [];
+	}
 
 
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
@@ -80,6 +85,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidScroll = new Emitter<ScrollEvent>().event;
 	onWillDispose = new Emitter<void>().event;
 	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;
+	onDidChangeSelection: Event<void> = new Emitter<void>().event;
 	visibleRanges: ICellRange[] = [];
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
@@ -331,7 +337,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	) {
 		super();
 
-		if (_notebook && _notebook.onDidChangeCells) {
+		if (_notebook && _notebook.onDidChangeContent) {
 			this._register(_notebook.onDidChangeContent(() => {
 				this._dirty = true;
 				this._onDidChangeDirty.fire();
@@ -339,6 +345,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+	lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	isDirty() {
 		return this._dirty;
@@ -386,10 +393,11 @@ export function setupInstantiationService() {
 
 export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService);
+	const notebook = new NotebookTextModel(viewType, false, URI.parse('test'), undoRedoService, textModelService, modeService);
 	notebook.initialize(cells.map(cell => {
 		return {
 			source: cell[0],

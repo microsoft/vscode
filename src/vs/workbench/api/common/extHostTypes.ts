@@ -601,7 +601,8 @@ export interface IFileTextEdit {
 export interface IFileCellEdit {
 	_type: FileEditType.Cell;
 	uri: URI;
-	edit: ICellEditOperation;
+	edit?: ICellEditOperation;
+	notebookMetadata?: vscode.NotebookDocumentMetadata;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -629,7 +630,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
-	// --- cell
+	// --- notebook
+
+	replaceNotebookMetadata(uri: URI, value: vscode.NotebookDocumentMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, notebookMetadata: value });
+	}
 
 	replaceCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });

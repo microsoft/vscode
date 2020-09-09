@@ -53,7 +53,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			// Add a link if this is a separator
 			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
 				if (startX !== -1) {
-					result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+					result.push(new TerminalLink(this._xterm, { start: { x: startX + 1, y }, end: { x, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
 					text = '';
 					startX = -1;
 				}
@@ -70,7 +70,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 		// Add the final link if there is one
 		if (startX !== -1) {
-			result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x: line.length, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+			result.push(new TerminalLink(this._xterm, { start: { x: startX + 1, y }, end: { x: line.length, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
 		}
 
 		return result;

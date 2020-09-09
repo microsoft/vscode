@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -46,7 +46,7 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
-import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { EncodingMode } from 'vs/workbench/common/editor';
 
 class DiffActionRunner extends ActionRunner {
@@ -1017,7 +1017,8 @@ export async function getOriginalResource(scmService: ISCMService, uri: URI): Pr
 
 export class DirtyDiffModel extends Disposable {
 
-	private _originalModel: IResolvedTextFileEditorModel | null = null;
+	private _originalResource: URI | null = null;
+	private _originalModel: IResolvedTextEditorModel | null = null;
 	private _model: ITextFileEditorModel;
 	get original(): ITextModel | null { return this._originalModel?.textEditorModel || null; }
 	get modified(): ITextModel | null { return this._model.textEditorModel || null; }
@@ -1049,6 +1050,7 @@ export class DirtyDiffModel extends Disposable {
 
 		this._register(this._model.onDidChangeEncoding(() => {
 			this.diffDelayer.cancel();
+			this._originalResource = null;
 			this._originalModel = null;
 			this._originalURIPromise = undefined;
 			this.setChanges([]);
@@ -1128,11 +1130,12 @@ export class DirtyDiffModel extends Disposable {
 			}
 
 			if (!originalUri) {
+				this._originalResource = null;
 				this._originalModel = null;
 				return null;
 			}
 
-			if (this._originalModel && this._originalModel.resource.toString() === originalUri.toString()) {
+			if (this._originalResource?.toString() === originalUri.toString()) {
 				return originalUri;
 			}
 
@@ -1142,12 +1145,15 @@ export class DirtyDiffModel extends Disposable {
 					return null;
 				}
 
-				this._originalModel = ref.object as IResolvedTextFileEditorModel;
+				this._originalResource = originalUri;
+				this._originalModel = ref.object;
 
-				const encoding = this._model.getEncoding();
+				if (isTextFileEditorModel(this._originalModel)) {
+					const encoding = this._model.getEncoding();
 
-				if (encoding) {
-					this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+					if (encoding) {
+						this._originalModel.setEncoding(encoding, EncodingMode.Decode);
+					}
 				}
 
 				this.originalModelDisposables.clear();
@@ -1214,6 +1220,7 @@ export class DirtyDiffModel extends Disposable {
 		super.dispose();
 
 		this._disposed = true;
+		this._originalResource = null;
 		this._originalModel = null;
 		this.diffDelayer.cancel();
 		this.repositoryDisposables.forEach(d => dispose(d));

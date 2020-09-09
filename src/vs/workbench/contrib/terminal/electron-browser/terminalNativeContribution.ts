@@ -46,11 +46,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		const activeTab = this._terminalService.getActiveTab();
-		if (!activeTab) {
-			return;
-		}
-		activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
+		this._terminalService.terminalInstances.forEach(instance => instance.forceRedraw());
 	}
 
 	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {

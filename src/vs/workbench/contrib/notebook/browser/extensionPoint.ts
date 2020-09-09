@@ -96,7 +96,7 @@ const notebookProviderContribution: IJSONSchema = {
 const notebookRendererContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.renderer', 'Contributes notebook output renderer provider.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ id: '', displayName: '', mimeTypes: [''] }] }],
+	defaultSnippets: [{ body: [{ id: '', displayName: '', mimeTypes: [''], entrypoint: '' }] }],
 	items: {
 		type: 'object',
 		required: [

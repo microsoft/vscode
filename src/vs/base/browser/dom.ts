@@ -12,7 +12,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -1012,19 +1011,22 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 
-export function reset<T extends Node>(parent: HTMLElement, ...children: Array<Node | string>) {
+/**
+ * Removes all children from `parent` and appends `children`
+ */
+export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
 	parent.innerText = '';
-	coalesce(children)
-		.forEach(child => {
-			if (child instanceof Node) {
-				parent.appendChild(child);
-			} else {
-				parent.appendChild(document.createTextNode(child as string));
-			}
-		});
+	for (const child of children) {
+		if (child instanceof Node) {
+			parent.appendChild(child);
+		} else if (typeof child === 'string') {
+			parent.appendChild(document.createTextNode(child));
+		}
+	}
 }
+
+const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 
 export enum Namespace {
 	HTML = 'http://www.w3.org/1999/xhtml',
@@ -1075,14 +1077,13 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	coalesce(children)
-		.forEach(child => {
-			if (child instanceof Node) {
-				result.appendChild(child);
-			} else {
-				result.appendChild(document.createTextNode(child as string));
-			}
-		});
+	for (const child of children) {
+		if (child instanceof Node) {
+			result.appendChild(child);
+		} else if (typeof child === 'string') {
+			result.appendChild(document.createTextNode(child));
+		}
+	}
 
 	return result as T;
 }

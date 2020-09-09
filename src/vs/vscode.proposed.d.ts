@@ -973,6 +973,11 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
+		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
+		 */
+		iconColor?: ThemeColor;
+
+		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
@@ -1322,7 +1327,6 @@ declare module 'vscode' {
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		languages: string[];
-		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
 	}
 
@@ -1346,17 +1350,24 @@ declare module 'vscode' {
 	}
 
 	export interface WorkspaceEdit {
+		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
-	export interface NotebookEditorCellEdit {
+	export interface NotebookEditorEdit {
+
+		replaceNotebookMetadata(value: NotebookDocumentMetadata): void;
 
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceOutput(index: number, outputs: CellOutput[]): void;
-		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
+		replaceCellOutput(index: number, outputs: CellOutput[]): void;
+		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 
+		/** @deprecated */
+		replaceOutput(index: number, outputs: CellOutput[]): void;
+		/** @deprecated */
+		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		/** @deprecated */
@@ -1444,7 +1455,7 @@ declare module 'vscode' {
 		 */
 		asWebviewUri(localResource: Uri): Uri;
 
-		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 
 		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
@@ -2059,6 +2070,11 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
+		 * Human-readable string which is rendered less prominently in the title.
+		 */
+		description?: string;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
@@ -2086,14 +2102,25 @@ declare module 'vscode' {
 		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
 		 */
 		readonly onDidChangeVisibility: Event<void>;
+
+		/**
+		 * Reveal the view in the UI.
+		 *
+		 * If the view is collapsed, this will expand it.
+		 *
+		 * @param preserveFocus When `true` the view will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
 	}
 
 	interface WebviewViewResolveContext<T = unknown> {
 		/**
 		 * Persisted state from the webview content.
 		 *
-		 * To save resources, VS Code normally deallocates webview views that are not visible. For example, if the user
-		 * collapse a view or switching to another top level activity, the underlying webview document is deallocates.
+		 * To save resources, VS Code normally deallocates webview documents (the iframe content) that are not visible.
+		 * For example, when the user collapse a view or switches to another top level activity in the sidebar, the
+		 * `WebviewView` itself is kept alive but the webview's underlying document is deallocated. It is recreated when
+		 * the view becomes visible again.
 		 *
 		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
 		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to

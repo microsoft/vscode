@@ -55,6 +55,14 @@ const CORE_TYPES = [
 	'trimRight'
 ];
 
+// Types that are defined in a common layer but are known to be only
+// available in native environments should not be allowed in browser
+const NATIVE_TYPES = [
+	'NativeParsedArgs',
+	'INativeEnvironmentService',
+	'INativeWindowConfiguration'
+];
+
 const RULES = [
 
 	// Tests: skip
@@ -73,6 +81,40 @@ const RULES = [
 			'MessageEvent',
 			'data'
 		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/environment/common/argv.ts
+	{
+		target: '**/vs/platform/environment/common/argv.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/environment/common/environment.ts
+	{
+		target: '**/vs/platform/environment/common/environment.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/windows/common/windows.ts
+	{
+		target: '**/vs/platform/windows/common/windows.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -88,6 +130,7 @@ const RULES = [
 			// Safe access to global
 			'global'
 		],
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -98,6 +141,7 @@ const RULES = [
 	{
 		target: '**/vs/**/common/**',
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'lib.dom.d.ts', // no DOM
 			'@types/node'	// no node.js
@@ -108,6 +152,7 @@ const RULES = [
 	{
 		target: '**/vs/**/browser/**',
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
@@ -117,6 +162,7 @@ const RULES = [
 	{
 		target: '**/src/vs/editor/contrib/**',
 		allowedTypes: CORE_TYPES,
+		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
 			'@types/node'	// no node.js
 		]
@@ -181,6 +227,7 @@ interface IRule {
 	skip?: boolean;
 	allowedTypes?: string[];
 	disallowedDefinitions?: string[];
+	disallowedTypes?: string[];
 }
 
 let hasErrors = false;
@@ -197,6 +244,14 @@ function checkFile(program: ts.Program, sourceFile: ts.SourceFile, rule: IRule) 
 
 		if (rule.allowedTypes?.some(allowed => allowed === text)) {
 			return; // override
+		}
+
+		if (rule.disallowedTypes?.some(disallowed => disallowed === text)) {
+			const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+			console.log(`[build/lib/layersChecker.ts]: Reference to '${text}' violates layer '${rule.target}' (${sourceFile.fileName} (${line + 1},${character + 1})`);
+
+			hasErrors = true;
+			return;
 		}
 
 		const checker = program.getTypeChecker();

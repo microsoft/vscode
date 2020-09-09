@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -36,6 +36,10 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _notebook!: NotebookTextModel;
 	private _lastResolvedFileStat: IFileStatWithMetadata | undefined;
+
+	get lastResolvedFileStat() {
+		return this._lastResolvedFileStat;
+	}
 
 	get notebook() {
 		return this._notebook;
@@ -141,12 +145,19 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		this._register(this._notebook);
 
-		this._register(this._notebook.onDidChangeContent(() => {
-			this._onDidChangeContent.fire();
+		this._register(this._notebook.onDidChangeContent(e => {
+			if (e.kind !== NotebookCellsChangeType.Initialize) {
+				this._onDidChangeContent.fire();
+			}
 		}));
+
 		this._register(this._notebook.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire();
 		}));
+
+		if (forceReloadFromDisk) {
+			this._notebook.setDirty(false);
+		}
 
 		if (backupId) {
 			await this._backupFileService.discardBackup(this._workingCopyResource);
@@ -174,7 +185,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			return new Promise<'overwrite' | 'revert' | 'none'>(resolve => {
 				const handle = this._notificationService.prompt(
 					Severity.Info,
-					nls.localize('notebook.staleSaveError', "The content of the file is newer. Please revert your version with the file contents or overwrite the content of the file with your changes"),
+					nls.localize('notebook.staleSaveError', "The contents of the file has changed on disk. Would you like to open the updated version or overwrite the file with your changes?"),
 					[{
 						label: nls.localize('notebook.staleSaveError.revert', "Revert"),
 						run: () => {

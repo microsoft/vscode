@@ -6,7 +6,6 @@
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -42,15 +41,14 @@ export class ElectronIframeWebview extends IFrameWebview {
 		@IFileService fileService: IFileService,
 		@IRequestService requestService: IRequestService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService _workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IRemoteAuthorityResolverService _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService noficationService: INotificationService,
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
-			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, _workbenchEnvironmentService, _remoteAuthorityResolverService, logService);
+			noficationService, tunnelService, fileService, requestService, telemetryService, environmentService, _remoteAuthorityResolverService, logService);
 
 		this._resourceRequestManager = this._register(instantiationService.createInstance(WebviewResourceRequestManager, id, extension, this.content.options));
 	}

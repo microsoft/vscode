@@ -41,7 +41,7 @@ exports.config = {
         darwinBundleDocumentType(["bowerrc"], 'resources/darwin/bower.icns'),
         darwinBundleDocumentType(["c", "h"], 'resources/darwin/c.icns'),
         darwinBundleDocumentType(["config", "editorconfig", "gitattributes", "gitconfig", "gitignore", "ini"], 'resources/darwin/config.icns'),
-        darwinBundleDocumentType(["cc", "cpp", "cxx", "hh", "hpp", "hxx"], 'resources/darwin/cpp.icns'),
+        darwinBundleDocumentType(["cc", "cpp", "cxx", "c++", "hh", "hpp", "hxx", "h++"], 'resources/darwin/cpp.icns'),
         darwinBundleDocumentType(["cs", "csx"], 'resources/darwin/csharp.icns'),
         darwinBundleDocumentType(["css"], 'resources/darwin/css.icns'),
         darwinBundleDocumentType(["go"], 'resources/darwin/go.icns'),

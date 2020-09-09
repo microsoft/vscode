@@ -813,7 +813,7 @@ export class DebugSession implements IDebugSession {
 							}
 
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak) {
-								this.hostService.focus();
+								this.hostService.focus({ force: true /* Application may not be active */ });
 							}
 						}
 					}

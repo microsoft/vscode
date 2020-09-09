@@ -52,7 +52,7 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 				? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
 				: undefined;
 			const label = (uri?.scheme === 'file') ? OPEN_FILE_LABEL : undefined;
-			return this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, label);
+			return this._instantiationService.createInstance(TerminalLink, this._xterm, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, label);
 		});
 	}
 }
