@@ -53,12 +53,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			// Add a link if this is a separator and also remove trailing colon if exists
 			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
 				if (startX !== -1) {
-					let endX = x;
-					if (text.slice(-1) === ':') {
-						text = text.slice(0, -1);
-						endX--;
-					}
-					result.push(this._instantiationService.createInstance(TerminalLink, this._xterm, { start: { x: startX + 1, y }, end: { x: endX, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace')));
+					result.push(this._createTerminalLink(startX, x, y, text, activateCallback));
 					text = '';
 					startX = -1;
 				}
@@ -75,15 +70,27 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 		// Add the final link if there is one and also remove trailing colon if exists
 		if (startX !== -1) {
-			let endX = line.length;
-			if (text.slice(-1) === ':') {
-				text = text.slice(0, -1);
-				endX--;
-			}
-			result.push(this._instantiationService.createInstance(TerminalLink, this._xterm, { start: { x: startX + 1, y }, end: { x: endX, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace')));
+			result.push(this._createTerminalLink(startX, line.length, y, text, activateCallback));
 		}
 
 		return result;
+	}
+
+	private _createTerminalLink(startX: number, endX: number, y: number, text: string, activateCallback: XtermLinkMatcherHandler): TerminalLink {
+		if (text.slice(-1) === ':') {
+			text = text.slice(0, -1);
+			endX--;
+		}
+		return this._instantiationService.createInstance(TerminalLink,
+			this._xterm,
+			{ start: { x: startX + 1, y }, end: { x: endX, y } },
+			text,
+			this._xterm.buffer.active.viewportY,
+			activateCallback,
+			this._tooltipCallback,
+			false,
+			localize('searchWorkspace', 'Search workspace')
+		);
 	}
 
 	private async _activate(link: string) {
