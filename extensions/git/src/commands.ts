@@ -1435,6 +1435,26 @@ export class CommandCenter {
 			return false;
 		}
 
+		if (opts.noVerify) {
+			if (!config.get<boolean>('allowNoVerifyCommit')) {
+				await window.showErrorMessage(localize('no verify commit not allowed', "Commits without verification are not allowed, please enable them with the 'git.allowNoVerifyCommit' setting."));
+				return false;
+			}
+
+			if (config.get<boolean>('confirmNoVerifyCommit')) {
+				const message = localize('confirm no verify commit', "You are about to commit your changes without verification, this skips pre-commit hooks and can be undesirable.\n\nAre you sure to continue?");
+				const yes = localize('ok', "OK");
+				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+				if (pick === neverAgain) {
+					config.update('confirmNoVerifyCommit', false, true);
+				} else if (pick !== yes) {
+					return false;
+				}
+			}
+		}
+
 		const message = await getCommitMessage();
 
 		if (!message) {
