@@ -445,7 +445,8 @@ export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetad
 
 export interface INotebookEditData {
 	documentVersionId: number;
-	edits: ICellEditOperation[];
+	cellEdits: ICellEditOperation[];
+	newMetadata?: NotebookDocumentMetadata;
 }
 
 export interface NotebookDataDto {

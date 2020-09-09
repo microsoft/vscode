@@ -153,14 +153,17 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this.registerListeners();
 	}
 
-	async $tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean> {
+	async $tryApplyEdits(_viewType: string, resource: UriComponents, modelVersionId: number, cellEdits: ICellEditOperation[], newMetadata: NotebookDocumentMetadata | undefined): Promise<boolean> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		if (textModel) {
-			this._notebookService.transformEditsOutputs(textModel, edits);
-			return textModel.applyEdit(modelVersionId, edits, true);
+		if (!textModel) {
+			return false;
 		}
-
-		return false;
+		this._notebookService.transformEditsOutputs(textModel, cellEdits);
+		//TODO@rebornix should this go into applyEdit?
+		if (newMetadata) {
+			textModel.updateNotebookMetadata(newMetadata);
+		}
+		return textModel.applyEdit(modelVersionId, cellEdits, true);
 	}
 
 	async removeNotebookTextModel(uri: URI): Promise<void> {

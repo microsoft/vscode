@@ -22,7 +22,7 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellEditOperation, ICellReplaceEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, CellOutputKind, CellStatusbarAlignment, CellUri, diff, ICellEditOperation, ICellReplaceEdit, IMainCellDto, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookEditData, INotebookKernelInfoDto2, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, NotebookDocumentMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { Cache } from './cache';
 import { ResourceMap } from 'vs/base/common/map';
@@ -486,11 +486,13 @@ export class ExtHostNotebookDocument extends Disposable {
 	}
 }
 
-export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellEdit {
+export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 	private readonly _documentVersionId: number;
-	private readonly _collectedEdits: ICellEditOperation[] = [];
+
 	private _finalized: boolean = false;
+	private _collectedEdits: ICellEditOperation[] = [];
+	private _newNotebookDocumentMetadata?: NotebookDocumentMetadata;
 
 	constructor(documentVersionId: number) {
 		this._documentVersionId = documentVersionId;
@@ -500,7 +502,8 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		this._finalized = true;
 		return {
 			documentVersionId: this._documentVersionId,
-			edits: this._collectedEdits,
+			cellEdits: this._collectedEdits,
+			newMetadata: this._newNotebookDocumentMetadata
 		};
 	}
 
@@ -510,7 +513,12 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		}
 	}
 
-	replaceMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
+	replaceNotebookMetadata(value: vscode.NotebookDocumentMetadata): void {
+		this._throwIfFinalized();
+		this._newNotebookDocumentMetadata = { ...notebookDocumentMetadataDefaults, ...value };
+	}
+
+	replaceCellMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Metadata,
@@ -519,13 +527,24 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 		});
 	}
 
-	replaceOutput(index: number, outputs: vscode.CellOutput[]): void {
+	replaceMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
+		console.warn('DEPRECATED use "replaceCellMetadata" instead');
+		this.replaceCellMetadata(index, metadata);
+	}
+
+
+	replaceCellOutput(index: number, outputs: vscode.CellOutput[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Output,
 			index,
 			outputs: outputs.map(output => addIdToOutput(output))
 		});
+	}
+
+	replaceOutput(index: number, outputs: vscode.CellOutput[]): void {
+		console.warn('DEPRECATED use "replaceCellOutput" instead');
+		this.replaceCellOutput(index, outputs);
 	}
 
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
@@ -693,16 +712,16 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	private _applyEdit(editData: INotebookEditData): Promise<boolean> {
 
 		// return when there is nothing to do
-		if (editData.edits.length === 0) {
+		if (editData.cellEdits.length === 0) {
 			return Promise.resolve(true);
 		}
 
 		const compressedEdits: ICellEditOperation[] = [];
 		let compressedEditsIndex = -1;
 
-		for (let i = 0; i < editData.edits.length; i++) {
+		for (let i = 0; i < editData.cellEdits.length; i++) {
 			if (compressedEditsIndex < 0) {
-				compressedEdits.push(editData.edits[i]);
+				compressedEdits.push(editData.cellEdits[i]);
 				compressedEditsIndex++;
 				continue;
 			}
@@ -710,19 +729,19 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			const prevIndex = compressedEditsIndex;
 			const prev = compressedEdits[prevIndex];
 
-			if (prev.editType === CellEditType.Replace && editData.edits[i].editType === CellEditType.Replace) {
-				if (prev.index === editData.edits[i].index) {
-					prev.cells.push(...(editData.edits[i] as ICellReplaceEdit).cells);
-					prev.count += (editData.edits[i] as ICellReplaceEdit).count;
+			if (prev.editType === CellEditType.Replace && editData.cellEdits[i].editType === CellEditType.Replace) {
+				if (prev.index === editData.cellEdits[i].index) {
+					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
+					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
 					continue;
 				}
 			}
 
-			compressedEdits.push(editData.edits[i]);
+			compressedEdits.push(editData.cellEdits[i]);
 			compressedEditsIndex++;
 		}
 
-		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits);
+		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits, editData.newMetadata);
 	}
 
 	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {
