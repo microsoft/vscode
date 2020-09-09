@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtHostTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTunnelServiceShape, MainContext, MainThreadTunnelServiceShape } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import * as vscode from 'vscode';
 import { RemoteTunnel, TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 
 export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
-	localAddress: string;
+	localAddress: { port: number, host: string } | string;
 }
 
 export namespace TunnelDto {
@@ -31,21 +33,41 @@ export interface Tunnel extends vscode.Disposable {
 export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	readonly _serviceBrand: undefined;
 	openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;
-	setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
+	getTunnels(): Promise<vscode.TunnelDescription[]>;
+	onDidChangeTunnels: vscode.Event<void>;
+	setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
 
 export class ExtHostTunnelService implements IExtHostTunnelService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
+	onDidChangeTunnels: vscode.Event<void> = (new Emitter<void>()).event;
+	private readonly _proxy: MainThreadTunnelServiceShape;
+
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+	) {
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTunnelService);
+	}
+
 	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		return undefined;
+	}
+	async getTunnels(): Promise<vscode.TunnelDescription[]> {
+		return [];
 	}
 	async $findCandidatePorts(): Promise<{ host: string, port: number; detail: string; }[]> {
 		return [];
 	}
-	async setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> { return { dispose: () => { } }; }
+	async $filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
+		return candidates.map(() => true);
+	}
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+		await this._proxy.$tunnelServiceReady();
+		return { dispose: () => { } };
+	}
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined { return undefined; }
 	async $closeTunnel(remote: { host: string, port: number }): Promise<void> { }
-
+	async $onDidTunnelsChange(): Promise<void> { }
 }

@@ -21,7 +21,7 @@ export class Kind {
 	public static readonly let = 'let';
 	public static readonly localFunction = 'local function';
 	public static readonly localVariable = 'local var';
-	public static readonly memberFunction = 'method';
+	public static readonly method = 'method';
 	public static readonly memberGetAccessor = 'getter';
 	public static readonly memberSetAccessor = 'setter';
 	public static readonly memberVariable = 'property';
@@ -33,6 +33,7 @@ export class Kind {
 	public static readonly warning = 'warning';
 	public static readonly string = 'string';
 	public static readonly parameter = 'parameter';
+	public static readonly typeParameter = 'type parameter';
 }
 
 
@@ -44,6 +45,7 @@ export class DiagnosticCategory {
 
 export class KindModifiers {
 	public static readonly optional = 'optional';
+	public static readonly depreacted = 'deprecated';
 	public static readonly color = 'color';
 
 	public static readonly dtsFile = '.d.ts';
@@ -70,4 +72,20 @@ export class DisplayPartKind {
 	public static readonly propertyName = 'propertyName';
 	public static readonly punctuation = 'punctuation';
 	public static readonly text = 'text';
+}
+
+export enum EventName {
+	syntaxDiag = 'syntaxDiag',
+	semanticDiag = 'semanticDiag',
+	suggestionDiag = 'suggestionDiag',
+	configFileDiag = 'configFileDiag',
+	telemetry = 'telemetry',
+	projectLanguageServiceState = 'projectLanguageServiceState',
+	projectsUpdatedInBackground = 'projectsUpdatedInBackground',
+	beginInstallTypes = 'beginInstallTypes',
+	endInstallTypes = 'endInstallTypes',
+	typesInstallerInitializationFailed = 'typesInstallerInitializationFailed',
+	surveyReady = 'surveyReady',
+	projectLoadingStart = 'projectLoadingStart',
+	projectLoadingFinish = 'projectLoadingFinish',
 }

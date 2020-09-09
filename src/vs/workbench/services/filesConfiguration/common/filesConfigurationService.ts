@@ -11,9 +11,9 @@ import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/cont
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { isUndefinedOrNull } from 'vs/base/common/types';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
+import { isWeb } from 'vs/base/common/platform';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false);
 
@@ -35,15 +35,15 @@ export const IFilesConfigurationService = createDecorator<IFilesConfigurationSer
 
 export interface IFilesConfigurationService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	//#region Auto Save
 
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 
-	getAutoSaveMode(): AutoSaveMode;
-
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+
+	getAutoSaveMode(): AutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
 
@@ -55,12 +55,14 @@ export interface IFilesConfigurationService {
 
 	readonly hotExitConfiguration: string | undefined;
 
-	preventSaveConflicts(resource: URI): boolean;
+	preventSaveConflicts(resource: URI, language: string): boolean;
 }
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
+
+	private static DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
 
 	private readonly _onAutoSaveConfigurationChange = this._register(new Emitter<IAutoSaveConfiguration>());
 	readonly onAutoSaveConfigurationChange = this._onAutoSaveConfigurationChange.event;
@@ -80,8 +82,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -110,7 +111,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	protected onFilesConfigurationChange(configuration: IFilesConfiguration): void {
 
 		// Auto Save
-		const autoSaveMode = configuration?.files?.autoSave || AutoSaveConfiguration.OFF;
+		const autoSaveMode = configuration?.files?.autoSave || FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE;
 		switch (autoSaveMode) {
 			case AutoSaveConfiguration.AFTER_DELAY:
 				this.configuredAutoSaveDelay = configuration?.files?.autoSaveDelay;
@@ -200,15 +201,15 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	}
 
 	get isHotExitEnabled(): boolean {
-		return !this.environmentService.isExtensionDevelopment && this.currentHotExitConfig !== HotExitConfiguration.OFF;
+		return this.currentHotExitConfig !== HotExitConfiguration.OFF;
 	}
 
 	get hotExitConfiguration(): string {
 		return this.currentHotExitConfig;
 	}
 
-	preventSaveConflicts(resource: URI): boolean {
-		return this.configurationService.getValue('files.preventSaveConflicts', { resource });
+	preventSaveConflicts(resource: URI, language: string): boolean {
+		return this.configurationService.getValue('files.saveConflictResolution', { resource, overrideIdentifier: language }) !== 'overwriteFileOnDisk';
 	}
 }
 

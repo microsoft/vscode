@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
@@ -28,9 +27,18 @@ function getLocationLinks<T>(
 			return undefined;
 		});
 	});
-	return Promise.all(promises)
-		.then(flatten)
-		.then(coalesce);
+
+	return Promise.all(promises).then(values => {
+		const result: LocationLink[] = [];
+		for (let value of values) {
+			if (Array.isArray(value)) {
+				result.push(...value);
+			} else if (value) {
+				result.push(value);
+			}
+		}
+		return result;
+	});
 }
 
 

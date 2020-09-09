@@ -5,7 +5,6 @@
 
 import { mergeSort } from 'vs/base/common/arrays';
 import { stringDiff } from 'vs/base/common/diff/diff';
-import { FIN, Iterator, IteratorResult } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { globals } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -13,7 +12,7 @@ import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { DiffComputer } from 'vs/editor/common/diff/diffComputer';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IChange } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, IWordAtPosition } from 'vs/editor/common/model';
 import { IModelChangedEvent, MirrorTextModel as BaseMirrorModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
@@ -65,7 +64,7 @@ export interface ICommonModel extends ILinkComputerTarget, IMirrorModel {
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[];
-	createWordIterator(wordDefinition: RegExp): Iterator<string>;
+	words(wordDefinition: RegExp): Iterable<string>;
 	getWordUntilPosition(position: IPosition, wordDefinition: RegExp): IWordAtPosition;
 	getValueInRange(range: IRange): string;
 	getWordAtPosition(position: IPosition, wordDefinition: RegExp): Range | null;
@@ -153,36 +152,37 @@ class MirrorModel extends BaseMirrorModel implements ICommonModel {
 		};
 	}
 
-	public createWordIterator(wordDefinition: RegExp): Iterator<string> {
-		let obj: { done: false; value: string; };
+
+	public words(wordDefinition: RegExp): Iterable<string> {
+
+		const lines = this._lines;
+		const wordenize = this._wordenize.bind(this);
+
 		let lineNumber = 0;
-		let lineText: string;
+		let lineText = '';
 		let wordRangesIdx = 0;
 		let wordRanges: IWordRange[] = [];
-		let next = (): IteratorResult<string> => {
 
-			if (wordRangesIdx < wordRanges.length) {
-				const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
-				wordRangesIdx += 1;
-				if (!obj) {
-					obj = { done: false, value: value };
-				} else {
-					obj.value = value;
+		return {
+			*[Symbol.iterator]() {
+				while (true) {
+					if (wordRangesIdx < wordRanges.length) {
+						const value = lineText.substring(wordRanges[wordRangesIdx].start, wordRanges[wordRangesIdx].end);
+						wordRangesIdx += 1;
+						yield value;
+					} else {
+						if (lineNumber < lines.length) {
+							lineText = lines[lineNumber];
+							wordRanges = wordenize(lineText, wordDefinition);
+							wordRangesIdx = 0;
+							lineNumber += 1;
+						} else {
+							break;
+						}
+					}
 				}
-				return obj;
-
-			} else if (lineNumber >= this._lines.length) {
-				return FIN;
-
-			} else {
-				lineText = this._lines[lineNumber];
-				wordRanges = this._wordenize(lineText, wordDefinition);
-				wordRangesIdx = 0;
-				lineNumber += 1;
-				return next();
 			}
 		};
-		return { next };
 	}
 
 	public getLineWords(lineNumber: number, wordDefinition: RegExp): IWordAtPosition[] {
@@ -419,7 +419,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return true;
 	}
 
-	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<editorCommon.IChange[] | null> {
+	public async computeDirtyDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> {
 		let original = this._getModel(originalUrl);
 		let modified = this._getModel(modifiedUrl);
 		if (!original || !modified) {
@@ -545,12 +545,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			seen.add(model.getValueInRange(wordAt));
 		}
 
-		for (
-			let iter = model.createWordIterator(wordDefRegExp), e = iter.next();
-			!e.done && seen.size <= EditorSimpleWorker._suggestionsLimit;
-			e = iter.next()
-		) {
-			const word = e.value;
+		for (let word of model.words(wordDefRegExp)) {
 			if (seen.has(word)) {
 				continue;
 			}
@@ -559,6 +554,9 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 				continue;
 			}
 			words.push(word);
+			if (seen.size > EditorSimpleWorker._suggestionsLimit) {
+				break;
+			}
 		}
 		return words;
 	}

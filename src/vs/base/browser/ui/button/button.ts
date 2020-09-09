@@ -12,15 +12,21 @@ import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType } from 'vs/base/browser/touch';
+import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
 
 export interface IButtonOptions extends IButtonStyles {
-	title?: boolean;
+	readonly title?: boolean | string;
+	readonly supportCodicons?: boolean;
+	readonly secondary?: boolean;
 }
 
 export interface IButtonStyles {
 	buttonBackground?: Color;
 	buttonHoverBackground?: Color;
 	buttonForeground?: Color;
+	buttonSecondaryBackground?: Color;
+	buttonSecondaryHoverBackground?: Color;
+	buttonSecondaryForeground?: Color;
 	buttonBorder?: Color;
 }
 
@@ -38,6 +44,9 @@ export class Button extends Disposable {
 	private buttonBackground: Color | undefined;
 	private buttonHoverBackground: Color | undefined;
 	private buttonForeground: Color | undefined;
+	private buttonSecondaryBackground: Color | undefined;
+	private buttonSecondaryHoverBackground: Color | undefined;
+	private buttonSecondaryForeground: Color | undefined;
 	private buttonBorder: Color | undefined;
 
 	private _onDidClick = this._register(new Emitter<Event>());
@@ -51,9 +60,14 @@ export class Button extends Disposable {
 		this.options = options || Object.create(null);
 		mixin(this.options, defaultOptions, false);
 
+		this.buttonForeground = this.options.buttonForeground;
 		this.buttonBackground = this.options.buttonBackground;
 		this.buttonHoverBackground = this.options.buttonHoverBackground;
-		this.buttonForeground = this.options.buttonForeground;
+
+		this.buttonSecondaryForeground = this.options.buttonSecondaryForeground;
+		this.buttonSecondaryBackground = this.options.buttonSecondaryBackground;
+		this.buttonSecondaryHoverBackground = this.options.buttonSecondaryHoverBackground;
+
 		this.buttonBorder = this.options.buttonBorder;
 
 		this._element = document.createElement('a');
@@ -111,7 +125,12 @@ export class Button extends Disposable {
 	}
 
 	private setHoverBackground(): void {
-		const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+		let hoverBackground;
+		if (this.options.secondary) {
+			hoverBackground = this.buttonSecondaryHoverBackground ? this.buttonSecondaryHoverBackground.toString() : null;
+		} else {
+			hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
+		}
 		if (hoverBackground) {
 			this._element.style.backgroundColor = hoverBackground;
 		}
@@ -121,6 +140,9 @@ export class Button extends Disposable {
 		this.buttonForeground = styles.buttonForeground;
 		this.buttonBackground = styles.buttonBackground;
 		this.buttonHoverBackground = styles.buttonHoverBackground;
+		this.buttonSecondaryForeground = styles.buttonSecondaryForeground;
+		this.buttonSecondaryBackground = styles.buttonSecondaryBackground;
+		this.buttonSecondaryHoverBackground = styles.buttonSecondaryHoverBackground;
 		this.buttonBorder = styles.buttonBorder;
 
 		this.applyStyles();
@@ -128,8 +150,15 @@ export class Button extends Disposable {
 
 	private applyStyles(): void {
 		if (this._element) {
-			const background = this.buttonBackground ? this.buttonBackground.toString() : '';
-			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
+			let background, foreground;
+			if (this.options.secondary) {
+				foreground = this.buttonSecondaryForeground ? this.buttonSecondaryForeground.toString() : '';
+				background = this.buttonSecondaryBackground ? this.buttonSecondaryBackground.toString() : '';
+			} else {
+				foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
+				background = this.buttonBackground ? this.buttonBackground.toString() : '';
+			}
+
 			const border = this.buttonBorder ? this.buttonBorder.toString() : '';
 
 			this._element.style.color = foreground;
@@ -149,8 +178,14 @@ export class Button extends Disposable {
 		if (!DOM.hasClass(this._element, 'monaco-text-button')) {
 			DOM.addClass(this._element, 'monaco-text-button');
 		}
-		this._element.textContent = value;
-		if (this.options.title) {
+		if (this.options.supportCodicons) {
+			DOM.reset(this._element, ...renderCodiconsAsElement(value));
+		} else {
+			this._element.textContent = value;
+		}
+		if (typeof this.options.title === 'string') {
+			this._element.title = this.options.title;
+		} else if (this.options.title) {
 			this._element.title = value;
 		}
 	}

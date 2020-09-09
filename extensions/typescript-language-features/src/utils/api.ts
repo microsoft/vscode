@@ -10,7 +10,7 @@ const localize = nls.loadMessageBundle();
 
 export default class API {
 	private static fromSimpleString(value: string): API {
-		return new API(value, value);
+		return new API(value, value, value);
 	}
 
 	public static readonly defaultVersion = API.fromSimpleString('1.0.0');
@@ -31,11 +31,16 @@ export default class API {
 	public static readonly v340 = API.fromSimpleString('3.4.0');
 	public static readonly v345 = API.fromSimpleString('3.4.5');
 	public static readonly v350 = API.fromSimpleString('3.5.0');
+	public static readonly v380 = API.fromSimpleString('3.8.0');
+	public static readonly v381 = API.fromSimpleString('3.8.1');
+	public static readonly v390 = API.fromSimpleString('3.9.0');
+	public static readonly v400 = API.fromSimpleString('4.0.0');
+	public static readonly v401 = API.fromSimpleString('4.0.1');
 
 	public static fromVersionString(versionString: string): API {
 		let version = semver.valid(versionString);
 		if (!version) {
-			return new API(localize('invalidVersion', 'invalid version'), '1.0.0');
+			return new API(localize('invalidVersion', 'invalid version'), '1.0.0', '1.0.0');
 		}
 
 		// Cut off any prerelease tag since we sometimes consume those on purpose.
@@ -43,13 +48,29 @@ export default class API {
 		if (index >= 0) {
 			version = version.substr(0, index);
 		}
-		return new API(versionString, version);
+		return new API(versionString, version, versionString);
 	}
 
 	private constructor(
+		/**
+		 * Human readable string for the current version. Displayed in the UI
+		 */
 		public readonly displayName: string,
-		public readonly version: string
+
+		/**
+		 * Semver version, e.g. '3.9.0'
+		 */
+		public readonly version: string,
+
+		/**
+		 * Full version string including pre-release tags, e.g. '3.9.0-beta'
+		 */
+		public readonly fullVersionString: string,
 	) { }
+
+	public eq(other: API): boolean {
+		return semver.eq(this.version, other.version);
+	}
 
 	public gte(other: API): boolean {
 		return semver.gte(this.version, other.version);

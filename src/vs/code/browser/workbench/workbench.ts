@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
@@ -12,6 +14,8 @@ import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
+import { localize } from 'vs/nls';
+import { Schemas } from 'vs/base/common/network';
 
 interface ICredential {
 	service: string;
@@ -22,6 +26,13 @@ interface ICredential {
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	constructor(credentials: ICredential[]) {
+		this._credentials = credentials;
+		for (const { service, account, password } of this._credentials) {
+			this.setPassword(service, account, password);
+		}
+	}
 
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
@@ -116,8 +127,8 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		FRAGMENT: 'vscode-fragment'
 	};
 
-	private readonly _onCallback: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onCallback: Event<URI> = this._onCallback.event;
+	private readonly _onCallback = this._register(new Emitter<URI>());
+	readonly onCallback = this._onCallback.event;
 
 	create(options?: Partial<UriComponents>): URI {
 		const queryValues: Map<string, string> = new Map();
@@ -273,6 +284,59 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		return false;
 	}
+
+	hasRemote(): boolean {
+		if (this.workspace) {
+			if (isFolderToOpen(this.workspace)) {
+				return this.workspace.folderUri.scheme === Schemas.vscodeRemote;
+			}
+
+			if (isWorkspaceToOpen(this.workspace)) {
+				return this.workspace.workspaceUri.scheme === Schemas.vscodeRemote;
+			}
+		}
+
+		return true;
+	}
+}
+
+class WindowIndicator implements IWindowIndicator {
+
+	readonly onDidChange = Event.None;
+
+	readonly label: string;
+	readonly tooltip: string;
+	readonly command: string | undefined;
+
+	constructor(workspace: IWorkspace) {
+		let repositoryOwner: string | undefined = undefined;
+		let repositoryName: string | undefined = undefined;
+
+		if (workspace) {
+			let uri: URI | undefined = undefined;
+			if (isFolderToOpen(workspace)) {
+				uri = workspace.folderUri;
+			} else if (isWorkspaceToOpen(workspace)) {
+				uri = workspace.workspaceUri;
+			}
+
+			if (uri?.scheme === 'github' || uri?.scheme === 'codespace') {
+				[repositoryOwner, repositoryName] = uri.authority.split('+');
+			}
+		}
+
+		// Repo
+		if (repositoryName && repositoryOwner) {
+			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+		}
+
+		// No Repo
+		else {
+			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
+			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
+		}
+	}
 }
 
 (function () {
@@ -322,7 +386,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 			// Payload
 			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
-				payload = JSON.parse(value);
+				try {
+					payload = JSON.parse(value);
+				} catch (error) {
+					console.error(error); // possible invalid JSON
+				}
 				break;
 		}
 	});
@@ -338,11 +406,56 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 	}
 
+	// Workspace Provider
+	const workspaceProvider = new WorkspaceProvider(workspace, payload);
+
+	// Home Indicator
+	const homeIndicator: IHomeIndicator = {
+		href: 'https://github.com/Microsoft/vscode',
+		icon: 'code',
+		title: localize('home', "Home")
+	};
+
+	// Window indicator (unless connected to a remote)
+	let windowIndicator: WindowIndicator | undefined = undefined;
+	if (!workspaceProvider.hasRemote()) {
+		windowIndicator = new WindowIndicator(workspace);
+	}
+
+	// Product Quality Change Handler
+	const productQualityChangeHandler: IProductQualityChangeHandler = (quality) => {
+		let queryString = `quality=${quality}`;
+
+		// Save all other query params we might have
+		const query = new URL(document.location.href).searchParams;
+		query.forEach((value, key) => {
+			if (key !== 'quality') {
+				queryString += `&${key}=${value}`;
+			}
+		});
+
+		window.location.href = `${window.location.origin}?${queryString}`;
+	};
+
+	// Find credentials from DOM
+	const credentialsElement = document.getElementById('vscode-workbench-credentials');
+	const credentialsElementAttribute = credentialsElement ? credentialsElement.getAttribute('data-settings') : undefined;
+	let credentials = undefined;
+	if (credentialsElementAttribute) {
+		try {
+			credentials = JSON.parse(credentialsElementAttribute);
+		} catch (error) { /* Invalid credentials are passed. Ignore. */ }
+	}
+	const credentialsProvider = new LocalStorageCredentialsProvider(credentials || []);
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
-		workspaceProvider: new WorkspaceProvider(workspace, payload),
+		homeIndicator,
+		windowIndicator,
+		productQualityChangeHandler,
+		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		credentialsProvider
 	});
 })();

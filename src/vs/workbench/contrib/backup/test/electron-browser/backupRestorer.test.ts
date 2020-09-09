@@ -12,13 +12,10 @@ import { URI } from 'vs/base/common/uri';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
-import { BackupModelTracker } from 'vs/workbench/contrib/backup/common/backupModelTracker';
-import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
+import { workbenchInstantiationService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -34,6 +31,8 @@ import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/ele
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { BackupRestorer } from 'vs/workbench/contrib/backup/common/backupRestorer';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -52,16 +51,8 @@ class TestBackupRestorer extends BackupRestorer {
 	}
 }
 
-class ServiceAccessor {
-	constructor(
-		@ITextFileService public textFileService: TestTextFileService,
-		@IUntitledTextEditorService public untitledTextEditorService: IUntitledTextEditorService
-	) {
-	}
-}
-
-suite('BackupModelRestorer', () => {
-	let accessor: ServiceAccessor;
+suite('BackupRestorer', () => {
+	let accessor: TestServiceAccessor;
 
 	let disposables: IDisposable[] = [];
 
@@ -86,9 +77,7 @@ suite('BackupModelRestorer', () => {
 		dispose(disposables);
 		disposables = [];
 
-		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
-		(<TextFileEditorModelManager>accessor.textFileService.models).dispose();
-		accessor.untitledTextEditorService.revertAll();
+		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
 
 		return pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 	});
@@ -109,16 +98,18 @@ suite('BackupModelRestorer', () => {
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
 
-		accessor = instantiationService.createInstance(ServiceAccessor);
+		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const tracker = instantiationService.createInstance(BackupModelTracker);
+		await part.whenRestored;
+
+		const tracker = instantiationService.createInstance(NativeBackupTracker);
 		const restorer = instantiationService.createInstance(TestBackupRestorer);
 
 		// Backup 2 normal files and 2 untitled file
-		await backupFileService.backupResource(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).createSnapshot(false));
-		await backupFileService.backupResource(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(untitledFile1, createTextBufferFactory('untitled-1').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(untitledFile2, createTextBufferFactory('untitled-2').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(fooFile, createTextBufferFactory('fooFile').create(DefaultEndOfLine.LF).createSnapshot(false));
+		await backupFileService.backup(barFile, createTextBufferFactory('barFile').create(DefaultEndOfLine.LF).createSnapshot(false));
 
 		// Verify backups restored and opened as dirty
 		await restorer.doRestoreBackups();
@@ -127,22 +118,36 @@ suite('BackupModelRestorer', () => {
 
 		let counter = 0;
 		for (const editor of editorService.editors) {
-			const resource = editor.getResource();
+			const resource = editor.resource;
 			if (isEqual(resource, untitledFile1)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
-				assert.equal(model.textEditorModel.getValue(), 'untitled-1');
+				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
+				if (model.textEditorModel.getValue() !== 'untitled-1') {
+					const backupContents = await backupFileService.getBackupContents(untitledFile1);
+					assert.fail(`Unable to restore backup for resource ${untitledFile1.toString()}. Backup contents: ${backupContents}`);
+				}
+				model.dispose();
 				counter++;
 			} else if (isEqual(resource, untitledFile2)) {
-				const model = await accessor.untitledTextEditorService.createOrGet(resource).resolve();
-				assert.equal(model.textEditorModel.getValue(), 'untitled-2');
+				const model = await accessor.textFileService.untitled.resolve({ untitledResource: resource });
+				if (model.textEditorModel.getValue() !== 'untitled-2') {
+					const backupContents = await backupFileService.getBackupContents(untitledFile2);
+					assert.fail(`Unable to restore backup for resource ${untitledFile2.toString()}. Backup contents: ${backupContents}`);
+				}
+				model.dispose();
 				counter++;
 			} else if (isEqual(resource, fooFile)) {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
-				assert.equal(model?.textEditorModel?.getValue(), 'fooFile');
+				const model = await accessor.textFileService.files.get(fooFile!)?.load();
+				if (model?.textEditorModel?.getValue() !== 'fooFile') {
+					const backupContents = await backupFileService.getBackupContents(fooFile);
+					assert.fail(`Unable to restore backup for resource ${fooFile.toString()}. Backup contents: ${backupContents}`);
+				}
 				counter++;
 			} else {
-				const model = await accessor.textFileService.models.get(resource!)?.load();
-				assert.equal(model?.textEditorModel?.getValue(), 'barFile');
+				const model = await accessor.textFileService.files.get(barFile!)?.load();
+				if (model?.textEditorModel?.getValue() !== 'barFile') {
+					const backupContents = await backupFileService.getBackupContents(barFile);
+					assert.fail(`Unable to restore backup for resource ${barFile.toString()}. Backup contents: ${backupContents}`);
+				}
 				counter++;
 			}
 		}

@@ -136,6 +136,7 @@ suite('Event', function () {
 			let a = new Emitter<undefined>();
 			let hit = false;
 			a.event(function () {
+				// eslint-disable-next-line no-throw-literal
 				throw 9;
 			});
 			a.event(function () {
@@ -234,6 +235,20 @@ suite('Event', function () {
 		emitter.fire();
 		await timeout(1);
 		assert.equal(calls, 2);
+	});
+
+	test('Debounce Event - leading reset', async function () {
+		const emitter = new Emitter<number>();
+		let debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
+
+		let calls: number[] = [];
+		debounced((e) => calls.push(e));
+
+		emitter.fire(1);
+		emitter.fire(1);
+
+		await timeout(1);
+		assert.deepEqual(calls, [1, 1]);
 	});
 
 	test('Emitter - In Order Delivery', function () {

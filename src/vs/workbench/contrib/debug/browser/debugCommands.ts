@@ -9,7 +9,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, REPL_ID, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_VARIABLES_FOCUSED, EDITOR_CONTRIBUTION_ID, IDebugEditorContribution, CONTEXT_IN_DEBUG_MODE, CONTEXT_EXPRESSION_SELECTED, CONTEXT_BREAKPOINT_SELECTED, IConfig, IStackFrame, IThread, IDebugSession, CONTEXT_DEBUG_STATE, IDebugConfiguration, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, Breakpoint, FunctionBreakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -24,12 +24,11 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -74,7 +73,7 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 	if (isThreadContext(sessionAndThreadId)) {
 		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
 		if (session) {
-			thread = session.getAllThreads().filter(t => t.getId() === sessionAndThreadId.threadId).pop();
+			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
 	} else {
 		thread = debugService.getViewModel().focusedThread;
@@ -98,9 +97,9 @@ function getFrame(debugService: IDebugService, context: CallStackContext | unkno
 	if (isStackFrameContext(context)) {
 		const session = debugService.getModel().getSession(context.sessionId);
 		if (session) {
-			const thread = session.getAllThreads().filter(t => t.getId() === context.threadId).pop();
+			const thread = session.getAllThreads().find(t => t.getId() === context.threadId);
 			if (thread) {
-				return thread.getCallStack().filter(sf => sf.getId() === context.frameId).pop();
+				return thread.getCallStack().find(sf => sf.getId() === context.frameId);
 			}
 		}
 	}
@@ -158,13 +157,13 @@ export function registerCommands(): void {
 			const debugService = accessor.get(IDebugService);
 			const stackFrame = debugService.getViewModel().focusedStackFrame;
 			const editorService = accessor.get(IEditorService);
-			const activeEditor = editorService.activeTextEditorWidget;
+			const activeEditorControl = editorService.activeTextEditorControl;
 			const notificationService = accessor.get(INotificationService);
 			const quickInputService = accessor.get(IQuickInputService);
 
-			if (stackFrame && isCodeEditor(activeEditor) && activeEditor.hasModel()) {
-				const position = activeEditor.getPosition();
-				const resource = activeEditor.getModel().uri;
+			if (stackFrame && isCodeEditor(activeEditorControl) && activeEditorControl.hasModel()) {
+				const position = activeEditorControl.getPosition();
+				const resource = activeEditorControl.getModel().uri;
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
@@ -206,7 +205,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -217,10 +216,10 @@ export function registerCommands(): void {
 
 			if (!session) {
 				const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
-				debugService.startDebugging(launch, name, { noDebug: false });
+				await debugService.startDebugging(launch, name, { noDebug: false });
 			} else {
 				session.removeReplExpressions();
-				debugService.restartSession(session).then(undefined, onUnexpectedError);
+				await debugService.restartSession(session);
 			}
 		}
 	});
@@ -239,7 +238,8 @@ export function registerCommands(): void {
 		id: STEP_INTO_ID,
 		weight: KeybindingWeight.WorkbenchContrib + 10, // Have a stronger weight to have priority over full screen when debugging
 		primary: KeyCode.F11,
-		when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
+		// Use a more flexible when clause to not allow full screen command to take over when F11 pressed a lot of times
+		when: CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			getThreadAndRun(accessor, context, (thread: IThread) => thread.stepIn());
 		}
@@ -257,7 +257,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: PAUSE_ID,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WorkbenchContrib + 2, // take priority over focus next part while we are debugging
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
@@ -267,10 +267,15 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: DISCONNECT_ID,
-		handler: (accessor: ServicesAccessor, sessionId: string | undefined) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const session = debugService.getModel().getSession(sessionId) || debugService.getViewModel().focusedSession;
-			debugService.stopSession(session).then(undefined, onUnexpectedError);
+			let session: IDebugSession | undefined;
+			if (isSessionContext(context)) {
+				session = debugService.getModel().getSession(context.sessionId);
+			} else {
+				session = debugService.getViewModel().focusedSession;
+			}
+			await debugService.stopSession(session);
 		}
 	});
 
@@ -279,7 +284,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -295,7 +300,7 @@ export function registerCommands(): void {
 				session = session.parentSession;
 			}
 
-			debugService.stopSession(session).then(undefined, onUnexpectedError);
+			await debugService.stopSession(session);
 		}
 	});
 
@@ -327,17 +332,17 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: FOCUS_REPL_ID,
-		handler: (accessor) => {
-			const panelService = accessor.get(IPanelService);
-			panelService.openPanel(REPL_ID, true);
+		handler: async (accessor) => {
+			const viewsService = accessor.get(IViewsService);
+			await viewsService.openView(REPL_VIEW_ID, true);
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: 'debug.startFromConfig',
-		handler: (accessor, config: IConfig) => {
+		handler: async (accessor, config: IConfig) => {
 			const debugService = accessor.get(IDebugService);
-			debugService.startDebugging(undefined, config).then(undefined, onUnexpectedError);
+			await debugService.startDebugging(undefined, config);
 		}
 	});
 
@@ -367,11 +372,11 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
 			const editorService = accessor.get(IEditorService);
-			const widget = editorService.activeTextEditorWidget;
-			if (isCodeEditor(widget)) {
-				const model = widget.getModel();
+			const control = editorService.activeTextEditorControl;
+			if (isCodeEditor(control)) {
+				const model = control.getModel();
 				if (model) {
-					const position = widget.getPosition();
+					const position = control.getPosition();
 					if (position) {
 						const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
 						if (bps.length) {
@@ -497,9 +502,9 @@ export function registerCommands(): void {
 				return;
 			}
 
-			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
+			const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 			if (launch) {
-				const { editor, created } = await launch.openConfigFile(false, false);
+				const { editor, created } = await launch.openConfigFile(false);
 				if (editor && !created) {
 					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
@@ -513,11 +518,11 @@ export function registerCommands(): void {
 	const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
-		const widget = editorService.activeTextEditorWidget;
-		if (isCodeEditor(widget)) {
-			const position = widget.getPosition();
-			if (position && widget.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
-				const modelUri = widget.getModel().uri;
+		const control = editorService.activeTextEditorControl;
+		if (isCodeEditor(control)) {
+			const position = control.getPosition();
+			if (position && control.hasModel() && debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+				const modelUri = control.getModel().uri;
 				const breakpointAlreadySet = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 

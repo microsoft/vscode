@@ -1,7 +1,7 @@
 {
   "name": "monaco-editor-core",
   "private": true,
-  "version": "0.18.0",
+  "version": "0.19.2",
   "description": "A browser based code editor",
   "author": "Microsoft Corporation",
   "license": "MIT",

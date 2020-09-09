@@ -5,36 +5,45 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewIcons, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { DynamicWebviewEditorOverlay } from './dynamicWebviewEditorOverlay';
+import { WebviewIconManager } from './webviewIconManager';
 
 export class WebviewService implements IWebviewService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _webviewThemeDataProvider: WebviewThemeDataProvider;
+	private readonly _iconManager: WebviewIconManager;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._webviewThemeDataProvider = this._instantiationService.createInstance(WebviewThemeDataProvider);
+		this._iconManager = this._instantiationService.createInstance(WebviewIconManager);
 	}
 
-	createWebview(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions
-	): WebviewElement {
-		return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, this._webviewThemeDataProvider);
-	}
-
-	createWebviewEditorOverlay(
+	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-	): WebviewEditorOverlay {
-		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
+		extension: WebviewExtensionDescription | undefined,
+	): WebviewElement {
+		return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
+	}
+
+	createWebviewOverlay(
+		id: string,
+		options: WebviewOptions,
+		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
+	): WebviewOverlay {
+		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions, extension);
+	}
+
+	setIcons(id: string, iconPath: WebviewIcons | undefined): void {
+		this._iconManager.setIcons(id, iconPath);
 	}
 }
 

@@ -23,7 +23,7 @@ process.noAsar = true; // disable ASAR support in watcher process
 
 interface IWatcher {
 	requests: ExtendedWatcherRequest[];
-	stop(): any;
+	stop(): Promise<void>;
 }
 
 interface ExtendedWatcherRequest extends IWatcherRequest {
@@ -61,13 +61,11 @@ export class ChokidarWatcherService implements IWatcherService {
 		return this.onWatchEvent;
 	}
 
-	setVerboseLogging(enabled: boolean): Promise<void> {
+	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
-
-		return Promise.resolve();
 	}
 
-	setRoots(requests: IWatcherRequest[]): Promise<void> {
+	async setRoots(requests: IWatcherRequest[]): Promise<void> {
 		const watchers = Object.create(null);
 		const newRequests: string[] = [];
 
@@ -86,7 +84,7 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		// stop all old watchers
 		for (const path in this._watchers) {
-			this._watchers[path].stop();
+			await this._watchers[path].stop();
 		}
 
 		// start all new watchers
@@ -96,7 +94,6 @@ export class ChokidarWatcherService implements IWatcherService {
 		}
 
 		this._watchers = watchers;
-		return Promise.resolve();
 	}
 
 	// for test purposes
@@ -105,15 +102,9 @@ export class ChokidarWatcherService implements IWatcherService {
 	}
 
 	private _watch(basePath: string, requests: IWatcherRequest[]): IWatcher {
-		if (this._verboseLogging) {
-			this.log(`Start watching: ${basePath}]`);
-		}
 
 		const pollingInterval = this._pollingInterval || 5000;
 		const usePolling = this._usePolling;
-		if (usePolling && this._verboseLogging) {
-			this.log(`Use polling instead of fs.watch: Polling interval ${pollingInterval} ms`);
-		}
 
 		const watcherOpts: chokidar.WatchOptions = {
 			ignoreInitial: true,
@@ -155,6 +146,10 @@ export class ChokidarWatcherService implements IWatcherService {
 			this.warn(`Watcher basePath does not match version on disk and was corrected (original: ${basePath}, real: ${realBasePath})`);
 		}
 
+		if (this._verboseLogging) {
+			this.log(`Start watching with chockidar: ${realBasePath}, excludes: ${excludes.join(',')}, usePolling: ${usePolling ? 'true, interval ' + pollingInterval : 'false'}`);
+		}
+
 		let chokidarWatcher: chokidar.FSWatcher | null = chokidar.watch(realBasePath, watcherOpts);
 		this._watcherCount++;
 
@@ -168,13 +163,13 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		const watcher: IWatcher = {
 			requests,
-			stop: () => {
+			stop: async () => {
 				try {
 					if (this._verboseLogging) {
 						this.log(`Stop watching: ${basePath}]`);
 					}
 					if (chokidarWatcher) {
-						chokidarWatcher.close();
+						await chokidarWatcher.close();
 						this._watcherCount--;
 						chokidarWatcher = null;
 					}
@@ -250,8 +245,9 @@ export class ChokidarWatcherService implements IWatcherService {
 			undeliveredFileEvents.push(event);
 
 			if (fileEventDelayer) {
+
 				// Delay and send buffer
-				fileEventDelayer.trigger(() => {
+				fileEventDelayer.trigger(async () => {
 					const events = undeliveredFileEvents;
 					undeliveredFileEvents = [];
 
@@ -266,7 +262,7 @@ export class ChokidarWatcherService implements IWatcherService {
 						});
 					}
 
-					return Promise.resolve(undefined);
+					return undefined;
 				});
 			}
 		});
@@ -293,15 +289,13 @@ export class ChokidarWatcherService implements IWatcherService {
 		return watcher;
 	}
 
-	stop(): Promise<void> {
+	async stop(): Promise<void> {
 		for (const path in this._watchers) {
 			const watcher = this._watchers[path];
-			watcher.stop();
+			await watcher.stop();
 		}
 
 		this._watchers = Object.create(null);
-
-		return Promise.resolve();
 	}
 
 	private log(message: string) {

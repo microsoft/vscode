@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
 const ts = require("typescript");
 const fs = require("fs");
 const path = require("path");

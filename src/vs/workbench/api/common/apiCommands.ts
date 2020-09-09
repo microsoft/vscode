@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -14,6 +14,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -95,12 +98,12 @@ CommandsRegistry.registerCommand({
 
 export class DiffAPICommand {
 	public static readonly ID = 'vscode.diff';
-	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions): Promise<any> {
+	public static execute(executor: ICommandsExecutor, left: URI, right: URI, label: string, options?: typeConverters.TextEditorOpenOptions): Promise<any> {
 		return executor.executeCommand('_workbench.diff', [
 			left, right,
 			label,
 			undefined,
-			typeConverters.TextEditorOptions.from(options),
+			typeConverters.TextEditorOpenOptions.from(options),
 			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
 		]);
 	}
@@ -109,7 +112,7 @@ CommandsRegistry.registerCommand(DiffAPICommand.ID, adjustHandler(DiffAPICommand
 
 export class OpenAPICommand {
 	public static readonly ID = 'vscode.open';
-	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions, label?: string): Promise<any> {
+	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions, label?: string): Promise<any> {
 		let options: ITextEditorOptions | undefined;
 		let position: EditorViewColumn | undefined;
 
@@ -117,7 +120,7 @@ export class OpenAPICommand {
 			if (typeof columnOrOptions === 'number') {
 				position = typeConverters.ViewColumn.from(columnOrOptions);
 			} else {
-				options = typeConverters.TextEditorOptions.from(columnOrOptions);
+				options = typeConverters.TextEditorOpenOptions.from(columnOrOptions);
 				position = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
 			}
 		}
@@ -132,9 +135,31 @@ export class OpenAPICommand {
 }
 CommandsRegistry.registerCommand(OpenAPICommand.ID, adjustHandler(OpenAPICommand.execute));
 
+export class OpenWithAPICommand {
+	public static readonly ID = 'vscode.openWith';
+	public static execute(executor: ICommandsExecutor, resource: URI, viewType: string, columnOrOptions?: vscode.ViewColumn | typeConverters.TextEditorOpenOptions): Promise<any> {
+		let options: ITextEditorOptions | undefined;
+		let position: EditorViewColumn | undefined;
+
+		if (typeof columnOrOptions === 'number') {
+			position = typeConverters.ViewColumn.from(columnOrOptions);
+		} else if (typeof columnOrOptions !== 'undefined') {
+			options = typeConverters.TextEditorOpenOptions.from(columnOrOptions);
+		}
+
+		return executor.executeCommand('_workbench.openWith', [
+			resource,
+			viewType,
+			options,
+			position
+		]);
+	}
+}
+CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAPICommand.execute));
+
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);
-	return workspacesService.removeFromRecentlyOpened([uri]);
+	return workspacesService.removeRecentlyOpened([uri]);
 });
 
 export class RemoveFromRecentlyOpenedAPICommand {
@@ -150,10 +175,20 @@ export class RemoveFromRecentlyOpenedAPICommand {
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
 
+export interface OpenIssueReporterArgs {
+	readonly extensionId: string;
+	readonly issueTitle?: string;
+	readonly issueBody?: string;
+}
+
 export class OpenIssueReporter {
 	public static readonly ID = 'vscode.openIssueReporter';
-	public static execute(executor: ICommandsExecutor, extensionId: string): Promise<void> {
-		return executor.executeCommand('workbench.action.openIssueReporter', [extensionId]);
+
+	public static execute(executor: ICommandsExecutor, args: string | OpenIssueReporterArgs): Promise<void> {
+		const commandArgs = typeof args === 'string'
+			? { extensionId: args }
+			: args;
+		return executor.executeCommand('workbench.action.openIssueReporter', commandArgs);
 	}
 }
 
@@ -213,5 +248,59 @@ CommandsRegistry.registerCommand({
 				}
 			}
 		}]
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+		logService.setLevel(level);
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
+	const logService = accessor.get(ILogService);
+
+	return logService.getLevel();
+});
+
+
+CommandsRegistry.registerCommand('_workbench.action.moveViews', async function (accessor: ServicesAccessor, options: { viewIds: string[], destinationId: string }) {
+	const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+	const destination = viewDescriptorService.getViewContainerById(options.destinationId);
+	if (!destination) {
+		return;
+	}
+
+	// FYI, don't use `moveViewsToContainer` in 1 shot, because it expects all views to have the same current location
+	for (const viewId of options.viewIds) {
+		const viewDescriptor = viewDescriptorService.getViewDescriptorById(viewId);
+		if (viewDescriptor?.canMoveView) {
+			viewDescriptorService.moveViewsToContainer([viewDescriptor], destination);
+		}
+	}
+
+	await accessor.get(IViewsService).openViewContainer(destination.id, true);
+});
+
+export class MoveViewsAPICommand {
+	public static readonly ID = 'vscode.moveViews';
+	public static execute(executor: ICommandsExecutor, options: { viewIds: string[], destinationId: string }): Promise<any> {
+		if (!Array.isArray(options?.viewIds) || typeof options?.destinationId !== 'string') {
+			return Promise.reject('Invalid arguments');
+		}
+
+		return executor.executeCommand('_workbench.action.moveViews', options);
+	}
+}
+CommandsRegistry.registerCommand({
+	id: MoveViewsAPICommand.ID,
+	handler: adjustHandler(MoveViewsAPICommand.execute),
+	description: {
+		description: 'Move Views',
+		args: []
 	}
 });

@@ -122,17 +122,19 @@ export class ReplaceCommandThatPreservesSelection implements ICommand {
 	private readonly _range: Range;
 	private readonly _text: string;
 	private readonly _initialSelection: Selection;
+	private readonly _forceMoveMarkers: boolean;
 	private _selectionId: string | null;
 
-	constructor(editRange: Range, text: string, initialSelection: Selection) {
+	constructor(editRange: Range, text: string, initialSelection: Selection, forceMoveMarkers: boolean = false) {
 		this._range = editRange;
 		this._text = text;
 		this._initialSelection = initialSelection;
+		this._forceMoveMarkers = forceMoveMarkers;
 		this._selectionId = null;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addEditOperation(this._range, this._text);
+		builder.addTrackedEditOperation(this._range, this._text, this._forceMoveMarkers);
 		this._selectionId = builder.trackSelection(this._initialSelection);
 	}
 

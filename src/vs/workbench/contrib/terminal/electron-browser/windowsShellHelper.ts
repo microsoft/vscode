@@ -5,11 +5,11 @@
 
 import * as platform from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IWindowsShellHelper, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
-import * as WindowsProcessTreeType from 'windows-process-tree';
+import { IWindowsShellHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type * as WindowsProcessTreeType from 'windows-process-tree';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ITerminalInstance, TerminalShellType, WindowsShellType } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { timeout } from 'vs/base/common/async';
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
@@ -33,9 +33,11 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	private _currentRequest: Promise<string> | undefined;
 	private _newLineFeed: boolean = false;
 
+	private readonly _onShellNameChange = new Emitter<string>();
+	public get onShellNameChange(): Event<string> { return this._onShellNameChange.event; }
+
 	public constructor(
 		private _rootProcessId: number,
-		private _terminalInstance: ITerminalInstance,
 		private _xterm: XTermTerminal
 	) {
 		super();
@@ -46,46 +48,46 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 
 		this._isDisposed = false;
 
-		(import('windows-process-tree')).then(mod => {
-			if (this._isDisposed) {
-				return;
-			}
+		this._startMonitoringShell();
+	}
 
-			windowsProcessTree = mod;
-			// The debounce is necessary to prevent multiple processes from spawning when
-			// the enter key or output is spammed
-			Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(() => {
-				setTimeout(() => {
-					this.checkShell();
-				}, 50);
-			});
+	private async _startMonitoringShell(): Promise<void> {
+		if (!windowsProcessTree) {
+			windowsProcessTree = await import('windows-process-tree');
+		}
 
-			// We want to fire a new check for the shell on a linefeed, but only
-			// when parsing has finished which is indicated by the cursormove event.
-			// If this is done on every linefeed, parsing ends up taking
-			// significantly longer due to resetting timers. Note that this is
-			// private API.
-			this._xterm.onLineFeed(() => this._newLineFeed = true);
-			this._xterm.onCursorMove(() => {
-				if (this._newLineFeed) {
-					this._onCheckShell.fire(undefined);
-					this._newLineFeed = false;
-				}
-			});
+		if (this._isDisposed) {
+			return;
+		}
 
-			// Fire a new check for the shell when any key is pressed.
-			this._xterm.onKey(() => this._onCheckShell.fire(undefined));
+		// The debounce is necessary to prevent multiple processes from spawning when
+		// the enter key or output is spammed
+		Event.debounce(this._onCheckShell.event, (l, e) => e, 150, true)(async () => {
+			await timeout(50);
+			this.checkShell();
 		});
+
+		// We want to fire a new check for the shell on a linefeed, but only
+		// when parsing has finished which is indicated by the cursormove event.
+		// If this is done on every linefeed, parsing ends up taking
+		// significantly longer due to resetting timers. Note that this is
+		// private API.
+		this._xterm.onLineFeed(() => this._newLineFeed = true);
+		this._xterm.onCursorMove(() => {
+			if (this._newLineFeed) {
+				this._onCheckShell.fire(undefined);
+				this._newLineFeed = false;
+			}
+		});
+
+		// Fire a new check for the shell when any key is pressed.
+		this._xterm.onKey(() => this._onCheckShell.fire(undefined));
 	}
 
 	private checkShell(): void {
-		if (platform.isWindows && this._terminalInstance.isTitleSetByProcess) {
-			this.getShellName().then(title => {
-				if (!this._isDisposed) {
-					this._terminalInstance.setShellType(this.getShellType(title));
-					this._terminalInstance.setTitle(title, TitleEventSource.Process);
-				}
-			});
+		if (platform.isWindows) {
+			// TODO: Only fire when it's different
+			this.getShellName().then(title => this._onShellNameChange.fire(title));
 		}
 	}
 
@@ -139,27 +141,5 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 			});
 		});
 		return this._currentRequest;
-	}
-
-	public getShellType(executable: string): TerminalShellType {
-		switch (executable.toLowerCase()) {
-			case 'cmd.exe':
-				return WindowsShellType.CommandPrompt;
-			case 'powershell.exe':
-			case 'pwsh.exe':
-				return WindowsShellType.PowerShell;
-			case 'bash.exe':
-				return WindowsShellType.GitBash;
-			case 'wsl.exe':
-			case 'ubuntu.exe':
-			case 'ubuntu1804.exe':
-			case 'kali.exe':
-			case 'debian.exe':
-			case 'opensuse-42.exe':
-			case 'sles-12.exe':
-				return WindowsShellType.Wsl;
-			default:
-				return undefined;
-		}
 	}
 }

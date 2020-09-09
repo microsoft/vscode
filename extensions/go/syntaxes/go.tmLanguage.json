@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-go-syntax/commit/54ff898316f8647d77ffcf83880a9556445326f1",
+	"version": "https://github.com/jeff-hykin/better-go-syntax/commit/302b427373ba8390786723a99f6cdf8e38833159",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -149,14 +149,7 @@
 			}
 		},
 		{
-			"comment": "Floating-point literals",
-			"match": "(\\.\\d+([Ee][-+]\\d+)?i?)\\b|\\b\\d+\\.\\d*(([Ee][-+]\\d+)?i?\\b)?",
-			"name": "constant.numeric.floating-point.go"
-		},
-		{
-			"comment": "Integers",
-			"match": "\\b((0x[0-9a-fA-F]+)|(0[0-7]+i?)|(\\d+([Ee]\\d+)?i?)|(\\d+[Ee][-+]\\d+i?))\\b",
-			"name": "constant.numeric.integer.go"
+			"include": "#numeric_literals"
 		},
 		{
 			"comment": "Language constants",
@@ -259,7 +252,7 @@
 			}
 		},
 		{
-			"match": "\\w+(?:,\\s*\\w+)*(?=\\s*:=)",
+			"match": "\\b\\w+(?:,\\s*\\w+)*(?=\\s*:=)",
 			"captures": {
 				"0": {
 					"patterns": [
@@ -594,7 +587,7 @@
 		"string_placeholder": {
 			"patterns": [
 				{
-					"match": "%(\\[\\d+\\])?([\\+#\\-0\\x20]{,2}((\\d+|\\*)?(\\.?(\\d+|\\*|(\\[\\d+\\])\\*?)?(\\[\\d+\\])?)?))?[vT%tbcdoqxXUbeEfFgGsp]",
+					"match": "%(\\[\\d+\\])?([\\+#\\-0\\x20]{,2}((\\d+|\\*)?(\\.?(\\d+|\\*|(\\[\\d+\\])\\*?)?(\\[\\d+\\])?)?))?[vT%tbcdoqxXUbeEfFgGspw]",
 					"name": "constant.other.placeholder.go"
 				}
 			]
@@ -678,6 +671,24 @@
 					]
 				}
 			]
+		},
+		"numeric_literals": {
+			"patterns": [
+				{
+					"include": "#float"
+				},
+				{
+					"include": "#integer"
+				}
+			]
+		},
+		"float": {
+			"match": "(\\.\\d+([Ee][-+]\\d+)?i?)\\b|\\b\\d+\\.\\d*(([Ee][-+]\\d+)?i?\\b)?",
+			"name": "constant.numeric.floating-point.go"
+		},
+		"integer": {
+			"match": "\\b((0x[0-9a-fA-F]+)|(0[0-7]+i?)|(\\d+([Ee]\\d+)?i?)|(\\d+[Ee][-+]\\d+i?))\\b",
+			"name": "constant.numeric.integer.go"
 		}
 	}
 }

@@ -13,6 +13,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { isDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
+import { assertType } from 'vs/base/common/types';
 
 export class Link implements ILink {
 
@@ -77,8 +78,8 @@ export class LinksList extends Disposable {
 			const newLinks = list.links.map(link => new Link(link, provider));
 			links = LinksList._union(links, newLinks);
 			// register disposables
-			if (isDisposable(provider)) {
-				this._register(provider);
+			if (isDisposable(list)) {
+				this._register(list);
 			}
 		}
 		this.links = links;
@@ -152,10 +153,13 @@ export function getLinks(model: ITextModel, token: CancellationToken): Promise<L
 
 
 CommandsRegistry.registerCommand('_executeLinkProvider', async (accessor, ...args): Promise<ILink[]> => {
-	const [uri] = args;
-	if (!(uri instanceof URI)) {
-		return [];
+	let [uri, resolveCount] = args;
+	assertType(uri instanceof URI);
+
+	if (typeof resolveCount !== 'number') {
+		resolveCount = 0;
 	}
+
 	const model = accessor.get(IModelService).getModel(uri);
 	if (!model) {
 		return [];
@@ -164,6 +168,12 @@ CommandsRegistry.registerCommand('_executeLinkProvider', async (accessor, ...arg
 	if (!list) {
 		return [];
 	}
+
+	// resolve links
+	for (let i = 0; i < Math.min(resolveCount, list.links.length); i++) {
+		await list.links[i].resolve(CancellationToken.None);
+	}
+
 	const result = list.links.slice(0);
 	list.dispose();
 	return result;

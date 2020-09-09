@@ -3,22 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { MultiCommand, RedoCommand, SelectAllCommand, ServicesAccessor, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { localize } from 'vs/nls';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { Webview, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, webviewDeveloperCategory, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
-import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetCommand, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
-import { WebviewEditor } from '../browser/webviewEditor';
-import { WebviewInput } from '../browser/webviewEditorInput';
+import { getActiveWebviewEditor, HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
+import { WebviewEditor } from './webviewEditor';
+import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
@@ -33,58 +31,49 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
-const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registerAction2(ShowWebViewEditorFindWidgetAction);
+registerAction2(HideWebViewEditorFindCommand);
+registerAction2(WebViewEditorFindNextCommand);
+registerAction2(WebViewEditorFindPreviousCommand);
+registerAction2(ReloadWebviewAction);
 
-function registerWebViewCommands(editorId: string): void {
-	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */);
 
-	const showNextFindWidgetCommand = new ShowWebViewEditorFindWidgetCommand({
-		id: ShowWebViewEditorFindWidgetCommand.ID,
-		precondition: contextKeyExpr,
-		kbOpts: {
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-			weight: KeybindingWeight.EditorContrib
-		}
-	});
-	showNextFindWidgetCommand.register();
+function getInnerActiveWebview(accessor: ServicesAccessor): Webview | undefined {
+	const webview = getActiveWebviewEditor(accessor);
+	if (!webview) {
+		return undefined;
+	}
 
-	(new HideWebViewEditorFindCommand({
-		id: HideWebViewEditorFindCommand.ID,
-		precondition: ContextKeyExpr.and(
-			contextKeyExpr,
-			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
-		kbOpts: {
-			primary: KeyCode.Escape,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
+	// Make sure we are really focused on the webview
+	if (!['WEBVIEW', 'IFRAME'].includes(document.activeElement?.tagName ?? '')) {
+		return undefined;
+	}
 
-	(new WebViewEditorFindNextCommand({
-		id: WebViewEditorFindNextCommand.ID,
-		precondition: ContextKeyExpr.and(
-			contextKeyExpr,
-			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-		kbOpts: {
-			primary: KeyCode.Enter,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
+	if ('getInnerWebview' in (webview as WebviewOverlay)) {
+		const innerWebview = (webview as WebviewOverlay).getInnerWebview();
+		return innerWebview;
+	}
 
-	(new WebViewEditorFindPreviousCommand({
-		id: WebViewEditorFindPreviousCommand.ID,
-		precondition: ContextKeyExpr.and(
-			contextKeyExpr,
-			KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED),
-		kbOpts: {
-			primary: KeyMod.Shift | KeyCode.Enter,
-			weight: KeybindingWeight.EditorContrib
-		}
-	})).register();
+	return webview;
 }
 
-registerWebViewCommands(WebviewEditor.ID);
 
-actionRegistry.registerWorkbenchAction(
-	SyncActionDescriptor.create(ReloadWebviewAction, ReloadWebviewAction.ID, ReloadWebviewAction.LABEL),
-	'Reload Webviews',
-	webviewDeveloperCategory);
+const PRIORITY = 100;
+
+function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+	command?.addImplementation(PRIORITY, accessor => {
+		const webview = getInnerActiveWebview(accessor);
+		if (webview && webview.isFocused) {
+			f(webview);
+			return true;
+		}
+		return false;
+	});
+}
+
+overrideCommandForWebview(UndoCommand, webview => webview.undo());
+overrideCommandForWebview(RedoCommand, webview => webview.redo());
+overrideCommandForWebview(SelectAllCommand, webview => webview.selectAll());
+overrideCommandForWebview(CopyAction, webview => webview.copy());
+overrideCommandForWebview(PasteAction, webview => webview.paste());
+overrideCommandForWebview(CutAction, webview => webview.cut());

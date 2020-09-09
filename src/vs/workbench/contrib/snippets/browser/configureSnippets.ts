@@ -12,7 +12,6 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
-import { values } from 'vs/base/common/map';
 import { IQuickPickItem, IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,8 +23,8 @@ import { joinPath, basename } from 'vs/base/common/resources';
 const id = 'workbench.action.openSnippets';
 
 namespace ISnippetPick {
-	export function is(thing: object): thing is ISnippetPick {
-		return thing && URI.isUri((<ISnippetPick>thing).filepath);
+	export function is(thing: object | undefined): thing is ISnippetPick {
+		return !!thing && URI.isUri((<ISnippetPick>thing).filepath);
 	}
 }
 
@@ -73,7 +72,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 				filepath: file.location,
 				description: names.size === 0
 					? nls.localize('global.scope', "(global)")
-					: nls.localize('global.1', "({0})", values(names).join(', '))
+					: nls.localize('global.1', "({0})", [...names].join(', '))
 			});
 
 		} else {
@@ -88,7 +87,7 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 		}
 	}
 
-	const dir = joinPath(envService.userRoamingDataHome, 'snippets');
+	const dir = envService.snippetsHome;
 	for (const mode of modeService.getRegisteredModes()) {
 		const label = modeService.getLanguageName(mode);
 		if (label && !seen.has(mode)) {
@@ -220,7 +219,7 @@ CommandsRegistry.registerCommand(id, async (accessor): Promise<any> => {
 	const globalSnippetPicks: SnippetPick[] = [{
 		scope: nls.localize('new.global_scope', 'global'),
 		label: nls.localize('new.global', "New Global Snippets file..."),
-		uri: joinPath(envService.userRoamingDataHome, 'snippets')
+		uri: envService.snippetsHome
 	}];
 
 	const workspaceSnippetPicks: SnippetPick[] = [];

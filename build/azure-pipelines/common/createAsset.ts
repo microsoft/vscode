@@ -44,15 +44,16 @@ async function doesAssetExist(blobService: azure.BlobService, quality: string, b
 	return existsResult.exists;
 }
 
-async function uploadBlob(blobService: azure.BlobService, quality: string, blobName: string, file: string): Promise<void> {
+async function uploadBlob(blobService: azure.BlobService, quality: string, blobName: string, filePath: string, fileName: string): Promise<void> {
 	const blobOptions: azure.BlobService.CreateBlockBlobRequestOptions = {
 		contentSettings: {
-			contentType: mime.lookup(file),
+			contentType: mime.lookup(filePath),
+			contentDisposition: `attachment; filename="${fileName}"`,
 			cacheControl: 'max-age=31536000, public'
 		}
 	};
 
-	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, file, blobOptions, err => err ? e(err) : c()));
+	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, filePath, blobOptions, err => err ? e(err) : c()));
 }
 
 function getEnv(name: string): string {
@@ -66,24 +67,24 @@ function getEnv(name: string): string {
 }
 
 async function main(): Promise<void> {
-	const [, , platform, type, name, file] = process.argv;
+	const [, , platform, type, fileName, filePath] = process.argv;
 	const quality = getEnv('VSCODE_QUALITY');
 	const commit = getEnv('BUILD_SOURCEVERSION');
 
 	console.log('Creating asset...');
 
-	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(file, (err, stat) => err ? e(err) : c(stat)));
+	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(filePath, (err, stat) => err ? e(err) : c(stat)));
 	const size = stat.size;
 
 	console.log('Size:', size);
 
-	const stream = fs.createReadStream(file);
+	const stream = fs.createReadStream(filePath);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
 
 	console.log('SHA1:', sha1hash);
 	console.log('SHA256:', sha256hash);
 
-	const blobName = commit + '/' + name;
+	const blobName = commit + '/' + fileName;
 	const storageAccount = process.env['AZURE_STORAGE_ACCOUNT_2']!;
 
 	const blobService = azure.createBlobService(storageAccount, process.env['AZURE_STORAGE_ACCESS_KEY_2']!)
@@ -98,7 +99,7 @@ async function main(): Promise<void> {
 
 	console.log('Uploading blobs to Azure storage...');
 
-	await uploadBlob(blobService, quality, blobName, file);
+	await uploadBlob(blobService, quality, blobName, filePath, fileName);
 
 	console.log('Blobs successfully uploaded.');
 

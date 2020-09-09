@@ -54,7 +54,7 @@ if (typeof navigator === 'object' && !isElectronRenderer) {
 	_userAgent = navigator.userAgent;
 	_isWindows = _userAgent.indexOf('Windows') >= 0;
 	_isMacintosh = _userAgent.indexOf('Macintosh') >= 0;
-	_isIOS = _userAgent.indexOf('Macintosh') >= 0 && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
+	_isIOS = (_userAgent.indexOf('Macintosh') >= 0 || _userAgent.indexOf('iPad') >= 0 || _userAgent.indexOf('iPhone') >= 0) && !!navigator.maxTouchPoints && navigator.maxTouchPoints > 0;
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isWeb = true;
 	_locale = navigator.language;
@@ -208,4 +208,18 @@ export const enum OperatingSystem {
 	Macintosh = 2,
 	Linux = 3
 }
-export const OS = (_isMacintosh ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+export const OS = (_isMacintosh || _isIOS ? OperatingSystem.Macintosh : (_isWindows ? OperatingSystem.Windows : OperatingSystem.Linux));
+
+let _isLittleEndian = true;
+let _isLittleEndianComputed = false;
+export function isLittleEndian(): boolean {
+	if (!_isLittleEndianComputed) {
+		_isLittleEndianComputed = true;
+		const test = new Uint8Array(2);
+		test[0] = 1;
+		test[1] = 2;
+		const view = new Uint16Array(test.buffer);
+		_isLittleEndian = (view[0] === (2 << 8) + 1);
+	}
+	return _isLittleEndian;
+}

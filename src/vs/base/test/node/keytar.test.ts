@@ -28,7 +28,7 @@ suite('Keytar', () => {
 				try {
 					await keytar.deletePassword(name, 'foo');
 				} finally {
-					// tslint:disable-next-line: no-unsafe-finally
+					// eslint-disable-next-line no-unsafe-finally
 					throw err;
 				}
 			}

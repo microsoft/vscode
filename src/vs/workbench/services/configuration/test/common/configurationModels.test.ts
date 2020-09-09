@@ -31,7 +31,7 @@ suite('FolderSettingsModelParser', () => {
 				'FolderSettingsModelParser.resourceLanguage': {
 					'type': 'string',
 					'default': 'isSet',
-					scope: ConfigurationScope.RESOURCE_LANGUAGE,
+					scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 				},
 				'FolderSettingsModelParser.application': {
 					'type': 'string',
@@ -64,7 +64,7 @@ suite('FolderSettingsModelParser', () => {
 	});
 
 	test('parse resource and resource language settings', () => {
-		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE]);
+		const testObject = new ConfigurationModelParser('settings', [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE]);
 
 		testObject.parseContent(JSON.stringify({ '[json]': { 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.resourceLanguage': 'resourceLanguage', 'FolderSettingsModelParser.application': 'application', 'FolderSettingsModelParser.machine': 'executable' } }));
 

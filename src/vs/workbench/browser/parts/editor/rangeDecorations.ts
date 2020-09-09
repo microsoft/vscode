@@ -5,12 +5,12 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
 import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export interface IRangeHighlightDecoration {
@@ -26,9 +26,11 @@ export class RangeHighlightDecorations extends Disposable {
 	private readonly editorDisposables = this._register(new DisposableStore());
 
 	private readonly _onHighlightRemoved: Emitter<void> = this._register(new Emitter<void>());
-	readonly onHighlightRemoved: Event<void> = this._onHighlightRemoved.event;
+	readonly onHighlightRemoved = this._onHighlightRemoved.event;
 
-	constructor(@IEditorService private readonly editorService: IEditorService) {
+	constructor(
+		@IEditorService private readonly editorService: IEditorService
+	) {
 		super();
 	}
 
@@ -41,10 +43,12 @@ export class RangeHighlightDecorations extends Disposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	highlightRange(range: IRangeHighlightDecoration, editor?: ICodeEditor) {
-		editor = editor ? editor : this.getEditor(range);
-		if (editor) {
+	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
+		editor = editor ?? this.getEditor(range);
+		if (isCodeEditor(editor)) {
 			this.doHighlightRange(editor, range);
+		} else if (isCompositeEditor(editor) && isCodeEditor(editor.activeCodeEditor)) {
+			this.doHighlightRange(editor.activeCodeEditor, range);
 		}
 	}
 
@@ -60,10 +64,10 @@ export class RangeHighlightDecorations extends Disposable {
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
 		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor && activeEditor.getResource();
+		const resource = activeEditor && activeEditor.resource;
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return this.editorService.activeTextEditorWidget as ICodeEditor;
+				return this.editorService.activeTextEditorControl as ICodeEditor;
 			}
 		}
 

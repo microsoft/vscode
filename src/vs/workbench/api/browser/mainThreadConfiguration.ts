@@ -77,13 +77,13 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 			: scopeToLanguage === false ? { resource: overrides.resource }
 				: overrides.overrideIdentifier && overriddenValue !== undefined ? overrides
 					: { resource: overrides.resource };
-		return this.configurationService.updateValue(key, value, overrides, configurationTarget);
+		return this.configurationService.updateValue(key, value, overrides, configurationTarget, true);
 	}
 
 	private deriveConfigurationTarget(key: string, overrides: IConfigurationOverrides): ConfigurationTarget {
 		if (overrides.resource && this._workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.RESOURCE_LANGUAGE)) {
+			if (configurationProperties[key] && (configurationProperties[key].scope === ConfigurationScope.RESOURCE || configurationProperties[key].scope === ConfigurationScope.LANGUAGE_OVERRIDABLE)) {
 				return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}

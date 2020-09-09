@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainThreadOutputServiceShape } from '../common/extHost.protocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';

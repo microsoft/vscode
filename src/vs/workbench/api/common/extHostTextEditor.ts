@@ -13,7 +13,7 @@ import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainT
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {

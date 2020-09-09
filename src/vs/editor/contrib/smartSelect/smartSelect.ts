@@ -18,7 +18,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -64,7 +64,7 @@ class SmartSelectController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		dispose(this._selectionListener);
+		this._selectionListener?.dispose();
 	}
 
 	run(forward: boolean): Promise<void> | void {
@@ -106,10 +106,10 @@ class SmartSelectController implements IEditorContribution {
 				this._state = ranges.map(ranges => new SelectionRanges(0, ranges));
 
 				// listen to caret move and forget about state
-				dispose(this._selectionListener);
+				this._selectionListener?.dispose();
 				this._selectionListener = this._editor.onDidChangeCursorPosition(() => {
 					if (!this._ignoreSelection) {
-						dispose(this._selectionListener);
+						this._selectionListener?.dispose();
 						this._state = undefined;
 					}
 				});

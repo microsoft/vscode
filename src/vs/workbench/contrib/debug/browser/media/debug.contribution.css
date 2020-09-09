@@ -75,7 +75,7 @@
 
 /* Expressions */
 
-.monaco-workbench .debug-viewlet .monaco-list-row .expression,
+.monaco-workbench .debug-pane .monaco-list-row .expression,
 .monaco-workbench .debug-hover-widget .monaco-list-row .expression {
 	font-size: 13px;
 	overflow: hidden;
@@ -84,7 +84,7 @@
 	white-space: pre;
 }
 
-.monaco-workbench.mac .debug-viewlet .monaco-list-row .expression,
+.monaco-workbench.mac .debug-pane .monaco-list-row .expression,
 .monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
 	font-size: 11px;
 }
@@ -109,82 +109,10 @@
 	color: inherit;
 }
 
-.monaco-workbench .monaco-list-row .expression .name {
-	color: #9b46b0;
-}
-
 .monaco-workbench .monaco-list-row .expression .name.virtual {
 	opacity: 0.5;
 }
 
-.monaco-workbench > .monaco-list-row .expression .value {
-	color: rgba(108, 108, 108, 0.8);
-}
-
 .monaco-workbench .monaco-list-row .expression .unavailable {
 	font-style: italic;
-}
-
-.monaco-workbench .monaco-list-row .expression .error {
-	color: #e51400;
-}
-
-.monaco-workbench .monaco-list-row .expression .value.number {
-	color: #09885a;
-}
-
-.monaco-workbench .monaco-list-row .expression .value.boolean {
-	color: #0000ff;
-}
-
-.monaco-workbench .monaco-list-row .expression .value.string {
-	color: #a31515;
-}
-
-.vs-dark .monaco-workbench > .monaco-list-row .expression .value {
-	color: rgba(204, 204, 204, 0.6);
-}
-
-.vs-dark .monaco-workbench .monaco-list-row .expression .error {
-	color: #f48771;
-}
-
-.vs-dark .monaco-workbench .monaco-list-row .expression .value.number {
-	color: #b5cea8;
-}
-
-.hc-black .monaco-workbench .monaco-list-row .expression .value.number {
-	color: #89d185;
-}
-
-.hc-black .monaco-workbench .monaco-list-row .expression .value.boolean {
-	color: #75bdfe;
-}
-
-.hc-black .monaco-workbench .monaco-list-row .expression .value.string {
-	color: #f48771;
-}
-
-.vs-dark .monaco-workbench .monaco-list-row .expression .value.boolean {
-	color: #4e94ce;
-}
-
-.vs-dark .monaco-workbench .monaco-list-row .expression .value.string {
-	color: #ce9178;
-}
-
-.hc-black .monaco-workbench .monaco-list-row .expression .error {
-	color: #f48771;
-}
-
-/* Dark theme */
-
-.vs-dark .monaco-workbench .monaco-list-row .expression .name {
-	color: #c586c0;
-}
-
-/* High Contrast Theming */
-
-.hc-black .monaco-workbench .monaco-list-row .expression .name {
-	color: inherit;
 }

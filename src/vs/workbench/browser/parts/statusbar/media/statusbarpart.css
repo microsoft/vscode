@@ -54,7 +54,7 @@
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before {
 	content: '';
 	position: absolute;
-	left: calc(50% - 9px); /* 3px (margin) + 5px (padding) + 1px (icon) = 9px */
+	left: 10px;
 	top: -5px;
 	border-bottom-width: 5px;
 	border-bottom-style: solid;
@@ -98,6 +98,7 @@
 	align-items: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
+	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
 .monaco-workbench .part.statusbar > .items-container > .statusbar-item > a:hover {

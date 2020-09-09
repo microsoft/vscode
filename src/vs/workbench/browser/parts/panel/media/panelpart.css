@@ -12,19 +12,19 @@
 	z-index: initial;
 }
 
-.monaco-workbench .part.panel .title {
+.monaco-workbench .part.panel .composite.title {
 	height: 35px;
 	display: flex;
 	flex-direction: row;
 	justify-content: space-between;
 }
 
-.monaco-workbench .part.panel.bottom .title {
+.monaco-workbench .part.panel.bottom .composite.title {
 	border-top-width: 1px;
 	border-top-style: solid;
 }
 
-.monaco-workbench.noeditorarea .part.panel.bottom .title {
+.monaco-workbench.noeditorarea .part.panel.bottom .composite.title {
 	border-top-width: 0; /* no border when editor area is hiden */
 }
 
@@ -46,13 +46,22 @@
 	border-right-width: 0; /* no border when editor area is hiden */
 }
 
-.monaco-workbench .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
+.monaco-workbench .part.panel > .composite.title > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
+}
+
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.clicked:not(.checked):focus .action-label {
+	border-bottom-color: transparent !important; /* hides border on clicked state */
+}
+
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .action-label,
+.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.active:focus .action-label {
+	border-bottom-color: currentColor !important;
 }
 
 /** Panel Switcher */
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
+.monaco-workbench .part.panel > .composite.title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -62,16 +71,33 @@
 
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
+.monaco-workbench .part.panel .empty-panel-message-area {
+	display: none;
+	height: 100%;
+	width: 100%;
+}
+
+.monaco-workbench .part.panel .empty-panel-message-area.visible {
+	display: flex;
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+}
+
+.monaco-workbench .part.panel > .composite.title > .composite-bar-excess {
+	width: 100px;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar {
 	line-height: 27px; /* matches panel titles in settings */
 	height: 35px;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:first-child {
 	padding-left: 12px;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item {
 	text-transform: uppercase;
 	padding-left: 10px;
 	padding-right: 10px;
@@ -81,59 +107,90 @@
 	display: flex;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label{
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
+	content: '';
+	width: 2px;
+	display: block;
+	background-color: var(--insert-border-color);
+	opacity: 0;
+	transition-property: opacity;
+	transition-duration: 0ms;
+	transition-delay: 100ms;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::before {
+	margin-left: -11px;
+	margin-right: 9px;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item::after {
+	margin-right: -11px;
+	margin-left: 9px;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+	margin-right: -10px;
+	margin-left: 8px;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::after,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
+	transition-delay: 0s;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after,
+.monaco-workbench .part.panel > .composite.title.dragged-over-head > .panel-switcher-container > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .part.panel > .composite.title.dragged-over-tail > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+	opacity: 1;
+}
+
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item .action-label{
 	margin-right: 0;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-child {
 	padding-right: 10px;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {
 	border-bottom: 1px solid;
 	margin-right: 0;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .badge {
 	margin-left: 8px;
+	display: flex;
+	align-items: center;
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .badge .badge-content {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
 	border-radius: 11px;
 	font-size: 11px;
 	min-width: 18px;
-	min-height: 18px;
+	height: 18px;
 	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
-	}
-
-/** Actions */
-
-.monaco-workbench .panel .monaco-action-bar .action-item.select-container {
-	cursor: default;
-}
-
-.monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
-	cursor: pointer;
-	min-width: 110px;
-	min-height: 18px;
-	padding: 2px 23px 2px 8px;
+	position: relative;
 }
 
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.right .title-actions .codicon-chevron-up,
-.monaco-workbench .part.panel.right .title-actions .codicon-chevron-down {
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-maximize,
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-restore {
 	transform: rotate(-90deg);
 }
 
 /* Rotate icons when panel is on left */
 .monaco-workbench .part.panel.left .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.left .title-actions .codicon-chevron-up,
-.monaco-workbench .part.panel.left .title-actions .codicon-chevron-down {
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-maximize,
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-restore {
 	transform: rotate(90deg);
 }

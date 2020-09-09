@@ -23,7 +23,7 @@ if (majorYarnVersion < 1 || minorYarnVersion < 10) {
 	err = true;
 }
 
-if (!/yarn\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
+if (!/yarn[\w-.]*\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
 	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
 	err = true;
 }

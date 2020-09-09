@@ -74,10 +74,10 @@ function mergeNonNullKeys(env: platform.IProcessEnvironment, other: ITerminalEnv
 	}
 }
 
-function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | null): ITerminalEnvironment {
+function resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: ITerminalEnvironment, lastActiveWorkspaceRoot: IWorkspaceFolder | undefined): ITerminalEnvironment {
 	Object.keys(env).forEach((key) => {
 		const value = env[key];
-		if (typeof value === 'string' && lastActiveWorkspaceRoot !== null) {
+		if (typeof value === 'string') {
 			try {
 				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, value);
 			} catch (e) {
@@ -93,7 +93,7 @@ export function shouldSetLangEnvVariable(env: platform.IProcessEnvironment, dete
 		return true;
 	}
 	if (detectLocale === 'auto') {
-		return !env['LANG'] || env['LANG'].search(/\.UTF\-8$/) === -1;
+		return !env['LANG'] || (env['LANG'].search(/\.UTF\-8$/) === -1 && env['LANG'].search(/\.utf8$/) === -1);
 	}
 	return false; // 'off'
 }
@@ -176,7 +176,7 @@ export function getLangEnvVariable(locale?: string): string {
 
 export function getCwd(
 	shell: IShellLaunchConfig,
-	userHome: string,
+	userHome: string | undefined,
 	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	configurationResolverService: IConfigurationResolverService | undefined,
 	root: Uri | undefined,
@@ -186,7 +186,7 @@ export function getCwd(
 	if (shell.cwd) {
 		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
 		const resolved = _resolveCwd(unresolved, lastActiveWorkspace, configurationResolverService);
-		return resolved || unresolved;
+		return _sanitizeCwd(resolved || unresolved);
 	}
 
 	let cwd: string | undefined;
@@ -206,7 +206,7 @@ export function getCwd(
 
 	// If there was no custom cwd or it was relative with no workspace
 	if (!cwd) {
-		cwd = root ? root.fsPath : userHome;
+		cwd = root ? root.fsPath : userHome || '';
 	}
 
 	return _sanitizeCwd(cwd);
@@ -346,7 +346,7 @@ function getShellSetting(
 
 export function createTerminalEnvironment(
 	shellLaunchConfig: IShellLaunchConfig,
-	lastActiveWorkspace: IWorkspaceFolder | null,
+	lastActiveWorkspace: IWorkspaceFolder | undefined,
 	envFromConfig: { userValue?: ITerminalEnvironment, value?: ITerminalEnvironment, defaultValue?: ITerminalEnvironment },
 	configurationResolverService: IConfigurationResolverService | undefined,
 	isWorkspaceShellAllowed: boolean,

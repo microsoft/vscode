@@ -4,13 +4,8 @@
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
-		"outDir": "../out",
+		"outDir": "../out/vs",
 		"target": "es2017",
-		"lib": [
-			"dom",
-			"es5",
-			"es2015.iterable"
-		],
 		"types": [
 			"keytar",
 			"mocha",
@@ -22,12 +17,5 @@
 	"include": [
 		"./typings",
 		"./vs"
-	],
-	"exclude": [
-		"./typings/es6-promise.d.ts",
-		"./typings/require-monaco.d.ts",
-		"./typings/xterm.d.ts",
-		"./typings/xterm-addon-search.d.ts",
-		"./typings/xterm-addon-web-links.d.ts"
 	]
 }

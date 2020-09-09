@@ -94,7 +94,7 @@ export class TypeOperations {
 			if (pasteOnNewLine) {
 				// Paste entire line at the beginning of line
 				let typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
-				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection);
+				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
 				commands[i] = new ReplaceCommand(selection, text);
 			}
@@ -269,9 +269,15 @@ export class TypeOperations {
 				commands[i] = null;
 				continue;
 			}
-			let pos = selection.getPosition();
-			let startColumn = Math.max(1, pos.column - replaceCharCnt);
-			let range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
+			const pos = selection.getPosition();
+			const startColumn = Math.max(1, pos.column - replaceCharCnt);
+			const range = new Range(pos.lineNumber, startColumn, pos.lineNumber, pos.column);
+			const oldText = model.getValueInRange(range);
+			if (oldText === txt) {
+				// => ignore composition that doesn't do anything
+				commands[i] = null;
+				continue;
+			}
 			commands[i] = new ReplaceCommand(range, txt);
 		}
 		return new EditOperationResult(EditOperationType.Typing, commands, {
@@ -492,15 +498,20 @@ export class TypeOperations {
 		});
 	}
 
+	private static _autoClosingPairIsSymmetric(autoClosingPair: StandardAutoClosingPairConditional): boolean {
+		const { open, close } = autoClosingPair;
+		return (open.indexOf(close) >= 0 || close.indexOf(open) >= 0);
+	}
+
 	private static _isBeforeClosingBrace(config: CursorConfiguration, autoClosingPair: StandardAutoClosingPairConditional, characterAfter: string) {
 		const otherAutoClosingPairs = config.autoClosingPairsClose2.get(characterAfter);
 		if (!otherAutoClosingPairs) {
 			return false;
 		}
 
-		const thisBraceIsSymmetric = (autoClosingPair.open === autoClosingPair.close);
+		const thisBraceIsSymmetric = TypeOperations._autoClosingPairIsSymmetric(autoClosingPair);
 		for (const otherAutoClosingPair of otherAutoClosingPairs) {
-			const otherBraceIsSymmetric = (otherAutoClosingPair.open === otherAutoClosingPair.close);
+			const otherBraceIsSymmetric = TypeOperations._autoClosingPairIsSymmetric(otherAutoClosingPair);
 			if (!thisBraceIsSymmetric && otherBraceIsSymmetric) {
 				continue;
 			}
@@ -791,9 +802,9 @@ export class TypeOperations {
 		return null;
 	}
 
-	public static typeWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
 
-		if (ch === '\n') {
+		if (!isDoingComposition && ch === '\n') {
 			let commands: ICommand[] = [];
 			for (let i = 0, len = selections.length; i < len; i++) {
 				commands[i] = TypeOperations._enter(config, model, false, selections[i]);
@@ -804,7 +815,7 @@ export class TypeOperations {
 			});
 		}
 
-		if (this._isAutoIndentType(config, model, selections)) {
+		if (!isDoingComposition && this._isAutoIndentType(config, model, selections)) {
 			let commands: Array<ICommand | null> = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
@@ -822,13 +833,15 @@ export class TypeOperations {
 			}
 		}
 
-		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
+		if (!isDoingComposition && this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
 			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
 		}
 
-		const autoClosingPairOpenCharType = this._isAutoClosingOpenCharType(config, model, selections, ch, true);
-		if (autoClosingPairOpenCharType) {
-			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairOpenCharType);
+		if (!isDoingComposition) {
+			const autoClosingPairOpenCharType = this._isAutoClosingOpenCharType(config, model, selections, ch, true);
+			if (autoClosingPairOpenCharType) {
+				return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairOpenCharType);
+			}
 		}
 
 		if (this._isSurroundSelectionType(config, model, selections, ch)) {
@@ -837,7 +850,7 @@ export class TypeOperations {
 
 		// Electric characters make sense only when dealing with a single cursor,
 		// as multiple cursors typing brackets for example would interfer with bracket matching
-		if (this._isTypeInterceptorElectricChar(config, model, selections)) {
+		if (!isDoingComposition && this._isTypeInterceptorElectricChar(config, model, selections)) {
 			const r = this._typeInterceptorElectricChar(prevEditOperationType, config, model, selections[0], ch);
 			if (r) {
 				return r;

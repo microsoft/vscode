@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 
 
-export class DragAndDropCommand implements editorCommon.ICommand {
+export class DragAndDropCommand implements ICommand {
 
 	private readonly selection: Selection;
 	private readonly targetPosition: Position;
@@ -24,7 +24,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		this.targetSelection = null;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		let text = model.getValueInRange(this.selection);
 		if (!this.copy) {
 			builder.addEditOperation(this.selection, null);
@@ -102,7 +102,7 @@ export class DragAndDropCommand implements editorCommon.ICommand {
 		}
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		return this.targetSelection!;
 	}
 }

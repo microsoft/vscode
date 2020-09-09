@@ -10,12 +10,13 @@ import { isMessageOfType, MessageType, createMessageOfType } from 'vs/workbench/
 import { IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtensionHostMain } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import 'vs/workbench/services/extensions/worker/extHost.services';
+import * as path from 'vs/base/common/path';
+
+import 'vs/workbench/api/common/extHost.common.services';
+import 'vs/workbench/api/worker/extHost.worker.services';
 
 //#region --- Define, capture, and override some globals
-//todo@joh do not allow extensions to call postMessage and other globals...
 
-// declare WorkerSelf#postMessage
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
 declare namespace self {
@@ -32,13 +33,33 @@ self.close = () => console.trace(`'close' has been blocked`);
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
-const nativeAddEventLister = addEventListener.bind(self);
+// const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
+
+(<any>self)['AMDLoader'] = undefined;
+(<any>self)['NLSLoaderPlugin'] = undefined;
+(<any>self)['define'] = undefined;
+(<any>self)['require'] = undefined;
+(<any>self)['webkitRequestFileSystem'] = undefined;
+(<any>self)['webkitRequestFileSystemSync'] = undefined;
+(<any>self)['webkitResolveLocalFileSystemSyncURL'] = undefined;
+(<any>self)['webkitResolveLocalFileSystemURL'] = undefined;
+
+if (location.protocol === 'data:') {
+	// make sure new Worker(...) always uses data:
+	const _Worker = Worker;
+	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
+		const js = `importScripts('${stringUrl}');`;
+		options = options || {};
+		options.name = options.name || path.basename(stringUrl.toString());
+		return new _Worker(`data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`, options);
+	};
+}
 
 //#endregion ---
 
 const hostUtil = new class implements IHostUtils {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	exit(_code?: number | undefined): void {
 		nativeClose();
 	}
@@ -58,11 +79,14 @@ class ExtensionWorker {
 
 	constructor() {
 
-		let emitter = new Emitter<VSBuffer>();
+		const channel = new MessageChannel();
+		const emitter = new Emitter<VSBuffer>();
 		let terminating = false;
 
+		// send over port2, keep port1
+		nativePostMessage(channel.port2, [channel.port2]);
 
-		nativeAddEventLister('message', event => {
+		channel.port1.onmessage = event => {
 			const { data } = event;
 			if (!(data instanceof ArrayBuffer)) {
 				console.warn('UNKNOWN data received', data);
@@ -79,14 +103,14 @@ class ExtensionWorker {
 
 			// emit non-terminate messages to the outside
 			emitter.fire(msg);
-		});
+		};
 
 		this.protocol = {
 			onMessage: emitter.event,
 			send: vsbuf => {
 				if (!terminating) {
 					const data = vsbuf.buffer.buffer.slice(vsbuf.buffer.byteOffset, vsbuf.buffer.byteOffset + vsbuf.buffer.byteLength);
-					nativePostMessage(data, [data]);
+					channel.port1.postMessage(data, [data]);
 				}
 			}
 		};
