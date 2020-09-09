@@ -153,7 +153,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				webviewInput.webview.onDispose(() => {
+				webviewInput.webview.onDidDispose(() => {
 					// If the model is still dirty, make sure we have time to save it
 					if (modelRef.object.isDirty()) {
 						const sub = modelRef.object.onDidChangeDirty(() => {
