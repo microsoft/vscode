@@ -26,23 +26,33 @@ rm -rf $ROOT/vscode-server-*.tar.*
 
 node build/azure-pipelines/common/createAsset.js "server-$PLATFORM_LINUX" archive-unsigned "$SERVER_TARBALL_FILENAME" "$SERVER_TARBALL_PATH"
 
+# Publish DEB
+case $VSCODE_ARCH in
+	x64) DEB_ARCH="amd64" ;;
+	*) DEB_ARCH="$VSCODE_ARCH" ;;
+esac
+
+PLATFORM_DEB="linux-deb-$VSCODE_ARCH"
+DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
+DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
+
+node build/azure-pipelines/common/createAsset.js "$PLATFORM_DEB" package "$DEB_FILENAME" "$DEB_PATH"
+
+# Publish RPM
+case $VSCODE_ARCH in
+	x64) RPM_ARCH="amd64" ;;
+	armhf) RPM_ARCH="armv7hl" ;;
+	arm64) RPM_ARCH="aarch64" ;;
+	*) RPM_ARCH="$VSCODE_ARCH" ;;
+esac
+
+PLATFORM_RPM="linux-rpm-$VSCODE_ARCH"
+RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
+RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
+
+node build/azure-pipelines/common/createAsset.js "$PLATFORM_RPM" package "$RPM_FILENAME" "$RPM_PATH"
+
 if [ "$VSCODE_ARCH" == "x64" ]; then
-	# Publish DEB
-	PLATFORM_DEB="linux-deb-$VSCODE_ARCH"
-	DEB_ARCH="amd64"
-	DEB_FILENAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/)"
-	DEB_PATH="$REPO/.build/linux/deb/$DEB_ARCH/deb/$DEB_FILENAME"
-
-	node build/azure-pipelines/common/createAsset.js "$PLATFORM_DEB" package "$DEB_FILENAME" "$DEB_PATH"
-
-	# Publish RPM
-	PLATFORM_RPM="linux-rpm-$VSCODE_ARCH"
-	RPM_ARCH="x86_64"
-	RPM_FILENAME="$(ls $REPO/.build/linux/rpm/$RPM_ARCH/ | grep .rpm)"
-	RPM_PATH="$REPO/.build/linux/rpm/$RPM_ARCH/$RPM_FILENAME"
-
-	node build/azure-pipelines/common/createAsset.js "$PLATFORM_RPM" package "$RPM_FILENAME" "$RPM_PATH"
-
 	# Publish Snap
 	# Pack snap tarball artifact, in order to preserve file perms
 	mkdir -p $REPO/.build/linux/snap-tarball
