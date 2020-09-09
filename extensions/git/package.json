@@ -217,6 +217,47 @@
         "category": "Git"
       },
       {
+        "command": "git.commitNoVerify",
+        "title": "%command.commitNoVerify%",
+        "category": "Git",
+        "icon": "$(check)"
+      },
+      {
+        "command": "git.commitStagedNoVerify",
+        "title": "%command.commitStagedNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitEmptyNoVerify",
+        "title": "%command.commitEmptyNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitStagedSignedNoVerify",
+        "title": "%command.commitStagedSignedNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitStagedAmendNoVerify",
+        "title": "%command.commitStagedAmendNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllNoVerify",
+        "title": "%command.commitAllNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllSignedNoVerify",
+        "title": "%command.commitAllSignedNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllAmendNoVerify",
+        "title": "%command.commitAllAmendNoVerify%",
+        "category": "Git"
+      },
+      {
         "command": "git.restoreCommitTemplate",
         "title": "%command.restoreCommitTemplate%",
         "category": "Git"
@@ -1272,12 +1313,32 @@
           "group": "1_commit@5"
         },
         {
+          "command": "git.commitNoVerify",
+          "group": "1_commit@6"
+        },
+        {
+          "command": "git.commitStagedNoVerify",
+          "group": "1_commit@7"
+        },
+        {
+          "command": "git.commitAllNoVerify",
+          "group": "1_commit@8"
+        },
+        {
           "command": "git.commitStagedAmend",
           "group": "2_amend@1"
         },
         {
           "command": "git.commitAllAmend",
-          "group": "2_amend@1"
+          "group": "2_amend@2"
+        },
+        {
+          "command": "git.commitStagedAmendNoVerify",
+          "group": "2_amend@3"
+        },
+        {
+          "command": "git.commitAllAmendNoVerify",
+          "group": "2_amend@4"
         },
         {
           "command": "git.commitStagedSigned",
@@ -1286,6 +1347,14 @@
         {
           "command": "git.commitAllSigned",
           "group": "3_signoff@2"
+        },
+        {
+          "command": "git.commitStagedSignedNoVerify",
+          "group": "3_signoff@3"
+        },
+        {
+          "command": "git.commitAllSignedNoVerify",
+          "group": "3_signoff@4"
         }
       ],
       "git.changes": [
