@@ -465,6 +465,11 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
+					if (type === ViewType.Webview && !extension.description.enableProposedApi) {
+						collector.error(localize('webviewViewsRequireProposed', "Webview views are proposed api and are only supported when running out of dev or with the following command line switch: --enable-proposed-api"));
+						return null;
+					}
+
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),

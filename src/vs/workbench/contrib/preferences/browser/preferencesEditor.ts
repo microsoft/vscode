@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -40,9 +39,9 @@ import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInput, EditorOptions, IEditorControl } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/contrib/preferences/browser/preferencesRenderers';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
@@ -53,7 +52,7 @@ import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISe
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
-export class PreferencesEditor extends BaseEditor {
+export class PreferencesEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.preferencesEditor';
 
@@ -75,7 +74,7 @@ export class PreferencesEditor extends BaseEditor {
 	get minimumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.minimumWidth : 0; }
 	get maximumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.maximumWidth : Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
@@ -104,7 +103,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	createEditor(parent: HTMLElement): void {
-		DOM.addClass(parent, 'preferences-editor');
+		parent.classList.add('preferences-editor');
 
 		this.headerContainer = DOM.append(parent, DOM.$('.preferences-header'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
@@ -151,14 +150,14 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	setInput(newInput: EditorInput, options: SettingsEditorOptions | undefined, token: CancellationToken): Promise<void> {
+	setInput(newInput: EditorInput, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
 
-		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, token));
+		return super.setInput(newInput, options, context, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, context, token));
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -204,8 +203,8 @@ export class PreferencesEditor extends BaseEditor {
 		super.setEditorVisible(visible, group);
 	}
 
-	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.secondary, <EditorInput>newInput.primary, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.secondary, <EditorInput>newInput.primary, options, context, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -646,7 +645,7 @@ class PreferencesRenderersController extends Disposable {
 		const current = this._settingsNavigator && this._settingsNavigator.current();
 		const navigatorSettings = this._lastQuery ? consolidatedSettings : [];
 		const currentIndex = current ?
-			arrays.firstIndex(navigatorSettings, s => s.key === current.key) :
+			navigatorSettings.findIndex(s => s.key === current.key) :
 			-1;
 
 		this._settingsNavigator = new SettingsNavigator(navigatorSettings, Math.max(currentIndex, 0));
@@ -691,7 +690,7 @@ class PreferencesRenderersController extends Disposable {
 			if (nlpMetadata) {
 				const sortedKeys = Object.keys(nlpMetadata.scoredResults).sort((a, b) => nlpMetadata.scoredResults[b].score - nlpMetadata.scoredResults[a].score);
 				const suffix = '##' + key;
-				data['nlpIndex'] = arrays.firstIndex(sortedKeys, key => key.endsWith(suffix));
+				data['nlpIndex'] = sortedKeys.findIndex(key => key.endsWith(suffix));
 			}
 
 			const settingLocation = this._findSetting(this.lastFilterResult, key);
@@ -762,7 +761,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private defaultPreferencesHeader: HTMLElement;
 	private defaultPreferencesEditor: DefaultPreferencesEditor;
-	private editablePreferencesEditor: BaseEditor | null = null;
+	private editablePreferencesEditor: EditorPane | null = null;
 	private defaultPreferencesEditorContainer: HTMLElement;
 	private editablePreferencesEditorContainer: HTMLElement;
 
@@ -791,7 +790,7 @@ class SideBySidePreferencesWidget extends Widget {
 	) {
 		super();
 
-		DOM.addClass(parentElement, 'side-by-side-preferences-editor');
+		parentElement.classList.add('side-by-side-preferences-editor');
 
 		this.splitview = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
 		this._register(this.splitview);
@@ -837,12 +836,12 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
+	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.resource!);
 		return Promise.all([
-			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.resource!, options, token),
-			this.updateInput(this.editablePreferencesEditor!, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.resource!, options, token)
+			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.resource!, options, context, token),
+			this.updateInput(this.editablePreferencesEditor!, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.resource!, options, context, token)
 		])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
 				if (token.isCancellationRequested) {
@@ -906,7 +905,7 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): BaseEditor {
+	private getOrCreateEditablePreferencesEditor(editorInput: EditorInput): EditorPane {
 		if (this.editablePreferencesEditor) {
 			return this.editablePreferencesEditor;
 		}
@@ -920,8 +919,8 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
-		return editor.setInput(input, options, token)
+	private updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
+		return editor.setInput(input, options, context, token)
 			.then<any>(() => {
 				if (token.isCancellationRequested) {
 					return undefined;
@@ -1025,8 +1024,8 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
-		return super.setInput(input, options, token)
+	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		return super.setInput(input, options, context, token)
 			.then(() => this.input!.resolve()
 				.then<any>(editorModel => {
 					if (token.isCancellationRequested) {

@@ -688,4 +688,22 @@ suite('Async', () => {
 		assert.ok(Date.now() - now < 100);
 		assert.equal(timedout, false);
 	});
+
+	test('SequencerByKey', async () => {
+		const s = new async.SequencerByKey<string>();
+
+		const r1 = await s.queue('key1', () => Promise.resolve('hello'));
+		assert.equal(r1, 'hello');
+
+		await s.queue('key2', () => Promise.reject(new Error('failed'))).then(() => {
+			throw new Error('should not be resolved');
+		}, err => {
+			// Expected error
+			assert.equal(err.message, 'failed');
+		});
+
+		// Still works after a queued promise is rejected
+		const r3 = await s.queue('key2', () => Promise.resolve('hello'));
+		assert.equal(r3, 'hello');
+	});
 });

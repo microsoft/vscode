@@ -123,7 +123,10 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			try {
 				quickpick.busy = true;
 
-				const children = (await vscode.workspace.fs.readDirectory(folder)).map(([name]) => name);
+				const children = (await vscode.workspace.fs.readDirectory(folder))
+					.map(([name]) => name)
+					.filter(name => name !== '.git');
+
 				quickpick.items = children.map(name => ({ label: name }));
 				quickpick.selectedItems = quickpick.items;
 				quickpick.busy = false;

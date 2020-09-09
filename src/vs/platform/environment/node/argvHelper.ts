@@ -7,9 +7,10 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
-import { parseArgs, ErrorReporter, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
-function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): ParsedArgs {
+function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): NativeParsedArgs {
 	const errorReporter: ErrorReporter = {
 		onUnknownOption: (id) => {
 			console.warn(localize('unknownOption', "Warning: '{0}' is not in the list of known options, but still passed to Electron/Chromium.", id));
@@ -43,7 +44,7 @@ function stripAppPath(argv: string[]): string[] | undefined {
 /**
  * Use this to parse raw code process.argv such as: `Electron . --verbose --wait`
  */
-export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
+export function parseMainProcessArgv(processArgv: string[]): NativeParsedArgs {
 	let [, ...args] = processArgv;
 
 	// If dev, remove the first non-option argument: it's the app location
@@ -59,7 +60,7 @@ export function parseMainProcessArgv(processArgv: string[]): ParsedArgs {
 /**
  * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
  */
-export function parseCLIProcessArgv(processArgv: string[]): ParsedArgs {
+export function parseCLIProcessArgv(processArgv: string[]): NativeParsedArgs {
 	let [, , ...args] = processArgv;
 
 	if (process.env['VSCODE_DEV']) {

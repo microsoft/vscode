@@ -30,6 +30,7 @@ export const IUserDataInitializationService = createDecorator<IUserDataInitializ
 export interface IUserDataInitializationService {
 	_serviceBrand: any;
 
+	requiresInitialization(): Promise<boolean>;
 	initializeRequiredResources(): Promise<void>;
 	initializeOtherResources(): Promise<void>;
 	initializeExtensions(instantiationService: IInstantiationService): Promise<void>;
@@ -103,6 +104,11 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		}
 
 		return this._userDataSyncStoreClientPromise;
+	}
+
+	async requiresInitialization(): Promise<boolean> {
+		const userDataSyncStoreClient = await this.createUserDataSyncStoreClient();
+		return !!userDataSyncStoreClient;
 	}
 
 	async initializeRequiredResources(): Promise<void> {

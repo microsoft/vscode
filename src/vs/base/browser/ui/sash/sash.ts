@@ -266,7 +266,7 @@ export class Sash extends Disposable {
 				}
 			}
 
-			style.innerHTML = `* { cursor: ${cursor} !important; }`;
+			style.textContent = `* { cursor: ${cursor} !important; }`;
 		};
 
 		const disposables = new DisposableStore();

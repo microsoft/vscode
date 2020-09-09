@@ -125,6 +125,7 @@ export async function formatDocumentRangesWithSelectedProvider(
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
+	progress: IProgress<DocumentRangeFormattingEditProvider>,
 	token: CancellationToken
 ): Promise<void> {
 
@@ -133,6 +134,7 @@ export async function formatDocumentRangesWithSelectedProvider(
 	const provider = DocumentRangeFormattingEditProviderRegistry.ordered(model);
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
+		progress.report(selected);
 		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
 	}
 }

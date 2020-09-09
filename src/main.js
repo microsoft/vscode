@@ -200,9 +200,9 @@ async function onReady() {
 }
 
 /**
- * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} ParsedArgs
+ * @typedef	 {{ [arg: string]: any; '--'?: string[]; _: string[]; }} NativeParsedArgs
  *
- * @param {ParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  */
 function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
@@ -316,7 +316,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 		// Default argv content
 		const defaultArgvConfigContent = [
 			'// This configuration file allows you to pass permanent command line arguments to VS Code.',
-			'// Only a subset of arguments is currently supported to reduce the likelyhood of breaking',
+			'// Only a subset of arguments is currently supported to reduce the likelihood of breaking',
 			'// the installation.',
 			'//',
 			'// PLEASE DO NOT CHANGE WITHOUT UNDERSTANDING THE IMPACT',
@@ -355,7 +355,7 @@ function getArgvConfigPath() {
 }
 
 /**
- * @param {ParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  * @returns {string}
  */
 function getJSFlags(cliArgs) {
@@ -375,7 +375,7 @@ function getJSFlags(cliArgs) {
 }
 
 /**
- * @param {ParsedArgs} cliArgs
+ * @param {NativeParsedArgs} cliArgs
  *
  * @returns {string}
  */
@@ -388,7 +388,7 @@ function getUserDataPath(cliArgs) {
 }
 
 /**
- * @returns {ParsedArgs}
+ * @returns {NativeParsedArgs}
  */
 function parseCLIArgs() {
 	const minimist = require('minimist');

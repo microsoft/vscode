@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	TaskDefinition, Task2 as Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
+	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
 	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
 } from 'vscode';
 import * as path from 'path';

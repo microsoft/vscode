@@ -3,23 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService, IExtensionManagementService, ILocalExtension, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { IExtensionTipsService, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { distinct } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
 	private importantTips: IConfigBasedExtensionTip[] = [];
 	private otherTips: IConfigBasedExtensionTip[] = [];
+
+	private _onDidChangeRecommendations = this._register(new Emitter<void>());
+	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
 
 	private _otherRecommendations: ExtensionRecommendation[] = [];
 	get otherRecommendations(): ReadonlyArray<ExtensionRecommendation> { return this._otherRecommendations; }
@@ -30,24 +27,16 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	constructor(
-		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
+		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, storageKeysSyncRegistryService);
+		super(promptedExtensionRecommendations);
 	}
 
 	protected async doActivate(): Promise<void> {
 		await this.fetch();
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
-		this.promptWorkspaceRecommendations();
 	}
 
 	private async fetch(): Promise<void> {
@@ -70,54 +59,13 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 		this._importantRecommendations = this.importantTips.map(tip => this.toExtensionRecommendation(tip));
 	}
 
-	private async promptWorkspaceRecommendations(): Promise<void> {
-		if (this.hasToIgnoreRecommendationNotifications()) {
-			return;
-		}
-
-		if (this.importantTips.length === 0) {
-			return;
-		}
-
-		const local = await this.extensionManagementService.getInstalled();
-		const { uninstalled } = this.groupByInstalled(distinct(this.importantTips.map(({ extensionId }) => extensionId)), local);
-		if (uninstalled.length === 0) {
-			return;
-		}
-
-		const importantExtensions = this.filterIgnoredOrNotAllowed(uninstalled);
-		if (importantExtensions.length === 0) {
-			return;
-		}
-
-		for (const extension of importantExtensions) {
-			const tip = this.importantTips.filter(tip => tip.extensionId === extension)[0];
-			const message = tip.isExtensionPack ? localize('extensionPackRecommended', "The '{0}' extension pack is recommended for this workspace.", tip.extensionName)
-				: localize('extensionRecommended', "The '{0}' extension is recommended for this workspace.", tip.extensionName);
-			this.promptImportantExtensionsInstallNotification([extension], message);
-		}
-	}
-
-	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
-		const installed: string[] = [], uninstalled: string[] = [];
-		const installedExtensionsIds = local.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
-		recommendationsToSuggest.forEach(id => {
-			if (installedExtensionsIds.has(id.toLowerCase())) {
-				installed.push(id);
-			} else {
-				uninstalled.push(id);
-			}
-		});
-		return { installed, uninstalled };
-	}
-
 	private async onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): Promise<void> {
 		if (event.added.length) {
 			const oldImportantRecommended = this.importantTips;
 			await this.fetch();
 			// Suggest only if at least one of the newly added recommendations was not suggested before
 			if (this.importantTips.some(current => oldImportantRecommended.every(old => current.extensionId !== old.extensionId))) {
-				return this.promptWorkspaceRecommendations();
+				this._onDidChangeRecommendations.fire();
 			}
 		}
 	}

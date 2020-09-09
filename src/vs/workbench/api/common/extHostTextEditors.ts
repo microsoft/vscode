@@ -28,16 +28,14 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 	readonly onDidChangeVisibleTextEditors: Event<vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
 
-
-	private _proxy: MainThreadTextEditorsShape;
-	private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
+	private readonly _proxy: MainThreadTextEditorsShape;
 
 	constructor(
 		mainContext: IMainContext,
-		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
+		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTextEditors);
-		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
+
 
 		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));
 		this._extHostDocumentsAndEditors.onDidChangeActiveTextEditor(e => this._onDidChangeActiveTextEditor.fire(e));
@@ -90,11 +88,6 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 
 	createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 		return new TextEditorDecorationType(this._proxy, options);
-	}
-
-	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): Promise<boolean> {
-		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
 
 	// --- called from main thread

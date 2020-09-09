@@ -10,7 +10,7 @@ import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
-import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
 import 'vs/css!./outlinePane';
@@ -280,9 +280,9 @@ export class OutlinePane extends ViewPane {
 	}
 
 	dispose(): void {
-		dispose(this._disposables);
-		dispose(this._requestOracle);
-		dispose(this._editorDisposables);
+		this._disposables.dispose();
+		this._requestOracle?.dispose();
+		this._editorDisposables.dispose();
 		super.dispose();
 	}
 
@@ -395,7 +395,7 @@ export class OutlinePane extends ViewPane {
 			if (visible && !this._requestOracle) {
 				this._requestOracle = this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event), DocumentSymbolProviderRegistry);
 			} else if (!visible) {
-				dispose(this._requestOracle);
+				this._requestOracle?.dispose();
 				this._requestOracle = undefined;
 				this._doUpdate(undefined, undefined);
 			}
@@ -495,7 +495,7 @@ export class OutlinePane extends ViewPane {
 		this._progressBar.infinite().show(requestDelay);
 
 		const createdModel = await OutlinePane._createOutlineModel(textModel, this._editorDisposables);
-		dispose(loadingMessage);
+		loadingMessage?.dispose();
 		if (!createdModel) {
 			return;
 		}
@@ -561,7 +561,7 @@ export class OutlinePane extends ViewPane {
 				return;
 			}
 
-			this._revealTreeSelection(newModel, e.element, !!e.editorOptions.preserveFocus || !e.editorOptions.pinned, e.sideBySide);
+			this._revealTreeSelection(newModel, e.element, !!e.editorOptions.preserveFocus, !!e.editorOptions.pinned, e.sideBySide);
 		}));
 
 		// feature: reveal editor selection in outline
@@ -615,12 +615,13 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, preserveFocus: boolean, aside: boolean): Promise<void> {
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, preserveFocus: boolean, pinned: boolean, aside: boolean): Promise<void> {
 		await this._editorService.openCodeEditor(
 			{
 				resource: model.uri,
 				options: {
 					preserveFocus,
+					pinned,
 					selection: Range.collapseToStart(element.symbol.selectionRange),
 					selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 				}

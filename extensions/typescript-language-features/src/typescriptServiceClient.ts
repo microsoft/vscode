@@ -673,6 +673,26 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this.toPath(document.uri) || undefined;
 	}
 
+	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
+		switch (capability) {
+			case ClientCapability.Semantic:
+				{
+					switch (resource.scheme) {
+						case fileSchemes.file:
+						case fileSchemes.untitled:
+							return true;
+						default:
+							return false;
+					}
+				}
+			case ClientCapability.Syntax:
+			case ClientCapability.EnhancedSyntax:
+				{
+					return true;
+				}
+		}
+	}
+
 	public toResource(filepath: string): vscode.Uri {
 		if (filepath.startsWith(this.inMemoryResourcePrefix)) {
 			const resource = vscode.Uri.parse(filepath.slice(1));

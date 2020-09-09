@@ -22,6 +22,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -43,8 +44,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { isUUID } from 'vs/base/common/uuid';
+import { join } from 'vs/base/common/path';
 
 export interface ILocalProcessExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -154,17 +155,24 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 			]).then(data => {
 				const pipeName = data[0];
 				const portNumber = data[1];
+				const env = objects.mixin(objects.deepClone(process.env), {
+					AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
+					PIPE_LOGGING: 'true',
+					VERBOSE_LOGGING: true,
+					VSCODE_IPC_HOOK_EXTHOST: pipeName,
+					VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
+					VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
+					VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
+				});
+
+				if (platform.isMacintosh) {
+					// Unset `DYLD_LIBRARY_PATH`, as it leads to extension host crashes
+					// See https://github.com/microsoft/vscode/issues/104525
+					delete env['DYLD_LIBRARY_PATH'];
+				}
 
 				const opts = {
-					env: objects.mixin(objects.deepClone(process.env), {
-						AMD_ENTRYPOINT: 'vs/workbench/services/extensions/node/extensionHostProcess',
-						PIPE_LOGGING: 'true',
-						VERBOSE_LOGGING: true,
-						VSCODE_IPC_HOOK_EXTHOST: pipeName,
-						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
-						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || this._productService.quality !== 'stable' || this._environmentService.verbose),
-						VSCODE_LOG_LEVEL: this._environmentService.verbose ? 'trace' : this._environmentService.log
-					}),
+					env,
 					// We only detach the extension host on windows. Linux and Mac orphan by default
 					// and detach under Linux and Mac create another process group.
 					// We detach because we have noticed that when the renderer exits, its child processes
@@ -199,6 +207,11 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 						crashReporterStartOptions.submitURL = submitURL.concat('&uid=', crashReporterId, '&iid=', crashReporterId, '&sid=', crashReporterId);
 						crashReporterStartOptions.uploadToServer = true;
 					}
+					// In the upload to server case, there is a bug in electron that creates client_id file in the current
+					// working directory. Setting the env BREAKPAD_DUMP_LOCATION will force electron to create the file in that location,
+					// For https://github.com/microsoft/vscode/issues/105743
+					const extHostCrashDirectory = this._environmentService.crashReporterDirectory || this._environmentService.userDataPath;
+					opts.env.BREAKPAD_DUMP_LOCATION = join(extHostCrashDirectory, `${ExtensionHostLogFileName} Crash Reports`);
 					opts.env.CRASH_REPORTER_START_OPTIONS = JSON.stringify(crashReporterStartOptions);
 				}
 

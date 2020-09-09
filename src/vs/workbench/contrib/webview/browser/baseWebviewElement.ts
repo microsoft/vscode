@@ -9,7 +9,6 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -81,8 +80,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	protected content: WebviewContent;
 
 	constructor(
-		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
-		protected readonly id: string,
+		public readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		public readonly extension: WebviewExtensionDescription | undefined,
@@ -90,8 +88,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -234,7 +231,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._hasAlertedAboutMissingCsp = true;
 
 		if (this.extension && this.extension.id) {
-			if (this._environmentService.isExtensionDevelopment) {
+			if (this.environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
 

@@ -144,7 +144,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	public renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
-		dom.addClass(parent, 'markers-panel');
+		parent.classList.add('markers-panel');
 
 		const container = dom.append(parent, dom.$('.markers-panel-container'));
 
@@ -178,7 +178,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.smallLayout = width < 600 && height > 100;
 		if (this.smallLayout !== wasSmallLayout) {
 			if (this.filterActionBar) {
-				dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.smallLayout);
+				this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
 			}
 		}
 		const contentHeight = this.smallLayout ? height - 44 : height;
@@ -395,8 +395,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private createFilterActionBar(parent: HTMLElement): void {
 		this.filterActionBar = this._register(new ActionBar(parent, { actionViewItemProvider: action => this.getActionViewItem(action) }));
-		dom.addClass(this.filterActionBar.getContainer(), 'markers-panel-filter-container');
-		dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.smallLayout);
+		this.filterActionBar.getContainer().classList.add('markers-panel-filter-container');
+		this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -914,7 +914,7 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 	}
 
 	toggleVisibility(hide: boolean): void {
-		dom.toggleClass(this.container, 'hidden', hide);
+		this.container.classList.toggle('hidden', hide);
 	}
 
 }

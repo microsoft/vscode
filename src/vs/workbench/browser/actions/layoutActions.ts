@@ -763,7 +763,6 @@ export class MoveFocusedViewAction extends Action {
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveFocusedViewAction), 'View: Move Focused View', viewCategory.value, FocusedViewContext.notEqualsTo(''));
 
-
 // --- Reset View Location with Command
 export class ResetFocusedViewLocationAction extends Action {
 	static readonly ID = 'workbench.action.resetFocusedViewLocation';

@@ -22,12 +22,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ConfigurationEditingService, EditableConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditingService';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration } from 'vs/workbench/services/configuration/browser/configuration';
 import { JSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditingService';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { isEqual, dirname } from 'vs/base/common/resources';
 import { mark } from 'vs/base/common/performance';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
@@ -73,6 +75,13 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	) {
 		super();
 
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		// register defaults before creating default configuration model
+		// so that the model is not required to be updated after registering
+		if (environmentService.options?.configurationDefaults) {
+			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
+		}
+
 		this.completeWorkspaceBarrier = new Barrier();
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
@@ -94,11 +103,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			});
 		}));
 
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-		if (environmentService.options?.configurationDefaults) {
-			configurationRegistry.registerDefaultConfigurations([environmentService.options.configurationDefaults]);
-		}
-		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
 		this._register(configurationRegistry.onDidUpdateConfiguration(configurationProperties => this.onDefaultConfigurationChanged(configurationProperties)));
 
 		this.workspaceEditingQueue = new Queue<void>();
@@ -423,7 +427,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private initializeConfiguration(): Promise<void> {
-		this.registerConfigurationSchemas();
 		return this.initializeUserConfiguration()
 			.then(({ local, remote }) => this.loadConfiguration(local, remote));
 	}
@@ -498,7 +501,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 	private onDefaultConfigurationChanged(keys: string[]): void {
 		this.defaultConfiguration = new DefaultConfigurationModel();
-		this.registerConfigurationSchemas();
 		if (this.workspace) {
 			const previousData = this._configuration.toData();
 			const change = this._configuration.compareAndUpdateDefaultConfiguration(this.defaultConfiguration, keys);
@@ -522,30 +524,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				}
 			}
 			this.triggerConfigurationChange(change, { data: previousData, workspace: this.workspace }, ConfigurationTarget.DEFAULT);
-		}
-	}
-
-	private registerConfigurationSchemas(): void {
-		if (this.workspace) {
-			const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
-			const defaultSettingsSchema: IJSONSchema = { additionalProperties: true, allowTrailingCommas: true, allowComments: true };
-			const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
-			const userSettingsSchema: IJSONSchema = this.remoteUserConfiguration ? { properties: { ...applicationSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true } : allSettingsSchema;
-			const machineSettingsSchema: IJSONSchema = { properties: { ...machineSettings.properties, ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
-			const workspaceSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
-
-			jsonRegistry.registerSchema(defaultSettingsSchemaId, defaultSettingsSchema);
-			jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
-			jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
-
-			if (WorkbenchState.WORKSPACE === this.getWorkbenchState()) {
-				const folderSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
-				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
-				jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
-			} else {
-				jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
-				jsonRegistry.registerSchema(folderSettingsSchemaId, workspaceSettingsSchema);
-			}
 		}
 	}
 
@@ -774,3 +752,45 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return null;
 	}
 }
+
+class RegisterConfigurationSchemasContribution extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		this.registerConfigurationSchemas();
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		this._register(configurationRegistry.onDidUpdateConfiguration(e => this.registerConfigurationSchemas()));
+		this._register(configurationRegistry.onDidSchemaChange(e => this.registerConfigurationSchemas()));
+	}
+
+	private registerConfigurationSchemas(): void {
+		const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+		const allSettingsSchema: IJSONSchema = { properties: allSettings.properties, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
+		const userSettingsSchema: IJSONSchema = this.workbenchEnvironmentService.configuration.remoteAuthority ? { properties: { ...applicationSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true } : allSettingsSchema;
+		const machineSettingsSchema: IJSONSchema = { properties: { ...machineSettings.properties, ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
+		const workspaceSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...windowSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
+
+		jsonRegistry.registerSchema(defaultSettingsSchemaId, {
+			properties: Object.keys(allSettings.properties).reduce<IJSONSchemaMap>((result, key) => { result[key] = { ...allSettings.properties[key], deprecationMessage: undefined }; return result; }, {}),
+			patternProperties: Object.keys(allSettings.patternProperties).reduce<IJSONSchemaMap>((result, key) => { result[key] = { ...allSettings.patternProperties[key], deprecationMessage: undefined }; return result; }, {}),
+			additionalProperties: true,
+			allowTrailingCommas: true,
+			allowComments: true
+		});
+		jsonRegistry.registerSchema(userSettingsSchemaId, userSettingsSchema);
+		jsonRegistry.registerSchema(machineSettingsSchemaId, machineSettingsSchema);
+
+		if (WorkbenchState.WORKSPACE === this.workspaceContextService.getWorkbenchState()) {
+			const folderSettingsSchema: IJSONSchema = { properties: { ...machineOverridableSettings.properties, ...resourceSettings.properties }, patternProperties: allSettings.patternProperties, additionalProperties: true, allowTrailingCommas: true, allowComments: true };
+			jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
+			jsonRegistry.registerSchema(folderSettingsSchemaId, folderSettingsSchema);
+		} else {
+			jsonRegistry.registerSchema(workspaceSettingsSchemaId, workspaceSettingsSchema);
+			jsonRegistry.registerSchema(folderSettingsSchemaId, workspaceSettingsSchema);
+		}
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(RegisterConfigurationSchemasContribution, LifecyclePhase.Restored);

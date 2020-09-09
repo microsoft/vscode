@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IRemoteIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
-import product from 'vs/platform/product/common/product';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -16,6 +15,7 @@ import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/wi
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
+import { Schemas } from 'vs/base/common/network';
 
 interface ICredential {
 	service: string;
@@ -26,6 +26,13 @@ interface ICredential {
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	constructor(credentials: ICredential[]) {
+		this._credentials = credentials;
+		for (const { service, account, password } of this._credentials) {
+			this.setPassword(service, account, password);
+		}
+	}
 
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
@@ -277,17 +284,29 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 		return false;
 	}
+
+	hasRemote(): boolean {
+		if (this.workspace) {
+			if (isFolderToOpen(this.workspace)) {
+				return this.workspace.folderUri.scheme === Schemas.vscodeRemote;
+			}
+
+			if (isWorkspaceToOpen(this.workspace)) {
+				return this.workspace.workspaceUri.scheme === Schemas.vscodeRemote;
+			}
+		}
+
+		return true;
+	}
 }
 
-class RemoteIndicator implements IRemoteIndicator {
+class WindowIndicator implements IWindowIndicator {
 
 	readonly onDidChange = Event.None;
 
 	readonly label: string;
 	readonly tooltip: string;
 	readonly command: string | undefined;
-
-	readonly commandImpl: ICommand | undefined = undefined;
 
 	constructor(workspace: IWorkspace) {
 		let repositoryOwner: string | undefined = undefined;
@@ -306,20 +325,16 @@ class RemoteIndicator implements IRemoteIndicator {
 			}
 		}
 
+		// Repo
 		if (repositoryName && repositoryOwner) {
-			this.label = localize('openInDesktopLabel', "$(remote) Open in Desktop");
-			this.tooltip = localize('openInDesktopTooltip', "Open in Desktop");
-			this.command = '_web.openInDesktop';
-			this.commandImpl = {
-				id: this.command,
-				handler: () => {
-					const protocol = product.quality === 'stable' ? 'vscode' : 'vscode-insiders';
-					window.open(`${protocol}://vscode.git/clone?url=${encodeURIComponent(`https://github.com/${repositoryOwner}/${repositoryName}.git`)}`);
-				}
-			};
-		} else {
-			this.label = localize('playgroundLabel', "Web Playground");
-			this.tooltip = this.label;
+			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+		}
+
+		// No Repo
+		else {
+			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
+			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
 		}
 	}
 }
@@ -391,6 +406,9 @@ class RemoteIndicator implements IRemoteIndicator {
 		}
 	}
 
+	// Workspace Provider
+	const workspaceProvider = new WorkspaceProvider(workspace, payload);
+
 	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
 		href: 'https://github.com/Microsoft/vscode',
@@ -398,13 +416,10 @@ class RemoteIndicator implements IRemoteIndicator {
 		title: localize('home', "Home")
 	};
 
-	// Commands
-	const commands: ICommand[] = [];
-
-	// Remote indicator
-	const remoteIndicator = new RemoteIndicator(workspace);
-	if (remoteIndicator.commandImpl) {
-		commands.push(remoteIndicator.commandImpl);
+	// Window indicator (unless connected to a remote)
+	let windowIndicator: WindowIndicator | undefined = undefined;
+	if (!workspaceProvider.hasRemote()) {
+		windowIndicator = new WindowIndicator(workspace);
 	}
 
 	// Product Quality Change Handler
@@ -422,15 +437,25 @@ class RemoteIndicator implements IRemoteIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
+	// Find credentials from DOM
+	const credentialsElement = document.getElementById('vscode-workbench-credentials');
+	const credentialsElementAttribute = credentialsElement ? credentialsElement.getAttribute('data-settings') : undefined;
+	let credentials = undefined;
+	if (credentialsElementAttribute) {
+		try {
+			credentials = JSON.parse(credentialsElementAttribute);
+		} catch (error) { /* Invalid credentials are passed. Ignore. */ }
+	}
+	const credentialsProvider = new LocalStorageCredentialsProvider(credentials || []);
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
 		homeIndicator,
-		commands,
-		remoteIndicator,
+		windowIndicator,
 		productQualityChangeHandler,
-		workspaceProvider: new WorkspaceProvider(workspace, payload),
+		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider()
+		credentialsProvider
 	});
 })();

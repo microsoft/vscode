@@ -8,6 +8,14 @@ import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDial
 import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+
+export interface IOSProperties {
+	type: string;
+	release: string;
+	arch: string;
+	platform: string;
+}
 
 export interface ICommonElectronService {
 
@@ -27,6 +35,8 @@ export interface ICommonElectronService {
 
 	readonly onOSResume: Event<unknown>;
 
+	readonly onColorSchemeChange: Event<ColorScheme>;
+
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
 	getWindowCount(): Promise<number>;
@@ -44,7 +54,15 @@ export interface ICommonElectronService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
-	focusWindow(options?: { windowId?: number }): Promise<void>;
+	/**
+	 * Make the window focused.
+	 *
+	 * @param options Pass `force: true` if you want to make the window take
+	 * focus even if the application does not have focus currently. This option
+	 * should only be used if it is necessary to steal focus from the current
+	 * focused application which may not be VSCode.
+	 */
+	focusWindow(options?: { windowId?: number, force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -65,6 +83,7 @@ export interface ICommonElectronService {
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 	isAdmin(): Promise<boolean>;
 	getTotalMem(): Promise<number>;
+	getOS(): Promise<IOSProperties>;
 
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;

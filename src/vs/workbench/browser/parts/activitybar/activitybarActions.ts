@@ -161,21 +161,27 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const otherCommands = accountsMenu.getActions();
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async id => {
-			const sessions = await this.authenticationService.getSessions(id);
+			try {
+				const sessions = await this.authenticationService.getSessions(id);
 
-			const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
-			sessions.forEach(session => {
-				if (groupedSessions[session.account.label]) {
-					groupedSessions[session.account.label].push(session);
-				} else {
-					groupedSessions[session.account.label] = [session];
-				}
-			});
+				const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+				sessions.forEach(session => {
+					if (groupedSessions[session.account.label]) {
+						groupedSessions[session.account.label].push(session);
+					} else {
+						groupedSessions[session.account.label] = [session];
+					}
+				});
 
-			return {
-				providerId: id,
-				sessions: groupedSessions
-			};
+				return {
+					providerId: id,
+					sessions: groupedSessions
+				};
+			} catch {
+				return {
+					providerId: id
+				};
+			}
 		});
 
 		const result = await Promise.all(allSessions);
@@ -183,20 +189,26 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
-			Object.keys(sessionInfo.sessions).forEach(accountName => {
-				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id || this.environmentService.options?.authenticationSessionId));
-				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
-					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
-				});
-				const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
-					return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
-				});
 
-				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+			if (sessionInfo.sessions) {
+				Object.keys(sessionInfo.sessions).forEach(accountName => {
+					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id || this.environmentService.options?.authenticationSessionId));
+					const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
+						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+					});
+					const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
+						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+					});
 
-				const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
+					const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+
+					const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
+					menus.push(menu);
+				});
+			} else {
+				const menu = new Action('providerUnavailable', nls.localize('authProviderUnavailable', '{0} is currently unavailable', providerDisplayName));
 				menus.push(menu);
-			});
+			}
 		});
 
 		if (menus.length && otherCommands.length) {

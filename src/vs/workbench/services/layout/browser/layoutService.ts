@@ -145,6 +145,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasWindowBorder(): boolean;
 
 	/**
+	 * Returns the window border width.
+	 */
+	getWindowBorderWidth(): number;
+
+	/**
 	 * Returns the window border radius if any.
 	 */
 	getWindowBorderRadius(): string | undefined;

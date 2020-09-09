@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
+import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
@@ -16,6 +17,7 @@ import { addDisposableListener, addClass } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk|port)?=(\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--(inspect|debug)-port=(\d+)/;
@@ -156,15 +158,15 @@ class ProcessExplorer {
 		return maxProcessId;
 	}
 
-	private updateSectionCollapsedState(shouldExpand: boolean, body: HTMLElement, twistie: HTMLImageElement, sectionName: string) {
+	private updateSectionCollapsedState(shouldExpand: boolean, body: HTMLElement, twistie: CodiconLabel, sectionName: string) {
 		if (shouldExpand) {
 			body.classList.remove('hidden');
 			this.collapsedStateCache.set(sectionName, false);
-			twistie.src = './media/expanded.svg';
+			twistie.text = '$(chevron-down)';
 		} else {
 			body.classList.add('hidden');
 			this.collapsedStateCache.set(sectionName, true);
-			twistie.src = './media/collapsed.svg';
+			twistie.text = '$(chevron-right)';
 		}
 	}
 
@@ -191,18 +193,27 @@ class ProcessExplorer {
 
 	private renderProcessGroupHeader(sectionName: string, body: HTMLElement, container: HTMLElement) {
 		const headerRow = document.createElement('tr');
-		const data = document.createElement('td');
-		data.textContent = sectionName;
-		data.colSpan = 4;
-		headerRow.appendChild(data);
 
-		const twistie = document.createElement('img');
-		this.updateSectionCollapsedState(!this.collapsedStateCache.get(sectionName), body, twistie, sectionName);
-		data.prepend(twistie);
+		const headerData = document.createElement('td');
+		headerData.colSpan = 4;
+		headerRow.appendChild(headerData);
 
-		this.listeners.add(addDisposableListener(data, 'click', (e) => {
+		const headerContainer = document.createElement('div');
+		headerContainer.className = 'header';
+		headerData.appendChild(headerContainer);
+
+		const twistieContainer = document.createElement('div');
+		const twistieCodicon = new CodiconLabel(twistieContainer);
+		this.updateSectionCollapsedState(!this.collapsedStateCache.get(sectionName), body, twistieCodicon, sectionName);
+		headerContainer.appendChild(twistieContainer);
+
+		const headerLabel = document.createElement('span');
+		headerLabel.textContent = sectionName;
+		headerContainer.appendChild(headerLabel);
+
+		this.listeners.add(addDisposableListener(headerData, 'click', (e) => {
 			const isHidden = body.classList.contains('hidden');
-			this.updateSectionCollapsedState(isHidden, body, twistie, sectionName);
+			this.updateSectionCollapsedState(isHidden, body, twistieCodicon, sectionName);
 		}));
 
 		container.appendChild(headerRow);

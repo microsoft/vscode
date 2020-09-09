@@ -12,12 +12,12 @@ import { createAndFillInActionBarActions, createAndFillInContextMenuActions } fr
 import { equals } from 'vs/base/common/arrays';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
-import { escape } from 'vs/base/common/strings';
 import { basename } from 'vs/base/common/resources';
 import { Iterable } from 'vs/base/common/iterator';
+import { reset } from 'vs/base/browser/dom';
 
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && typeof (element as ISCMRepository).setSelected === 'function';
@@ -105,7 +105,7 @@ export class StatusBarActionViewItem extends ActionViewItem {
 
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			this.label.innerHTML = renderCodicons(escape(this.getAction().label));
+			reset(this.label, ...renderCodiconsAsElement(this.getAction().label));
 		}
 	}
 }
