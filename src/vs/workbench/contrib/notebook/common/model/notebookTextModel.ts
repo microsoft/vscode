@@ -131,7 +131,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _cellhandlePool: number = 0;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
-	private _cells: NotebookCellTextModel[];
+	private _cells: NotebookCellTextModel[] = [];
 	private _languages: string[] = [];
 	private _allLanguages: boolean = false;
 
