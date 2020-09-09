@@ -171,6 +171,12 @@ steps:
   displayName: Prepare snap package
   condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
+# needed for code signing
+- task: UseDotNet@2
+  displayName: 'Install .NET Core SDK 2.x'
+  inputs:
+    version: 2.x
+
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
