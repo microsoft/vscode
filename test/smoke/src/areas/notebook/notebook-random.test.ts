@@ -150,6 +150,12 @@ class NotebookActionRunner {
 		try {
 			await wait(1000); // Wait for outputs to finish rendering
 			const newCells = await this.app.workbench.notebook.getCellDatas();
+
+			if (originalCells[0].length === 0) {
+				assert.equal(newCells[0].length, 1);
+				return;
+			}
+
 			assert.deepEqual(originalCells[0], newCells[0]);
 		} catch (e) {
 			throw e;
