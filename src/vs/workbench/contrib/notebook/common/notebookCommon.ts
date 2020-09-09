@@ -418,7 +418,8 @@ export const enum CellEditType {
 	Replace = 1,
 	Output = 2,
 	Metadata = 3,
-	CellLanguage = 4
+	CellLanguage = 4,
+	DocumentMetadata = 5,
 }
 
 export interface ICellDto2 {
@@ -455,7 +456,12 @@ export interface ICellLanguageEdit {
 	language: string;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit;
+export interface IDocumentMetadataEdit {
+	editType: CellEditType.DocumentMetadata;
+	metadata: NotebookDocumentMetadata;
+}
+
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;

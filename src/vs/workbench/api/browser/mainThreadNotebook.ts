@@ -162,9 +162,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return false;
 		}
 		this._notebookService.transformEditsOutputs(textModel, cellEdits);
-		//TODO@rebornix should this go into applyEdit?
 		if (newMetadata) {
-			textModel.updateNotebookMetadata(newMetadata);
+			textModel.applyEdit(textModel.versionId, [
+				{
+					editType: CellEditType.DocumentMetadata,
+					metadata: newMetadata
+				}
+			], true);
 		}
 		return textModel.applyEdit(modelVersionId, cellEdits, true);
 	}
@@ -306,9 +310,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					 * Since `e.transient` decides if the model should be dirty or not, we will use the same logic here.
 					 */
 					this._proxy.$acceptModelChanged(textModel.uri, data, !e.transient);
-					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: null });
+					if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+						this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
+					}
 				}));
-
 				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
 			}
 		};
@@ -558,12 +563,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this.logService.debug('MainThreadNotebooks#updateNotebookLanguages', resource.path, languages);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		textModel?.updateLanguages(languages);
-	}
-
-	async $updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void> {
-		this.logService.debug('MainThreadNotebooks#updateNotebookMetadata', resource.path, metadata);
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		textModel?.updateNotebookMetadata(metadata);
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void> {

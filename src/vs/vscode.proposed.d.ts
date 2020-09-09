@@ -1470,6 +1470,10 @@ declare module 'vscode' {
 		outputId: string;
 	}
 
+	export interface NotebookDocumentMetadataChangeEvent {
+		readonly document: NotebookDocument;
+	}
+
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
@@ -1747,6 +1751,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;

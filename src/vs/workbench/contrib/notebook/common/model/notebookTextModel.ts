@@ -210,13 +210,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._increaseVersionId();
 	}
 
-
 	dispose() {
 		this._onWillDispose.fire();
 		dispose(this._cellListeners.values());
 		dispose(this._cells);
 		super.dispose();
 	}
+
 	createCellTextModel(
 		source: string,
 		language: string,
@@ -251,10 +251,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const edits = rawEdits.map((edit, index) => {
 			return {
 				edit,
-				end: edit.editType === CellEditType.Replace ? edit.index + edit.count : edit.index,
+				end:
+					edit.editType === CellEditType.DocumentMetadata
+						? undefined
+						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : edit.index),
 				originalIndex: index,
 			};
 		}).sort((a, b) => {
+			if (a.end === undefined) {
+				return -1;
+			}
+
+			if (b.end === undefined) {
+				return -1;
+			}
+
 			return b.end - a.end || b.originalIndex - a.originalIndex;
 		});
 
@@ -278,10 +289,48 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(edit.index);
 					this._changeCellLanguage(this._cells[edit.index].handle, edit.language);
 					break;
+				case CellEditType.DocumentMetadata:
+					this._updateNotebookMetadata(edit.metadata);
+					break;
 			}
 		}
 
 		return true;
+	}
+
+
+	handleUnknownEdit(label: string | undefined, undo: () => void, redo: () => void): void {
+		this._operationManager.pushEditOperation({
+			type: UndoRedoElementType.Resource,
+			resource: this.uri,
+			label: label ?? nls.localize('defaultEditLabel', "Edit"),
+			undo: async () => {
+				undo();
+			},
+			redo: async () => {
+				redo();
+			},
+		});
+
+		this._eventEmitter.emit({
+			kind: NotebookCellsChangeType.Unknown,
+			transient: false,
+			synchronous: true,
+			versionId: this._versionId,
+		});
+	}
+
+	handleUnknownChange() {
+		this._eventEmitter.emit({
+			kind: NotebookCellsChangeType.Unknown,
+			transient: false,
+			synchronous: true,
+			versionId: this._versionId,
+		});
+	}
+
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
+		return new NotebookTextModelSnapshot(this);
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean): void {
@@ -346,40 +395,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 	}
 
-	handleUnknownEdit(label: string | undefined, undo: () => void, redo: () => void): void {
-		this._operationManager.pushEditOperation({
-			type: UndoRedoElementType.Resource,
-			resource: this.uri,
-			label: label ?? nls.localize('defaultEditLabel', "Edit"),
-			undo: async () => {
-				undo();
-			},
-			redo: async () => {
-				redo();
-			},
-		});
-
-		this._eventEmitter.emit({
-			kind: NotebookCellsChangeType.Unknown,
-			transient: false,
-			synchronous: true,
-			versionId: this._versionId,
-		});
-	}
-
-	handleUnknownChange() {
-		this._eventEmitter.emit({
-			kind: NotebookCellsChangeType.Unknown,
-			transient: false,
-			synchronous: true,
-			versionId: this._versionId,
-		});
-	}
-
-	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
-		return new NotebookTextModelSnapshot(this);
-	}
-
 	private _increaseVersionId(): void {
 		this._versionId = this._versionId + 1;
 	}
@@ -395,7 +410,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
+	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, versionId: this.versionId, metadata: this.metadata, synchronous: true, transient: false });
 	}

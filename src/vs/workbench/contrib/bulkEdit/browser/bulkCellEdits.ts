@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { ICellEditOperation, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellEditOperation, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -60,7 +60,10 @@ export class BulkCellEdits {
 
 			// set metadata
 			if (newMetadata) {
-				ref.object.notebook.updateNotebookMetadata(newMetadata);
+				edits.push({
+					editType: CellEditType.DocumentMetadata,
+					metadata: newMetadata
+				});
 			}
 			// apply edits
 			this._notebookService.transformEditsOutputs(ref.object.notebook, edits);

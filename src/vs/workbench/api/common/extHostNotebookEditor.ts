@@ -223,7 +223,8 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			const prev = compressedEdits[prevIndex];
 
 			if (prev.editType === CellEditType.Replace && editData.cellEdits[i].editType === CellEditType.Replace) {
-				if (prev.index === editData.cellEdits[i].index) {
+				const edit = editData.cellEdits[i];
+				if (edit.editType !== CellEditType.DocumentMetadata && prev.index === edit.index) {
 					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
 					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
 					continue;

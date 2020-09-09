@@ -11,7 +11,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { CellKind, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, NotebookCellOutputsSplice, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, INotebookDocumentPropertiesChangeData, IWorkspaceCellEditDto, MainThreadBulkEditsShape, MainThreadNotebookShape, NotebookCellOutputsSplice, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentsAndEditors, IExtHostModelAddedData } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { CellEditType, CellOutputKind, diff, IMainCellDto, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
@@ -191,13 +191,13 @@ export class ExtHostCell extends Disposable {
 			edit: { editType: CellEditType.Metadata, index, metadata: this._metadata }
 		};
 
-		console.log('_updateMetadata', this._metadata);
 		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit({ edits: [edit] });
 	}
 }
 
 export interface INotebookEventEmitter {
 	emitModelChange(events: vscode.NotebookCellsChangeEvent): void;
+	emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void;
 	emitCellOutputsChange(event: vscode.NotebookCellOutputsChangeEvent): void;
 	emitCellLanguageChange(event: vscode.NotebookCellLanguageChangeEvent): void;
 	emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void;
@@ -274,8 +274,17 @@ export class ExtHostNotebookDocument extends Disposable {
 	}
 
 	private _tryUpdateMetadata() {
-		this._proxy.$updateNotebookMetadata(this._viewType, this.uri, this._metadata);
+		const edit: IWorkspaceCellEditDto = {
+			_type: WorkspaceEditType.Cell,
+			metadata: undefined,
+			notebookMetadata: this._metadata,
+			resource: this.uri,
+			notebookVersionId: this.notebookDocument.version,
+		};
+
+		return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit({ edits: [edit] });
 	}
+
 	get notebookDocument(): vscode.NotebookDocument {
 		if (!this._notebook) {
 			const that = this;
@@ -317,6 +326,25 @@ export class ExtHostNotebookDocument extends Disposable {
 	disposeBackup(): void {
 		this._backup?.delete();
 		this._backup = undefined;
+	}
+
+	acceptDocumentPropertiesChanged(data: INotebookDocumentPropertiesChangeData) {
+		const newMetadata = {
+			...notebookDocumentMetadataDefaults,
+			...data.metadata
+		};
+
+		if (this._metadataChangeListener) {
+			this._metadataChangeListener.dispose();
+		}
+
+		const observableMetadata = getObservable(newMetadata);
+		this._metadata = observableMetadata.proxy;
+		this._metadataChangeListener = this._register(observableMetadata.onDidChange(() => {
+			this._tryUpdateMetadata();
+		}));
+
+		this._emitter.emitDocumentMetadataChange({ document: this.notebookDocument });
 	}
 
 	acceptModelChanged(event: NotebookCellsChangedEventDto, isDirty: boolean): void {

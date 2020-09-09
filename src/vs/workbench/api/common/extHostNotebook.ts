@@ -203,6 +203,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	readonly onDidChangeNotebookEditorSelection = this._onDidChangeNotebookEditorSelection.event;
 	private readonly _onDidChangeNotebookEditorVisibleRanges = new Emitter<vscode.NotebookEditorVisibleRangesChangeEvent>();
 	readonly onDidChangeNotebookEditorVisibleRanges = this._onDidChangeNotebookEditorVisibleRanges.event;
+	private readonly _onDidChangeNotebookDocumentMetadata = new Emitter<vscode.NotebookDocumentMetadataChangeEvent>();
+	readonly onDidChangeNotebookDocumentMetadata = this._onDidChangeNotebookDocumentMetadata.event;
 	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
 	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
 	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
@@ -604,10 +606,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (data.metadata) {
-			editor.editor.notebookData.notebookDocument.metadata = {
-				...notebookDocumentMetadataDefaults,
-				...data.metadata
-			};
+			editor.editor.notebookData.acceptDocumentPropertiesChanged(data);
 		}
 	}
 
@@ -693,6 +692,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					},
 					emitCellMetadataChange(event: vscode.NotebookCellMetadataChangeEvent): void {
 						that._onDidChangeCellMetadata.fire(event);
+					},
+					emitDocumentMetadataChange(event: vscode.NotebookDocumentMetadataChangeEvent): void {
+						that._onDidChangeNotebookDocumentMetadata.fire(event);
 					}
 				}, viewType, { ...notebookDocumentMetadataDefaults, ...modelData.metadata }, uri, storageRoot);
 
