@@ -1056,9 +1056,8 @@ export class CommandCenter {
 		}
 
 		const selectionsBeforeRevert = textEditor.selections;
-		await this._revertChanges(textEditor, selectedChanges).then(() => {
-			textEditor.selections = selectionsBeforeRevert;
-		});
+		await this._revertChanges(textEditor, selectedChanges);
+		textEditor.selections = selectionsBeforeRevert;
 	}
 
 	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
