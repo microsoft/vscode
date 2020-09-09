@@ -16,7 +16,7 @@ export const INotebookEditorModelResolverService = createDecorator<INotebookEdit
 
 export interface INotebookEditorModelResolverService {
 	readonly _serviceBrand: undefined;
-	resolve(resource: URI, viewType?: string, editorId?: string): Promise<IReference<INotebookEditorModel>>;
+	resolve(resource: URI, viewType?: string): Promise<IReference<INotebookEditorModel>>;
 }
 
 
@@ -33,7 +33,7 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 	protected createReferencedObject(key: string, ...args: any[]): Promise<INotebookEditorModel> {
 		const resource = URI.parse(key);
 
-		let [viewType, editorId] = args as [string | undefined, string | undefined];
+		let [viewType] = args as [string | undefined];
 		if (!viewType) {
 			viewType = this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
 		}
@@ -42,7 +42,7 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 		}
 
 		const model = this._instantiationService.createInstance(NotebookEditorModel, resource, viewType);
-		const promise = model.load({ editorId });
+		const promise = model.load();
 		return promise;
 	}
 
@@ -68,10 +68,10 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 	}
 
-	async resolve(resource: URI, viewType?: string, editorId?: string | undefined): Promise<IReference<INotebookEditorModel>> {
-		const reference = this._data.acquire(resource.toString(), viewType, editorId);
+	async resolve(resource: URI, viewType?: string): Promise<IReference<INotebookEditorModel>> {
+		const reference = this._data.acquire(resource.toString(), viewType);
 		const model = await reference.object;
-		NotebookModelResolverService._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType, editorId));
+		NotebookModelResolverService._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType));
 		return {
 			object: model,
 			dispose() { reference.dispose(); }

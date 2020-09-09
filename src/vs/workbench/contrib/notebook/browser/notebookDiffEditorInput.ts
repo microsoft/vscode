@@ -193,14 +193,14 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookDiffEditorModel | null> {
+	async resolve(): Promise<INotebookDiffEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
-			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!);
 		}
 
 		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);

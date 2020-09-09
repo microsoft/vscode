@@ -605,7 +605,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.get(id);
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel> {
 
 		if (!await this.canResolve(viewType)) {
 			throw new Error(`CANNOT load notebook, no provider for '${viewType}'`);
@@ -636,10 +636,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._onDidAddNotebookDocument.fire(notebookModel);
 		// after the document is added to the store and sent to ext host, we transform the ouputs
 		await this.transformTextModelOutputs(notebookModel);
-
-		if (editorId) {
-			await provider.controller.resolveNotebookEditor(viewType, uri, editorId);
-		}
 
 		return modelData.model;
 	}
@@ -784,6 +780,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		});
 
 		return ret;
+	}
+
+	async resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void> {
+		const entry = this._notebookProviders.get(viewType);
+		if (entry) {
+			entry.controller.resolveNotebookEditor(viewType, uri, editorId);
+		}
 	}
 
 	removeNotebookEditor(editor: INotebookEditor) {

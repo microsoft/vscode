@@ -24,8 +24,6 @@ export interface INotebookLoadOptions {
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromDisk?: boolean;
-
-	editorId?: string;
 }
 
 
@@ -124,7 +122,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
-			return this._loadFromProvider(true, undefined, undefined);
+			return this._loadFromProvider(true, undefined);
 		}
 
 		if (this.isResolved()) {
@@ -137,11 +135,11 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			return this; // Make sure meanwhile someone else did not succeed in loading
 		}
 
-		return this._loadFromProvider(false, options?.editorId, backup?.meta?.backupId);
+		return this._loadFromProvider(false, backup?.meta?.backupId);
 	}
 
-	private async _loadFromProvider(forceReloadFromDisk: boolean, editorId: string | undefined, backupId: string | undefined) {
-		this._notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId, backupId);
+	private async _loadFromProvider(forceReloadFromDisk: boolean, backupId: string | undefined) {
+		this._notebook = await this._notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, backupId);
 
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
