@@ -233,6 +233,7 @@ export interface INotebookEditor extends IEditor {
 	getDomNode(): HTMLElement;
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
+	getSelectionHandles(): number[];
 
 	/**
 	 * Focus the notebook editor cell list

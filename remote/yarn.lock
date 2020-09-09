@@ -294,10 +294,10 @@ node-addon-api@1.6.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
   integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
-node-pty@0.10.0-beta8:
-  version "0.10.0-beta8"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta8.tgz#f4aa56c71a794f4580373a3030dfebd25240c6db"
-  integrity sha512-Ul/hLsadC0SvvShxpne+kq2ebSMcitewlNhrwoXXBvFdCqxJt7Ai1AgMhH7AKBUp06uBeYXThJ2ihTszrkdnYw==
+node-pty@0.10.0-beta17:
+  version "0.10.0-beta17"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta17.tgz#962d4a3f4dc6772385e0cad529c209cef3bc79e6"
+  integrity sha512-tn7EANQacnAvnOQCImvgag1DL0tVmUoY/1yIZbh3u/BBpvCcGHLZJNn7TXheodRLr6hmGSUS2VbfcUr9p0gOug==
   dependencies:
     nan "^2.14.0"
 
@@ -410,10 +410,10 @@ vscode-proxy-agent@^0.5.2:
     https-proxy-agent "^2.2.3"
     socks-proxy-agent "^4.0.1"
 
-vscode-ripgrep@^1.8.0:
-  version "1.8.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.8.0.tgz#dfe7c2ae2a2032df8a8108765c2feef73474888a"
-  integrity sha512-/Q5XtePkTLLi8yplr5ai24pVEymRF62xH9xXrtj35GTaDCJg3zq1s1/L1UqhVbfNDv4OcMBYjyIAt/quEi3d5w==
+vscode-ripgrep@^1.9.0:
+  version "1.9.0"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.9.0.tgz#d6cdea4d290f3c2919472cdcfe2440d5fb1f99db"
+  integrity sha512-7jyAC/NNfvMPZgCVkyqIn0STYJ7wIk3PF2qA2cX1sEutx1g/e2VtgKAodXnfpreJq4993JT/BSIigOv/0lBSzg==
   dependencies:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"

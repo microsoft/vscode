@@ -228,9 +228,14 @@ const newCommands: ApiCommand[] = [
 			}
 			return typeConverters.WorkspaceEdit.to(value);
 		})
+	),
+	// --- links
+	new ApiCommand(
+		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
+		[ApiCommandArgument.Uri, new ApiCommandArgument('linkResolveCount', '(optional) Number of links that should be resolved, only when links are unresolved.', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
+		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
 	)
 ];
-
 
 //#endregion
 
@@ -289,13 +294,6 @@ export class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
 
-		this._register('vscode.executeLinkProvider', this._executeDocumentLinkProvider, {
-			description: 'Execute document link provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-			],
-			returns: 'A promise that resolves to an array of DocumentLink-instances.'
-		});
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
 			args: [
@@ -478,12 +476,6 @@ export class ExtHostApiCommands {
 					typeConverters.Range.to(item.range),
 					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
-
-	}
-
-	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[] | undefined> {
-		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
-			.then(tryMapWith(typeConverters.DocumentLink.to));
 	}
 }
 
