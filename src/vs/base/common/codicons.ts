@@ -478,6 +478,7 @@ export namespace Codicon {
 	export const cloud = new Codicon('cloud', { character: '\\ebaa' });
 	export const merge = new Codicon('merge', { character: '\\ebab' });
 	export const exportIcon = new Codicon('export', { character: '\\ebac' });
+	export const graphLeft = new Codicon('graph-left', { character: '\\ebad' });
 }
 
 
