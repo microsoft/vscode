@@ -60,7 +60,7 @@ suite('FileUserDataProvider', () => {
 		await pfs.rimraf(rootResource.fsPath, pfs.RimRafMode.MOVE);
 	});
 
-	test.skip('exists return false when file does not exist', async () => {
+	test('exists return false when file does not exist', async () => {
 		const exists = await testObject.exists(environmentService.settingsResource);
 		assert.equal(exists, false);
 	});
