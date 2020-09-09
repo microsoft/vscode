@@ -58,7 +58,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 						text = text.slice(0, -1);
 						endX--;
 					}
-					result.push(new TerminalLink(this._xterm, { start: { x: startX + 1, y }, end: { endX, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+					result.push(new TerminalLink(this._xterm, { start: { x: startX + 1, y }, end: { x: endX, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
 					text = '';
 					startX = -1;
 				}
