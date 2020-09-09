@@ -685,10 +685,10 @@ function _applyRules(styleSheetContent: string, rulesClassName: string) {
 		const elStyle = document.createElement('style');
 		elStyle.type = 'text/css';
 		elStyle.className = rulesClassName;
-		elStyle.innerHTML = styleSheetContent;
+		elStyle.textContent = styleSheetContent;
 		document.head.appendChild(elStyle);
 	} else {
-		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
+		(<HTMLStyleElement>themeStyles[0]).textContent = styleSheetContent;
 	}
 }
 
