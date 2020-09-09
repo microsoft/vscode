@@ -43,9 +43,9 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	private readonly _onRequestLatency = this._register(new Emitter<void>());
 	public readonly onRequestLatency: Event<void> = this._onRequestLatency.event;
 
-	private _pendingInitialCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
-	private _pendingCwdRequests: ((value?: string | Thenable<string>) => void)[] = [];
-	private _pendingLatencyRequests: ((value?: number | Thenable<number>) => void)[] = [];
+	private _pendingInitialCwdRequests: ((value: string | Thenable<string>) => void)[] = [];
+	private _pendingCwdRequests: ((value: string | Thenable<string>) => void)[] = [];
+	private _pendingLatencyRequests: ((value: number | Thenable<number>) => void)[] = [];
 
 	constructor(
 		public terminalId: number,

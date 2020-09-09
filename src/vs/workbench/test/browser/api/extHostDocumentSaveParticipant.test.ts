@@ -207,7 +207,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
-			event.waitUntil(new Promise((resolve, reject) => {
+			event.waitUntil(new Promise<undefined>((resolve, reject) => {
 				setTimeout(() => {
 					try {
 						assert.throws(() => event.waitUntil(timeout(10)));

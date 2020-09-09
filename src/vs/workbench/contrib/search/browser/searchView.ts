@@ -596,7 +596,7 @@ export class SearchView extends ViewPane {
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 100, total: occurrences }, p => {
 			progressReporter = p;
 
-			return new Promise(resolve => progressComplete = resolve);
+			return new Promise<void>(resolve => progressComplete = resolve);
 		});
 
 		const confirmation: IConfirmation = {
@@ -1398,7 +1398,7 @@ export class SearchView extends ViewPane {
 	private doSearch(query: ITextQuery, excludePatternText: string, includePatternText: string, triggeredOnType: boolean): Thenable<void> {
 		let progressComplete: () => void;
 		this.progressService.withProgress({ location: this.getProgressLocation(), delay: triggeredOnType ? 300 : 0 }, _progress => {
-			return new Promise(resolve => progressComplete = resolve);
+			return new Promise<void>(resolve => progressComplete = resolve);
 		});
 
 		this.searchWidget.searchInput.clearMessage();

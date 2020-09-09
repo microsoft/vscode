@@ -55,7 +55,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
 			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
-			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
+			.then(() => new Promise<void>(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
 					exists(profileFilenamePrefix).then(exists => {
 						if (exists) {

@@ -135,7 +135,7 @@ suite('NotebookCell#Document', function () {
 
 	test('cell document is vscode.TextDocument after changing it', async function () {
 
-		const p = new Promise((resolve, reject) => {
+		const p = new Promise<void>((resolve, reject) => {
 			extHostNotebooks.onDidChangeNotebookCells(e => {
 				try {
 					assert.strictEqual(e.changes.length, 1);

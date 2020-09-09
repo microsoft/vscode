@@ -760,7 +760,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				upwards = true;
 			}
 
-			const editorAttachedPromise = new Promise((resolve, reject) => {
+			const editorAttachedPromise = new Promise<void>((resolve, reject) => {
 				element.onDidChangeEditorAttachState(() => {
 					element.editorAttached ? resolve() : reject();
 				});
@@ -1052,7 +1052,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 }
 
 function getEditorAttachedPromise(element: CellViewModel) {
-	return new Promise((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		Event.once(element.onDidChangeEditorAttachState)(() => element.editorAttached ? resolve() : reject());
 	});
 }
