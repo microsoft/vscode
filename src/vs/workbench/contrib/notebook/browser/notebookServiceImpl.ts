@@ -919,19 +919,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				}
 			});
 
+			modelData.model.dispose();
+			modelData.dispose();
+
 			willRemovedEditors.forEach(e => this._notebookEditors.delete(e.getId()));
-
-			const provider = this._notebookProviders.get(modelData!.model.viewType);
-
-			if (provider) {
-				provider.controller.removeNotebookDocument(modelData!.model.uri);
-				modelData!.model.dispose();
-			}
-
-
 			this._onNotebookEditorsRemove.fire(willRemovedEditors.map(e => e));
 			this._onDidRemoveNotebookDocument.fire(modelData.model.uri);
-			modelData.dispose();
 		}
 	}
 }

@@ -166,14 +166,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return textModel.applyEdit(modelVersionId, cellEdits, true);
 	}
 
-	async removeNotebookTextModel(uri: URI): Promise<void> {
-		// TODO@rebornix remove this? obsolete?
-		// TODO@rebornix, remove cell should use emitDelta as well to ensure document/editor events are sent together
-		this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [uri] });
-		this._documentEventListenersMapping.get(uri)?.dispose();
-		this._documentEventListenersMapping.delete(uri);
-	}
-
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
 		if (delta.addedDocuments !== undefined && delta.addedDocuments.length > 0) {
 			return false;
@@ -477,9 +469,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			},
 			onDidReceiveMessage: (editorId: string, rendererType: string | undefined, message: unknown) => {
 				this._proxy.$onDidReceiveMessage(editorId, rendererType, message);
-			},
-			removeNotebookDocument: async (uri: URI) => {
-				return this.removeNotebookTextModel(uri);
 			},
 			save: async (uri: URI, token: CancellationToken) => {
 				return this._proxy.$saveNotebook(viewType, uri, token);
