@@ -8,13 +8,14 @@ import { QuickAccess } from './quickaccess';
 import { IElement } from './driver';
 
 const notebookEditorSelector = `.notebook-editor`;
-const activeRowSelector = `${notebookEditorSelector} .monaco-list-row.focused`;
+const activeRowSelector = `${notebookEditorSelector}:focus-within .monaco-list-row.focused`;
 
 export interface ICellData {
 	top: number;
 	elementHeight: number;
 	editorHeight: number | undefined;
 	language: string | undefined;
+	posInSet: number;
 }
 
 export class Notebook {
@@ -24,7 +25,7 @@ export class Notebook {
 		private readonly code: Code) {
 	}
 
-	async getCellDatas(): Promise<ICellData[]> {
+	async getCellDatas(): Promise<ICellData[][]> {
 		if (await this.notebookIsEmpty()) {
 			return [];
 		}
@@ -43,7 +44,7 @@ export class Notebook {
 			throw new Error(`Number of cells does not match number of language pickers/rendered markdowns. ${cells.length} cells, ${languagePickersOrMarkdowns.length} language pickers/markdowns`);
 		}
 
-		return cells.map((element, i) => {
+		const flatCellDatas = cells.map((element, i) => {
 			const editorOrMarkdown = cellEditorsOrMarkdowns[i];
 			const languagePickerOrMarkdown = languagePickersOrMarkdowns[i];
 			const editorHeight = editorOrMarkdown.className.includes('monaco-editor') ? editorOrMarkdown.height : undefined;
@@ -52,16 +53,37 @@ export class Notebook {
 			const cellData = <ICellData>{
 				top: element.top,
 				elementHeight: element.height,
-				language
+				language,
+				posInSet: Number.parseInt(element.attributes['aria-posinset'])
 			};
 			if (typeof editorHeight === 'number') {
 				cellData.editorHeight = editorHeight;
 			}
 
 			return cellData;
-		}).sort((cellA, cellB) => {
-			return cellA.top - cellB.top;
 		});
+
+		let currentGroup: ICellData[] = [];
+		const cellDatas: ICellData[][] = [currentGroup];
+		flatCellDatas.forEach(cell => {
+			if (currentGroup[cell.posInSet]) {
+				currentGroup = [];
+				cellDatas.push(currentGroup);
+			}
+
+			currentGroup[cell.posInSet] = cell;
+		});
+
+		cellDatas.forEach(group => {
+			group.forEach((cell, i) => {
+				const prev = group[i];
+				if (prev && cell.top <= prev.top) {
+					throw new Error('Cells are in the wrong order');
+				}
+			});
+		});
+
+		return cellDatas;
 	}
 
 	async notebookIsEmpty(): Promise<boolean> {

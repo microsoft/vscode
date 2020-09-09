@@ -32,7 +32,7 @@ export function setup() {
 		afterEach(async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
-			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
+			await app.workbench.quickaccess.runCommand('workbench.action.closeAllGroups');
 		});
 
 		async function runActionListTest(app: Application, actionRunner: NotebookActionRunner) {
@@ -40,6 +40,12 @@ export function setup() {
 			const content = fs.readFileSync(app.notebookActionList!).toString();
 			const actionList = content.trim().split('\n');
 			await actionRunner.runActionList(actionList);
+		}
+
+		async function testSetup(app: Application) {
+			await app.workbench.notebook.createRealNotebook();
+			await app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
+			await app.workbench.quickaccess.runCommand('notifications.clearAll');
 		}
 
 		async function testMain(app: Application) {
@@ -67,9 +73,7 @@ export function setup() {
 				this.timeout(1000 * 60 * 60 * 8); // 8 hours
 
 				const app = this.app as Application;
-				await app.workbench.notebook.createRealNotebook();
-				await app.workbench.quickaccess.runCommand('notifications.clearAll');
-
+				await testSetup(app);
 				await testMain(app);
 			});
 		}
@@ -119,18 +123,22 @@ class NotebookActionRunner {
 	private async assertLayoutInvariant() {
 		await this.actions['focusTop']();
 
-		const originalCells = await this.app.workbench.notebook.getCellDatas();
-		await this.app.workbench.quickaccess.runCommand('workbench.action.files.save');
 		await this.app.captureScreenshot(`${this.id}/0_before`);
+		await this.app.workbench.quickaccess.runCommand('workbench.action.files.save');
 
-		await this.app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
+		const originalCells = await this.app.workbench.notebook.getCellDatas();
+		for (let group of originalCells) {
+			assert.deepEqual(group, originalCells[0]);
+		}
+
+		await this.app.workbench.quickaccess.runCommand('workbench.action.closeAllGroups');
 		await this.app.workbench.notebook.reopenNotebook();
-
+		await this.app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
 
 		try {
 			await wait(1000); // Wait for outputs to finish rendering
 			const newCells = await this.app.workbench.notebook.getCellDatas();
-			assert.deepEqual(originalCells, newCells);
+			assert.deepEqual(originalCells[0], newCells[0]);
 		} catch (e) {
 			throw e;
 		} finally {
@@ -151,11 +159,13 @@ class NotebookActionRunner {
 		}
 	}
 
-	private async assertCodeCellLanguageInvariant(datas: ICellData[]) {
-		datas.forEach((cellData, i) => {
-			if (typeof cellData.editorHeight === 'number' && cellData.language === 'markdown') {
-				throw new Error(`Code cell ${i} should not have language "markdown"`);
-			}
+	private async assertCodeCellLanguageInvariant(datas: ICellData[][]) {
+		datas.forEach(group => {
+			group.forEach((cellData, i) => {
+				if (typeof cellData.editorHeight === 'number' && cellData.language === 'markdown') {
+					throw new Error(`Code cell ${i} should not have language "markdown"`);
+				}
+			});
 		});
 	}
 
@@ -291,5 +301,7 @@ function getActions(app: Application): INotebookActions {
 		expandInput: () => qa.runCommand('notebook.cell.expandCellContent'),
 		collapseOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
 		expandOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
+		focusNextEditorGroup: () => qa.runCommand('workbench.action.focusNextGroup'),
+		renderAllMarkdownCells: () => qa.runCommand('notebook.renderAllMarkdownCells'),
 	};
 }
