@@ -1539,8 +1539,7 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
 	}
 
-	@command('git.commitEmpty', { repository: true })
-	async commitEmpty(repository: Repository): Promise<void> {
+	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
@@ -1558,7 +1557,52 @@ export class CommandCenter {
 			}
 		}
 
-		await this.commitWithAnyInput(repository, { empty: true });
+		await this.commitWithAnyInput(repository, { empty: true, noVerify });
+	}
+
+	@command('git.commitEmpty', { repository: true })
+	async commitEmpty(repository: Repository): Promise<void> {
+		await this._commitEmpty(repository);
+	}
+
+	@command('git.commitNoVerify', { repository: true })
+	async commitNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { noVerify: true });
+	}
+
+	@command('git.commitStagedNoVerify', { repository: true })
+	async commitStagedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, noVerify: true });
+	}
+
+	@command('git.commitStagedSignedNoVerify', { repository: true })
+	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitStagedAmendNoVerify', { repository: true })
+	async commitStagedAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, amend: true, noVerify: true });
+	}
+
+	@command('git.commitAllNoVerify', { repository: true })
+	async commitAllNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, noVerify: true });
+	}
+
+	@command('git.commitAllSignedNoVerify', { repository: true })
+	async commitAllSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitAllAmendNoVerify', { repository: true })
+	async commitAllAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, amend: true, noVerify: true });
+	}
+
+	@command('git.commitEmptyNoVerify', { repository: true })
+	async commitEmptyNoVerify(repository: Repository): Promise<void> {
+		await this._commitEmpty(repository, true);
 	}
 
 	@command('git.restoreCommitTemplate', { repository: true })
