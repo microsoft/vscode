@@ -53,28 +53,43 @@ steps:
     git merge $(node -p "require('./package.json').distro")
   displayName: Merge distro
 
+- script: |
+    echo -n $VSCODE_ARCH > .build/arch
+  displayName: Prepare arch cache flag
+
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
 
 - script: |
     set -e
-    CHILD_CONCURRENCY=1 npm_config_arch=$(VSCODE_ARCH) yarn --frozen-lockfile
+    npm install -g node-gyp@7.1.0
+    node-gyp --version
+  displayName: Update node-gyp
+  condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
+
+- script: |
+    set -e
+    export npm_config_arch=$(VSCODE_ARCH)
+    export npm_config_node_gyp=$(which node-gyp)
+    CHILD_CONCURRENCY=1 yarn --frozen-lockfile --verbose
   displayName: Install dependencies
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - script: |
     set -e
-    npm_config_arch=$(VSCODE_ARCH) yarn postinstall
+    export npm_config_arch=$(VSCODE_ARCH)
+    export npm_config_node_gyp=$(which node-gyp)
+    yarn postinstall
   displayName: Run postinstall scripts
   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
 
@@ -259,6 +274,7 @@ steps:
     APP_NAME="`ls $APP_ROOT | head -n 1`"
     "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
   displayName: Verify start after signing (export configuration)
+  condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
 - script: |
     set -e

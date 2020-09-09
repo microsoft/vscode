@@ -3,7 +3,7 @@ set -e
 
 # publish the build
 node build/azure-pipelines/common/createAsset.js \
-	darwin \
+	darwin-$VSCODE_ARCH \
 	archive \
 	"VSCode-darwin-$VSCODE_QUALITY-$VSCODE_ARCH.zip" \
 	../VSCode-darwin-$VSCODE_ARCH.zip
