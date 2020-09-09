@@ -297,6 +297,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(edit.index);
 					this._changeCellMetadata(this._cells[edit.index].handle, edit.metadata, true);
 					break;
+				case CellEditType.CellLanguage:
+					this._assertIndex(edit.index);
+					this._changeCellLanguage(this._cells[edit.index].handle, edit.language);
+					break;
 			}
 		}
 
@@ -516,6 +520,18 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 	}
 
+	private _changeCellLanguage(handle: number, languageId: string) {
+		const cell = this._mapping.get(handle);
+		if (cell && cell.language !== languageId) {
+			cell.language = languageId;
+
+			this._eventEmitter.emit({
+				triggerDirty: { value: true },
+				contentChange: { value: { kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this._cells.indexOf(cell), language: languageId, synchronous: true } }
+			});
+		}
+	}
+
 	// TODO@rebornix, once adopted the new Edit API in ext host, the method should be private.
 	_spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
 		const cell = this._mapping.get(cellHandle);
@@ -546,18 +562,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	//#region Notebook Text Model Edit API
-
-	changeCellLanguage(handle: number, languageId: string) {
-		const cell = this._mapping.get(handle);
-		if (cell && cell.language !== languageId) {
-			cell.language = languageId;
-
-			this._eventEmitter.emit({
-				triggerDirty: undefined,
-				contentChange: { value: { kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this._cells.indexOf(cell), language: languageId, synchronous: true } }
-			});
-		}
-	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
 		if (pushUndoStop) {

@@ -449,8 +449,14 @@ abstract class AbstractCellRenderer extends Disposable {
 			}
 
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
-				this.notebookEditor.textModel!.changeCellLanguage(this.cell.modified!.handle, newLangauge);
+				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
+				this.notebookEditor.textModel!.applyEdit(
+					this.notebookEditor.textModel!.versionId,
+					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
+					true
+				);
 			}
+
 			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
 
 			if (index < 0) {
