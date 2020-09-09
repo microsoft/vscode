@@ -1030,10 +1030,10 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]).then(() => {
-			const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
-			textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
-		});
+		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+		
+		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
 	@command('git.revertSelectedRanges', { diff: true })
