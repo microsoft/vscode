@@ -10,8 +10,6 @@
 .suggest-input-container .monaco-editor-background,
 .suggest-input-container .monaco-editor,
 .suggest-input-container .mtk1 {
-	/* allow the embedded monaco to be styled from the outer context */
-	background-color: transparent;
 	color: inherit;
 }
 
@@ -26,3 +24,7 @@
 	margin-left: 1px;
 }
 
+.suggest-input-container .monaco-editor,
+.suggest-input-container .monaco-editor .lines-content {
+	background: none;
+}

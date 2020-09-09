@@ -11,7 +11,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
@@ -141,7 +141,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			try {
 				const result = await this._proxy.$executeCommand<T>(id, toArgs, retry);
-				return revive(result);
+				return revive<any>(result);
 			} catch (e) {
 				// Rerun the command when it wasn't known, had arguments, and when retry
 				// is enabled. We do this because the command might be registered inside
@@ -204,12 +204,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescription }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
-		this._commands.forEach((command, id) => {
+		for (let [id, command] of this._commands) {
 			let { description } = command;
 			if (description) {
 				result[id] = description;
 			}
-		});
+		}
 		return Promise.resolve(result);
 	}
 }
@@ -230,6 +230,8 @@ export class CommandsConverter {
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
+	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
 		if (!command) {

@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerModelCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -18,7 +18,7 @@ import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/wordSelections';
 import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bracketSelections';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -64,7 +64,7 @@ class SmartSelectController implements IEditorContribution {
 	}
 
 	dispose(): void {
-		dispose(this._selectionListener);
+		this._selectionListener?.dispose();
 	}
 
 	run(forward: boolean): Promise<void> | void {
@@ -106,10 +106,10 @@ class SmartSelectController implements IEditorContribution {
 				this._state = ranges.map(ranges => new SelectionRanges(0, ranges));
 
 				// listen to caret move and forget about state
-				dispose(this._selectionListener);
+				this._selectionListener?.dispose();
 				this._selectionListener = this._editor.onDidChangeCursorPosition(() => {
 					if (!this._ignoreSelection) {
-						dispose(this._selectionListener);
+						this._selectionListener?.dispose();
 						this._state = undefined;
 					}
 				});
@@ -167,7 +167,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
 				title: nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"),
@@ -196,7 +196,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
 				title: nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"),
@@ -302,6 +302,7 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 	});
 }
 
-registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, _position, args) {
-	return provideSelectionRanges(model, args.positions, CancellationToken.None);
+registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
+	const [positions] = args;
+	return provideSelectionRanges(model, positions, CancellationToken.None);
 });

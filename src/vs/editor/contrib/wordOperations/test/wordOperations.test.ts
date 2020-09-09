@@ -11,6 +11,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
 import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 suite('WordOperations', () => {
 
@@ -110,7 +112,7 @@ suite('WordOperations', () => {
 			'    Third Line🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
+		], {}, (editor) => {
 			editor.setPosition(new Position(5, 2));
 			cursorWordLeft(editor, true);
 			assert.deepEqual(editor.getSelection(), new Selection(5, 2, 5, 1));
@@ -165,7 +167,7 @@ suite('WordOperations', () => {
 
 	test('cursorWordStartLeft', () => {
 		// This is the behaviour observed in Visual Studio, please do not touch test
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/|  '].join('\n');
+		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  '].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -191,6 +193,28 @@ suite('WordOperations', () => {
 		);
 		const actual = serializePipePositions(text, actualStops);
 		assert.deepEqual(actual, EXPECTED);
+	});
+
+	test('issue #51275 - cursorWordStartLeft does not push undo/redo stack element', () => {
+		function type(viewModel: ViewModel, text: string) {
+			for (let i = 0; i < text.length; i++) {
+				viewModel.type(text.charAt(i), 'keyboard');
+			}
+		}
+
+		withTestCodeEditor('', {}, (editor, viewModel) => {
+			type(viewModel, 'foo bar baz');
+			assert.equal(editor.getValue(), 'foo bar baz');
+
+			cursorWordStartLeft(editor);
+			cursorWordStartLeft(editor);
+			type(viewModel, 'q');
+
+			assert.equal(editor.getValue(), 'foo qbar baz');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.equal(editor.getValue(), 'foo bar baz');
+		});
 	});
 
 	test('cursorWordEndLeft', () => {
@@ -351,7 +375,7 @@ suite('WordOperations', () => {
 	});
 
 	test('cursorWordAccessibilityRight', () => {
-		const EXPECTED = ['   /* Just| some|   more|   text| a|+= 3| +5|-3| + 7| */  |'].join('\n');
+		const EXPECTED = ['   /* |Just |some   |more   |text |a+= |3 +|5-|3 + |7 */  |'].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,

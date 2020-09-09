@@ -409,7 +409,7 @@ export function createQueuedSender(childProcess: cp.ChildProcess): IQueuedSender
 			return;
 		}
 
-		const result = childProcess.send(msg, (error: Error) => {
+		const result = childProcess.send(msg, (error: Error | null) => {
 			if (error) {
 				console.error(error); // unlikely to happen, best we can do is log this error
 			}
@@ -457,7 +457,7 @@ export namespace win32 {
 
 		async function fileExists(path: string): Promise<boolean> {
 			if (await promisify(fs.exists)(path)) {
-				return !((await promisify(fs.stat)(path)).isDirectory);
+				return !((await promisify(fs.stat)(path)).isDirectory());
 			}
 			return false;
 		}

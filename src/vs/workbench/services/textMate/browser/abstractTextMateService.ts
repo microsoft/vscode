@@ -10,6 +10,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as resources from 'vs/base/common/resources';
 import * as types from 'vs/base/common/types';
+import { equals as equalArray } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
 import { IState, ITokenizationSupport, LanguageId, TokenMetadata, TokenizationRegistry, StandardTokenType, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -22,13 +23,14 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
-import { ITextMateThemingRule, IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
+import { ITextMateThemingRule, IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import type { IGrammar, StackElement, IOnigLib, IRawTheme } from 'vscode-textmate';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: undefined;
@@ -40,10 +42,14 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	private readonly _createdModes: string[];
 	private readonly _encounteredLanguages: boolean[];
 
+	private _debugMode: boolean;
+	private _debugModePrintFunc: (str: string) => void;
+
 	private _grammarDefinitions: IValidGrammarDefinition[] | null;
 	private _grammarFactory: TMGrammarFactory | null;
 	private _tokenizersRegistrations: IDisposable[];
 	protected _currentTheme: IRawTheme | null;
+	protected _currentTokenColorMap: string[] | null;
 
 	constructor(
 		@IModeService private readonly _modeService: IModeService,
@@ -52,7 +58,8 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();
@@ -60,11 +67,15 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		this._createdModes = [];
 		this._encounteredLanguages = [];
 
+		this._debugMode = false;
+		this._debugModePrintFunc = () => { };
+
 		this._grammarDefinitions = null;
 		this._grammarFactory = null;
 		this._tokenizersRegistrations = [];
 
 		this._currentTheme = null;
+		this._currentTokenColorMap = null;
 
 		grammarsExtPoint.setHandler((extensions) => {
 			this._grammarDefinitions = null;
@@ -171,6 +182,46 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		});
 	}
 
+	public startDebugMode(printFn: (str: string) => void, onStop: () => void): void {
+		if (this._debugMode) {
+			this._notificationService.error(nls.localize('alreadyDebugging', "Already Logging."));
+			return;
+		}
+
+		this._debugModePrintFunc = printFn;
+		this._debugMode = true;
+
+		if (this._debugMode) {
+			this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					buttons: [nls.localize('stop', "Stop")]
+				},
+				(progress) => {
+					progress.report({
+						message: nls.localize('progress1', "Preparing to log TM Grammar parsing. Press Stop when finished.")
+					});
+
+					return this._getVSCodeOniguruma().then((vscodeOniguruma) => {
+						vscodeOniguruma.setDefaultDebugCall(true);
+						progress.report({
+							message: nls.localize('progress2', "Now logging TM Grammar parsing. Press Stop when finished.")
+						});
+						return new Promise<void>((resolve, reject) => { });
+					});
+				},
+				(choice) => {
+					this._getVSCodeOniguruma().then((vscodeOniguruma) => {
+						this._debugModePrintFunc = () => { };
+						this._debugMode = false;
+						vscodeOniguruma.setDefaultDebugCall(false);
+						onStop();
+					});
+				}
+			);
+		}
+	}
+
 	private _canCreateGrammarFactory(): boolean {
 		// Check if extension point is ready
 		return (this._grammarDefinitions ? true : false);
@@ -181,7 +232,11 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			return this._grammarFactory;
 		}
 
-		const vscodeTextmate = await this._loadVSCodeTextmate();
+		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([import('vscode-textmate'), this._getVSCodeOniguruma()]);
+		const onigLib: Promise<IOnigLib> = Promise.resolve({
+			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
+			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
+		});
 
 		// Avoid duplicate instantiations
 		if (this._grammarFactory) {
@@ -192,7 +247,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			logTrace: (msg: string) => this._logService.trace(msg),
 			logError: (msg: string, err: any) => this._logService.error(msg, err),
 			readFile: (resource: URI) => this._extensionResourceLoaderService.readExtensionResource(resource)
-		}, this._grammarDefinitions || [], vscodeTextmate, this._loadOnigLib());
+		}, this._grammarDefinitions || [], vscodeTextmate, onigLib);
 		this._onDidCreateGrammarFactory(this._grammarDefinitions || []);
 
 		this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), true);
@@ -218,6 +273,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 					return null;
 				}
 				const r = await grammarFactory.createGrammar(languageId);
+				if (!r.grammar) {
+					return null;
+				}
 				const tokenization = new TMTokenization(r.grammar, r.initialState, r.containsEmbeddedLanguages);
 				tokenization.onDidEncounterLanguage((languageId) => {
 					if (!this._encounteredLanguages[languageId]) {
@@ -241,19 +299,20 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return result;
 	}
 
-	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IColorTheme, forceUpdate: boolean): void {
-		if (!forceUpdate && this._currentTheme && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors)) {
+	private _updateTheme(grammarFactory: TMGrammarFactory, colorTheme: IWorkbenchColorTheme, forceUpdate: boolean): void {
+		if (!forceUpdate && this._currentTheme && this._currentTokenColorMap && AbstractTextMateService.equalsTokenRules(this._currentTheme.settings, colorTheme.tokenColors) && equalArray(this._currentTokenColorMap, colorTheme.tokenColorMap)) {
 			return;
 		}
 		this._currentTheme = { name: colorTheme.label, settings: colorTheme.tokenColors };
-		this._doUpdateTheme(grammarFactory, this._currentTheme);
+		this._currentTokenColorMap = colorTheme.tokenColorMap;
+		this._doUpdateTheme(grammarFactory, this._currentTheme, this._currentTokenColorMap);
 	}
 
-	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme): void {
-		grammarFactory.setTheme(theme);
-		let colorMap = AbstractTextMateService._toColorMap(grammarFactory.getColorMap());
+	protected _doUpdateTheme(grammarFactory: TMGrammarFactory, theme: IRawTheme, tokenColorMap: string[]): void {
+		grammarFactory.setTheme(theme, tokenColorMap);
+		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
 		let cssRules = generateTokensCSSForColorMap(colorMap);
-		this._styleElement.innerHTML = cssRules;
+		this._styleElement.textContent = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 	}
 
@@ -314,9 +373,16 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		return true;
 	}
 
-	public async createGrammar(modeId: string): Promise<IGrammar> {
+	public async createGrammar(modeId: string): Promise<IGrammar | null> {
+		const languageId = this._modeService.getLanguageIdentifier(modeId);
+		if (!languageId) {
+			return null;
+		}
 		const grammarFactory = await this._getOrCreateGrammarFactory();
-		const { grammar } = await grammarFactory.createGrammar(this._modeService.getLanguageIdentifier(modeId)!.id);
+		if (!grammarFactory.has(languageId.id)) {
+			return null;
+		}
+		const { grammar } = await grammarFactory.createGrammar(languageId.id);
 		return grammar;
 	}
 
@@ -326,8 +392,27 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected _onDidDisposeGrammarFactory(): void {
 	}
 
-	protected abstract _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')>;
-	protected abstract _loadOnigLib(): Promise<IOnigLib> | undefined;
+	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null = null;
+	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
+		if (!this._vscodeOniguruma) {
+			this._vscodeOniguruma = this._doGetVSCodeOniguruma();
+		}
+		return this._vscodeOniguruma;
+	}
+
+	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
+		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma'), this._loadVSCodeOnigurumWASM()]);
+		const options = {
+			data: wasm,
+			print: (str: string) => {
+				this._debugModePrintFunc(str);
+			}
+		};
+		await vscodeOniguruma.loadWASM(options);
+		return vscodeOniguruma;
+	}
+
+	protected abstract _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer>;
 }
 
 const donotAskUpdateKey = 'editor.maxTokenizationLineLength.donotask';

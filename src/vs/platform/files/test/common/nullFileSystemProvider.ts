@@ -6,28 +6,36 @@
 import { URI } from 'vs/base/common/uri';
 import { FileSystemProviderCapabilities, IFileSystemProvider, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileChange } from 'vs/platform/files/common/files';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
 
 	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
 
-	onDidChangeCapabilities: Event<void> = Event.None;
-	onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
+	private readonly _onDidChangeCapabilities = new Emitter<void>();
+	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+
+	setCapabilities(capabilities: FileSystemProviderCapabilities): void {
+		this.capabilities = capabilities;
+
+		this._onDidChangeCapabilities.fire();
+	}
+
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
 
 	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
-	stat(resource: URI): Promise<IStat> { return Promise.resolve(undefined!); }
-	mkdir(resource: URI): Promise<void> { return Promise.resolve(undefined!); }
-	readdir(resource: URI): Promise<[string, FileType][]> { return Promise.resolve(undefined!); }
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	readFile?(resource: URI): Promise<Uint8Array> { return Promise.resolve(undefined!); }
-	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return Promise.resolve(undefined!); }
-	open?(resource: URI, opts: FileOpenOptions): Promise<number> { return Promise.resolve(undefined!); }
-	close?(fd: number): Promise<void> { return Promise.resolve(undefined!); }
-	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
-	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return Promise.resolve(undefined!); }
+	async stat(resource: URI): Promise<IStat> { return undefined!; }
+	async mkdir(resource: URI): Promise<void> { return undefined; }
+	async readdir(resource: URI): Promise<[string, FileType][]> { return undefined!; }
+	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> { return undefined; }
+	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return undefined; }
+	async copy?(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> { return undefined; }
+	async readFile?(resource: URI): Promise<Uint8Array> { return undefined!; }
+	async writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> { return undefined; }
+	async open?(resource: URI, opts: FileOpenOptions): Promise<number> { return undefined!; }
+	async close?(fd: number): Promise<void> { return undefined; }
+	async read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
+	async write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { return undefined!; }
 }

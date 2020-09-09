@@ -11,10 +11,11 @@ import * as platform from 'vs/base/common/platform';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { CommonEditorConfiguration, IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { EditorOption, IEditorConstructionOptions, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorFontLigatures } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { IDimension } from 'vs/editor/common/editorCommon';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 
 class CSSBasedConfigurationCache {
 
@@ -87,6 +88,8 @@ export interface ISerializedFontInfo {
 	readonly typicalFullwidthCharacterWidth: number;
 	readonly canUseHalfwidthRightwardsArrow: boolean;
 	readonly spaceWidth: number;
+	middotWidth: number;
+	wsmiddotWidth: number;
 	readonly maxDigitWidth: number;
 }
 
@@ -159,6 +162,8 @@ class CSSBasedConfiguration extends Disposable {
 			const savedFontInfo = savedFontInfos[i];
 			// compatibility with older versions of VS Code which did not store this...
 			savedFontInfo.fontFeatureSettings = savedFontInfo.fontFeatureSettings || EditorFontLigatures.OFF;
+			savedFontInfo.middotWidth = savedFontInfo.middotWidth || savedFontInfo.spaceWidth;
+			savedFontInfo.wsmiddotWidth = savedFontInfo.wsmiddotWidth || savedFontInfo.spaceWidth;
 			const fontInfo = new FontInfo(savedFontInfo, false);
 			this._writeToCache(fontInfo, fontInfo);
 		}
@@ -183,6 +188,8 @@ class CSSBasedConfiguration extends Disposable {
 					typicalFullwidthCharacterWidth: Math.max(readConfig.typicalFullwidthCharacterWidth, 5),
 					canUseHalfwidthRightwardsArrow: readConfig.canUseHalfwidthRightwardsArrow,
 					spaceWidth: Math.max(readConfig.spaceWidth, 5),
+					middotWidth: Math.max(readConfig.middotWidth, 5),
+					wsmiddotWidth: Math.max(readConfig.wsmiddotWidth, 5),
 					maxDigitWidth: Math.max(readConfig.maxDigitWidth, 5),
 				}, false);
 			}
@@ -223,7 +230,11 @@ class CSSBasedConfiguration extends Disposable {
 		const rightwardsArrow = this.createRequest('→', CharWidthRequestType.Regular, all, monospace);
 		const halfwidthRightwardsArrow = this.createRequest('￫', CharWidthRequestType.Regular, all, null);
 
-		this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
+		// U+00B7 - MIDDLE DOT
+		const middot = this.createRequest('·', CharWidthRequestType.Regular, all, monospace);
+
+		// U+2E31 - WORD SEPARATOR MIDDLE DOT
+		const wsmiddotWidth = this.createRequest(String.fromCharCode(0x2E31), CharWidthRequestType.Regular, all, null);
 
 		// monospace test: some characters
 		this.createRequest('|', CharWidthRequestType.Regular, all, monospace);
@@ -289,6 +300,8 @@ class CSSBasedConfiguration extends Disposable {
 			typicalFullwidthCharacterWidth: typicalFullwidthCharacter.width,
 			canUseHalfwidthRightwardsArrow: canUseHalfwidthRightwardsArrow,
 			spaceWidth: space.width,
+			middotWidth: middot.width,
+			wsmiddotWidth: wsmiddotWidth.width,
 			maxDigitWidth: maxDigitWidth
 		}, canTrustBrowserZoomLevel);
 	}
@@ -333,7 +346,7 @@ export class Configuration extends CommonEditorConfiguration {
 		}
 
 		this._register(browser.onDidChangeZoomLevel(_ => this._recomputeOptions()));
-		this._register(this.accessibilityService.onDidChangeAccessibilitySupport(() => this._recomputeOptions()));
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._recomputeOptions()));
 
 		this._recomputeOptions();
 	}
@@ -374,7 +387,11 @@ export class Configuration extends CommonEditorConfiguration {
 			emptySelectionClipboard: browser.isWebKit || browser.isFirefox,
 			pixelRatio: browser.getPixelRatio(),
 			zoomLevel: browser.getZoomLevel(),
-			accessibilitySupport: this.accessibilityService.getAccessibilitySupport()
+			accessibilitySupport: (
+				this.accessibilityService.isScreenReaderOptimized()
+					? AccessibilitySupport.Enabled
+					: this.accessibilityService.getAccessibilitySupport()
+			)
 		};
 	}
 

@@ -9,7 +9,8 @@
 				"entity.name.function",
 				"support.function",
 				"support.constant.handlebars",
-				"source.powershell variable.other.member"
+				"source.powershell variable.other.member",
+				"entity.name.operator.custom-literal" // See https://en.cppreference.com/w/cpp/language/user_literal
 			],
 			"settings": {
 				"foreground": "#795E26"
@@ -97,6 +98,16 @@
 			}
 		},
 		{
+			"name": "Constants and enums",
+			"scope": [
+				"variable.other.constant",
+				"variable.other.enummember"
+			],
+			"settings": {
+				"foreground": "#0070C1",
+			}
+		},
+		{
 			"name": "Object keys, TS grammar specific",
 			"scope": [
 				"meta.object-literal.key"
@@ -158,7 +169,7 @@
 				"keyword.control.anchor.regexp"
 			],
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#EE0000"
 			}
 		},
 		{
@@ -170,7 +181,7 @@
 		{
 			"scope": "constant.character.escape",
 			"settings": {
-				"foreground": "#ff0000"
+				"foreground": "#EE0000"
 			}
 		},
 		{
@@ -179,5 +190,11 @@
 				"foreground": "#000000"
 			}
 		}
-	]
+	],
+	"semanticTokenColors": {
+		"newOperator": "#AF00DB",
+		"stringLiteral": "#a31515",
+		"customLiteral": "#795E26",
+		"numberLiteral": "#098658",
+	}
 }

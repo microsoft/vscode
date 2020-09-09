@@ -11,12 +11,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
+import { IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 
 export const IStorageMainService = createDecorator<IStorageMainService>('storageMainService');
 
 export interface IStorageMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted whenever data is updated or deleted.
@@ -85,15 +86,15 @@ export interface IStorageChangeEvent {
 
 export class StorageMainService extends Disposable implements IStorageMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly STORAGE_NAME = 'state.vscdb';
 
-	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillSaveState: Event<void> = this._onWillSaveState.event;
+	private readonly _onWillSaveState = this._register(new Emitter<void>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
@@ -116,7 +117,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 			return SQLiteStorageDatabase.IN_MEMORY_PATH; // no storage during extension tests!
 		}
 
-		return join(this.environmentService.globalStorageHome, StorageMainService.STORAGE_NAME);
+		return join(this.environmentService.globalStorageHome.fsPath, StorageMainService.STORAGE_NAME);
 	}
 
 	private createLogginOptions(): ISQLiteStorageDatabaseLoggingOptions {
@@ -134,7 +135,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 		return this.initializePromise;
 	}
 
-	private doInitialize(): Promise<void> {
+	private async doInitialize(): Promise<void> {
 		this.storage.dispose();
 		this.storage = new Storage(new SQLiteStorageDatabase(this.storagePath, {
 			logging: this.createLogginOptions()
@@ -142,7 +143,15 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 		this._register(this.storage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key })));
 
-		return this.storage.init();
+		await this.storage.init();
+
+		// Check to see if this is the first time we are "opening" the application
+		const firstOpen = this.storage.getBoolean(IS_NEW_KEY);
+		if (firstOpen === undefined) {
+			this.storage.set(IS_NEW_KEY, true);
+		} else if (firstOpen) {
+			this.storage.set(IS_NEW_KEY, false);
+		}
 	}
 
 	get(key: string, fallbackValue: string): string;

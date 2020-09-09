@@ -15,7 +15,8 @@
     "onLanguage:html",
     "onLanguage:handlebars"
   ],
-  "main": "./client/out/htmlMain",
+  "main": "./client/out/node/htmlClientMain",
+  "browser": "./client/dist/browser/htmlClientMain",
   "scripts": {
     "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
     "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
@@ -161,6 +162,13 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.mirrorCursorOnMatchingTag": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%html.mirrorCursorOnMatchingTag%",
+          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -172,6 +180,14 @@
           "default": "off",
           "description": "%html.trace.server.desc%"
         }
+      }
+    },
+    "configurationDefaults": {
+      "[html]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[handlebars]": {
+        "editor.suggest.insertMode": "replace"
       }
     },
     "jsonValidation": [
@@ -187,8 +203,8 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^6.0.0-next.3",
-    "vscode-nls": "^4.1.1"
+    "vscode-languageclient": "7.0.0-next.5.1",
+    "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
     "@types/node": "^12.11.7"

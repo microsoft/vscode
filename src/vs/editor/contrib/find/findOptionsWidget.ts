@@ -11,8 +11,8 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { FIND_IDS } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { contrastBorder, editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, widgetShadow, editorWidgetForeground, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
 export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
@@ -46,13 +46,15 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.setAttribute('role', 'presentation');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
-		const inputActiveOptionBorderColor = themeService.getTheme().getColor(inputActiveOptionBorder);
-		const inputActiveOptionBackgroundColor = themeService.getTheme().getColor(inputActiveOptionBackground);
+		const inputActiveOptionBorderColor = themeService.getColorTheme().getColor(inputActiveOptionBorder);
+		const inputActiveOptionForegroundColor = themeService.getColorTheme().getColor(inputActiveOptionForeground);
+		const inputActiveOptionBackgroundColor = themeService.getColorTheme().getColor(inputActiveOptionBackground);
 
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleCaseSensitiveCommand),
 			isChecked: this._state.matchCase,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
+			inputActiveOptionForeground: inputActiveOptionForegroundColor,
 			inputActiveOptionBackground: inputActiveOptionBackgroundColor
 		}));
 		this._domNode.appendChild(this.caseSensitive.domNode);
@@ -66,6 +68,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleWholeWordCommand),
 			isChecked: this._state.wholeWord,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
+			inputActiveOptionForeground: inputActiveOptionForegroundColor,
 			inputActiveOptionBackground: inputActiveOptionBackgroundColor
 		}));
 		this._domNode.appendChild(this.wholeWords.domNode);
@@ -79,6 +82,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 			appendTitle: this._keybindingLabelFor(FIND_IDS.ToggleRegexCommand),
 			isChecked: this._state.isRegex,
 			inputActiveOptionBorder: inputActiveOptionBorderColor,
+			inputActiveOptionForeground: inputActiveOptionForegroundColor,
 			inputActiveOptionBackground: inputActiveOptionBackgroundColor
 		}));
 		this._domNode.appendChild(this.regex.domNode);
@@ -112,8 +116,8 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._register(dom.addDisposableNonBubblingMouseOutListener(this._domNode, (e) => this._onMouseOut()));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseover', (e) => this._onMouseOver()));
 
-		this._applyTheme(themeService.getTheme());
-		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getColorTheme());
+		this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 	}
 
 	private _keybindingLabelFor(actionId: string): string {
@@ -182,9 +186,10 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 		this._domNode.style.display = 'none';
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		let inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground)
 		};
 		this.caseSensitive.style(inputStyles);

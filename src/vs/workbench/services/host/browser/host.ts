@@ -11,7 +11,8 @@ export const IHostService = createDecorator<IHostService>('hostService');
 
 export interface IHostService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
+
 
 	//#region Focus
 
@@ -26,9 +27,20 @@ export interface IHostService {
 	readonly hasFocus: boolean;
 
 	/**
-	 * Attempt to bring the window to the foreground and focus it.
+	 * Find out if the window had the last focus.
 	 */
-	focus(): Promise<void>;
+	hadLastFocus(): Promise<boolean>;
+
+	/**
+	 * Attempt to bring the window to the foreground and focus it.
+	 *
+	 * @param options Pass `force: true` if you want to make the window take
+	 * focus even if the application does not have focus currently. This option
+	 * should only be used if it is necessary to steal focus from the current
+	 * focused application which may not be VSCode. It may not be supported
+	 * in all environments.
+	 */
+	focus(options?: { force: boolean }): Promise<void>;
 
 	//#endregion
 
@@ -52,7 +64,6 @@ export interface IHostService {
 	toggleFullScreen(): Promise<void>;
 
 	//#endregion
-
 
 	//#region Lifecycle
 

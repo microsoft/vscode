@@ -22,7 +22,7 @@ import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import * as indentUtils from 'vs/editor/contrib/indentation/indentUtils';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 
 export function getReindentEditOperations(model: ITextModel, startLineNumber: number, endLineNumber: number, inheritedIndent?: string): IIdentifiedSingleEditOperation[] {
 	if (model.getLineCount() === 1 && model.getLineMaxColumn(1) === 1) {
@@ -241,7 +241,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 					}
 				}
 			});
-		}, 50/* quick open is sensitive to being opened so soon after another */);
+		}, 50/* quick input is sensitive to being opened so soon after another */);
 	}
 }
 
@@ -442,7 +442,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnModel.clear();
 
 		// we are disabled
-		if (!this.editor.getOption(EditorOption.autoIndent) || this.editor.getOption(EditorOption.formatOnPaste)) {
+		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || this.editor.getOption(EditorOption.formatOnPaste)) {
 			return;
 		}
 
@@ -451,7 +451,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			return;
 		}
 
-		this.callOnModel.add(this.editor.onDidPaste((range: Range) => {
+		this.callOnModel.add(this.editor.onDidPaste(({ range }) => {
 			this.trigger(range);
 		}));
 	}
@@ -470,6 +470,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
+		const autoIndent = this.editor.getOption(EditorOption.autoIndent);
 		const { tabSize, indentSize, insertSpaces } = model.getOptions();
 		this.editor.pushUndoStop();
 		let textEdits: TextEdit[] = [];
@@ -499,7 +500,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
-			let indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(model, model.getLanguageIdentifier().id, startLineNumber, indentConverter);
+			let indentOfFirstLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, model, model.getLanguageIdentifier().id, startLineNumber, indentConverter);
 
 			if (indentOfFirstLine !== null) {
 				let oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -557,7 +558,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					}
 				}
 			};
-			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
+			let indentOfSecondLine = LanguageConfigurationRegistry.getGoodIndentForLine(autoIndent, virtualModel, model.getLanguageIdentifier().id, startLineNumber + 1, indentConverter);
 			if (indentOfSecondLine !== null) {
 				let newSpaceCntOfSecondLine = indentUtils.getSpaceCnt(indentOfSecondLine, tabSize);
 				let oldSpaceCntOfSecondLine = indentUtils.getSpaceCnt(strings.getLeadingWhitespace(model.getLineContent(startLineNumber + 1)), tabSize);

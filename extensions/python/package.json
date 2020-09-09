@@ -8,13 +8,15 @@
 	"engines": { "vscode": "*" },
 	"activationEvents": ["onLanguage:python"],
 	"main": "./out/pythonMain",
+	"browser": "./dist/browser/pythonMain",
+	"extensionKind": [ "ui", "workspace", "web" ],
 	"contributes": {
 		"languages": [{
 			"id": "python",
 			"extensions": [ ".py", ".rpy", ".pyw", ".cpy", ".gyp", ".gypi", ".pyi", ".ipy"],
 			"aliases": [ "Python", "py" ],
-			"filenames": [ "Snakefile" ],
-			"firstLine": "^#!\\s*/.*\\bpython[0-9.-]*\\b",
+			"filenames": [ "Snakefile", "SConstruct", "SConscript" ],
+			"firstLine": "^#!\\s*/?.*\\bpython[0-9.-]*\\b",
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

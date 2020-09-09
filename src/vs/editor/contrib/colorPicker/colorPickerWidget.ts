@@ -34,7 +34,7 @@ export class ColorPickerHeader extends Disposable {
 		const colorBox = dom.append(this.domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
-		this.backgroundColor = themeService.getTheme().getColor(editorHoverBackground) || Color.white;
+		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
 		this._register(registerThemingParticipant((theme, collector) => {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
@@ -163,7 +163,7 @@ class SaturationBox extends Disposable {
 			this.onDidChangePosition(e.offsetX, e.offsetY);
 		}
 
-		this.monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
+		this.monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangePosition(event.posx - origin.left, event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
 			this._onColorFlushed.fire();
@@ -270,7 +270,7 @@ abstract class Strip extends Disposable {
 			this.onDidChangeTop(e.offsetY);
 		}
 
-		monitor.startMonitoring(standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
+		monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, event => this.onDidChangeTop(event.posy - origin.top), () => null);
 
 		const mouseUpListener = dom.addDisposableGenericMouseUpListner(document, () => {
 			this._onColorFlushed.fire();

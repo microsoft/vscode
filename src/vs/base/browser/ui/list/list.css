@@ -113,55 +113,24 @@
 }
 
 .monaco-list-type-filter > .controls > * {
+	border: none;
 	box-sizing: border-box;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	background: none;
 	width: 16px;
 	height: 16px;
-	margin: 0 0 0 2px;
 	flex-shrink: 0;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
 }
 
 .monaco-list-type-filter > .controls > .filter {
-	-webkit-appearance: none;
-	-moz-appearance: none;
-	width: 16px;
-	height: 16px;
-	background: url("media/no-filter-light.svg");
-	background-position: 50% 50%;
-	cursor: pointer;
-}
-
-.monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter-light.svg");
-}
-
-.vs-dark .monaco-list-type-filter > .controls > .filter {
-	background-image: url("media/no-filter-dark.svg");
-}
-
-.vs-dark .monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter-dark.svg");
-}
-
-.hc-black .monaco-list-type-filter > .controls > .filter {
-	background-image: url("media/no-filter-hc.svg");
-}
-
-.hc-black .monaco-list-type-filter > .controls > .filter:checked {
-	background-image: url("media/filter-hc.svg");
-}
-
-.monaco-list-type-filter > .controls > .clear {
-	border: none;
-	background: url("media/close-light.svg");
-	cursor: pointer;
-}
-
-.vs-dark .monaco-list-type-filter > .controls > .clear {
-	background-image: url("media/close-dark.svg");
-}
-
-.hc-black .monaco-list-type-filter > .controls > .clear {
-	background-image: url("media/close-hc.svg");
+	margin-left: 4px;
 }
 
 .monaco-list-type-filter-message {

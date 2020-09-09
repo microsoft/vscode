@@ -12,13 +12,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { formatPII, isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { IDebugAdapter, IConfig, AdapterEndEvent, IDebugger } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
+import { IExtensionHostDebugService, IOpenExtensionWindowResult } from 'vs/platform/debug/common/extensionHostDebug';
 import { URI } from 'vs/base/common/uri';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { env as processEnv } from 'vs/base/common/process';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -32,6 +33,7 @@ interface ILaunchVSCodeArgument {
 
 interface ILaunchVSCodeArguments {
 	args: ILaunchVSCodeArgument[];
+	debugRenderer?: boolean;
 	env?: { [key: string]: string | null; };
 }
 
@@ -55,20 +57,23 @@ export class RawDebugSession implements IDisposable {
 	private didReceiveStoppedEvent = false;
 
 	// DAP events
-	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
-	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
-	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
-	private readonly _onDidTerminateDebugee: Emitter<DebugProtocol.TerminatedEvent>;
-	private readonly _onDidExitDebugee: Emitter<DebugProtocol.ExitedEvent>;
-	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
-	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
-	private readonly _onDidBreakpoint: Emitter<DebugProtocol.BreakpointEvent>;
-	private readonly _onDidLoadedSource: Emitter<DebugProtocol.LoadedSourceEvent>;
-	private readonly _onDidCustomEvent: Emitter<DebugProtocol.Event>;
-	private readonly _onDidEvent: Emitter<DebugProtocol.Event>;
+	private readonly _onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
+	private readonly _onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
+	private readonly _onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
+	private readonly _onDidTerminateDebugee = new Emitter<DebugProtocol.TerminatedEvent>();
+	private readonly _onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
+	private readonly _onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
+	private readonly _onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
+	private readonly _onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
+	private readonly _onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
+	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
+	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
+	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
+	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
+	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
 
 	// DA events
-	private readonly _onDidExitAdapter: Emitter<AdapterEndEvent>;
+	private readonly _onDidExitAdapter = new Emitter<AdapterEndEvent>();
 	private debugAdapter: IDebugAdapter | null;
 
 	private toDispose: IDisposable[] = [];
@@ -79,25 +84,11 @@ export class RawDebugSession implements IDisposable {
 		private readonly telemetryService: ITelemetryService,
 		public readonly customTelemetryService: ITelemetryService | undefined,
 		private readonly extensionHostDebugService: IExtensionHostDebugService,
-		private readonly openerService: IOpenerService
-
+		private readonly openerService: IOpenerService,
+		private readonly notificationService: INotificationService
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
-
-		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
-		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
-		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
-		this._onDidTerminateDebugee = new Emitter<DebugProtocol.TerminatedEvent>();
-		this._onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
-		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
-		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
-		this._onDidBreakpoint = new Emitter<DebugProtocol.BreakpointEvent>();
-		this._onDidLoadedSource = new Emitter<DebugProtocol.LoadedSourceEvent>();
-		this._onDidCustomEvent = new Emitter<DebugProtocol.Event>();
-		this._onDidEvent = new Emitter<DebugProtocol.Event>();
-
-		this._onDidExitAdapter = new Emitter<AdapterEndEvent>();
 
 		this.toDispose.push(this.debugAdapter.onError(err => {
 			this.shutdown(err);
@@ -149,6 +140,15 @@ export class RawDebugSession implements IDisposable {
 					break;
 				case 'exit':
 					this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
+					break;
+				case 'progressStart':
+					this._onDidProgressStart.fire(event as DebugProtocol.ProgressStartEvent);
+					break;
+				case 'progressUpdate':
+					this._onDidProgressUpdate.fire(event as DebugProtocol.ProgressUpdateEvent);
+					break;
+				case 'progressEnd':
+					this._onDidProgressEnd.fire(event as DebugProtocol.ProgressEndEvent);
 					break;
 				default:
 					this._onDidCustomEvent.fire(event);
@@ -218,6 +218,18 @@ export class RawDebugSession implements IDisposable {
 		return this._onDidCustomEvent.event;
 	}
 
+	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
+		return this._onDidProgressStart.event;
+	}
+
+	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
+		return this._onDidProgressUpdate.event;
+	}
+
+	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
+		return this._onDidProgressEnd.event;
+	}
+
 	get onDidEvent(): Event<DebugProtocol.Event> {
 		return this._onDidEvent.event;
 	}
@@ -229,7 +241,7 @@ export class RawDebugSession implements IDisposable {
 	 */
 	async start(): Promise<void> {
 		if (!this.debugAdapter) {
-			return Promise.reject(new Error('no debug adapter'));
+			return Promise.reject(new Error(nls.localize('noDebugAdapterStart', "No debug adapter, can not start debug session.")));
 		}
 
 		await this.debugAdapter.startSession();
@@ -269,7 +281,7 @@ export class RawDebugSession implements IDisposable {
 		if (this.capabilities.supportsTerminateRequest) {
 			if (!this.terminated) {
 				this.terminated = true;
-				return this.send('terminate', { restart });
+				return this.send('terminate', { restart }, undefined, 2000);
 			}
 			return this.disconnect(restart);
 		}
@@ -336,6 +348,13 @@ export class RawDebugSession implements IDisposable {
 			return response;
 		}
 		return Promise.reject(new Error('restartFrame not supported'));
+	}
+
+	stepInTargets(args: DebugProtocol.StepInTargetsArguments): Promise<DebugProtocol.StepInTargetsResponse> {
+		if (this.capabilities.supportsStepInTargetsRequest) {
+			return this.send('stepInTargets', args);
+		}
+		return Promise.reject(new Error('stepInTargets not supported'));
 	}
 
 	completions(args: DebugProtocol.CompletionsArguments, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
@@ -480,7 +499,9 @@ export class RawDebugSession implements IDisposable {
 			this.inShutdown = true;
 			if (this.debugAdapter) {
 				try {
-					await this.send('disconnect', { restart }, undefined, 500);
+					await this.send('disconnect', { restart }, undefined, 2000);
+				} catch (e) {
+					// Catch the potential 'disconnect' error - no need to show it to the user since the adapter is shutting down
 				} finally {
 					this.stopAdapter(error);
 				}
@@ -532,8 +553,9 @@ export class RawDebugSession implements IDisposable {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(_ => {
+				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(result => {
 					response.body = {
+						rendererDebugPort: result.rendererDebugPort,
 						//processId: pid
 					};
 					safeSendResponse(response);
@@ -566,7 +588,7 @@ export class RawDebugSession implements IDisposable {
 		}
 	}
 
-	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<void> {
+	private launchVsCode(vscodeArgs: ILaunchVSCodeArguments): Promise<IOpenExtensionWindowResult> {
 
 		const args: string[] = [];
 
@@ -594,17 +616,23 @@ export class RawDebugSession implements IDisposable {
 			Object.keys(env).filter(k => env[k] === null).forEach(key => delete env[key]);
 		}
 
-		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env);
+		return this.extensionHostDebugService.openExtensionDevelopmentHostWindow(args, env, !!vscodeArgs.debugRenderer);
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R> {
-		return new Promise<R>((completeDispatch, errorDispatch) => {
+		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
-				errorDispatch(new Error('no debug adapter found'));
+				if (this.inShutdown) {
+					// We are in shutdown silently complete
+					completeDispatch();
+				} else {
+					errorDispatch(new Error(nls.localize('noDebugAdapter', "No debugger available found. Can not send '{0}'.", command)));
+				}
 				return;
 			}
+
 			let cancelationListener: IDisposable;
-			const requestId = this.debugAdapter.sendRequest(command, args, (response: R) => {
+			const requestId = this.debugAdapter.sendRequest(command, args, (response: DebugProtocol.Response) => {
 				if (cancelationListener) {
 					cancelationListener.dispose();
 				}
@@ -633,8 +661,8 @@ export class RawDebugSession implements IDisposable {
 			return errors.canceled();
 		}
 
-		const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
-		const errorMessage = errorResponse ? errorResponse.message || '' : '';
+		const error: DebugProtocol.Message | undefined = errorResponse?.body?.error;
+		const errorMessage = errorResponse?.message || '';
 
 		if (error && error.sendTelemetry) {
 			const telemetryMessage = error ? formatPII(error.format, true, error.variables) : errorMessage;
@@ -642,14 +670,18 @@ export class RawDebugSession implements IDisposable {
 		}
 
 		const userMessage = error ? formatPII(error.format, false, error.variables) : errorMessage;
-		if (error && error.url) {
+		const url = error?.url;
+		if (error && url) {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, () => {
-					this.openerService.open(URI.parse(error.url));
+					this.openerService.open(URI.parse(url));
 					return Promise.resolve(null);
 				})]
 			});
+		}
+		if (error && error.format && error.showUser) {
+			this.notificationService.error(userMessage);
 		}
 
 		return new Error(userMessage);
@@ -679,13 +711,13 @@ export class RawDebugSession implements IDisposable {
 				"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
+		this.telemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
 		if (this.customTelemetryService) {
 			/* __GDPR__TODO__
 				The message is sent in the name of the adapter but the adapter doesn't know about it.
 				However, since adapters are an open-ended set, we can not declared the events statically either.
 			*/
-			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
+			this.customTelemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
 		}
 	}
 

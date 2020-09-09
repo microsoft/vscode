@@ -33,6 +33,7 @@ export interface GestureEvent extends MouseEvent {
 	translationY: number;
 	pageX: number;
 	pageY: number;
+	tapCount: number;
 }
 
 interface Touch {
@@ -76,6 +77,11 @@ export class Gesture extends Disposable {
 
 	private activeTouches: { [id: number]: TouchData; };
 
+	private _lastSetTapCountTime: number;
+
+	private static readonly CLEAR_TAP_COUNT_TIME = 400; // ms
+
+
 	private constructor() {
 		super();
 
@@ -83,9 +89,10 @@ export class Gesture extends Disposable {
 		this.handle = null;
 		this.targets = [];
 		this.ignoreTargets = [];
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e)));
+		this._lastSetTapCountTime = 0;
+		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e)));
+		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {
@@ -124,7 +131,9 @@ export class Gesture extends Disposable {
 
 	@memoize
 	private static isTouchDevice(): boolean {
-		return 'ontouchstart' in window as any || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
+		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
+		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || (window as Window).navigator.msMaxTouchPoints > 0;
 	}
 
 	public dispose(): void {
@@ -240,13 +249,30 @@ export class Gesture extends Disposable {
 	}
 
 	private newGestureEvent(type: string, initialTarget?: EventTarget): GestureEvent {
-		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
+		let event = document.createEvent('CustomEvent') as unknown as GestureEvent;
 		event.initEvent(type, false, true);
 		event.initialTarget = initialTarget;
+		event.tapCount = 0;
 		return event;
 	}
 
 	private dispatchEvent(event: GestureEvent): void {
+		if (event.type === EventType.Tap) {
+			const currentTime = (new Date()).getTime();
+			let setTapCount = 0;
+			if (currentTime - this._lastSetTapCountTime > Gesture.CLEAR_TAP_COUNT_TIME) {
+				setTapCount = 1;
+			} else {
+				setTapCount = 2;
+			}
+
+			this._lastSetTapCountTime = currentTime;
+			event.tapCount = setTapCount;
+		} else if (event.type === EventType.Change || event.type === EventType.Contextmenu) {
+			// tap is canceled by scrolling or context menu
+			this._lastSetTapCountTime = 0;
+		}
+
 		for (let i = 0; i < this.ignoreTargets.length; i++) {
 			if (event.initialTarget instanceof Node && this.ignoreTargets[i].contains(event.initialTarget)) {
 				return;

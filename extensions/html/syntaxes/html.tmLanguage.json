@@ -108,7 +108,7 @@
 													"name": "punctuation.definition.string.end.html"
 												},
 												"1": {
-													"name": "source.css"
+													"name": "source.css-ignored-vscode"
 												}
 											},
 											"name": "string.quoted.double.html",
@@ -132,7 +132,7 @@
 													"name": "punctuation.definition.string.end.html"
 												},
 												"1": {
-													"name": "source.css"
+													"name": "source.css-ignored-vscode"
 												}
 											},
 											"name": "string.quoted.single.html",
@@ -207,7 +207,7 @@
 													"name": "punctuation.definition.string.end.html"
 												},
 												"1": {
-													"name": "source.js"
+													"name": "source.js-ignored-vscode"
 												}
 											},
 											"name": "string.quoted.double.html",
@@ -265,7 +265,7 @@
 													"name": "punctuation.definition.string.end.html"
 												},
 												"1": {
-													"name": "source.js"
+													"name": "source.js-ignored-vscode"
 												}
 											},
 											"name": "string.quoted.single.html",
@@ -1785,7 +1785,7 @@
 									"name": "punctuation.definition.tag.begin.html"
 								},
 								"2": {
-									"name": "source.css"
+									"name": "source.css-ignored-vscode"
 								},
 								"3": {
 									"name": "entity.name.tag.html"
@@ -1892,7 +1892,7 @@
 													"name": "punctuation.definition.tag.begin.html"
 												},
 												"2": {
-													"name": "source.js"
+													"name": "source.js-ignored-vscode"
 												}
 											},
 											"patterns": [

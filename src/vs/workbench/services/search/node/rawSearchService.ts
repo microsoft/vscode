@@ -5,19 +5,18 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { join, sep } from 'vs/base/common/path';
 import * as arrays from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { compareItemsByFuzzyScore, FuzzyScorerCache, IItemAccessor, prepareQuery } from 'vs/base/common/fuzzyScorer';
 import * as objects from 'vs/base/common/objects';
+import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
-import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
+import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
@@ -179,11 +178,11 @@ export class SearchService implements IRawSearchService {
 		}
 
 		return allResultsPromise.then(([result, results]) => {
-			const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
+			const scorerCache: FuzzyScorerCache = cache ? cache.scorerCache : Object.create(null);
 			const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
 			return this.sortResults(config, results, scorerCache, token)
 				.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
-					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickopen is opened.
+					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickaccess is opened.
 					// Contrasting with findFiles which is not sorted and will have sortingTime: undefined
 					const sortingTime = sortSW ? sortSW.elapsed() : -1;
 
@@ -246,13 +245,13 @@ export class SearchService implements IRawSearchService {
 		return undefined;
 	}
 
-	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: ScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
+	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: FuzzyScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
 		// we use the same compare function that is used later when showing the results using fuzzy scoring
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
 		const query = prepareQuery(config.filePattern || '');
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
+		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByFuzzyScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
 		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : Number.MAX_VALUE;
 		return arrays.topAsync(results, compare, maxResults, 10000, token);
@@ -276,8 +275,8 @@ export class SearchService implements IRawSearchService {
 		let cachedRow: ICacheRow | undefined;
 		for (const previousSearch in cache.resultsToSearchCache) {
 			// If we narrow down, we might be able to reuse the cached results
-			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(sep) < 0) {
+			if (searchValue.startsWith(previousSearch)) {
+				if (hasPathSep && previousSearch.indexOf(sep) < 0 && previousSearch !== '') {
 					continue; // since a path character widens the search for potential more matches, require it in previous search too
 				}
 
@@ -312,11 +311,11 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = prepareQuery(searchValue).lowercase;
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).normalizedLowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
-				if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
+				if (!isFilePatternMatch(entry, normalizedSearchValueLowercase)) {
 					continue;
 				}
 
@@ -380,10 +379,11 @@ export class SearchService implements IRawSearchService {
 	 */
 	private preventCancellation<C>(promise: CancelablePromise<C>): CancelablePromise<C> {
 		return new class implements CancelablePromise<C> {
+			get [Symbol.toStringTag]() { return this.toString(); }
 			cancel() {
 				// Do nothing
 			}
-			then(resolve: any, reject: any) {
+			then<TResult1 = C, TResult2 = never>(resolve?: ((value: C) => TResult1 | Promise<TResult1>) | undefined | null, reject?: ((reason: any) => TResult2 | Promise<TResult2>) | undefined | null): Promise<TResult1 | TResult2> {
 				return promise.then(resolve, reject);
 			}
 			catch(reject?: any) {
@@ -407,17 +407,17 @@ class Cache {
 
 	resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
 
-	scorerCache: ScorerCache = Object.create(null);
+	scorerCache: FuzzyScorerCache = Object.create(null);
 }
 
 const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {
 
 	getItemLabel(match: IRawFileMatch): string {
-		return match.basename; // e.g. myFile.txt
+		return basename(match.relativePath); // e.g. myFile.txt
 	}
 
 	getItemDescription(match: IRawFileMatch): string {
-		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
+		return dirname(match.relativePath); // e.g. some/path/to/file
 	}
 
 	getItemPath(match: IRawFileMatch): string {

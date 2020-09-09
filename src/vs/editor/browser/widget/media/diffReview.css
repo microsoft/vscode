@@ -37,13 +37,14 @@
 	width: 100%;
 }
 
-.monaco-diff-editor .diff-review-cell {
-	display: table-cell;
-}
-
 .monaco-diff-editor .diff-review-spacer {
 	display: inline-block;
 	width: 10px;
+	vertical-align: middle;
+}
+
+.monaco-diff-editor .diff-review-spacer > .codicon {
+	font-size: 9px !important;
 }
 
 .monaco-diff-editor .diff-review-actions {
@@ -57,11 +58,4 @@
 	width: 16px;
 	height: 16px;
 	margin: 2px 0;
-}
-.monaco-diff-editor .action-label.icon.close-diff-review {
-	background: url('close-light.svg') center center no-repeat;
-}
-.monaco-diff-editor.hc-black .action-label.icon.close-diff-review,
-.monaco-diff-editor.vs-dark .action-label.icon.close-diff-review {
-	background: url('close-dark.svg') center center no-repeat;
 }

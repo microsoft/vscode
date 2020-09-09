@@ -39,7 +39,7 @@
 	transition: height 80ms linear;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .dirty-diff-glyph:before {
+.monaco-editor .margin-view-overlays .dirty-diff-glyph:hover::before {
 	position: absolute;
 	content: '';
 	height: 100%;
@@ -47,7 +47,7 @@
 	left: -6px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .dirty-diff-deleted:after {
+.monaco-editor .margin-view-overlays .dirty-diff-deleted:hover::after {
 	bottom: 0;
 	border-top-width: 0;
 	border-bottom-width: 0;

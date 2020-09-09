@@ -66,7 +66,7 @@ export class RangesCollector {
 			// reverse and create arrays of the exact length
 			let startIndexes = new Uint32Array(this._length);
 			let endIndexes = new Uint32Array(this._length);
-			for (let i = this._length - 1, k = 0; i >= 0; i-- , k++) {
+			for (let i = this._length - 1, k = 0; i >= 0; i--, k++) {
 				startIndexes[k] = this._startIndexes[i];
 				endIndexes[k] = this._endIndexes[i];
 			}

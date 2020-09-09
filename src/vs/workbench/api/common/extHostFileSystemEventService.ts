@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { AsyncEmitter, Emitter, Event, IWaitUntil } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, IResourceFileEditDto, IResourceTextEditDto, MainThreadTextEditorsShape } from './extHost.protocol';
+import type * as vscode from 'vscode';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, SourceTargetPair, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileOperation } from 'vs/platform/files/common/files';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -120,8 +121,9 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	constructor(
 		mainContext: IMainContext,
+		private readonly _logService: ILogService,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
+		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape = mainContext.getProxy(MainContext.MainThreadBulkEdits)
 	) {
 		//
 	}
@@ -139,16 +141,16 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	//--- file operations
 
-	$onDidRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): void {
+	$onDidRunFileOperation(operation: FileOperation, files: SourceTargetPair[]): void {
 		switch (operation) {
 			case FileOperation.MOVE:
-				this._onDidRenameFile.fire(Object.freeze({ renamed: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }));
+				this._onDidRenameFile.fire(Object.freeze({ files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }));
 				break;
 			case FileOperation.DELETE:
-				this._onDidDeleteFile.fire(Object.freeze({ deleted: [URI.revive(target)] }));
+				this._onDidDeleteFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			case FileOperation.CREATE:
-				this._onDidCreateFile.fire(Object.freeze({ created: [URI.revive(target)] }));
+				this._onDidCreateFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			default:
 			//ignore, dont send
@@ -176,60 +178,51 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillRename(URI.revive(source!), URI.revive(target));
+				await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
 				break;
 			case FileOperation.DELETE:
-				this._onWillDeleteFile.fireAsync(thenables => (<vscode.FileWillDeleteEvent>{ deleting: [URI.revive(target)], waitUntil: p => thenables.push(Promise.resolve(p)) }));
+				await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 				break;
 			case FileOperation.CREATE:
-				this._onWillCreateFile.fireAsync(thenables => (<vscode.FileWillCreateEvent>{ creating: [URI.revive(target)], waitUntil: p => thenables.push(Promise.resolve(p)) }));
+				await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 				break;
 			default:
 			//ignore, dont send
 		}
 	}
 
-	private async _fireWillRename(oldUri: URI, newUri: URI): Promise<any> {
+	private async _fireWillEvent<E extends IWaitUntil>(emitter: AsyncEmitter<E>, data: Omit<E, 'waitUntil'>, timeout: number, token: CancellationToken): Promise<any> {
 
 		const edits: WorkspaceEdit[] = [];
-		await Promise.resolve(this._onWillRenameFile.fireAsync(bucket => {
-			return {
-				renaming: [{ oldUri, newUri }],
-				waitUntil: (thenable: Promise<vscode.WorkspaceEdit>): void => {
-					if (Object.isFrozen(bucket)) {
-						throw new TypeError('waitUntil cannot be called async');
-					}
-					const index = bucket.length;
-					const wrappedThenable = Promise.resolve(thenable).then(result => {
-						// ignore all results except for WorkspaceEdits. Those
-						// are stored in a spare array
-						if (result instanceof WorkspaceEdit) {
-							edits[index] = result;
-						}
-					});
-					bucket.push(wrappedThenable);
-				}
-			};
-		}));
 
-		if (edits.length === 0) {
-			return undefined;
-		}
-
-		// flatten all WorkspaceEdits collected via waitUntil-call
-		// and apply them in one go.
-		const allEdits = new Array<Array<IResourceFileEditDto | IResourceTextEditDto>>();
-		for (let edit of edits) {
-			if (edit) { // sparse array
-				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-				allEdits.push(edits);
+		await emitter.fireAsync(data, token, async (thenable, listener) => {
+			// ignore all results except for WorkspaceEdits. Those are stored in an array.
+			const now = Date.now();
+			const result = await Promise.resolve(thenable);
+			if (result instanceof WorkspaceEdit) {
+				edits.push(result);
 			}
+
+			if (Date.now() - now > timeout) {
+				this._logService.warn('SLOW file-participant', (<IExtensionListener<E>>listener).extension?.identifier);
+			}
+		});
+
+		if (token.isCancellationRequested) {
+			return;
 		}
-		return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
+
+		if (edits.length > 0) {
+			// concat all WorkspaceEdits collected via waitUntil-call and apply them in one go.
+			const dto: IWorkspaceEditDto = { edits: [] };
+			for (let edit of edits) {
+				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
+				dto.edits = dto.edits.concat(edits);
+			}
+			return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+		}
 	}
-
-
 }

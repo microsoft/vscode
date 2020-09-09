@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { SplitView, IView, Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
-class TestView implements IView {
+class TestView implements IView<number> {
 
 	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange = this._onDidChange.event;
@@ -43,7 +43,7 @@ class TestView implements IView {
 		assert(_minimumSize <= _maximumSize, 'splitview view minimum size must be <= maximum size');
 	}
 
-	layout(size: number, orthogonalSize: number | undefined): void {
+	layout(size: number, _offset: number, orthogonalSize: number | undefined): void {
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
 		this._onDidLayout.fire({ size, orthogonalSize });
@@ -527,11 +527,11 @@ suite('Splitview', () => {
 		view1.dispose();
 	});
 
-	test('orthogonal size propagates to views', () => {
+	test('context propagates to views', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view3 = new TestView(20, Number.POSITIVE_INFINITY, LayoutPriority.Low);
-		const splitview = new SplitView(container, { proportionalLayout: false });
+		const splitview = new SplitView<number>(container, { proportionalLayout: false });
 		splitview.layout(200);
 
 		splitview.addView(view1, Sizing.Distribute);

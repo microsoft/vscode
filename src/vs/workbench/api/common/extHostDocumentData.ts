@@ -11,33 +11,35 @@ import { MirrorTextModel } from 'vs/editor/common/model/mirrorTextModel';
 import { ensureValidWordDefinition, getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { EndOfLine, Position, Range } from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { equals } from 'vs/base/common/arrays';
 
 const _modeId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(modeId: string, wordDefinition: RegExp | undefined): void {
-	_modeId2WordDefinition.set(modeId, wordDefinition);
+	if (!wordDefinition) {
+		_modeId2WordDefinition.delete(modeId);
+	} else {
+		_modeId2WordDefinition.set(modeId, wordDefinition);
+	}
 }
+
 export function getWordDefinitionFor(modeId: string): RegExp | undefined {
 	return _modeId2WordDefinition.get(modeId);
 }
 
 export class ExtHostDocumentData extends MirrorTextModel {
 
-	private _proxy: MainThreadDocumentsShape;
-	private _languageId: string;
-	private _isDirty: boolean;
 	private _document?: vscode.TextDocument;
-	private _textLines: vscode.TextLine[] = [];
 	private _isDisposed: boolean = false;
 
-	constructor(proxy: MainThreadDocumentsShape, uri: URI, lines: string[], eol: string,
-		languageId: string, versionId: number, isDirty: boolean
+	constructor(
+		private readonly _proxy: MainThreadDocumentsShape,
+		uri: URI, lines: string[], eol: string, versionId: number,
+		private _languageId: string,
+		private _isDirty: boolean,
+		private readonly _notebook?: vscode.NotebookDocument | undefined
 	) {
 		super(uri, lines, eol, versionId);
-		this._proxy = proxy;
-		this._languageId = languageId;
-		this._isDirty = isDirty;
 	}
 
 	dispose(): void {
@@ -55,25 +57,26 @@ export class ExtHostDocumentData extends MirrorTextModel {
 
 	get document(): vscode.TextDocument {
 		if (!this._document) {
-			const data = this;
+			const that = this;
 			this._document = {
-				get uri() { return data._uri; },
-				get fileName() { return data._uri.fsPath; },
-				get isUntitled() { return data._uri.scheme === Schemas.untitled; },
-				get languageId() { return data._languageId; },
-				get version() { return data._versionId; },
-				get isClosed() { return data._isDisposed; },
-				get isDirty() { return data._isDirty; },
-				save() { return data._save(); },
-				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
-				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
-				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos: number | vscode.Position) { return data._lineAt(lineOrPos); },
-				offsetAt(pos) { return data._offsetAt(pos); },
-				positionAt(offset) { return data._positionAt(offset); },
-				validateRange(ran) { return data._validateRange(ran); },
-				validatePosition(pos) { return data._validatePosition(pos); },
-				getWordRangeAtPosition(pos, regexp?) { return data._getWordRangeAtPosition(pos, regexp); }
+				get uri() { return that._uri; },
+				get fileName() { return that._uri.fsPath; },
+				get isUntitled() { return that._uri.scheme === Schemas.untitled; },
+				get languageId() { return that._languageId; },
+				get version() { return that._versionId; },
+				get isClosed() { return that._isDisposed; },
+				get isDirty() { return that._isDirty; },
+				get notebook() { return that._notebook; },
+				save() { return that._save(); },
+				getText(range?) { return range ? that._getTextInRange(range) : that.getText(); },
+				get eol() { return that._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
+				get lineCount() { return that._lines.length; },
+				lineAt(lineOrPos: number | vscode.Position) { return that._lineAt(lineOrPos); },
+				offsetAt(pos) { return that._offsetAt(pos); },
+				positionAt(offset) { return that._positionAt(offset); },
+				validateRange(ran) { return that._validateRange(ran); },
+				validatePosition(pos) { return that._validatePosition(pos); },
+				getWordRangeAtPosition(pos, regexp?) { return that._getWordRangeAtPosition(pos, regexp); },
 			};
 		}
 		return Object.freeze(this._document);
@@ -130,33 +133,11 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			line = lineOrPosition;
 		}
 
-		if (typeof line !== 'number' || line < 0 || line >= this._lines.length) {
+		if (typeof line !== 'number' || line < 0 || line >= this._lines.length || Math.floor(line) !== line) {
 			throw new Error('Illegal value for `line`');
 		}
 
-		let result = this._textLines[line];
-		if (!result || result.lineNumber !== line || result.text !== this._lines[line]) {
-
-			const text = this._lines[line];
-			const firstNonWhitespaceCharacterIndex = /^(\s*)/.exec(text)![1].length;
-			const range = new Range(line, 0, line, text.length);
-			const rangeIncludingLineBreak = line < this._lines.length - 1
-				? new Range(line, 0, line + 1, 0)
-				: range;
-
-			result = Object.freeze({
-				lineNumber: line,
-				range,
-				rangeIncludingLineBreak,
-				text,
-				firstNonWhitespaceCharacterIndex, //TODO@api, rename to 'leadingWhitespaceLength'
-				isEmptyOrWhitespace: firstNonWhitespaceCharacterIndex === text.length
-			});
-
-			this._textLines[line] = result;
-		}
-
-		return result;
+		return new ExtHostDocumentLine(line, this._lines[line], line === this._lines.length - 1);
 	}
 
 	private _offsetAt(position: vscode.Position): number {
@@ -197,6 +178,10 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	private _validatePosition(position: vscode.Position): vscode.Position {
 		if (!(position instanceof Position)) {
 			throw new Error('Invalid argument');
+		}
+
+		if (this._lines.length === 0) {
+			return position.with(0, 0);
 		}
 
 		let { line, character } = position;
@@ -253,5 +238,46 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			return new Range(position.line, wordAtText.startColumn - 1, position.line, wordAtText.endColumn - 1);
 		}
 		return undefined;
+	}
+}
+
+export class ExtHostDocumentLine implements vscode.TextLine {
+
+	private readonly _line: number;
+	private readonly _text: string;
+	private readonly _isLastLine: boolean;
+
+	constructor(line: number, text: string, isLastLine: boolean) {
+		this._line = line;
+		this._text = text;
+		this._isLastLine = isLastLine;
+	}
+
+	public get lineNumber(): number {
+		return this._line;
+	}
+
+	public get text(): string {
+		return this._text;
+	}
+
+	public get range(): Range {
+		return new Range(this._line, 0, this._line, this._text.length);
+	}
+
+	public get rangeIncludingLineBreak(): Range {
+		if (this._isLastLine) {
+			return this.range;
+		}
+		return new Range(this._line, 0, this._line + 1, 0);
+	}
+
+	public get firstNonWhitespaceCharacterIndex(): number {
+		//TODO@api, rename to 'leadingWhitespaceLength'
+		return /^(\s*)/.exec(this._text)![1].length;
+	}
+
+	public get isEmptyOrWhitespace(): boolean {
+		return this.firstNonWhitespaceCharacterIndex === this._text.length;
 	}
 }

@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import * as modes from 'vs/editor/common/modes';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -49,7 +49,7 @@ suite('ParameterHintsModel', () => {
 	});
 
 	function createMockEditor(fileContents: string) {
-		const textModel = TextModel.createFromString(fileContents, undefined, undefined, mockFile);
+		const textModel = createTextModel(fileContents, undefined, undefined, mockFile);
 		const editor = createTestCodeEditor({
 			model: textModel,
 			serviceCollection: new ServiceCollection(

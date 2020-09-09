@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 
-export class NativeWorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
+export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	@memoize
 	get webviewExternalEndpoint(): string {
@@ -25,24 +24,77 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	}
 
 	@memoize
-	get webviewResourceRoot(): string { return 'vscode-resource://{{resource}}'; }
+	get webviewResourceRoot(): string { return `${Schemas.vscodeWebviewResource}://{{uuid}}/{{resource}}`; }
 
 	@memoize
-	get webviewCspSource(): string { return 'vscode-resource:'; }
+	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
 
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
+	// Do not memoize as `backupPath` can change in configuration
+	get backupWorkspaceHome(): URI | undefined { return this.configuration.backupPath ? URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme }) : undefined; }
+
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.windowId}.log`)); }
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+
+	@memoize
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+
+	@memoize
+	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
+
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
+
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (Array.isArray(this.args['enable-proposed-api'])) {
+			return this.args['enable-proposed-api'];
+		}
+
+		if ('enable-proposed-api' in this.args) {
+			return [];
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get cliPath(): string { return this.doGetCLIPath(); }
+
+	readonly execPath = this.configuration.execPath;
 
 	constructor(
-		readonly configuration: IWindowConfiguration,
-		execPath: string,
-		private readonly windowId: number
+		readonly configuration: INativeWorkbenchConfiguration
 	) {
-		super(configuration, execPath);
+		super(configuration);
+	}
 
-		this.configuration.backupWorkspaceResource = this.configuration.backupPath ? toBackupWorkspaceResource(this.configuration.backupPath, this) : undefined;
+	private doGetCLIPath(): string {
+
+		// Windows
+		if (isWindows) {
+			if (this.isBuilt) {
+				return join(dirname(this.execPath), 'bin', `${product.applicationName}.cmd`);
+			}
+
+			return join(this.appRoot, 'scripts', 'code-cli.bat');
+		}
+
+		// Linux
+		if (isLinux) {
+			if (this.isBuilt) {
+				return join(dirname(this.execPath), 'bin', `${product.applicationName}`);
+			}
+
+			return join(this.appRoot, 'scripts', 'code-cli.sh');
+		}
+
+		// macOS
+		if (this.isBuilt) {
+			return join(this.appRoot, 'bin', 'code');
+		}
+
+		return join(this.appRoot, 'scripts', 'code-cli.sh');
 	}
 }

@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { Direction, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, GridNode, Sizing, isGridBranchNode, sanitizeGridNodeDescriptor, GridNodeDescriptor, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { TestView, nodesToArrays } from './util';
 import { deepClone } from 'vs/base/common/objects';
+import { Event } from 'vs/base/common/event';
 
 // Simple example:
 //
@@ -786,7 +787,7 @@ suite('SerializableGrid', function () {
 	test('sanitizeGridNodeDescriptor', () => {
 		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
 		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
-		sanitizeGridNodeDescriptor(nodeDescriptorCopy);
+		sanitizeGridNodeDescriptor(nodeDescriptorCopy, true);
 		assert.deepEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
 	});
 
@@ -812,6 +813,33 @@ suite('SerializableGrid', function () {
 			width: 1,
 			height: 1
 		});
+	});
+
+	test('createSerializedGrid - issue #85601, should not allow single children groups', () => {
+		const serializedGrid = createSerializedGrid({ orientation: Orientation.HORIZONTAL, groups: [{ groups: [{}, {}], size: 0.5 }, { groups: [{}], size: 0.5 }] });
+		const views: ISerializableView[] = [];
+		const deserializer = new class implements IViewDeserializer<ISerializableView> {
+			fromJSON(): ISerializableView {
+				const view: ISerializableView = {
+					element: document.createElement('div'),
+					layout: () => null,
+					minimumWidth: 0,
+					maximumWidth: Number.POSITIVE_INFINITY,
+					minimumHeight: 0,
+					maximumHeight: Number.POSITIVE_INFINITY,
+					onDidChange: Event.None,
+					toJSON: () => ({})
+				};
+				views.push(view);
+				return view;
+			}
+		};
+
+		const grid = SerializableGrid.deserialize(serializedGrid, deserializer);
+		assert.equal(views.length, 3);
+
+		// should not throw
+		grid.removeView(views[2]);
 	});
 
 	test('serialize should store visibility and previous size', function () {

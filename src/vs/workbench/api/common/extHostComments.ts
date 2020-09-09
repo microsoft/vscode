@@ -15,7 +15,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import * as extHostTypeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostCommentsShape, IMainContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from './extHost.protocol';
 import { ExtHostCommands } from './extHostCommands';
 
@@ -449,6 +449,18 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._reactionHandler = handler;
 
 		this._proxy.$updateCommentControllerFeatures(this.handle, { reactionHandler: !!handler });
+	}
+
+	private _options: modes.CommentOptions | undefined;
+
+	get options() {
+		return this._options;
+	}
+
+	set options(options: modes.CommentOptions | undefined) {
+		this._options = options;
+
+		this._proxy.$updateCommentControllerFeatures(this.handle, { options: this._options });
 	}
 
 	constructor(

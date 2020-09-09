@@ -12,19 +12,28 @@ import { timeout } from 'vs/base/common/async';
 
 interface Element {
 	id: string;
+	suffix?: string;
 	children?: Element[];
 }
 
-function find(elements: Element[] | undefined, id: string): Element {
-	while (elements) {
-		for (const element of elements) {
-			if (element.id === id) {
-				return element;
-			}
+function find(element: Element, id: string): Element | undefined {
+	if (element.id === id) {
+		return element;
+	}
+
+	if (!element.children) {
+		return undefined;
+	}
+
+	for (const child of element.children) {
+		const result = find(child, id);
+
+		if (result) {
+			return result;
 		}
 	}
 
-	throw new Error('element not found');
+	return undefined;
 }
 
 class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
@@ -33,7 +42,7 @@ class Renderer implements ITreeRenderer<Element, void, HTMLElement> {
 		return container;
 	}
 	renderElement(element: ITreeNode<Element, void>, index: number, templateData: HTMLElement): void {
-		templateData.textContent = element.element.id;
+		templateData.textContent = element.element.id + (element.element.suffix || '');
 	}
 	disposeTemplate(templateData: HTMLElement): void {
 		// noop
@@ -65,7 +74,13 @@ class Model {
 	constructor(readonly root: Element) { }
 
 	get(id: string): Element {
-		return find(this.root.children, id);
+		const result = find(this.root, id);
+
+		if (!result) {
+			throw new Error('element not found');
+		}
+
+		return result;
 	}
 }
 
@@ -388,5 +403,37 @@ suite('AsyncDataTree', function () {
 		twistie = container.querySelector('.monaco-list-row:first-child .monaco-tl-twistie') as HTMLElement;
 		assert(!hasClass(twistie, 'collapsible'));
 		assert(!hasClass(twistie, 'collapsed'));
+	});
+
+	test('issues #84569, #82629 - rerender', async () => {
+		const container = document.createElement('div');
+		const model = new Model({
+			id: 'root',
+			children: [{
+				id: 'a',
+				children: [{
+					id: 'b',
+					suffix: '1'
+				}]
+			}]
+		});
+
+		const tree = new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], new DataSource(), { identityProvider: new IdentityProvider() });
+		tree.layout(200);
+
+		await tree.setInput(model.root);
+		await tree.expand(model.get('a'));
+		assert.deepEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b1']);
+
+		const a = model.get('a');
+		const b = model.get('b');
+		a.children?.splice(0, 1, { id: 'b', suffix: '2' });
+
+		await Promise.all([
+			tree.updateChildren(a, true, true),
+			tree.updateChildren(b, true, true)
+		]);
+
+		assert.deepEqual(Array.from(container.querySelectorAll('.monaco-list-row')).map(e => e.textContent), ['a', 'b2']);
 	});
 });

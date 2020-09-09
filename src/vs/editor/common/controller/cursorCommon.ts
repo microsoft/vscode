@@ -6,19 +6,17 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
 export interface IColumnSelectData {
@@ -44,25 +42,6 @@ export const enum EditOperationType {
 	Typing = 1,
 	DeletingLeft = 2,
 	DeletingRight = 3
-}
-
-export interface ICursors {
-	readonly context: CursorContext;
-	getPrimaryCursor(): CursorState;
-	getLastAddedCursorIndex(): number;
-	getAll(): CursorState[];
-
-	getColumnSelectData(): IColumnSelectData;
-	setColumnSelectData(columnSelectData: IColumnSelectData): void;
-
-	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
-
-	scrollTo(desiredScrollTop: number): void;
-
-	getPrevEditOperationType(): EditOperationType;
-	setPrevEditOperationType(type: EditOperationType): void;
 }
 
 export interface CharacterMap {
@@ -103,7 +82,7 @@ export class CursorConfiguration {
 	public readonly autoClosingQuotes: EditorAutoClosingStrategy;
 	public readonly autoClosingOvertype: EditorAutoClosingOvertypeStrategy;
 	public readonly autoSurround: EditorAutoSurroundStrategy;
-	public readonly autoIndent: boolean;
+	public readonly autoIndent: EditorAutoIndentStrategy;
 	public readonly autoClosingPairsOpen2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly autoClosingPairsClose2: Map<string, StandardAutoClosingPairConditional[]>;
 	public readonly surroundingPairs: CharacterMap;
@@ -357,62 +336,13 @@ export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: IViewModel;
-	public readonly config: CursorConfiguration;
+	public readonly coordinatesConverter: ICoordinatesConverter;
+	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IViewModel) {
+	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
-		this.viewModel = viewModel;
-		this.config = new CursorConfiguration(
-			this.model.getLanguageIdentifier(),
-			this.model.getOptions(),
-			configuration
-		);
-	}
-
-	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
-	}
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-	}
-
-	public getCurrentScrollTop(): number {
-		return this.viewModel.viewLayout.getCurrentScrollTop();
-	}
-
-	public getCompletelyVisibleViewRange(): Range {
-		return this.viewModel.getCompletelyVisibleViewRange();
-	}
-
-	public getCompletelyVisibleModelRange(): Range {
-		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-	}
-
-	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
-		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
+		this.coordinatesConverter = coordinatesConverter;
+		this.cursorConfig = cursorConfig;
 	}
 }
 
@@ -523,12 +453,15 @@ export class CursorColumns {
 			if (codePoint === CharCode.Tab) {
 				result = CursorColumns.nextRenderTabStop(result, tabSize);
 			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
 				while (i < endOffset) {
 					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
-					if (!strings.isUnicodeMark(nextCodePoint)) {
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
 						break;
 					}
 					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
 				}
 				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
 					result = result + 2;
@@ -582,12 +515,15 @@ export class CursorColumns {
 			if (codePoint === CharCode.Tab) {
 				afterVisibleColumn = CursorColumns.nextRenderTabStop(beforeVisibleColumn, tabSize);
 			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
 				while (i < lineLength) {
 					const nextCodePoint = strings.getNextCodePoint(lineContent, lineLength, i);
-					if (!strings.isUnicodeMark(nextCodePoint)) {
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
 						break;
 					}
 					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+					graphemeBreakType = nextGraphemeBreakType;
 				}
 				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
 					afterVisibleColumn = beforeVisibleColumn + 2;

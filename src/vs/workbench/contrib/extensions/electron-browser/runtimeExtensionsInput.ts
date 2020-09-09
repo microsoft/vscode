@@ -11,9 +11,19 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.runtimeExtensions.input';
 
-	constructor() {
-		super();
+	static _instance: RuntimeExtensionsInput;
+	static get instance() {
+		if (!RuntimeExtensionsInput._instance || RuntimeExtensionsInput._instance.isDisposed()) {
+			RuntimeExtensionsInput._instance = new RuntimeExtensionsInput();
+		}
+
+		return RuntimeExtensionsInput._instance;
 	}
+
+	readonly resource = URI.from({
+		scheme: 'runtime-extensions',
+		path: 'default'
+	});
 
 	getTypeId(): string {
 		return RuntimeExtensionsInput.ID;
@@ -23,25 +33,11 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	matches(other: unknown): boolean {
-		if (!(other instanceof RuntimeExtensionsInput)) {
-			return false;
-		}
-		return true;
-	}
-
-	resolve(): Promise<any> {
-		return Promise.resolve(null);
-	}
-
 	supportsSplitEditor(): boolean {
 		return false;
 	}
 
-	getResource(): URI {
-		return URI.from({
-			scheme: 'runtime-extensions',
-			path: 'default'
-		});
+	matches(other: unknown): boolean {
+		return other instanceof RuntimeExtensionsInput;
 	}
 }

@@ -45,13 +45,12 @@
 		{
 			"scope": [
 				"constant.numeric",
-				"entity.name.operator.custom-literal.number",
 				"variable.other.enummember",
 				"keyword.operator.plus.exponent",
 				"keyword.operator.minus.exponent"
 			],
 			"settings": {
-				"foreground": "#09885a"
+				"foreground": "#098658"
 			}
 		},
 		{
@@ -130,7 +129,7 @@
 		{
 			"scope": "markup.inserted",
 			"settings": {
-				"foreground": "#09885a"
+				"foreground": "#098658"
 			}
 		},
 		{
@@ -169,7 +168,8 @@
 		},
 		{
 			"scope": [
-				"meta.preprocessor"
+				"meta.preprocessor",
+				"entity.name.function.preprocessor"
 			],
 			"settings": {
 				"foreground": "#0000ff"
@@ -184,7 +184,7 @@
 		{
 			"scope": "meta.preprocessor.numeric",
 			"settings": {
-				"foreground": "#09885a"
+				"foreground": "#098658"
 			}
 		},
 		{
@@ -217,7 +217,7 @@
 		{
 			"scope": [
 				"string",
-				"entity.name.operator.custom-literal.string",
+				"meta.embedded.assembly"
 			],
 			"settings": {
 				"foreground": "#a31515"
@@ -344,7 +344,7 @@
 		{
 			"scope": "keyword.other.unit",
 			"settings": {
-				"foreground": "#09885a"
+				"foreground": "#098658"
 			}
 		},
 		{
@@ -365,7 +365,7 @@
 		{
 			"scope": "constant.sha.git-rebase",
 			"settings": {
-				"foreground": "#09885a"
+				"foreground": "#098658"
 			}
 		},
 		{
@@ -386,5 +386,11 @@
 				"foreground": "#0000ff"
 			}
 		}
-	]
+	],
+	"semanticTokenColors": {
+		"newOperator": "#0000ff",
+		"stringLiteral": "#a31515",
+		"customLiteral": "#000000",
+		"numberLiteral": "#098658",
+	}
 }

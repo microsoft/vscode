@@ -9,7 +9,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.tmLanguage.json Syntaxes/HTML%20%28Derivative%29.tmLanguage ./syntaxes/html-derivative.tmLanguage.json"
+    "update-grammar": "node ./build/update-grammar.js"
   },
   "contributes": {
     "languages": [
@@ -20,6 +20,7 @@
           ".htm",
           ".shtml",
           ".xhtml",
+          ".xht",
           ".mdoc",
           ".jsp",
           ".asp",

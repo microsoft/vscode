@@ -53,7 +53,7 @@ var CSSBuildLoaderPlugin;
         BrowserCSSLoader.prototype._insertLinkNode = function (linkNode) {
             this._pendingLoads++;
             var head = document.head || document.getElementsByTagName('head')[0];
-            var other = head.getElementsByTagName('link') || document.head.getElementsByTagName('script');
+            var other = head.getElementsByTagName('link') || head.getElementsByTagName('script');
             if (other.length > 0) {
                 head.insertBefore(linkNode, other[other.length - 1]);
             }
@@ -319,7 +319,7 @@ var CSSBuildLoaderPlugin;
                         global.cssInlinedResources = global.cssInlinedResources || [];
                         var normalizedFSPath = fsPath.replace(/\\/g, '/');
                         if (global.cssInlinedResources.indexOf(normalizedFSPath) >= 0) {
-                            console.warn('CSS INLINING IMAGE AT ' + fsPath + ' MORE THAN ONCE. CONSIDER CONSOLIDATING CSS RULES');
+                            // console.warn('CSS INLINING IMAGE AT ' + fsPath + ' MORE THAN ONCE. CONSIDER CONSOLIDATING CSS RULES');
                         }
                         global.cssInlinedResources.push(normalizedFSPath);
                         var MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';

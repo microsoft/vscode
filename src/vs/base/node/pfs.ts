@@ -9,12 +9,21 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { endsWith } from 'vs/base/common/strings';
 import { promisify } from 'util';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { encode, encodeStream } from 'vs/base/node/encoding';
+
+// See https://github.com/Microsoft/vscode/issues/30180
+const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
+const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
+
+// See https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
+const WIN32_MAX_HEAP_SIZE = 700 * 1024 * 1024; // 700 MB
+const GENERAL_MAX_HEAP_SIZE = 700 * 2 * 1024 * 1024; // 1400 MB
+
+export const MAX_FILE_SIZE = process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE;
+export const MAX_HEAP_SIZE = process.arch === 'ia32' ? WIN32_MAX_HEAP_SIZE : GENERAL_MAX_HEAP_SIZE;
 
 export enum RimRafMode {
 
@@ -178,30 +187,52 @@ export function stat(path: string): Promise<fs.Stats> {
 }
 
 export interface IStatAndLink {
+
+	// The stats of the file. If the file is a symbolic
+	// link, the stats will be of that target file and
+	// not the link itself.
+	// If the file is a symbolic link pointing to a non
+	// existing file, the stat will be of the link and
+	// the `dangling` flag will indicate this.
 	stat: fs.Stats;
-	isSymbolicLink: boolean;
+
+	// Will be provided if the resource is a symbolic link
+	// on disk. Use the `dangling` flag to find out if it
+	// points to a resource that does not exist on disk.
+	symbolicLink?: { dangling: boolean };
 }
 
 export async function statLink(path: string): Promise<IStatAndLink> {
 
 	// First stat the link
-	let linkStat: fs.Stats | undefined;
-	let linkStatError: NodeJS.ErrnoException | undefined;
+	let lstats: fs.Stats | undefined;
 	try {
-		linkStat = await lstat(path);
+		lstats = await lstat(path);
+
+		// Return early if the stat is not a symbolic link at all
+		if (!lstats.isSymbolicLink()) {
+			return { stat: lstats };
+		}
 	} catch (error) {
-		linkStatError = error;
+		/* ignore - use stat() instead */
 	}
 
-	// Then stat the target and return that
-	const isLink = !!(linkStat && linkStat.isSymbolicLink());
-	if (linkStatError || isLink) {
-		const fileStat = await stat(path);
+	// If the stat is a symbolic link or failed to stat, use fs.stat()
+	// which for symbolic links will stat the target they point to
+	try {
+		const stats = await stat(path);
 
-		return { stat: fileStat, isSymbolicLink: isLink };
+		return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
+	} catch (error) {
+
+		// If the link points to a non-existing file we still want
+		// to return it as result while setting dangling: true flag
+		if (error.code === 'ENOENT' && lstats) {
+			return { stat: lstats, symbolicLink: { dangling: true } };
+		}
+
+		throw error;
 	}
-
-	return { stat: linkStat!, isSymbolicLink: false };
 }
 
 export function lstat(path: string): Promise<fs.Stats> {
@@ -213,9 +244,7 @@ export function rename(oldPath: string, newPath: string): Promise<void> {
 }
 
 export function renameIgnoreError(oldPath: string, newPath: string): Promise<void> {
-	return new Promise(resolve => {
-		fs.rename(oldPath, newPath, () => resolve());
-	});
+	return new Promise(resolve => fs.rename(oldPath, newPath, () => resolve()));
 }
 
 export function unlink(path: string): Promise<void> {
@@ -236,6 +265,10 @@ export function readFile(path: string, encoding?: string): Promise<Buffer | stri
 	return promisify(fs.readFile)(path, encoding);
 }
 
+export async function mkdirp(path: string, mode?: number): Promise<void> {
+	return promisify(fs.mkdir)(path, { mode, recursive: true });
+}
+
 // According to node.js docs (https://nodejs.org/docs/v6.5.0/api/fs.html#fs_fs_writefile_file_data_options_callback)
 // it is not safe to call writeFile() on the same path multiple times without waiting for the callback to return.
 // Therefor we use a Queue on the path that is given to us to sequentialize calls to the same path properly.
@@ -244,18 +277,21 @@ const writeFilePathQueues: Map<string, Queue<void>> = new Map();
 export function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
 export function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: NodeJS.ReadableStream, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options?: IWriteFileOptions): Promise<void> {
+export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
+export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
 	const queueKey = toQueueKey(path);
 
-	return ensureWriteFileQueue(queueKey).queue(() => writeFileAndFlush(path, data, options));
+	return ensureWriteFileQueue(queueKey).queue(() => {
+		const ensuredOptions = ensureWriteOptions(options);
+
+		return new Promise((resolve, reject) => doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve()));
+	});
 }
 
 function toQueueKey(path: string): string {
 	let queueKey = path;
 	if (platform.isWindows || platform.isMacintosh) {
-		queueKey = queueKey.toLowerCase(); // accomodate for case insensitive file systems
+		queueKey = queueKey.toLowerCase(); // accommodate for case insensitive file systems
 	}
 
 	return queueKey;
@@ -282,10 +318,6 @@ function ensureWriteFileQueue(queueKey: string): Queue<void> {
 export interface IWriteFileOptions {
 	mode?: number;
 	flag?: string;
-	encoding?: {
-		charset: string;
-		addBOM: boolean;
-	};
 }
 
 interface IEnsuredWriteFileOptions extends IWriteFileOptions {
@@ -294,103 +326,6 @@ interface IEnsuredWriteFileOptions extends IWriteFileOptions {
 }
 
 let canFlush = true;
-function writeFileAndFlush(path: string, data: string | Buffer | NodeJS.ReadableStream | Uint8Array, options: IWriteFileOptions | undefined): Promise<void> {
-	const ensuredOptions = ensureWriteOptions(options);
-
-	return new Promise((resolve, reject) => {
-		if (typeof data === 'string' || Buffer.isBuffer(data) || data instanceof Uint8Array) {
-			doWriteFileAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve());
-		} else {
-			doWriteFileStreamAndFlush(path, data, ensuredOptions, error => error ? reject(error) : resolve());
-		}
-	});
-}
-
-function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, options: IEnsuredWriteFileOptions, callback: (error?: Error) => void): void {
-
-	// finish only once
-	let finished = false;
-	const finish = (error?: Error) => {
-		if (!finished) {
-			finished = true;
-
-			// in error cases we need to manually close streams
-			// if the write stream was successfully opened
-			if (error) {
-				if (isOpen) {
-					writer.once('close', () => callback(error));
-					writer.destroy();
-				} else {
-					callback(error);
-				}
-			}
-
-			// otherwise just return without error
-			else {
-				callback();
-			}
-		}
-	};
-
-	// create writer to target. we set autoClose: false because we want to use the streams
-	// file descriptor to call fs.fdatasync to ensure the data is flushed to disk
-	const writer = fs.createWriteStream(path, { mode: options.mode, flags: options.flag, autoClose: false });
-
-	// Event: 'open'
-	// Purpose: save the fd for later use and start piping
-	// Notes: will not be called when there is an error opening the file descriptor!
-	let fd: number;
-	let isOpen: boolean;
-	writer.once('open', descriptor => {
-		fd = descriptor;
-		isOpen = true;
-
-		// if an encoding is provided, we need to pipe the stream through
-		// an encoder stream and forward the encoding related options
-		if (options.encoding) {
-			reader = reader.pipe(encodeStream(options.encoding.charset, { addBOM: options.encoding.addBOM }));
-		}
-
-		// start data piping only when we got a successful open. this ensures that we do
-		// not consume the stream when an error happens and helps to fix this issue:
-		// https://github.com/Microsoft/vscode/issues/42542
-		reader.pipe(writer);
-	});
-
-	// Event: 'error'
-	// Purpose: to return the error to the outside and to close the write stream (does not happen automatically)
-	reader.once('error', error => finish(error));
-	writer.once('error', error => finish(error));
-
-	// Event: 'finish'
-	// Purpose: use fs.fdatasync to flush the contents to disk
-	// Notes: event is called when the writer has finished writing to the underlying resource. we must call writer.close()
-	// because we have created the WriteStream with autoClose: false
-	writer.once('finish', () => {
-
-		// flush to disk
-		if (canFlush && isOpen) {
-			fs.fdatasync(fd, (syncError: Error) => {
-
-				// In some exotic setups it is well possible that node fails to sync
-				// In that case we disable flushing and warn to the console
-				if (syncError) {
-					console.warn('[node.js fs] fdatasync is now disabled for this session because it failed: ', syncError);
-					canFlush = false;
-				}
-
-				writer.destroy();
-			});
-		} else {
-			writer.destroy();
-		}
-	});
-
-	// Event: 'close'
-	// Purpose: signal we are done to the outside
-	// Notes: event is called when the writer's filedescriptor is closed
-	writer.once('close', () => finish());
-}
 
 // Calls fs.writeFile() followed by a fs.sync() call to flush the changes to disk
 // We do this in cases where we want to make sure the data is really on disk and
@@ -398,10 +333,6 @@ function doWriteFileStreamAndFlush(path: string, reader: NodeJS.ReadableStream, 
 //
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
 function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, options: IEnsuredWriteFileOptions, callback: (error: Error | null) => void): void {
-	if (options.encoding) {
-		data = encode(data instanceof Uint8Array ? Buffer.from(data) : data, options.encoding.charset, { addBOM: options.encoding.addBOM });
-	}
-
 	if (!canFlush) {
 		return fs.writeFile(path, data, { mode: options.mode, flag: options.flag }, callback);
 	}
@@ -419,7 +350,7 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 			}
 
 			// Flush contents (not metadata) of the file to disk
-			fs.fdatasync(fd, (syncError: Error) => {
+			fs.fdatasync(fd, (syncError: Error | null) => {
 
 				// In some exotic setups it is well possible that node fails to sync
 				// In that case we disable flushing and warn to the console
@@ -436,10 +367,6 @@ function doWriteFileAndFlush(path: string, data: string | Buffer | Uint8Array, o
 
 export function writeFileSync(path: string, data: string | Buffer, options?: IWriteFileOptions): void {
 	const ensuredOptions = ensureWriteOptions(options);
-
-	if (ensuredOptions.encoding) {
-		data = encode(data, ensuredOptions.encoding.charset, { addBOM: ensuredOptions.encoding.addBOM });
-	}
 
 	if (!canFlush) {
 		return fs.writeFileSync(path, data, { mode: ensuredOptions.mode, flag: ensuredOptions.flag });
@@ -472,8 +399,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
 
 	return {
 		mode: typeof options.mode === 'number' ? options.mode : 0o666,
-		flag: typeof options.flag === 'string' ? options.flag : 'w',
-		encoding: options.encoding
+		flag: typeof options.flag === 'string' ? options.flag : 'w'
 	};
 }
 
@@ -565,7 +491,7 @@ export async function move(source: string, target: string): Promise<void> {
 		//
 		// 2.) The user tries to rename a file/folder that ends with a dot. This is not
 		// really possible to move then, at least on UNC devices.
-		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || endsWith(source, '.')) {
+		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || source.endsWith('.')) {
 			await copy(source, target);
 			await rimraf(source, RimRafMode.MOVE);
 			await updateMtime(target);
@@ -631,18 +557,3 @@ async function doCopyFile(source: string, target: string, mode: number): Promise
 		reader.pipe(writer);
 	});
 }
-
-export async function mkdirp(path: string, mode?: number): Promise<void> {
-	return promisify(fs.mkdir)(path, { mode, recursive: true });
-}
-
-// See https://github.com/Microsoft/vscode/issues/30180
-const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
-const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
-
-// See https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-const WIN32_MAX_HEAP_SIZE = 700 * 1024 * 1024; // 700 MB
-const GENERAL_MAX_HEAP_SIZE = 700 * 2 * 1024 * 1024; // 1400 MB
-
-export const MAX_FILE_SIZE = process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE;
-export const MAX_HEAP_SIZE = process.arch === 'ia32' ? WIN32_MAX_HEAP_SIZE : GENERAL_MAX_HEAP_SIZE;

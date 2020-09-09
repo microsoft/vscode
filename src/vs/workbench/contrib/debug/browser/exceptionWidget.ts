@@ -10,7 +10,7 @@ import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExceptionInfo, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -35,8 +35,8 @@ export class ExceptionWidget extends ZoneWidget {
 
 		this._backgroundColor = Color.white;
 
-		this._applyTheme(themeService.getTheme());
-		this._disposables.add(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getColorTheme());
+		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
 		const onDidLayoutChangeScheduler = new RunOnceScheduler(() => this._doLayout(undefined, undefined), 50);
@@ -44,7 +44,7 @@ export class ExceptionWidget extends ZoneWidget {
 		this._disposables.add(onDidLayoutChangeScheduler);
 	}
 
-	private _applyTheme(theme: ITheme): void {
+	private _applyTheme(theme: IColorTheme): void {
 		this._backgroundColor = theme.getColor(debugExceptionWidgetBackground);
 		const frameColor = theme.getColor(debugExceptionWidgetBorder);
 		this.style({

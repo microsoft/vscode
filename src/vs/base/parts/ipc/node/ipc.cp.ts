@@ -14,6 +14,7 @@ import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { isMacintosh } from 'vs/base/common/platform';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -197,6 +198,12 @@ export class Client implements IChannelClient, IDisposable {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
 			}
 
+			if (isMacintosh && forkOpts.env) {
+				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
+				// See https://github.com/microsoft/vscode/issues/105848
+				delete forkOpts.env['DYLD_LIBRARY_PATH'];
+			}
+
 			this.child = fork(this.modulePath, args, forkOpts);
 
 			const onMessageEmitter = new Emitter<VSBuffer>();
@@ -227,7 +234,7 @@ export class Client implements IChannelClient, IDisposable {
 			this.child.on('error', err => console.warn('IPC "' + this.options.serverName + '" errored with ' + err));
 
 			this.child.on('exit', (code: any, signal: any) => {
-				process.removeListener('exit', onExit);
+				process.removeListener('exit' as 'loaded', onExit); // https://github.com/electron/electron/issues/21475
 
 				this.activeRequests.forEach(r => dispose(r));
 				this.activeRequests.clear();

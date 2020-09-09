@@ -5,7 +5,9 @@
 
 import { MinimapCharRenderer } from 'vs/editor/browser/viewParts/minimap/minimapCharRenderer';
 import { allCharCodes } from 'vs/editor/browser/viewParts/minimap/minimapCharSheet';
+import { prebakedMiniMaps } from 'vs/editor/browser/viewParts/minimap/minimapPreBaked';
 import { Constants } from './minimapCharSheet';
+import { toUint8 } from 'vs/base/common/uint';
 
 /**
  * Creates character renderers. It takes a 'scale' that determines how large
@@ -28,10 +30,16 @@ export class MinimapCharRendererFactory {
 			return this.lastCreated;
 		}
 
-		const factory = MinimapCharRendererFactory.createFromSampleData(
-			MinimapCharRendererFactory.createSampleData(fontFamily).data,
-			scale
-		);
+		let factory: MinimapCharRenderer;
+		if (prebakedMiniMaps[scale]) {
+			factory = new MinimapCharRenderer(prebakedMiniMaps[scale](), scale);
+		} else {
+			factory = MinimapCharRendererFactory.createFromSampleData(
+				MinimapCharRendererFactory.createSampleData(fontFamily).data,
+				scale
+			);
+		}
+
 		this.lastFontFamily = fontFamily;
 		this.lastCreated = factory;
 		return factory;
@@ -128,7 +136,7 @@ export class MinimapCharRendererFactory {
 
 				const final = value / samples;
 				brightest = Math.max(brightest, final);
-				dest[targetIndex++] = final;
+				dest[targetIndex++] = toUint8(final);
 			}
 		}
 

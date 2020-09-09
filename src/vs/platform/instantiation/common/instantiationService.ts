@@ -13,12 +13,6 @@ import { IdleValue } from 'vs/base/common/async';
 // TRACING
 const _enableTracing = false;
 
-// PROXY
-// Ghetto-declare of the global Proxy object. This isn't the proper way
-// but allows us to run this code in the browser without IE11.
-declare var Proxy: any;
-const _canUseProxy = typeof Proxy === 'function';
-
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
@@ -28,7 +22,7 @@ class CyclicDependencyError extends Error {
 
 export class InstantiationService implements IInstantiationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _services: ServiceCollection;
 	private readonly _strict: boolean;
@@ -64,7 +58,7 @@ export class InstantiationService implements IInstantiationService {
 					return result;
 				}
 			};
-			return fn.apply(undefined, [accessor, ...args]);
+			return fn(accessor, ...args);
 		} finally {
 			_done = true;
 			_trace.stop();
@@ -102,8 +96,7 @@ export class InstantiationService implements IInstantiationService {
 
 		// check for argument mismatches, adjust static args if needed
 		if (args.length !== firstServiceArgPos) {
-			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${
-				firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
+			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
 
 			let delta = firstServiceArgPos - args.length;
 			if (delta > 0) {
@@ -157,7 +150,7 @@ export class InstantiationService implements IInstantiationService {
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks
-			if (cycleCount++ > 150) {
+			if (cycleCount++ > 1000) {
 				throw new CyclicDependencyError(graph);
 			}
 
@@ -211,8 +204,8 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	private _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
-		if (!_supportsDelayedInstantiation || !_canUseProxy) {
-			// eager instantiation or no support JS proxies (e.g. IE11)
+		if (!_supportsDelayedInstantiation) {
+			// eager instantiation
 			return this._createInstance(ctor, args, _trace);
 
 		} else {
@@ -225,7 +218,7 @@ export class InstantiationService implements IInstantiationService {
 					if (key in target) {
 						return target[key];
 					}
-					let obj = idle.getValue();
+					let obj = idle.value;
 					let prop = obj[key];
 					if (typeof prop !== 'function') {
 						return prop;
@@ -235,7 +228,7 @@ export class InstantiationService implements IInstantiationService {
 					return prop;
 				},
 				set(_target: T, p: PropertyKey, value: any): boolean {
-					idle.getValue()[p] = value;
+					idle.value[p] = value;
 					return true;
 				}
 			});

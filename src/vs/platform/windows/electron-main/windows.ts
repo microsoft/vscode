@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowConfiguration, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IWindowOpenable, IOpenEmptyWindowOptions, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { OpenContext } from 'vs/platform/windows/node/window';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -32,14 +33,11 @@ export const enum WindowMode {
 
 export interface ICodeWindow extends IDisposable {
 
-	readonly onClose: Event<void>;
-	readonly onDestroy: Event<void>;
-
 	readonly whenClosedOrLoaded: Promise<void>;
 
 	readonly id: number;
 	readonly win: BrowserWindow;
-	readonly config: IWindowConfiguration | undefined;
+	readonly config: INativeWindowConfiguration | undefined;
 
 	readonly openedFolderUri?: URI;
 	readonly openedWorkspace?: IWorkspaceIdentifier;
@@ -60,10 +58,10 @@ export interface ICodeWindow extends IDisposable {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: IWindowConfiguration, isReload?: boolean): void;
-	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
+	load(config: INativeWindowConfiguration, isReload?: boolean): void;
+	reload(configuration?: INativeWindowConfiguration, cli?: NativeParsedArgs): void;
 
-	focus(): void;
+	focus(options?: { force: boolean }): void;
 	close(): void;
 
 	getBounds(): Rectangle;
@@ -78,6 +76,9 @@ export interface ICodeWindow extends IDisposable {
 
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
 
 	handleTitleDoubleClick(): void;
 
@@ -95,17 +96,17 @@ export interface IWindowsCountChangedEvent {
 
 export interface IWindowsMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload: any, windowIdsToIgnore?: number[]): void;
+	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
 	getLastActiveWindow(): ICodeWindow | undefined;
 
@@ -114,10 +115,13 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 }
 
-export interface IOpenConfiguration {
+export interface IBaseOpenConfiguration {
 	readonly context: OpenContext;
 	readonly contextWindowId?: number;
-	readonly cli: ParsedArgs;
+}
+
+export interface IOpenConfiguration extends IBaseOpenConfiguration {
+	readonly cli: NativeParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
 	readonly waitMarkerFileURI?: URI;
@@ -132,3 +136,5 @@ export interface IOpenConfiguration {
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
 }
+
+export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

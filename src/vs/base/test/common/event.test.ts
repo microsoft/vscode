@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, EventBufferer, EventMultiplexer, AsyncEmitter, IWaitUntil, PauseableEmitter } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer, EventMultiplexer, IWaitUntil, PauseableEmitter, AsyncEmitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import * as Errors from 'vs/base/common/errors';
 import { timeout } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 namespace Samples {
 
@@ -135,6 +136,7 @@ suite('Event', function () {
 			let a = new Emitter<undefined>();
 			let hit = false;
 			a.event(function () {
+				// eslint-disable-next-line no-throw-literal
 				throw 9;
 			});
 			a.event(function () {
@@ -174,7 +176,7 @@ suite('Event', function () {
 	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 
-		let onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[], cur) => {
+		let onDocDidChange = Event.debounce(doc.onDidChange, (prev: string[] | undefined, cur) => {
 			if (!prev) {
 				prev = [cur];
 			} else if (prev.indexOf(cur) < 0) {
@@ -235,6 +237,20 @@ suite('Event', function () {
 		assert.equal(calls, 2);
 	});
 
+	test('Debounce Event - leading reset', async function () {
+		const emitter = new Emitter<number>();
+		let debounced = Event.debounce(emitter.event, (l, e) => l ? l + 1 : 1, 0, /*leading=*/true);
+
+		let calls: number[] = [];
+		debounced((e) => calls.push(e));
+
+		emitter.fire(1);
+		emitter.fire(1);
+
+		await timeout(1);
+		assert.deepEqual(calls, [1, 1]);
+	});
+
 	test('Emitter - In Order Delivery', function () {
 		const a = new Emitter<string>();
 		const listener2Events: string[] = [];
@@ -272,11 +288,7 @@ suite('AsyncEmitter', function () {
 			assert.equal(typeof e.waitUntil, 'function');
 		});
 
-		emitter.fireAsync(thenables => ({
-			foo: true,
-			bar: 1,
-			waitUntil(t: Promise<void>) { thenables.push(t); }
-		}));
+		emitter.fireAsync({ foo: true, bar: 1, }, CancellationToken.None);
 		emitter.dispose();
 	});
 
@@ -303,12 +315,7 @@ suite('AsyncEmitter', function () {
 			}));
 		});
 
-		await emitter.fireAsync(thenables => ({
-			foo: true,
-			waitUntil(t) {
-				thenables.push(t);
-			}
-		}));
+		await emitter.fireAsync({ foo: true }, CancellationToken.None);
 		assert.equal(globalState, 2);
 	});
 
@@ -324,12 +331,7 @@ suite('AsyncEmitter', function () {
 		emitter.event(e => {
 			e.waitUntil(timeout(10).then(async _ => {
 				if (e.foo === 1) {
-					await emitter.fireAsync(thenables => ({
-						foo: 2,
-						waitUntil(t) {
-							thenables.push(t);
-						}
-					}));
+					await emitter.fireAsync({ foo: 2 }, CancellationToken.None);
 					assert.deepEqual(events, [1, 2]);
 					done = true;
 				}
@@ -342,12 +344,7 @@ suite('AsyncEmitter', function () {
 			e.waitUntil(timeout(7));
 		});
 
-		await emitter.fireAsync(thenables => ({
-			foo: 1,
-			waitUntil(t) {
-				thenables.push(t);
-			}
-		}));
+		await emitter.fireAsync({ foo: 1 }, CancellationToken.None);
 		assert.ok(done);
 	});
 
@@ -372,12 +369,7 @@ suite('AsyncEmitter', function () {
 			e.waitUntil(timeout(10));
 		});
 
-		await emitter.fireAsync(thenables => ({
-			foo: true,
-			waitUntil(t) {
-				thenables.push(t);
-			}
-		})).then(() => {
+		await emitter.fireAsync({ foo: true }, CancellationToken.None).then(() => {
 			assert.equal(globalState, 2);
 		}).catch(e => {
 			console.log(e);

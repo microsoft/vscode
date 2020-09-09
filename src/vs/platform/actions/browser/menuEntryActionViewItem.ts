@@ -5,17 +5,19 @@
 
 import { addClasses, createCSSRule, removeClasses, asCSSUrl } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
-import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 
 // The alternative key on all platforms is alt. On windows we also support shift as an alternative key #44136
 class AlternativeKeyEmitter extends Emitter<boolean> {
@@ -108,11 +110,11 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 		}
 
 		if (isPrimaryGroup(group)) {
-			const to = Array.isArray<IAction>(target) ? target : target.primary;
+			const to = Array.isArray(target) ? target : target.primary;
 
 			to.unshift(...actions);
 		} else {
-			const to = Array.isArray<IAction>(target) ? target : target.secondary;
+			const to = Array.isArray(target) ? target : target.secondary;
 
 			if (to.length > 0) {
 				to.push(new Separator());
@@ -123,19 +125,11 @@ function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActi
 	}
 }
 
-
-export function createActionViewItem(action: IAction, keybindingService: IKeybindingService, notificationService: INotificationService, contextMenuService: IContextMenuService): ActionViewItem | undefined {
-	if (action instanceof MenuItemAction) {
-		return new MenuEntryActionViewItem(action, keybindingService, notificationService, contextMenuService);
-	}
-	return undefined;
-}
-
 const ids = new IdGenerator('menu-item-action-item-icon-');
 
-export class MenuEntryActionViewItem extends ActionViewItem {
+const ICON_PATH_TO_CSS_RULES = new Map<string /* path*/, string /* CSS rule */>();
 
-	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
+export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
@@ -147,7 +141,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
 		this._altKey = AlternativeKeyEmitter.getInstance(_contextMenuService);
 	}
 
@@ -163,7 +157,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			this._altKey.suppressAltKeyUp();
 		}
 
-		this.actionRunner.run(this._commandAction)
+		this.actionRunner.run(this._commandAction, this._context)
 			.then(undefined, err => this._notificationService.error(err));
 	}
 
@@ -215,9 +209,10 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
+			const tooltip = this._commandAction.tooltip || this._commandAction.label;
 			this.label.title = keybindingLabel
-				? localize('titleAndKb', "{0} ({1})", this._commandAction.label, keybindingLabel)
-				: this._commandAction.label;
+				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
+				: tooltip;
 		}
 	}
 
@@ -233,39 +228,38 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		}
 	}
 
-	_updateItemClass(item: ICommandAction): void {
+	private _updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
-		// icon class
-		if (item.iconClassName) {
-			let iconClass = item.iconClassName;
+		const icon = this._commandAction.checked && (item.toggled as { icon?: Icon })?.icon ? (item.toggled as { icon: Icon }).icon : item.icon;
 
-			if (this.label) {
-				addClasses(this.label, 'codicon', iconClass);
+		if (ThemeIcon.isThemeIcon(icon)) {
+			// theme icons
+			const iconClass = ThemeIcon.asClassName(icon);
+			if (this.label && iconClass) {
+				addClasses(this.label, iconClass);
 				this._itemClassDispose.value = toDisposable(() => {
 					if (this.label) {
-						removeClasses(this.label, 'codicon', iconClass);
+						removeClasses(this.label, iconClass);
 					}
 				});
 			}
 
-		}
-
-		// icon path
-		else if (item.iconLocation) {
+		} else if (icon) {
+			// icon path
 			let iconClass: string;
 
-			if (item.iconLocation?.dark?.scheme) {
+			if (icon.dark?.scheme) {
 
-				const iconPathMapKey = item.iconLocation.dark.toString();
+				const iconPathMapKey = icon.dark.toString();
 
-				if (MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					iconClass = MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
+				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
+					iconClass = ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
 				} else {
 					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.light || item.iconLocation.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(item.iconLocation.dark)}`);
-					MenuEntryActionViewItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
+					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(icon.light || icon.dark)}`);
+					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(icon.dark)}`);
+					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 				}
 
 				if (this.label) {
@@ -277,25 +271,38 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 						}
 					});
 				}
-
 			}
-
-
-
 		}
 	}
 }
 
-// Need to subclass MenuEntryActionViewItem in order to respect
-// the action context coming from any action bar, without breaking
-// existing users
-export class ContextAwareMenuEntryActionViewItem extends MenuEntryActionViewItem {
+export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
-	onClick(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
+	constructor(
+		action: SubmenuItemAction,
+		@INotificationService _notificationService: INotificationService,
+		@IContextMenuService _contextMenuService: IContextMenuService
+	) {
+		const classNames: string[] = [];
 
-		this.actionRunner.run(this._commandAction, this._context)
-			.then(undefined, err => this._notificationService.error(err));
+		if (action.item.icon) {
+			if (ThemeIcon.isThemeIcon(action.item.icon)) {
+				classNames.push(ThemeIcon.asClassName(action.item.icon)!);
+			} else if (action.item.icon.dark?.scheme) {
+				const iconPathMapKey = action.item.icon.dark.toString();
+
+				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
+					classNames.push('icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!);
+				} else {
+					const className = ids.nextId();
+					classNames.push('icon', className);
+					createCSSRule(`.icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.light || action.item.icon.dark)}`);
+					createCSSRule(`.vs-dark .icon.${className}, .hc-black .icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.dark)}`);
+					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, className);
+				}
+			}
+		}
+
+		super(action, action.actions, _contextMenuService, { classNames });
 	}
 }

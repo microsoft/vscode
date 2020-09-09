@@ -2,7 +2,14 @@
 	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"experimentalDecorators": true
+		"experimentalDecorators": true,
+		// https://github.com/microsoft/TypeScript/issues/31869#issuecomment-515167432
+		"baseUrl": "src/\u0000",
+		"paths": {
+			"vscode": [
+				"../../../../src/vs/vscode.d.ts"
+			]
+		}
 	},
 	"include": [
 		"src/**/*"

@@ -5,12 +5,12 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, transparent, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
@@ -138,11 +138,10 @@ class TOCTreeDelegate implements IListVirtualDelegate<SettingsTreeElement> {
 	}
 }
 
-export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement, tree: TOCTree): Iterator<ITreeElement<SettingsTreeGroupElement>> {
+export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement, tree: TOCTree): Iterable<ITreeElement<SettingsTreeGroupElement>> {
 	const groupChildren = <SettingsTreeGroupElement[]>model.children.filter(c => c instanceof SettingsTreeGroupElement);
-	const groupsIt = Iterator.fromArray(groupChildren);
 
-	return Iterator.map(groupsIt, g => {
+	return Iterable.map(groupChildren, g => {
 		const hasGroupChildren = g.children.some(c => c instanceof SettingsTreeGroupElement);
 
 		return {
@@ -156,7 +155,15 @@ export function createTOCIterator(model: TOCTreeModel | SettingsTreeGroupElement
 	});
 }
 
-class SettingsAccessibilityProvider implements IAccessibilityProvider<SettingsTreeGroupElement> {
+class SettingsAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeGroupElement> {
+	getWidgetAriaLabel(): string {
+		return localize({
+			key: 'settingsTOC',
+			comment: ['A label for the table of contents for the full settings list']
+		},
+			"Settings Table of Contents");
+	}
+
 	getAriaLabel(element: SettingsTreeElement): string {
 		if (!element) {
 			return '';
@@ -189,7 +196,6 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 	) {
 		// test open mode
 
-		const treeClass = 'settings-toc-tree';
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
 		const options: IObjectTreeOptions<SettingsTreeGroupElement> = {
 			filter,
@@ -199,7 +205,7 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 					return e.id;
 				}
 			},
-			styleController: new DefaultStyleController(DOM.createStyleSheet(container), treeClass),
+			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true
 		};
@@ -209,16 +215,15 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			[new TOCRenderer()],
 			options);
 
-		this.getHTMLElement().classList.add(treeClass);
-
 		this.disposables.add(attachStyler(themeService, {
+			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,
-			listFocusForeground: settingsHeaderForeground,
-			listHoverForeground: settingsHeaderForeground,
+			listFocusForeground: transparent(foreground, 0.9),
+			listHoverForeground: transparent(foreground, 0.9),
 			listHoverBackground: editorBackground,
 			listInactiveSelectionBackground: editorBackground,
 			listInactiveSelectionForeground: settingsHeaderForeground,

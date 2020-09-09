@@ -23,14 +23,14 @@ const defaultStyles: ISplitViewStyles = {
 	separatorBorder: Color.transparent
 };
 
-export interface ISplitViewOptions {
+export interface ISplitViewOptions<TLayoutContext = undefined> {
 	readonly orientation?: Orientation; // default Orientation.VERTICAL
 	readonly styles?: ISplitViewStyles;
 	readonly orthogonalStartSash?: Sash;
 	readonly orthogonalEndSash?: Sash;
 	readonly inverseAltBehavior?: boolean;
 	readonly proportionalLayout?: boolean; // default true,
-	readonly descriptor?: ISplitViewDescriptor;
+	readonly descriptor?: ISplitViewDescriptor<TLayoutContext>;
 }
 
 /**
@@ -42,14 +42,14 @@ export const enum LayoutPriority {
 	High
 }
 
-export interface IView {
+export interface IView<TLayoutContext = undefined> {
 	readonly element: HTMLElement;
 	readonly minimumSize: number;
 	readonly maximumSize: number;
 	readonly onDidChange: Event<number | undefined>;
 	readonly priority?: LayoutPriority;
 	readonly snap?: boolean;
-	layout(size: number, orthogonalSize: number | undefined): void;
+	layout(size: number, offset: number, context: TLayoutContext | undefined): void;
 	setVisible?(visible: boolean): void;
 }
 
@@ -62,7 +62,7 @@ interface ISashEvent {
 
 type ViewItemSize = number | { cachedVisibleSize: number };
 
-abstract class ViewItem {
+abstract class ViewItem<TLayoutContext> {
 
 	private _size: number;
 	set size(size: number) {
@@ -110,12 +110,12 @@ abstract class ViewItem {
 	get snap(): boolean { return !!this.view.snap; }
 
 	set enabled(enabled: boolean) {
-		this.container.style.pointerEvents = enabled ? null : 'none';
+		this.container.style.pointerEvents = enabled ? '' : 'none';
 	}
 
 	constructor(
 		protected container: HTMLElement,
-		private view: IView,
+		private view: IView<TLayoutContext>,
 		size: ViewItemSize,
 		private disposable: IDisposable
 	) {
@@ -129,31 +129,31 @@ abstract class ViewItem {
 		}
 	}
 
-	layout(position: number, orthogonalSize: number | undefined): void {
-		this.layoutContainer(position);
-		this.view.layout(this.size, orthogonalSize);
+	layout(offset: number, layoutContext: TLayoutContext | undefined): void {
+		this.layoutContainer(offset);
+		this.view.layout(this.size, offset, layoutContext);
 	}
 
-	abstract layoutContainer(position: number): void;
+	abstract layoutContainer(offset: number): void;
 
-	dispose(): IView {
+	dispose(): IView<TLayoutContext> {
 		this.disposable.dispose();
 		return this.view;
 	}
 }
 
-class VerticalViewItem extends ViewItem {
+class VerticalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
 
-	layoutContainer(position: number): void {
-		this.container.style.top = `${position}px`;
+	layoutContainer(offset: number): void {
+		this.container.style.top = `${offset}px`;
 		this.container.style.height = `${this.size}px`;
 	}
 }
 
-class HorizontalViewItem extends ViewItem {
+class HorizontalViewItem<TLayoutContext> extends ViewItem<TLayoutContext> {
 
-	layoutContainer(position: number): void {
-		this.container.style.left = `${position}px`;
+	layoutContainer(offset: number): void {
+		this.container.style.left = `${offset}px`;
 		this.container.style.width = `${this.size}px`;
 	}
 }
@@ -198,26 +198,26 @@ export namespace Sizing {
 	export function Invisible(cachedVisibleSize: number): InvisibleSizing { return { type: 'invisible', cachedVisibleSize }; }
 }
 
-export interface ISplitViewDescriptor {
+export interface ISplitViewDescriptor<TLayoutContext> {
 	size: number;
 	views: {
 		visible?: boolean;
 		size: number;
-		view: IView;
+		view: IView<TLayoutContext>;
 	}[];
 }
 
-export class SplitView extends Disposable {
+export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 	readonly orientation: Orientation;
 	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
 	private size = 0;
-	private orthogonalSize: number | undefined;
+	private layoutContext: TLayoutContext | undefined;
 	private contentSize = 0;
 	private proportions: undefined | number[] = undefined;
-	private viewItems: ViewItem[] = [];
+	private viewItems: ViewItem<TLayoutContext>[] = [];
 	private sashItems: ISashItem[] = [];
 	private sashDragState: ISashDragState | undefined;
 	private state: State = State.Idle;
@@ -266,7 +266,29 @@ export class SplitView extends Disposable {
 		return this.sashItems.map(s => s.sash);
 	}
 
-	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
+	private _startSnappingEnabled = true;
+	get startSnappingEnabled(): boolean { return this._startSnappingEnabled; }
+	set startSnappingEnabled(startSnappingEnabled: boolean) {
+		if (this._startSnappingEnabled === startSnappingEnabled) {
+			return;
+		}
+
+		this._startSnappingEnabled = startSnappingEnabled;
+		this.updateSashEnablement();
+	}
+
+	private _endSnappingEnabled = true;
+	get endSnappingEnabled(): boolean { return this._endSnappingEnabled; }
+	set endSnappingEnabled(endSnappingEnabled: boolean) {
+		if (this._endSnappingEnabled === endSnappingEnabled) {
+			return;
+		}
+
+		this._endSnappingEnabled = endSnappingEnabled;
+		this.updateSashEnablement();
+	}
+
+	constructor(container: HTMLElement, options: ISplitViewOptions<TLayoutContext> = {}) {
 		super();
 
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
@@ -309,11 +331,11 @@ export class SplitView extends Disposable {
 		}
 	}
 
-	addView(view: IView, size: number | Sizing, index = this.viewItems.length): void {
-		this.doAddView(view, size, index, false);
+	addView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
+		this.doAddView(view, size, index, skipLayout);
 	}
 
-	removeView(index: number, sizing?: Sizing): IView {
+	removeView(index: number, sizing?: Sizing): IView<TLayoutContext> {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -405,10 +427,10 @@ export class SplitView extends Disposable {
 		return viewItem.cachedVisibleSize;
 	}
 
-	layout(size: number, orthogonalSize?: number): void {
+	layout(size: number, layoutContext?: TLayoutContext): void {
 		const previousSize = Math.max(this.size, this.contentSize);
 		this.size = size;
-		this.orthogonalSize = orthogonalSize;
+		this.layoutContext = layoutContext;
 
 		if (!this.proportions) {
 			const indexes = range(this.viewItems.length);
@@ -549,7 +571,7 @@ export class SplitView extends Disposable {
 		}
 	}
 
-	private onViewChange(item: ViewItem, size: number | undefined): void {
+	private onViewChange(item: ViewItem<TLayoutContext>, size: number | undefined): void {
 		const index = this.viewItems.indexOf(item);
 
 		if (index < 0 || index >= this.viewItems.length) {
@@ -596,7 +618,7 @@ export class SplitView extends Disposable {
 	}
 
 	distributeViewSizes(): void {
-		const flexibleViewItems: ViewItem[] = [];
+		const flexibleViewItems: ViewItem<TLayoutContext>[] = [];
 		let flexibleSize = 0;
 
 		for (const item of this.viewItems) {
@@ -627,7 +649,7 @@ export class SplitView extends Disposable {
 		return this.viewItems[index].size;
 	}
 
-	private doAddView(view: IView, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
+	private doAddView(view: IView<TLayoutContext>, size: number | Sizing, index = this.viewItems.length, skipLayout?: boolean): void {
 		if (this.state !== State.Idle) {
 			throw new Error('Cant modify splitview');
 		}
@@ -667,13 +689,17 @@ export class SplitView extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
-			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
-			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) } : { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) };
-			const sash = new Sash(this.sashContainer, layoutProvider, {
-				orientation,
-				orthogonalStartSash: this.orthogonalStartSash,
-				orthogonalEndSash: this.orthogonalEndSash
-			});
+			const sash = this.orientation === Orientation.VERTICAL
+				? new Sash(this.sashContainer, { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) }, {
+					orientation: Orientation.HORIZONTAL,
+					orthogonalStartSash: this.orthogonalStartSash,
+					orthogonalEndSash: this.orthogonalEndSash
+				})
+				: new Sash(this.sashContainer, { getVerticalSashLeft: (sash: Sash) => this.getSashPosition(sash) }, {
+					orientation: Orientation.VERTICAL,
+					orthogonalStartSash: this.orthogonalStartSash,
+					orthogonalEndSash: this.orthogonalEndSash
+				});
 
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey })
@@ -861,17 +887,19 @@ export class SplitView extends Disposable {
 		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		// Layout views
-		let position = 0;
+		let offset = 0;
 
 		for (const viewItem of this.viewItems) {
-			viewItem.layout(position, this.orthogonalSize);
-			position += viewItem.size;
+			viewItem.layout(offset, this.layoutContext);
+			offset += viewItem.size;
 		}
 
 		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
+		this.updateSashEnablement();
+	}
 
-		// Update sashes enablement
+	private updateSashEnablement(): void {
 		let previous = false;
 		const collapsesDown = this.viewItems.map(i => previous = (i.size - i.minimumSize > 0) || previous);
 
@@ -885,7 +913,12 @@ export class SplitView extends Disposable {
 		previous = false;
 		const expandsUp = reverseViews.map(i => previous = (i.maximumSize - i.size > 0) || previous).reverse();
 
-		this.sashItems.forEach(({ sash }, index) => {
+		let position = 0;
+		for (let index = 0; index < this.sashItems.length; index++) {
+			const { sash } = this.sashItems[index];
+			const viewItem = this.viewItems[index];
+			position += viewItem.size;
+
 			const min = !(collapsesDown[index] && expandsUp[index + 1]);
 			const max = !(expandsDown[index] && collapsesUp[index + 1]);
 
@@ -898,9 +931,9 @@ export class SplitView extends Disposable {
 				const snappedBefore = typeof snapBeforeIndex === 'number' && !this.viewItems[snapBeforeIndex].visible;
 				const snappedAfter = typeof snapAfterIndex === 'number' && !this.viewItems[snapAfterIndex].visible;
 
-				if (snappedBefore && collapsesUp[index]) {
+				if (snappedBefore && collapsesUp[index] && (position > 0 || this.startSnappingEnabled)) {
 					sash.state = SashState.Minimum;
-				} else if (snappedAfter && collapsesDown[index]) {
+				} else if (snappedAfter && collapsesDown[index] && (position < this.contentSize || this.endSnappingEnabled)) {
 					sash.state = SashState.Maximum;
 				} else {
 					sash.state = SashState.Disabled;
@@ -912,8 +945,7 @@ export class SplitView extends Disposable {
 			} else {
 				sash.state = SashState.Enabled;
 			}
-			// }
-		});
+		}
 	}
 
 	private getSashPosition(sash: Sash): number {
@@ -923,7 +955,7 @@ export class SplitView extends Disposable {
 			position += this.viewItems[i].size;
 
 			if (this.sashItems[i].sash === sash) {
-				return Math.min(position, this.contentSize - 2);
+				return position;
 			}
 		}
 

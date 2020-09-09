@@ -41,6 +41,9 @@ const enum Refilter {
 	Incr = 2
 }
 
+/**
+ * Sorted, filtered completion view model
+ * */
 export class CompletionModel {
 
 	private readonly _items: CompletionItem[];
@@ -61,7 +64,8 @@ export class CompletionModel {
 		lineContext: LineContext,
 		wordDistance: WordDistance,
 		options: InternalSuggestOptions,
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none'
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
+		readonly clipboardText: string | undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -101,7 +105,7 @@ export class CompletionModel {
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res = new Array<CompletionItem>();
+		let res: CompletionItem[] = [];
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
@@ -151,6 +155,10 @@ export class CompletionModel {
 
 			const item = source[i];
 
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
+
 			// collect those supports that signaled having
 			// an incomplete result
 			if (item.container.incomplete) {
@@ -192,6 +200,7 @@ export class CompletionModel {
 					}
 				}
 
+				const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
 				if (wordPos >= wordLen) {
 					// the wordPos at which scoring starts is the whole word
 					// and therefore the same rules as not having a word apply
@@ -206,19 +215,19 @@ export class CompletionModel {
 					if (!match) {
 						continue; // NO match
 					}
-					if (compareIgnoreCase(item.completion.filterText, item.completion.label) === 0) {
+					if (compareIgnoreCase(item.completion.filterText, textLabel) === 0) {
 						// filterText and label are actually the same -> use good highlights
 						item.score = match;
 					} else {
 						// re-run the scorer on the label in the hope of a result BUT use the rank
 						// of the filterText-match
-						item.score = anyScore(word, wordLow, wordPos, item.completion.label, item.labelLow, 0);
+						item.score = anyScore(word, wordLow, wordPos, textLabel, item.labelLow, 0);
 						item.score[0] = match[0]; // use score from filterText
 					}
 
 				} else {
 					// by default match `word` against the `label`
-					let match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, false);
+					let match = scoreFn(word, wordLow, wordPos, textLabel, item.labelLow, 0, false);
 					if (!match) {
 						continue; // NO match
 					}

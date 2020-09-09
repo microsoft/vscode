@@ -25,7 +25,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	dispose(): void {
-		this._fileProvider.forEach(value => value.dispose());
+		dispose(this._fileProvider.values());
 		this._fileProvider.clear();
 	}
 
@@ -34,7 +34,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	}
 
 	$unregisterProvider(handle: number): void {
-		dispose(this._fileProvider.get(handle));
+		this._fileProvider.get(handle)?.dispose();
 		this._fileProvider.delete(handle);
 	}
 

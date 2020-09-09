@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./remoteViewlet';
+import 'vs/css!./media/remoteViewlet';
 import * as nls from 'vs/nls';
+import * as dom from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -15,16 +16,16 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { FilterViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/contrib/remote/common/remote.contribution';
+import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor, ShowViewletAction } from 'vs/workbench/browser/viewlet';
+import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
@@ -41,85 +42,224 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
-import { IRemoteExplorerService, HelpInformation } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { Event } from 'vs/base/common/event';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
+import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+
+export interface HelpInformation {
+	extensionDescription: IExtensionDescription;
+	getStarted?: string;
+	documentation?: string;
+	feedback?: string;
+	issues?: string;
+	remoteName?: string[] | string;
+}
+
+const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
+	extensionPoint: 'remoteHelp',
+	jsonSchema: {
+		description: nls.localize('RemoteHelpInformationExtPoint', 'Contributes help information for Remote'),
+		type: 'object',
+		properties: {
+			'getStarted': {
+				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url, or a command that returns the url, to your project's Getting Started page"),
+				type: 'string'
+			},
+			'documentation': {
+				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url, or a command that returns the url, to your project's documentation page"),
+				type: 'string'
+			},
+			'feedback': {
+				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
+				type: 'string'
+			},
+			'issues': {
+				description: nls.localize('RemoteHelpInformationExtPoint.issues', "The url, or a command that returns the url, to your project's issues list"),
+				type: 'string'
+			}
+		}
+	}
+});
+
+interface IViewModel {
+	helpInformation: HelpInformation[];
+}
+
+class HelpTreeVirtualDelegate implements IListVirtualDelegate<IHelpItem> {
+	getHeight(element: IHelpItem): number {
+		return 22;
+	}
+
+	getTemplateId(element: IHelpItem): string {
+		return 'HelpItemTemplate';
+	}
+}
+
+interface IHelpItemTemplateData {
+	parent: HTMLElement;
+	icon: HTMLElement;
+}
+
+class HelpTreeRenderer implements ITreeRenderer<HelpModel | IHelpItem, IHelpItem, IHelpItemTemplateData> {
+	templateId: string = 'HelpItemTemplate';
+
+	renderTemplate(container: HTMLElement): IHelpItemTemplateData {
+		container.classList.add('remote-help-tree-node-item');
+		const icon = dom.append(container, dom.$('.remote-help-tree-node-item-icon'));
+		const data = <IHelpItemTemplateData>Object.create(null);
+		data.parent = container;
+		data.icon = icon;
+		return data;
+	}
+
+	renderElement(element: ITreeNode<IHelpItem, IHelpItem>, index: number, templateData: IHelpItemTemplateData, height: number | undefined): void {
+		const container = templateData.parent;
+		dom.append(container, templateData.icon);
+		templateData.icon.classList.add(...element.element.iconClasses);
+		const labelContainer = dom.append(container, dom.$('.help-item-label'));
+		labelContainer.innerText = element.element.label;
+	}
+
+	disposeTemplate(templateData: IHelpItemTemplateData): void {
+
+	}
+}
+
+class HelpDataSource implements IAsyncDataSource<any, any> {
+	hasChildren(element: any) {
+		return element instanceof HelpModel;
+	}
+
+	getChildren(element: any) {
+		if (element instanceof HelpModel && element.items) {
+			return element.items;
+		}
+
+		return [];
+	}
+}
+
+const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star);
+const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book);
+const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter);
+const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues);
+const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment);
+
+interface IHelpItem {
+	icon: Codicon,
+	iconClasses: string[];
+	label: string;
+	handleClick(): Promise<void>;
+}
 
 class HelpModel {
 	items: IHelpItem[] | undefined;
 
 	constructor(
+		viewModel: IViewModel,
 		openerService: IOpenerService,
 		quickInputService: IQuickInputService,
 		commandService: ICommandService,
 		remoteExplorerService: IRemoteExplorerService,
+		environmentService: IWorkbenchEnvironmentService
 	) {
 		let helpItems: IHelpItem[] = [];
-		const getStarted = remoteExplorerService.helpInformation.filter(info => info.getStarted);
+		const getStarted = viewModel.helpInformation.filter(info => info.getStarted);
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				['getStarted'],
+				getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
-				getStarted.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.getStarted!
-				})),
+				getStarted.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.getStarted!)
+				)),
+				quickInputService,
+				environmentService,
 				openerService,
-				quickInputService
+				remoteExplorerService
 			));
 		}
 
-		const documentation = remoteExplorerService.helpInformation.filter(info => info.documentation);
+		const documentation = viewModel.helpInformation.filter(info => info.documentation);
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				['documentation'],
+				documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
-				documentation.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.documentation!
-				})),
+				documentation.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.documentation!)
+				)),
+				quickInputService,
+				environmentService,
 				openerService,
-				quickInputService
+				remoteExplorerService
 			));
 		}
 
-		const feedback = remoteExplorerService.helpInformation.filter(info => info.feedback);
+		const feedback = viewModel.helpInformation.filter(info => info.feedback);
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				['feedback'],
+				feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
-				feedback.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.feedback!
-				})),
+				feedback.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.feedback!)
+				)),
+				quickInputService,
+				environmentService,
 				openerService,
-				quickInputService
+				remoteExplorerService
 			));
 		}
 
-		const issues = remoteExplorerService.helpInformation.filter(info => info.issues);
+		const issues = viewModel.helpInformation.filter(info => info.issues);
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				['issues'],
+				reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
-				issues.map((info: HelpInformation) => ({
-					extensionDescription: info.extensionDescription,
-					url: info.issues!
-				})),
+				issues.map((info: HelpInformation) => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName,
+					info.issues!)
+				)),
+				quickInputService,
+				environmentService,
 				openerService,
-				quickInputService
+				remoteExplorerService
 			));
 		}
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				['issueReporter'],
+				reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
-				remoteExplorerService.helpInformation.map(info => info.extensionDescription),
+				viewModel.helpInformation.map(info => (new HelpItemValue(commandService,
+					info.extensionDescription,
+					(typeof info.remoteName === 'string') ? [info.remoteName] : info.remoteName
+				))),
 				quickInputService,
-				commandService
+				environmentService,
+				commandService,
+				remoteExplorerService
 			));
 		}
 
@@ -129,104 +269,207 @@ class HelpModel {
 	}
 }
 
-interface IHelpItem extends IQuickPickItem {
-	label: string;
-	handleClick(): Promise<void>;
+class HelpItemValue {
+	private _url: string | undefined;
+	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
+
+	get url(): Promise<string> {
+		return new Promise(async (resolve) => {
+			if (this._url === undefined) {
+				if (this.urlOrCommand) {
+					let url = URI.parse(this.urlOrCommand);
+					if (url.authority) {
+						this._url = this.urlOrCommand;
+					} else {
+						const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+						// We must be defensive. The command may never return, meaning that no help at all is ever shown!
+						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
+						this._url = await Promise.race([urlCommand, emptyString]);
+					}
+				} else {
+					this._url = '';
+				}
+			}
+			resolve(this._url);
+		});
+	}
 }
 
-class HelpItem implements IHelpItem {
+abstract class HelpItemBase implements IHelpItem {
+	public iconClasses: string[] = [];
 	constructor(
-		public iconClasses: string[],
+		public icon: Codicon,
 		public label: string,
-		public values: { extensionDescription: IExtensionDescription; url: string }[],
-		private openerService: IOpenerService,
-		private quickInputService: IQuickInputService
+		public values: HelpItemValue[],
+		private quickInputService: IQuickInputService,
+		private environmentService: IWorkbenchEnvironmentService,
+		private remoteExplorerService: IRemoteExplorerService
 	) {
-		iconClasses.push('remote-help-tree-node-item-icon');
+		this.iconClasses.push(...icon.classNamesArray);
+		this.iconClasses.push('remote-help-tree-node-item-icon');
 	}
 
 	async handleClick() {
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
+				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
+					for (let value of this.values) {
+						if (value.remoteAuthority) {
+							for (let authority of value.remoteAuthority) {
+								if (remoteAuthority.startsWith(authority)) {
+									await this.takeAction(value.extensionDescription, await value.url);
+									return;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
 		if (this.values.length > 1) {
-			let actions = this.values.map(value => {
+			let actions = (await Promise.all(this.values.map(async (value) => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
-					description: value.url
+					description: await value.url,
+					extensionDescription: value.extensionDescription
 				};
-			});
+			}))).filter(item => item.description);
 
 			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 
 			if (action) {
-				await this.openerService.open(URI.parse(action.description));
+				await this.takeAction(action.extensionDescription, action.description);
 			}
 		} else {
-			await this.openerService.open(URI.parse(this.values[0].url));
+			await this.takeAction(this.values[0].extensionDescription, await this.values[0].url);
 		}
 	}
+
+	protected abstract takeAction(extensionDescription: IExtensionDescription, url?: string): Promise<void>;
 }
 
-class IssueReporterItem implements IHelpItem {
+class HelpItem extends HelpItemBase {
 	constructor(
-		public iconClasses: string[],
-		public label: string,
-		public extensionDescriptions: IExtensionDescription[],
-		private quickInputService: IQuickInputService,
-		private commandService: ICommandService
-	) {
-		iconClasses.push('remote-help-tree-node-item-icon');
-	}
-
-	async handleClick() {
-		if (this.extensionDescriptions.length > 1) {
-			let actions = this.extensionDescriptions.map(extension => {
-				return {
-					label: extension.displayName || extension.identifier.value,
-					identifier: extension.identifier
-				};
-			});
-
-			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtensionToReportIssue', "Select an extension to report issue") });
-
-			if (action) {
-				await this.commandService.executeCommand('workbench.action.openIssueReporter', [action.identifier.value]);
-			}
-		} else {
-			await this.commandService.executeCommand('workbench.action.openIssueReporter', [this.extensionDescriptions[0].identifier.value]);
-		}
-	}
-}
-
-class HelpAction extends Action {
-	static readonly ID = 'remote.explorer.help';
-	static readonly LABEL = nls.localize('remote.explorer.help', "Help and Feedback");
-	private helpModel: HelpModel;
-
-	constructor(id: string,
+		icon: Codicon,
 		label: string,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService
+		values: HelpItemValue[],
+		quickInputService: IQuickInputService,
+		environmentService: IWorkbenchEnvironmentService,
+		private openerService: IOpenerService,
+		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(id, label, 'codicon codicon-question');
-		this.helpModel = new HelpModel(openerService, quickInputService, commandService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
-	async run(event?: any): Promise<any> {
-		if (!this.helpModel.items) {
-			this.helpModel = new HelpModel(this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService);
-		}
-		if (this.helpModel.items) {
-			const selection = await this.quickInputService.pick(this.helpModel.items, { placeHolder: nls.localize('remote.explorer.helpPlaceholder', "Help and Feedback") });
-			if (selection) {
-				return selection.handleClick();
-			}
-		}
+	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
+		await this.openerService.open(URI.parse(url));
 	}
 }
 
-export class RemoteViewlet extends FilterViewContainerViewlet {
+class IssueReporterItem extends HelpItemBase {
+	constructor(
+		icon: Codicon,
+		label: string,
+		values: HelpItemValue[],
+		quickInputService: IQuickInputService,
+		environmentService: IWorkbenchEnvironmentService,
+		private commandService: ICommandService,
+		remoteExplorerService: IRemoteExplorerService
+	) {
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
+	}
+
+	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
+		await this.commandService.executeCommand('workbench.action.openIssueReporter', [extensionDescription.identifier.value]);
+	}
+}
+
+class HelpPanel extends ViewPane {
+	static readonly ID = '~remote.helpPanel';
+	static readonly TITLE = nls.localize('remote.help', "Help and feedback");
+	private tree!: WorkbenchAsyncDataTree<any, any, any>;
+
+	constructor(
+		protected viewModel: IViewModel,
+		options: IViewPaneOptions,
+		@IKeybindingService protected keybindingService: IKeybindingService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IOpenerService openerService: IOpenerService,
+		@IQuickInputService protected quickInputService: IQuickInputService,
+		@ICommandService protected commandService: ICommandService,
+		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
+	) {
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+	}
+
+	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		container.classList.add('remote-help');
+		const treeContainer = document.createElement('div');
+		treeContainer.classList.add('remote-help-content');
+		container.appendChild(treeContainer);
+
+		this.tree = this.instantiationService.createInstance(WorkbenchAsyncDataTree,
+			'RemoteHelp',
+			treeContainer,
+			new HelpTreeVirtualDelegate(),
+			[new HelpTreeRenderer()],
+			new HelpDataSource(),
+			{
+				keyboardSupport: true,
+				accessibilityProvider: {
+					getAriaLabel: (item: HelpItemBase) => {
+						return item.label;
+					},
+					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
+				}
+			}
+		);
+
+		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.workbenchEnvironmentService);
+
+		this.tree.setInput(model);
+
+		this._register(Event.debounce(this.tree.onDidOpen, (last, event) => event, 75, true)(e => {
+			e.element.handleClick();
+		}));
+	}
+
+	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.tree.layout(height, width);
+	}
+}
+
+class HelpPanelDescriptor implements IViewDescriptor {
+	readonly id = HelpPanel.ID;
+	readonly name = HelpPanel.TITLE;
+	readonly ctorDescriptor: SyncDescriptor<HelpPanel>;
+	readonly canToggleVisibility = true;
+	readonly hideByDefault = false;
+	readonly workspace = true;
+	readonly group = 'help@50';
+
+	constructor(viewModel: IViewModel) {
+		this.ctorDescriptor = new SyncDescriptor(HelpPanel, [viewModel]);
+	}
+}
+
+export class RemoteViewPaneContainer extends FilterViewPaneContainer implements IViewModel {
+	private helpPanelDescriptor = new HelpPanelDescriptor(this);
+	helpInformation: HelpInformation[] = [];
 	private actions: IAction[] | undefined;
+	private tunnelPanelDescriptor: TunnelPanelDescriptor | undefined;
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -238,9 +481,48 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService,
-		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@ITerminalService private readonly terminalService: ITerminalService
 	) {
-		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
+		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
+		remoteHelpExtPoint.setHandler((extensions) => {
+			let helpInformation: HelpInformation[] = [];
+			for (let extension of extensions) {
+				this._handleRemoteInfoExtensionPoint(extension, helpInformation);
+			}
+
+			this.helpInformation = helpInformation;
+
+			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+			if (this.helpInformation.length) {
+				viewsRegistry.registerViews([this.helpPanelDescriptor], this.viewContainer);
+			} else {
+				viewsRegistry.deregisterViews([this.helpPanelDescriptor], this.viewContainer);
+			}
+		});
+	}
+
+	private _handleRemoteInfoExtensionPoint(extension: IExtensionPointUser<HelpInformation>, helpInformation: HelpInformation[]) {
+		if (!extension.description.enableProposedApi) {
+			return;
+		}
+
+		if (!extension.value.documentation && !extension.value.feedback && !extension.value.getStarted && !extension.value.issues) {
+			return;
+		}
+
+		helpInformation.push({
+			extensionDescription: extension.description,
+			getStarted: extension.value.getStarted,
+			documentation: extension.value.documentation,
+			feedback: extension.value.feedback,
+			issues: extension.value.issues,
+			remoteName: extension.value.remoteName
+		});
 	}
 
 	protected getFilterOn(viewDescriptor: IViewDescriptor): string | undefined {
@@ -249,7 +531,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 
 	public getActionViewItem(action: Action): IActionViewItem | undefined {
 		if (action.id === SwitchRemoteAction.ID) {
-			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(VIEW_CONTAINER)));
+			return this.instantiationService.createInstance(SwitchRemoteViewItem, action, SwitchRemoteViewItem.createOptionItems(Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer), this.contextKeyService));
 		}
 
 		return super.getActionViewItem(action);
@@ -258,8 +540,7 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
-				this.instantiationService.createInstance(SwitchRemoteAction, SwitchRemoteAction.ID, SwitchRemoteAction.LABEL),
-				this.instantiationService.createInstance(HelpAction, HelpAction.ID, HelpAction.LABEL)
+				this.instantiationService.createInstance(SwitchRemoteAction, SwitchRemoteAction.ID, SwitchRemoteAction.LABEL)
 			];
 			this.actions.forEach(a => {
 				this._register(a);
@@ -272,15 +553,55 @@ export class RemoteViewlet extends FilterViewContainerViewlet {
 		const title = nls.localize('remote.explorer', "Remote Explorer");
 		return title;
 	}
+
+	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+		// Call to super MUST be first, since registering the additional view will cause this to be called again.
+		const panels: ViewPane[] = super.onDidAddViewDescriptors(added);
+		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
+		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
+		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
+			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.terminalService), this.environmentService);
+			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], this.viewContainer);
+		}
+		return panels;
+	}
 }
 
-Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(ViewletDescriptor.create(
-	RemoteViewlet,
-	VIEWLET_ID,
-	nls.localize('remote.explorer', "Remote Explorer"),
-	'codicon-remote-explorer',
-	4
-));
+Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+	{
+		id: VIEWLET_ID,
+		name: nls.localize('remote.explorer', "Remote Explorer"),
+		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
+		hideIfEmpty: true,
+		viewOrderDelegate: {
+			getOrder: (group?: string) => {
+				if (!group) {
+					return;
+				}
+
+				let matches = /^targets@(\d+)$/.exec(group);
+				if (matches) {
+					return -1000;
+				}
+
+				matches = /^details(@(\d+))?$/.exec(group);
+
+				if (matches) {
+					return -500;
+				}
+
+				matches = /^help(@(\d+))?$/.exec(group);
+				if (matches) {
+					return -10;
+				}
+
+				return;
+			}
+		},
+		icon: 'codicon-remote-explorer',
+		order: 4
+	}, ViewContainerLocation.Sidebar);
 
 class OpenRemoteViewletAction extends ShowViewletAction {
 
@@ -294,33 +615,107 @@ class OpenRemoteViewletAction extends ShowViewletAction {
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
+	SyncActionDescriptor.from(OpenRemoteViewletAction, {
 		primary: 0
 	}),
 	'View: Show Remote Explorer',
 	nls.localize('view', "View")
 );
 
+class VisibleProgress {
 
-class ProgressReporter {
-	private _currentProgress: IProgress<IProgressStep> | null = null;
-	private lastReport: string | null = null;
+	private _isDisposed: boolean;
+	private _lastReport: string | null;
+	private _currentProgressPromiseResolve: (() => void) | null;
+	private _currentProgress: IProgress<IProgressStep> | null;
+	private _currentTimer: ReconnectionTimer2 | null;
 
-	constructor(currentProgress: IProgress<IProgressStep> | null) {
-		this._currentProgress = currentProgress;
+	public get lastReport(): string | null {
+		return this._lastReport;
 	}
 
-	set currentProgress(progress: IProgress<IProgressStep>) {
-		this._currentProgress = progress;
+	constructor(progressService: IProgressService, location: ProgressLocation, initialReport: string | null, buttons: string[], onDidCancel: (choice: number | undefined, lastReport: string | null) => void) {
+		this._isDisposed = false;
+		this._lastReport = initialReport;
+		this._currentProgressPromiseResolve = null;
+		this._currentProgress = null;
+		this._currentTimer = null;
+
+		const promise = new Promise<void>((resolve) => this._currentProgressPromiseResolve = resolve);
+
+		progressService.withProgress(
+			{ location: location, buttons: buttons },
+			(progress) => { if (!this._isDisposed) { this._currentProgress = progress; } return promise; },
+			(choice) => onDidCancel(choice, this._lastReport)
+		);
+
+		if (this._lastReport) {
+			this.report();
+		}
 	}
 
-	report(message?: string) {
+	public dispose(): void {
+		this._isDisposed = true;
+		if (this._currentProgressPromiseResolve) {
+			this._currentProgressPromiseResolve();
+			this._currentProgressPromiseResolve = null;
+		}
+		this._currentProgress = null;
+		if (this._currentTimer) {
+			this._currentTimer.dispose();
+			this._currentTimer = null;
+		}
+	}
+
+	public report(message?: string) {
 		if (message) {
-			this.lastReport = message;
+			this._lastReport = message;
 		}
 
-		if (this.lastReport && this._currentProgress) {
-			this._currentProgress.report({ message: this.lastReport });
+		if (this._lastReport && this._currentProgress) {
+			this._currentProgress.report({ message: this._lastReport });
+		}
+	}
+
+	public startTimer(completionTime: number): void {
+		this.stopTimer();
+		this._currentTimer = new ReconnectionTimer2(this, completionTime);
+	}
+
+	public stopTimer(): void {
+		if (this._currentTimer) {
+			this._currentTimer.dispose();
+			this._currentTimer = null;
+		}
+	}
+}
+
+class ReconnectionTimer2 implements IDisposable {
+	private readonly _parent: VisibleProgress;
+	private readonly _completionTime: number;
+	private readonly _token: any;
+
+	constructor(parent: VisibleProgress, completionTime: number) {
+		this._parent = parent;
+		this._completionTime = completionTime;
+		this._token = setInterval(() => this._render(), 1000);
+		this._render();
+	}
+
+	public dispose(): void {
+		clearInterval(this._token);
+	}
+
+	private _render() {
+		const remainingTimeMs = this._completionTime - Date.now();
+		if (remainingTimeMs < 0) {
+			return;
+		}
+		const remainingTime = Math.ceil(remainingTimeMs / 1000);
+		if (remainingTime === 1) {
+			this._parent.report(nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime));
+		} else {
+			this._parent.report(nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime));
 		}
 	}
 }
@@ -335,58 +730,41 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			let currentProgressPromiseResolve: (() => void) | null = null;
-			let progressReporter: ProgressReporter | null = null;
-			let lastLocation: ProgressLocation | null = null;
-			let currentTimer: ReconnectionTimer | null = null;
+			let visibleProgress: VisibleProgress | null = null;
+			let lastLocation: ProgressLocation.Dialog | ProgressLocation.Notification | null = null;
 			let reconnectWaitEvent: ReconnectionWaitEvent | null = null;
 			let disposableListener: IDisposable | null = null;
 
-			function showProgress(location: ProgressLocation, buttons: { label: string, callback: () => void }[]) {
-				if (currentProgressPromiseResolve) {
-					currentProgressPromiseResolve();
+			function showProgress(location: ProgressLocation.Dialog | ProgressLocation.Notification, buttons: { label: string, callback: () => void }[], initialReport: string | null = null): VisibleProgress {
+				if (visibleProgress) {
+					visibleProgress.dispose();
+					visibleProgress = null;
 				}
 
-				const promise = new Promise<void>((resolve) => currentProgressPromiseResolve = resolve);
 				lastLocation = location;
 
-				if (location === ProgressLocation.Dialog) {
-					// Show dialog
-					progressService!.withProgress(
-						{ location: ProgressLocation.Dialog, buttons: buttons.map(button => button.label) },
-						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
-						(choice?) => {
-							// Handle choice from dialog
-							if (buttons[choice]) {
-								buttons[choice].callback();
-							} else {
-								showProgress(ProgressLocation.Notification, buttons);
-							}
-
-							progressReporter!.report();
-						});
-				} else {
-					// Show notification
-					progressService!.withProgress(
-						{ location: ProgressLocation.Notification, buttons: buttons.map(button => button.label) },
-						(progress) => { if (progressReporter) { progressReporter.currentProgress = progress; } return promise; },
-						(choice?) => {
-							// Handle choice from dialog
-							if (buttons[choice]) {
-								buttons[choice].callback();
+				return new VisibleProgress(
+					progressService, location, initialReport, buttons.map(button => button.label),
+					(choice, lastReport) => {
+						// Handle choice from dialog
+						if (typeof choice !== 'undefined' && buttons[choice]) {
+							buttons[choice].callback();
+						} else {
+							if (location === ProgressLocation.Dialog) {
+								visibleProgress = showProgress(ProgressLocation.Notification, buttons, lastReport);
 							} else {
 								hideProgress();
 							}
-						});
-				}
+						}
+					}
+				);
 			}
 
 			function hideProgress() {
-				if (currentProgressPromiseResolve) {
-					currentProgressPromiseResolve();
+				if (visibleProgress) {
+					visibleProgress.dispose();
+					visibleProgress = null;
 				}
-
-				currentProgressPromiseResolve = null;
 			}
 
 			const reconnectButton = {
@@ -406,9 +784,8 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 			};
 
 			connection.onDidStateChange((e) => {
-				if (currentTimer) {
-					currentTimer.dispose();
-					currentTimer = null;
+				if (visibleProgress) {
+					visibleProgress.stopTimer();
 				}
 
 				if (disposableListener) {
@@ -417,33 +794,27 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 				}
 				switch (e.type) {
 					case PersistentConnectionEventType.ConnectionLost:
-						if (!currentProgressPromiseResolve) {
-							progressReporter = new ProgressReporter(null);
-							showProgress(ProgressLocation.Dialog, [reconnectButton, reloadButton]);
+						if (!visibleProgress) {
+							visibleProgress = showProgress(ProgressLocation.Dialog, [reconnectButton, reloadButton]);
 						}
-
-						progressReporter!.report(nls.localize('connectionLost', "Connection Lost"));
+						visibleProgress.report(nls.localize('connectionLost', "Connection Lost"));
 						break;
 					case PersistentConnectionEventType.ReconnectionWait:
-						hideProgress();
 						reconnectWaitEvent = e;
-						showProgress(lastLocation || ProgressLocation.Notification, [reconnectButton, reloadButton]);
-						currentTimer = new ReconnectionTimer(progressReporter!, Date.now() + 1000 * e.durationSeconds);
+						visibleProgress = showProgress(lastLocation || ProgressLocation.Notification, [reconnectButton, reloadButton]);
+						visibleProgress.startTimer(Date.now() + 1000 * e.durationSeconds);
 						break;
 					case PersistentConnectionEventType.ReconnectionRunning:
-						hideProgress();
-						showProgress(lastLocation || ProgressLocation.Notification, [reloadButton]);
-						progressReporter!.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
+						visibleProgress = showProgress(lastLocation || ProgressLocation.Notification, [reloadButton]);
+						visibleProgress.report(nls.localize('reconnectionRunning', "Attempting to reconnect..."));
 
 						// Register to listen for quick input is opened
 						disposableListener = contextKeyService.onDidChangeContext((contextKeyChangeEvent) => {
-							const reconnectInteraction = new Set<string>(['inQuickOpen']);
+							const reconnectInteraction = new Set<string>([inQuickPickContextKeyValue]);
 							if (contextKeyChangeEvent.affectsSome(reconnectInteraction)) {
 								// Need to move from dialog if being shown and user needs to type in a prompt
-								if (lastLocation === ProgressLocation.Dialog && progressReporter !== null) {
-									hideProgress();
-									showProgress(ProgressLocation.Notification, [reloadButton]);
-									progressReporter.report();
+								if (lastLocation === ProgressLocation.Dialog && visibleProgress !== null) {
+									visibleProgress = showProgress(ProgressLocation.Notification, [reloadButton], visibleProgress.lastReport);
 								}
 							}
 						});
@@ -451,7 +822,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						break;
 					case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						hideProgress();
-						progressReporter = null;
 
 						dialogService.show(Severity.Error, nls.localize('reconnectionPermanentFailure', "Cannot reconnect. Please reload the window."), [nls.localize('reloadWindow', "Reload Window"), nls.localize('cancel', "Cancel")], { cancelId: 1 }).then(result => {
 							// Reload the window
@@ -462,7 +832,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 						break;
 					case PersistentConnectionEventType.ConnectionGain:
 						hideProgress();
-						progressReporter = null;
 						break;
 				}
 			});
@@ -470,35 +839,6 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	}
 }
 
-class ReconnectionTimer implements IDisposable {
-	private readonly _progressReporter: ProgressReporter;
-	private readonly _completionTime: number;
-	private readonly _token: any;
-
-	constructor(progressReporter: ProgressReporter, completionTime: number) {
-		this._progressReporter = progressReporter;
-		this._completionTime = completionTime;
-		this._token = setInterval(() => this._render(), 1000);
-		this._render();
-	}
-
-	public dispose(): void {
-		clearInterval(this._token);
-	}
-
-	private _render() {
-		const remainingTimeMs = this._completionTime - Date.now();
-		if (remainingTimeMs < 0) {
-			return;
-		}
-		const remainingTime = Math.ceil(remainingTimeMs / 1000);
-		if (remainingTime === 1) {
-			this._progressReporter.report(nls.localize('reconnectionWaitOne', "Attempting to reconnect in {0} second...", remainingTime));
-		} else {
-			this._progressReporter.report(nls.localize('reconnectionWaitMany', "Attempting to reconnect in {0} seconds...", remainingTime));
-		}
-	}
-}
-
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);

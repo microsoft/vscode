@@ -12,6 +12,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { LineCommentCommand, Type } from 'vs/editor/contrib/comment/lineCommentCommand';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 abstract class CommentLineAction extends EditorAction {
@@ -28,13 +29,20 @@ abstract class CommentLineAction extends EditorAction {
 			return;
 		}
 
-		let model = editor.getModel();
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
-		let opts = model.getOptions();
+		const model = editor.getModel();
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
+		const modelOptions = model.getOptions();
+		const commentsOptions = editor.getOption(EditorOption.comments);
 
 		for (const selection of selections) {
-			commands.push(new LineCommentCommand(selection, opts.tabSize, this._type));
+			commands.push(new LineCommentCommand(
+				selection,
+				modelOptions.tabSize,
+				this._type,
+				commentsOptions.insertSpace,
+				commentsOptions.ignoreEmptyLines
+			));
 		}
 
 		editor.pushUndoStop();
@@ -56,7 +64,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 				primary: KeyMod.CtrlCmd | KeyCode.US_SLASH,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
 				title: nls.localize({ key: 'miToggleLineComment', comment: ['&& denotes a mnemonic'] }, "&&Toggle Line Comment"),
@@ -112,7 +120,7 @@ class BlockCommentAction extends EditorAction {
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_A },
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarEditMenu,
 				group: '5_insert',
 				title: nls.localize({ key: 'miToggleBlockComment', comment: ['&& denotes a mnemonic'] }, "Toggle &&Block Comment"),
@@ -126,10 +134,11 @@ class BlockCommentAction extends EditorAction {
 			return;
 		}
 
-		let commands: ICommand[] = [];
-		let selections = editor.getSelections();
+		const commentsOptions = editor.getOption(EditorOption.comments);
+		const commands: ICommand[] = [];
+		const selections = editor.getSelections();
 		for (const selection of selections) {
-			commands.push(new BlockCommentCommand(selection));
+			commands.push(new BlockCommentCommand(selection, commentsOptions.insertSpace));
 		}
 
 		editor.pushUndoStop();

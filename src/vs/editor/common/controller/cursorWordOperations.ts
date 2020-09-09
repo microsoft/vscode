@@ -10,6 +10,7 @@ import { WordCharacterClass, WordCharacterClassifier, getMapForWordSeparators } 
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 
 interface IFindWordResult {
 	/**
@@ -162,11 +163,9 @@ export class WordOperations {
 	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
-		let movedToPreviousLine = false;
 
 		if (column === 1) {
 			if (lineNumber > 1) {
-				movedToPreviousLine = true;
 				lineNumber = lineNumber - 1;
 				column = model.getLineMaxColumn(lineNumber);
 			}
@@ -175,17 +174,6 @@ export class WordOperations {
 		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column));
 
 		if (wordNavigationType === WordNavigationType.WordStart) {
-
-			if (prevWordOnLine && !movedToPreviousLine) {
-				// Special case for Visual Studio compatibility:
-				// when starting in the trim whitespace at the end of a line,
-				// go to the end of the last word
-				const lastWhitespaceColumn = model.getLineLastNonWhitespaceColumn(lineNumber);
-				if (lastWhitespaceColumn < column) {
-					return new Position(lineNumber, prevWordOnLine.end + 1);
-				}
-			}
-
 			return new Position(lineNumber, prevWordOnLine ? prevWordOnLine.start + 1 : 1);
 		}
 
@@ -237,7 +225,7 @@ export class WordOperations {
 			const left = lineContent.charCodeAt(column - 2);
 			const right = lineContent.charCodeAt(column - 1);
 
-			if (left !== CharCode.Underline && right === CharCode.Underline) {
+			if (left === CharCode.Underline && right !== CharCode.Underline) {
 				// snake_case_variables
 				return new Position(lineNumber, column);
 			}
@@ -289,17 +277,26 @@ export class WordOperations {
 				column = model.getLineMaxColumn(lineNumber);
 			}
 		} else if (wordNavigationType === WordNavigationType.WordAccessibility) {
+			if (movedDown) {
+				// If we move to the next line, pretend that the cursor is right before the first character.
+				// This is needed when the first word starts right at the first character - and in order not to miss it,
+				// we need to start before.
+				column = 0;
+			}
 
 			while (
 				nextWordOnLine
-				&& nextWordOnLine.wordType === WordType.Separator
+				&& (nextWordOnLine.wordType === WordType.Separator
+					|| nextWordOnLine.start + 1 <= column
+				)
 			) {
 				// Skip over a word made up of one single separator
+				// Also skip over word if it begins before current cursor position to ascertain we're moving forward at least 1 character.
 				nextWordOnLine = WordOperations._findNextWordOnLine(wordSeparators, model, new Position(lineNumber, nextWordOnLine.end + 1));
 			}
 
 			if (nextWordOnLine) {
-				column = nextWordOnLine.end + 1;
+				column = nextWordOnLine.start + 1;
 			} else {
 				column = model.getLineMaxColumn(lineNumber);
 			}
@@ -330,7 +327,7 @@ export class WordOperations {
 			const left = lineContent.charCodeAt(column - 2);
 			const right = lineContent.charCodeAt(column - 1);
 
-			if (left === CharCode.Underline && right !== CharCode.Underline) {
+			if (left !== CharCode.Underline && right === CharCode.Underline) {
 				// snake_case_variables
 				return new Position(lineNumber, column);
 			}
@@ -524,6 +521,28 @@ export class WordOperations {
 		const pos = selection.getPosition();
 		const toPosition = WordOperations._moveWordPartRight(model, pos);
 		return new Range(pos.lineNumber, pos.column, toPosition.lineNumber, toPosition.column);
+	}
+
+	private static _createWordAtPosition(model: ITextModel, lineNumber: number, word: IFindWordResult): IWordAtPosition {
+		const range = new Range(lineNumber, word.start + 1, lineNumber, word.end + 1);
+		return {
+			word: model.getValueInRange(range),
+			startColumn: range.startColumn,
+			endColumn: range.endColumn
+		};
+	}
+
+	public static getWordAtPosition(model: ITextModel, _wordSeparators: string, position: Position): IWordAtPosition | null {
+		const wordSeparators = getMapForWordSeparators(_wordSeparators);
+		const prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
+		if (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end) {
+			return WordOperations._createWordAtPosition(model, position.lineNumber, prevWord);
+		}
+		const nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
+		if (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end) {
+			return WordOperations._createWordAtPosition(model, position.lineNumber, nextWord);
+		}
+		return null;
 	}
 
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {

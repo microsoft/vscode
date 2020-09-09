@@ -135,7 +135,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- input
 
-	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string> {
+	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 
 		// global validate fn used in callback below
 		this._validateInput = options ? options.validateInput : undefined;
@@ -159,17 +159,16 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- workspace folder picker
 
-	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
-		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then(async (selectedFolder: WorkspaceFolder) => {
-			if (!selectedFolder) {
-				return undefined;
-			}
-			const workspaceFolders = await this._workspace.getWorkspaceFolders2();
-			if (!workspaceFolders) {
-				return undefined;
-			}
-			return workspaceFolders.filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
-		});
+	async showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Promise<WorkspaceFolder | undefined> {
+		const selectedFolder = await this._commands.executeCommand<WorkspaceFolder>('_workbench.pickWorkspaceFolder', [options]);
+		if (!selectedFolder) {
+			return undefined;
+		}
+		const workspaceFolders = await this._workspace.getWorkspaceFolders2();
+		if (!workspaceFolders) {
+			return undefined;
+		}
+		return workspaceFolders.find(folder => folder.uri.toString() === selectedFolder.uri.toString());
 	}
 
 	// ---- QuickInput
@@ -443,31 +442,21 @@ class ExtHostQuickInput implements QuickInput {
 	}
 }
 
-function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | undefined {
-	const dark = getDarkIconUri(iconPath);
-	const light = getLightIconUri(iconPath);
-	if (!light && !dark) {
-		return undefined;
+function getIconUris(iconPath: QuickInputButton['iconPath']): { dark: URI, light?: URI } | { id: string } {
+	if (iconPath instanceof ThemeIcon) {
+		return { id: iconPath.id };
 	}
-	return { dark: (dark || light)!, light };
+	const dark = getDarkIconUri(iconPath as any);
+	const light = getLightIconUri(iconPath as any);
+	return { dark, light };
 }
 
-function getLightIconUri(iconPath: QuickInputButton['iconPath']) {
-	if (iconPath && !(iconPath instanceof ThemeIcon)) {
-		if (typeof iconPath === 'string'
-			|| URI.isUri(iconPath)) {
-			return getIconUri(iconPath);
-		}
-		return getIconUri((iconPath as any).light);
-	}
-	return undefined;
+function getLightIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
+	return getIconUri(typeof iconPath === 'object' && 'light' in iconPath ? iconPath.light : iconPath);
 }
 
-function getDarkIconUri(iconPath: QuickInputButton['iconPath']) {
-	if (iconPath && !(iconPath instanceof ThemeIcon) && (iconPath as any).dark) {
-		return getIconUri((iconPath as any).dark);
-	}
-	return undefined;
+function getDarkIconUri(iconPath: string | URI | { light: URI; dark: URI; }) {
+	return getIconUri(typeof iconPath === 'object' && 'dark' in iconPath ? iconPath.dark : iconPath);
 }
 
 function getIconUri(iconPath: string | URI) {
@@ -485,6 +474,7 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
+	private _sortByLabel = true;
 	private _activeItems: T[] = [];
 	private readonly _onDidChangeActiveEmitter = new Emitter<T[]>();
 	private _selectedItems: T[] = [];
@@ -548,6 +538,15 @@ class ExtHostQuickPick<T extends QuickPickItem> extends ExtHostQuickInput implem
 	set matchOnDetail(matchOnDetail: boolean) {
 		this._matchOnDetail = matchOnDetail;
 		this.update({ matchOnDetail });
+	}
+
+	get sortByLabel() {
+		return this._sortByLabel;
+	}
+
+	set sortByLabel(sortByLabel: boolean) {
+		this._sortByLabel = sortByLabel;
+		this.update({ sortByLabel });
 	}
 
 	get activeItems() {

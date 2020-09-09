@@ -15,7 +15,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
-import { isMacintosh, isNative } from 'vs/base/common/platform';
+import { isMacintosh, isNative, isLinux } from 'vs/base/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -23,10 +23,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { mode: string; };
-	telemetry: { enableCrashReporter: boolean };
-	workbench: { list: { horizontalScrolling: boolean } };
 	debug: { console: { wordWrap: boolean } };
-	configurationSync: { enableAuth: boolean };
+	editor: { accessibilitySupport: 'on' | 'off' | 'auto' };
 }
 
 export class SettingsChangeRelauncher extends Disposable implements IWorkbenchContribution {
@@ -36,9 +34,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private nativeFullScreen: boolean | undefined;
 	private clickThroughInactive: boolean | undefined;
 	private updateMode: string | undefined;
-	private enableCrashReporter: boolean | undefined;
-	private treeHorizontalScrolling: boolean | undefined;
 	private debugConsoleWordWrap: boolean | undefined;
+	private accessibilitySupport: 'on' | 'off' | 'auto' | undefined;
 
 	constructor(
 		@IHostService private readonly hostService: IHostService,
@@ -54,12 +51,6 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 
 	private onConfigurationChange(config: IConfiguration, notify: boolean): void {
 		let changed = false;
-
-		// Tree horizontal scrolling support
-		if (typeof config.workbench?.list?.horizontalScrolling === 'boolean' && config.workbench.list.horizontalScrolling !== this.treeHorizontalScrolling) {
-			this.treeHorizontalScrolling = config.workbench.list.horizontalScrolling;
-			changed = true;
-		}
 
 		// Debug console word wrap
 		if (typeof config.debug?.console.wordWrap === 'boolean' && config.debug.console.wordWrap !== this.debugConsoleWordWrap) {
@@ -99,10 +90,12 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 				changed = true;
 			}
 
-			// Crash reporter
-			if (typeof config.telemetry?.enableCrashReporter === 'boolean' && config.telemetry.enableCrashReporter !== this.enableCrashReporter) {
-				this.enableCrashReporter = config.telemetry.enableCrashReporter;
-				changed = true;
+			// On linux turning on accessibility support will also pass this flag to the chrome renderer, thus a restart is required
+			if (isLinux && typeof config.editor?.accessibilitySupport === 'string' && config.editor.accessibilitySupport !== this.accessibilitySupport) {
+				this.accessibilitySupport = config.editor.accessibilitySupport;
+				if (this.accessibilitySupport === 'on') {
+					changed = true;
+				}
 			}
 		}
 

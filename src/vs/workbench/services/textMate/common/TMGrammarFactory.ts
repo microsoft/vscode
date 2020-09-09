@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { LanguageId } from 'vs/editor/common/modes';
-import { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
+import type { IGrammar, Registry, StackElement, IRawTheme, IOnigLib } from 'vscode-textmate';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TMScopeRegistry, IValidGrammarDefinition, IValidEmbeddedLanguagesMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 
@@ -18,7 +18,7 @@ interface ITMGrammarFactoryHost {
 
 export interface ICreateGrammarResult {
 	languageId: LanguageId;
-	grammar: IGrammar;
+	grammar: IGrammar | null;
 	initialState: StackElement;
 	containsEmbeddedLanguages: boolean;
 }
@@ -33,7 +33,7 @@ export class TMGrammarFactory extends Disposable {
 	private readonly _languageToScope2: string[];
 	private readonly _grammarRegistry: Registry;
 
-	constructor(host: ITMGrammarFactoryHost, grammarDefinitions: IValidGrammarDefinition[], vscodeTextmate: typeof import('vscode-textmate'), onigLib: Promise<IOnigLib> | undefined) {
+	constructor(host: ITMGrammarFactoryHost, grammarDefinitions: IValidGrammarDefinition[], vscodeTextmate: typeof import('vscode-textmate'), onigLib: Promise<IOnigLib>) {
 		super();
 		this._host = host;
 		this._initialState = vscodeTextmate.INITIAL;
@@ -41,8 +41,8 @@ export class TMGrammarFactory extends Disposable {
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope2 = [];
-		this._grammarRegistry = new vscodeTextmate.Registry({
-			getOnigLib: (typeof onigLib === 'undefined' ? undefined : () => onigLib),
+		this._grammarRegistry = this._register(new vscodeTextmate.Registry({
+			onigLib: onigLib,
 			loadGrammar: async (scopeName: string) => {
 				const grammarDefinition = this._scopeRegistry.getGrammarDefinition(scopeName);
 				if (!grammarDefinition) {
@@ -67,7 +67,7 @@ export class TMGrammarFactory extends Disposable {
 				}
 				return injections;
 			}
-		});
+		}));
 
 		for (const validGrammar of grammarDefinitions) {
 			this._scopeRegistry.register(validGrammar);
@@ -102,8 +102,8 @@ export class TMGrammarFactory extends Disposable {
 		return this._languageToScope2[languageId] ? true : false;
 	}
 
-	public setTheme(theme: IRawTheme): void {
-		this._grammarRegistry.setTheme(theme);
+	public setTheme(theme: IRawTheme, colorMap: string[]): void {
+		this._grammarRegistry.setTheme(theme, colorMap);
 	}
 
 	public getColorMap(): string[] {

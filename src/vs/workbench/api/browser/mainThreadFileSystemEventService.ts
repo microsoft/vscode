@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
@@ -19,8 +20,7 @@ export class MainThreadFileSystemEventService {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
-		@ITextFileService textFileService: ITextFileService,
-		@IProgressService progressService: IProgressService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 
 		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
@@ -31,7 +31,7 @@ export class MainThreadFileSystemEventService {
 			changed: [],
 			deleted: []
 		};
-		this._listener.add(fileService.onFileChanges(event => {
+		this._listener.add(fileService.onDidFilesChange(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:
@@ -54,31 +54,29 @@ export class MainThreadFileSystemEventService {
 
 
 		// BEFORE file operation
-		const messages = new Map<FileOperation, string>();
-		messages.set(FileOperation.CREATE, localize('msg-create', "Running 'File Create' participants..."));
-		messages.set(FileOperation.DELETE, localize('msg-delete', "Running 'File Delete' participants..."));
-		messages.set(FileOperation.MOVE, localize('msg-rename', "Running 'File Rename' participants..."));
-
-		this._listener.add(textFileService.onWillRunOperation(e => {
-			const p = progressService.withProgress({ location: ProgressLocation.Window }, progress => {
-
-				progress.report({ message: messages.get(e.operation) });
-
-				const p1 = proxy.$onWillRunFileOperation(e.operation, e.target, e.source);
-				const p2 = new Promise((_resolve, reject) => {
-					setTimeout(() => reject(new Error('timeout')), 5000);
-				});
-				return Promise.race([p1, p2]);
-			});
-
-			e.waitUntil(p);
-		}));
+		workingCopyFileService.addFileOperationParticipant({
+			participate: (files, operation, progress, timeout, token) => {
+				return proxy.$onWillRunFileOperation(operation, files, timeout, token);
+			}
+		});
 
 		// AFTER file operation
-		this._listener.add(textFileService.onDidRunOperation(e => proxy.$onDidRunFileOperation(e.operation, e.target, e.source)));
+		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
 	dispose(): void {
 		this._listener.dispose();
 	}
 }
+
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
+	id: 'files',
+	properties: {
+		'files.participants.timeout': {
+			type: 'number',
+			default: 5000,
+			markdownDescription: localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
+		}
+	}
+});

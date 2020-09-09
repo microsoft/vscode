@@ -60,7 +60,7 @@ function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 // TODO@Alex: Remove this once IE11 fixes Bug #524217
 // The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
 // Unfortunately, this auto-zooming is buggy around dealing with rounded borders
-const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
+const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdge;
 
 
 export class SelectionsOverlay extends DynamicViewOverlay {
@@ -217,7 +217,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 					endStyle.top = CornerStyle.INTERN;
 				}
 			} else if (previousFrameTop) {
-				// Accept some hick-ups near the viewport edges to save on repaints
+				// Accept some hiccups near the viewport edges to save on repaints
 				startStyle.top = previousFrameTop.startStyle!.top;
 				endStyle.top = previousFrameTop.endStyle!.top;
 			}
@@ -239,7 +239,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 					endStyle.bottom = CornerStyle.INTERN;
 				}
 			} else if (previousFrameBottom) {
-				// Accept some hick-ups near the viewport edges to save on repaints
+				// Accept some hiccups near the viewport edges to save on repaints
 				startStyle.bottom = previousFrameBottom.startStyle!.bottom;
 				endStyle.bottom = previousFrameBottom.endStyle!.bottom;
 			}
@@ -369,7 +369,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	private _previousFrameVisibleRangesWithStyle: (LineVisibleRangesWithStyle[] | null)[] = [];
 	public prepareRender(ctx: RenderingContext): void {
 
-		// Build HTML for inner corners separate from HTML for the the rest of selections,
+		// Build HTML for inner corners separate from HTML for the rest of selections,
 		// as the inner corner HTML can interfere with that of other selections.
 		// In final render, make sure to place the inner corner HTML before the rest of selection HTML. See issue #77777.
 		const output: [string, string][] = [];
@@ -419,7 +419,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
 	}
 	const editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
-	if (editorSelectionForegroundColor) {
+	if (editorSelectionForegroundColor && !editorSelectionForegroundColor.isTransparent()) {
 		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
 	}
 });

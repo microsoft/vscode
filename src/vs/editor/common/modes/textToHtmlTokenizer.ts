@@ -46,7 +46,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
 					tabsCharDelta += insertSpacesCount - 1;
 					while (insertSpacesCount > 0) {
-						partContent += useNbsp ? '&nbsp;' : ' ';
+						partContent += useNbsp ? '&#160;' : ' ';
 						insertSpacesCount--;
 					}
 					break;
@@ -68,7 +68,9 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.UTF8_BOM:
-				case CharCode.LINE_SEPARATOR_2028:
+				case CharCode.LINE_SEPARATOR:
+				case CharCode.PARAGRAPH_SEPARATOR:
+				case CharCode.NEXT_LINE:
 					partContent += '\ufffd';
 					break;
 
@@ -78,7 +80,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 					break;
 
 				case CharCode.Space:
-					partContent += useNbsp ? '&nbsp;' : ' ';
+					partContent += useNbsp ? '&#160;' : ' ';
 					break;
 
 				default:

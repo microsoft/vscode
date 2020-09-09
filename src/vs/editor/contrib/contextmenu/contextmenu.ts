@@ -6,16 +6,15 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { ActionViewItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -23,6 +22,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ITextModel } from 'vs/editor/common/model';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -49,7 +49,14 @@ export class ContextMenuController implements IEditorContribution {
 		this._toDispose.add(this._editor.onContextMenu((e: IEditorMouseEvent) => this._onContextMenu(e)));
 		this._toDispose.add(this._editor.onMouseWheel((e: IMouseWheelEvent) => {
 			if (this._contextMenuIsBeingShownCount > 0) {
-				this._contextViewService.hideContextView();
+				const view = this._contextViewService.getContextViewElement();
+				const target = e.srcElement as HTMLElement;
+
+				// Event triggers on shadow root host first
+				// Check if the context view is under this host before hiding it #103169
+				if (!(target.shadowRoot && dom.getShadowRoot(view) === target.shadowRoot)) {
+					this._contextViewService.hideContextView();
+				}
 			}
 		}));
 		this._toDispose.add(this._editor.onKeyDown((e: IKeyboardEvent) => {
@@ -128,7 +135,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Find actions available for menu
-		const menuActions = this._getMenuActions(this._editor.getModel());
+		const menuActions = this._getMenuActions(this._editor.getModel(), MenuId.EditorContext);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -136,23 +143,44 @@ export class ContextMenuController implements IEditorContribution {
 		}
 	}
 
-	private _getMenuActions(model: ITextModel): ReadonlyArray<IAction> {
+	private _getMenuActions(model: ITextModel, menuId: MenuId): IAction[] {
 		const result: IAction[] = [];
 
-		let contextMenu = this._menuService.createMenu(MenuId.EditorContext, this._contextKeyService);
-		const groups = contextMenu.getActions({ arg: model.uri });
-		contextMenu.dispose();
+		// get menu groups
+		const menu = this._menuService.createMenu(menuId, this._contextKeyService);
+		const groups = menu.getActions({ arg: model.uri });
+		menu.dispose();
 
+		// translate them into other actions
 		for (let group of groups) {
 			const [, actions] = group;
-			result.push(...actions);
-			result.push(new Separator());
+			let addedItems = 0;
+			for (const action of actions) {
+				if (action instanceof SubmenuItemAction) {
+					const subActions = this._getMenuActions(model, action.item.submenu);
+					if (subActions.length > 0) {
+						result.push(new SubmenuAction(action.id, action.label, subActions));
+						addedItems++;
+					}
+				} else {
+					result.push(action);
+					addedItems++;
+				}
+			}
+
+			if (addedItems) {
+				result.push(new Separator());
+			}
 		}
-		result.pop(); // remove last separator
+
+		if (result.length) {
+			result.pop(); // remove last separator
+		}
+
 		return result;
 	}
 
-	private _doShowContextMenu(actions: ReadonlyArray<IAction>, anchor: IAnchor | null = null): void {
+	private _doShowContextMenu(actions: IAction[], anchor: IAnchor | null = null): void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -183,6 +211,8 @@ export class ContextMenuController implements IEditorContribution {
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
+			domForShadowRoot: this._editor.getDomNode(),
+
 			getAnchor: () => anchor!,
 
 			getActions: () => actions,

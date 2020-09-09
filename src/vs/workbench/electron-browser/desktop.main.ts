@@ -5,27 +5,22 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { createHash } from 'crypto';
+import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
-import { ElectronWindow } from 'vs/workbench/electron-browser/window';
+import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setZoomLevel, setZoomFactor, setFullscreen } from 'vs/base/browser/browser';
 import { domContentLoaded, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { stat } from 'vs/base/node/pfs';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { webFrame } from 'electron';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
-import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
 import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -34,7 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -42,26 +37,25 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/electron-browser/diskFileSystemProvider';
-import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { REMOTE_FILE_SYSTEM_CHANNEL_NAME, RemoteFileSystemProvider } from 'vs/platform/remote/common/remoteAgentFileSystemChannel';
-import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { RemoteFileSystemProvider } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
+import { ConfigurationCache } from 'vs/workbench/services/configuration/electron-browser/configurationCache';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { basename } from 'vs/base/common/resources';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
-import { ElectronEnvironmentService, IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
+import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
+import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService: NativeWorkbenchEnvironmentService;
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration);
 
-	constructor(private configuration: IWindowConfiguration) {
+	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
-
-		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath, configuration.windowId);
 
 		this.init();
 	}
@@ -78,12 +72,10 @@ class DesktopMain extends Disposable {
 		importEntries(this.environmentService.configuration.perfEntries);
 
 		// Browser config
-		setZoomFactor(webFrame.getZoomFactor()); // Ensure others can listen to zoom level changes
-		setZoomLevel(webFrame.getZoomLevel(), true /* isTrusted */); // Can be trusted because we are not setting it ourselves (https://github.com/Microsoft/vscode/issues/26151)
+		const zoomLevel = this.configuration.zoomLevel || 0;
+		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
+		setZoomLevel(zoomLevel, true /* isTrusted */);
 		setFullscreen(!!this.environmentService.configuration.fullscreen);
-
-		// Keyboard support
-		KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 	}
 
 	private reviveUris() {
@@ -128,7 +120,7 @@ class DesktopMain extends Disposable {
 		const instantiationService = workbench.startup();
 
 		// Window
-		this._register(instantiationService.createInstance(ElectronWindow));
+		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Driver
 		if (this.environmentService.configuration.driver) {
@@ -181,16 +173,13 @@ class DesktopMain extends Disposable {
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
-		serviceCollection.set(IElectronEnvironmentService, new ElectronEnvironmentService(
-			this.configuration.windowId,
-			this.environmentService.sharedIPCHandle
-		));
 
 		// Product
-		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		serviceCollection.set(IProductService, productService);
 
 		// Log
-		const logService = this._register(this.createLogService(mainProcessService, this.environmentService));
+		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
@@ -201,27 +190,34 @@ class DesktopMain extends Disposable {
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService.configuration, this.environmentService, remoteAuthorityResolverService, signService, logService));
+		// Remote Agent
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		// Electron
+		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
+		serviceCollection.set(IElectronService, electronService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, electronService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.backupHome, diskFileSystemProvider, this.environmentService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.configuration.backupPath ? URI.file(this.environmentService.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			const channel = connection.getChannel<IChannel>(REMOTE_FILE_SYSTEM_CHANNEL_NAME);
-			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(channel, remoteAgentService.getEnvironment()));
+			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
+		const resourceIdentityService = this._register(new NativeResourceIdentityService());
+		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
+
+		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
 
 		const services = await Promise.all([
 			this.createWorkspaceService(payload, fileService, remoteAgentService, logService).then(service => {
@@ -247,7 +243,7 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
+	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
 		if (this.environmentService.configuration.workspace) {
@@ -257,14 +253,14 @@ class DesktopMain extends Disposable {
 		// Single-folder workspace
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
 		if (this.environmentService.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri);
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri, resourceIdentityService);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
 			let id: string;
-			if (this.environmentService.configuration.backupWorkspaceResource) {
-				id = basename(this.environmentService.configuration.backupWorkspaceResource); // we know the backupPath must be a unique path so we leverage its name as workspace ID
+			if (this.environmentService.backupWorkspaceHome) {
+				id = basename(this.environmentService.backupWorkspaceHome); // we know the backupPath must be a unique path so we leverage its name as workspace ID
 			} else if (this.environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
@@ -277,46 +273,16 @@ class DesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
-
-		// Return early the folder is not local
-		if (folderUri.scheme !== Schemas.file) {
-			return { id: createHash('md5').update(folderUri.toString()).digest('hex'), folder: folderUri };
-		}
-
-		function computeLocalDiskFolderId(folder: URI, stat: fs.Stats): string {
-			let ctime: number | undefined;
-			if (isLinux) {
-				ctime = stat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-			} else if (isMacintosh) {
-				ctime = stat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-			} else if (isWindows) {
-				if (typeof stat.birthtimeMs === 'number') {
-					ctime = Math.floor(stat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-				} else {
-					ctime = stat.birthtime.getTime();
-				}
-			}
-
-			// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
-			// deleted and recreated. in that case we do not want to carry over previous state
-			return createHash('md5').update(folder.fsPath).update(ctime ? String(ctime) : '').digest('hex');
-		}
-
-		// For local: ensure path is absolute and exists
+	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier, resourceIdentityService: IResourceIdentityService): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
 		try {
-			const sanitizedFolderPath = sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd());
-			const fileStat = await stat(sanitizedFolderPath);
-
-			const sanitizedFolderUri = URI.file(sanitizedFolderPath);
-			return {
-				id: computeLocalDiskFolderId(sanitizedFolderUri, fileStat),
-				folder: sanitizedFolderUri
-			};
+			const folder = folderUri.scheme === Schemas.file
+				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
+				: folderUri;
+			const id = await resourceIdentityService.resolveResourceIdentity(folderUri);
+			return { id, folder };
 		} catch (error) {
 			onUnexpectedError(error);
 		}
-
 		return;
 	}
 
@@ -351,31 +317,10 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
-		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
-
-		// Extension development test CLI: forward everything to main side
-		const loggers: ILogService[] = [];
-		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
-			loggers.push(
-				new ConsoleLogInMainService(loggerClient, this.environmentService.configuration.logLevel)
-			);
-		}
-
-		// Normal logger: spdylog and console
-		else {
-			loggers.push(
-				new ConsoleLogService(this.environmentService.configuration.logLevel),
-				new SpdLogService(`renderer${this.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
-			);
-		}
-
-		return new FollowerLogService(loggerClient, new MultiplexLogService(loggers));
-	}
 }
 
-export function main(configuration: IWindowConfiguration): Promise<void> {
-	const renderer = new DesktopMain(configuration);
+export function main(configuration: INativeWorkbenchConfiguration): Promise<void> {
+	const workbench = new DesktopMain(configuration);
 
-	return renderer.open();
+	return workbench.open();
 }

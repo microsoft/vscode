@@ -12,13 +12,23 @@ import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 
 export const NullTelemetryService = new class implements ITelemetryService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
+	readonly sendErrorTelemetry = false;
+
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
 		return this.publicLog(eventName, data as ITelemetryData);
 	}
+	publicLogError(eventName: string, data?: ITelemetryData) {
+		return Promise.resolve(undefined);
+	}
+	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as ITelemetryData);
+	}
+
+	setExperimentProperty() { }
 	setEnabled() { }
 	isOptedIn = true;
 	getTelemetryInfo(): Promise<ITelemetryInfo> {
@@ -147,8 +157,8 @@ export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	}
 
 	let ret = 'other';
-	// Whitelisted remote authorities
-	['ssh-remote', 'dev-container', 'attached-container', 'wsl'].forEach((res: string) => {
+	const allowedAuthorities = ['ssh-remote', 'dev-container', 'attached-container', 'wsl'];
+	allowedAuthorities.forEach((res: string) => {
 		if (remoteAuthority!.indexOf(`${res}+`) === 0) {
 			ret = res;
 		}

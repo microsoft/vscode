@@ -82,6 +82,10 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return !!this.childProcess;
 	}
 
+	public isTaskVisible(): boolean {
+		return true;
+	}
+
 	public getActiveTasks(): Task[] {
 		let result: Task[] = [];
 		if (this.activeTask) {
@@ -90,8 +94,16 @@ export class ProcessTaskSystem implements ITaskSystem {
 		return result;
 	}
 
+	public getLastInstance(task: Task): Task | undefined {
+		let result = undefined;
+		if (this.activeTask) {
+			result = this.activeTask;
+		}
+		return result;
+	}
+
 	public getBusyTasks(): Task[] {
-		return this.getActiveTasks();
+		return [];
 	}
 
 	public run(task: Task): ITaskExecuteResult {
@@ -135,7 +147,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (this.childProcess) {
 			let task = this.activeTask;
 			return this.childProcess.terminate().then((response) => {
-				let result: TaskTerminateResponse = Objects.assign({ task: task! }, response);
+				let result: TaskTerminateResponse = Object.assign({ task: task! }, response);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task!));
 				return [result];
 			});

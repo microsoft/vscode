@@ -4,7 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
+
+function replaceLinks(text: string): string {
+	return text
+		// Http(s) links
+		.replace(/\{@(link|linkplain|linkcode) (https?:\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi, (_, tag: string, link: string, text?: string) => {
+			switch (tag) {
+				case 'linkcode':
+					return `[\`${text ? text.trim() : link}\`](${link})`;
+
+				default:
+					return `[${text ? text.trim() : link}](${link})`;
+			}
+		});
+}
+
+function processInlineTags(text: string): string {
+	return replaceLinks(text);
+}
 
 function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 	if (!tag.text) {
@@ -28,12 +46,20 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 			} else {
 				return makeCodeblock(tag.text);
 			}
+		case 'author':
+			// fix obsucated email address, #80898
+			const emailMatch = tag.text.match(/(.+)\s<([-.\w]+@[-.\w]+)>/);
 
+			if (emailMatch === null) {
+				return tag.text;
+			} else {
+				return `${emailMatch[1]} ${emailMatch[2]}`;
+			}
 		case 'default':
 			return makeCodeblock(tag.text);
 	}
 
-	return tag.text;
+	return processInlineTags(tag.text);
 }
 
 function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
@@ -42,15 +68,15 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 		case 'extends':
 		case 'param':
 		case 'template':
-			const body = (tag.text || '').split(/^([\w\.]+)\s*-?\s*/);
-			if (body && body.length === 3) {
+			const body = (tag.text || '').split(/^(\S+)\s*-?\s*/);
+			if (body?.length === 3) {
 				const param = body[1];
 				const doc = body[2];
 				const label = `*@${tag.name}* \`${param}\``;
 				if (!doc) {
 					return label;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + doc : ` — ${doc}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
 			}
 	}
 
@@ -63,21 +89,19 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
 }
 
-export function plain(parts: Proto.SymbolDisplayPart[]): string {
-	if (!parts) {
-		return '';
-	}
-	return parts.map(part => part.text).join('');
+export function plain(parts: Proto.SymbolDisplayPart[] | string): string {
+	return processInlineTags(
+		typeof parts === 'string'
+			? parts
+			: parts.map(part => part.text).join(''));
 }
 
 export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
-	return (tags || [])
-		.map(getTagDocumentation)
-		.join('  \n\n');
+	return tags.map(getTagDocumentation).join('  \n\n');
 }
 
 export function markdownDocumentation(
-	documentation: Proto.SymbolDisplayPart[],
+	documentation: Proto.SymbolDisplayPart[] | string,
 	tags: Proto.JSDocTagInfo[]
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
@@ -87,7 +111,7 @@ export function markdownDocumentation(
 
 export function addMarkdownDocumentation(
 	out: vscode.MarkdownString,
-	documentation: Proto.SymbolDisplayPart[] | undefined,
+	documentation: Proto.SymbolDisplayPart[] | string | undefined,
 	tags: Proto.JSDocTagInfo[] | undefined
 ): vscode.MarkdownString {
 	if (documentation) {

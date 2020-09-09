@@ -13,7 +13,7 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager {
+export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -27,11 +27,15 @@ export class PreviewManager {
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
-	public resolve(
-		resource: vscode.Uri,
+	public async openCustomDocument(uri: vscode.Uri) {
+		return { uri, dispose: () => { } };
+	}
+
+	public async resolveCustomEditor(
+		document: vscode.CustomDocument,
 		webviewEditor: vscode.WebviewPanel,
-	): vscode.WebviewEditorCapabilities {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+	): Promise<void> {
+		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -44,10 +48,6 @@ export class PreviewManager {
 				this.setActivePreview(undefined);
 			}
 		});
-
-		return {
-			editingCapability: preview
-		};
 	}
 
 	public get activePreview() { return this._activePreview; }
@@ -68,7 +68,7 @@ const enum PreviewState {
 	Active,
 }
 
-class Preview extends Disposable implements vscode.WebviewEditorEditingCapability {
+class Preview extends Disposable {
 
 	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
 
@@ -76,6 +76,8 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 	private _imageSize: string | undefined;
 	private _imageBinarySize: number | undefined;
 	private _imageZoom: Scale | undefined;
+
+	private readonly emptyPngDataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -110,6 +112,12 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 					{
 						this._imageZoom = message.value;
 						this.update();
+						break;
+					}
+
+				case 'reopen-as-text':
+					{
+						vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
 						break;
 					}
 			}
@@ -169,9 +177,9 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		}
 	}
 
-	private render() {
+	private async render() {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewEditor.webview.html = this.getWebiewContents();
+			this.webviewEditor.webview.html = await this.getWebviewContents();
 		}
 	}
 
@@ -195,11 +203,11 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 		}
 	}
 
-	private getWebiewContents(): string {
+	private async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
 			isMac: process.platform === 'darwin',
-			src: this.getResourcePath(this.webviewEditor, this.resource, version),
+			src: await this.getResourcePath(this.webviewEditor, this.resource, version),
 		};
 
 		const nonce = Date.now().toString();
@@ -222,52 +230,34 @@ class Preview extends Disposable implements vscode.WebviewEditorEditingCapabilit
 </head>
 <body class="container image scale-to-fit loading">
 	<div class="loading-indicator"></div>
-	<div class="image-load-error-message">${localize('preview.imageLoadError', "An error occurred while loading the image")}</div>
+	<div class="image-load-error">
+		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
+		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
+	</div>
 	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}
 
-	private getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string) {
-		switch (resource.scheme) {
-			case 'data':
-				return resource.toString(true);
-
-			case 'git':
-				// Show blank image
-				return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAEElEQVR42gEFAPr/AP///wAI/AL+Sr4t6gAAAABJRU5ErkJggg==';
-
-			default:
-				// Avoid adding cache busting if there is already a query string
-				if (resource.query) {
-					return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString());
-				}
-				return encodeURI(webviewEditor.webview.asWebviewUri(resource).toString() + `?version=${version}`);
+	private async getResourcePath(webviewEditor: vscode.WebviewPanel, resource: vscode.Uri, version: string): Promise<string> {
+		if (resource.scheme === 'git') {
+			const stat = await vscode.workspace.fs.stat(resource);
+			if (stat.size === 0) {
+				return this.emptyPngDataUri;
+			}
 		}
+
+		// Avoid adding cache busting if there is already a query string
+		if (resource.query) {
+			return webviewEditor.webview.asWebviewUri(resource).toString();
+		}
+		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
 	}
 
 	private extensionResource(path: string) {
 		return this.webviewEditor.webview.asWebviewUri(this.extensionRoot.with({
 			path: this.extensionRoot.path + path
 		}));
-	}
-
-	//#region WebviewEditorCapabilities
-	private readonly _onEdit = this._register(new vscode.EventEmitter<{ now: number }>());
-	public readonly onEdit = this._onEdit.event;
-
-	async save() { }
-
-	async hotExit() { }
-
-	async undoEdits(edits: any[]) { console.log('undo', edits); }
-
-	async applyEdits(edits: any[]) { console.log('apply', edits); }
-
-	//#endregion
-
-	public test_makeEdit() {
-		this._onEdit.fire({ now: Date.now() });
 	}
 }
 

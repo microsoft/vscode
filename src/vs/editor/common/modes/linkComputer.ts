@@ -154,7 +154,7 @@ function getClassifier(): CharacterClassifier<CharacterClass> {
 	if (_classifier === null) {
 		_classifier = new CharacterClassifier<CharacterClass>(CharacterClass.None);
 
-		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；？！＠＃＄％＆＊‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
+		const FORCE_TERMINATION_CHARACTERS = ' \t<>\'\"、。｡､，．：；‘“〈《「『【〔（［｛｢｣｝］）〕】』」》〉”’｀～…';
 		for (let i = 0; i < FORCE_TERMINATION_CHARACTERS.length; i++) {
 			_classifier.set(FORCE_TERMINATION_CHARACTERS.charCodeAt(i), CharacterClass.ForceTermination);
 		}
@@ -223,6 +223,7 @@ export class LinkComputer {
 			let state = State.Start;
 			let hasOpenParens = false;
 			let hasOpenSquareBracket = false;
+			let inSquareBrackets = false;
 			let hasOpenCurlyBracket = false;
 
 			while (j < len) {
@@ -241,10 +242,12 @@ export class LinkComputer {
 							chClass = (hasOpenParens ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						case CharCode.OpenSquareBracket:
+							inSquareBrackets = true;
 							hasOpenSquareBracket = true;
 							chClass = CharacterClass.None;
 							break;
 						case CharCode.CloseSquareBracket:
+							inSquareBrackets = false;
 							chClass = (hasOpenSquareBracket ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						case CharCode.OpenCurlyBrace:
@@ -267,6 +270,14 @@ export class LinkComputer {
 						case CharCode.Asterisk:
 							// `*` terminates a link if the link began with `*`
 							chClass = (linkBeginChCode === CharCode.Asterisk) ? CharacterClass.ForceTermination : CharacterClass.None;
+							break;
+						case CharCode.Pipe:
+							// `|` terminates a link if the link began with `|`
+							chClass = (linkBeginChCode === CharCode.Pipe) ? CharacterClass.ForceTermination : CharacterClass.None;
+							break;
+						case CharCode.Space:
+							// ` ` allow space in between [ and ]
+							chClass = (inSquareBrackets ? CharacterClass.None : CharacterClass.ForceTermination);
 							break;
 						default:
 							chClass = classifier.get(chCode);
