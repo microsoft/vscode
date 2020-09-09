@@ -21,6 +21,7 @@ import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/com
 import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDocumentFilter, NotebookCellMetadata, NotebookCellOutputsSplice, NotebookCellsChangeType, NotebookDocumentMetadata, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookCellStatusBarEntryDto, INotebookDocumentsAndEditorsDelta, INotebookModelAddedData, MainContext, MainThreadNotebookShape, NotebookEditorRevealType, NotebookExtensionDescription } from '../common/extHost.protocol';
 
 class DocumentAndEditorState {
@@ -147,7 +148,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@IEditorService private readonly editorService: IEditorService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILogService private readonly logService: ILogService,
-		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService
+		@INotebookCellStatusBarService private readonly cellStatusBarService: INotebookCellStatusBarService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
@@ -295,7 +297,15 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 									}
 									: e
 							);
-					this._proxy.$acceptModelChanged(textModel.uri, data, textModel.isDirty);
+
+					/**
+					 * TODO@rebornix, @jrieken
+					 * When a document is modified, it will trigger onDidChangeContent events.
+					 * The first event listener is this one, which doesn't know if the text model is dirty or not. It can ask `workingCopyService` but get the wrong result
+					 * The second event listener is `NotebookEditorModel`, which will then set `isDirty` to `true`.
+					 * Since `e.transient` decides if the model should be dirty or not, we will use the same logic here.
+					 */
+					this._proxy.$acceptModelChanged(textModel.uri, data, !e.transient);
 					this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: null });
 				}));
 
@@ -611,9 +621,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		if (textModel) {
 			textModel.handleUnknownEdit(label, () => {
-				return this._proxy.$undoNotebook(textModel.viewType, textModel.uri, editId, textModel.isDirty);
+				const isDirty = this._workingCopyService.isDirty(textModel.uri.with({ scheme: Schemas.vscodeNotebook }));
+				return this._proxy.$undoNotebook(textModel.viewType, textModel.uri, editId, isDirty);
 			}, () => {
-				return this._proxy.$redoNotebook(textModel.viewType, textModel.uri, editId, textModel.isDirty);
+				const isDirty = this._workingCopyService.isDirty(textModel.uri.with({ scheme: Schemas.vscodeNotebook }));
+				return this._proxy.$redoNotebook(textModel.viewType, textModel.uri, editId, isDirty);
 			});
 		}
 	}

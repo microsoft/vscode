@@ -348,7 +348,8 @@ export enum NotebookCellsChangeType {
 	ChangeCellMetadata = 7,
 	Output = 8,
 	ChangeCellContent = 9,
-	ChangeDocumentMetadata = 10
+	ChangeDocumentMetadata = 10,
+	Unknown = 11
 }
 
 export interface NotebookCellsInitializeEvent<T> {
@@ -405,8 +406,13 @@ export interface NotebookDocumentChangeMetadataEvent {
 	readonly metadata: NotebookDocumentMetadata | undefined;
 }
 
-export type NotebookCellsChangedEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent;
-export type NotebookTextModelChangedEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent) & { synchronous: boolean; endSelections?: number[] };
+export interface NotebookDocumentUnknownChangeEvent {
+	readonly kind: NotebookCellsChangeType.Unknown;
+	readonly versionId: number;
+}
+
+export type NotebookCellsChangedEventDto = NotebookCellsInitializeEvent<IMainCellDto> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<IMainCellDto> | NotebookCellsModelMoveEvent<IMainCellDto> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent;
+export type NotebookTextModelChangedEvent = (NotebookCellsInitializeEvent<ICell> | NotebookDocumentChangeMetadataEvent | NotebookCellContentChangeEvent | NotebookCellsModelChangedEvent<ICell> | NotebookCellsModelMoveEvent<ICell> | NotebookOutputChangedEvent | NotebookCellsChangeLanguageEvent | NotebookCellsChangeMetadataEvent | NotebookDocumentUnknownChangeEvent) & { synchronous: boolean; endSelections?: number[]; transient: boolean };
 
 export const enum CellEditType {
 	Replace = 1,

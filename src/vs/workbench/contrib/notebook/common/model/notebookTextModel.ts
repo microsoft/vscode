@@ -112,14 +112,9 @@ class DelayedEmitter {
 	}
 
 	emit(data: {
-		triggerDirty: { value: boolean } | undefined,
 		contentChange: { value: NotebookTextModelChangedEvent } | undefined,
 	}) {
 		this._increaseVersion();
-
-		if (data.triggerDirty) {
-			this._textModel.setDirty(data.triggerDirty.value);
-		}
 
 		if (data.contentChange) {
 			this._onDidChangeContent.fire(
@@ -163,10 +158,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _operationManager: NotebookOperationManager;
 	private _eventEmitter: DelayedEmitter;
 
-	private _dirty = false;
-	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-
 	constructor(
 		readonly viewType: string,
 		readonly supportBackup: boolean,
@@ -201,17 +192,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this._versionId;
 	}
 
-	get isDirty() {
-		return this._dirty;
-	}
-
-	setDirty(newState: boolean) {
-		if (this._dirty !== newState) {
-			this._dirty = newState;
-			this._onDidChangeDirty.fire();
-		}
-	}
-
 	createCellTextModel(
 		source: string,
 		language: string,
@@ -238,9 +218,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._mapping.set(mainCells[i].handle, mainCells[i]);
 			const dirtyStateListener = mainCells[i].onDidChangeContent(() => {
 				this._eventEmitter.emit({
-					triggerDirty: { value: true },
 					contentChange: {
-						value: { kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true }
+						value: { kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true, transient: false }
 					}
 				});
 			});
@@ -334,8 +313,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			);
 			const dirtyStateListener = cell.onDidChangeContent(() => {
 				this._eventEmitter.emit({
-					triggerDirty: { value: true },
-					contentChange: { value: { kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true } }
+					contentChange: { value: { kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true, transient: false } }
 				});
 			});
 			this._cellListeners.set(cell.handle, dirtyStateListener);
@@ -364,13 +342,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		// should be deferred
 		this._eventEmitter.emit({
-			triggerDirty: { value: true },
 			contentChange: {
 				value: {
 					kind: NotebookCellsChangeType.ModelChange,
 					versionId: this._versionId,
 					changes: diffs,
-					synchronous
+					synchronous,
+					transient: false
 				}
 			}
 		});
@@ -388,11 +366,30 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				redo();
 			},
 		});
-		this.setDirty(true);
+
+		this._eventEmitter.emit({
+			contentChange: {
+				value: {
+					kind: NotebookCellsChangeType.Unknown,
+					transient: false,
+					synchronous: true,
+					versionId: this._versionId,
+				}
+			}
+		});
 	}
 
 	handleUnknownChange() {
-		this.setDirty(true);
+		this._eventEmitter.emit({
+			contentChange: {
+				value: {
+					kind: NotebookCellsChangeType.Unknown,
+					transient: false,
+					synchronous: true,
+					versionId: this._versionId,
+				}
+			}
+		});
 	}
 
 	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
@@ -417,8 +414,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
 		this.metadata = metadata;
 		this._eventEmitter.emit({
-			triggerDirty: { value: true },
-			contentChange: { value: { kind: NotebookCellsChangeType.ChangeDocumentMetadata, versionId: this.versionId, metadata: this.metadata, synchronous: true } }
+			contentChange: { value: { kind: NotebookCellsChangeType.ChangeDocumentMetadata, versionId: this.versionId, metadata: this.metadata, synchronous: true, transient: false } }
 		});
 	}
 
@@ -427,8 +423,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._mapping.set(cells[i].handle, cells[i]);
 			const dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this._eventEmitter.emit({
-					triggerDirty: { value: true },
-					contentChange: { value: { kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true } }
+					contentChange: { value: { kind: NotebookCellsChangeType.ChangeCellContent, versionId: this.versionId, synchronous: true, transient: false } }
 				});
 			});
 
@@ -437,7 +432,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._cells.splice(index, 0, ...cells);
 		this._eventEmitter.emit({
-			triggerDirty: { value: true },
 			contentChange: {
 				value: {
 					kind: NotebookCellsChangeType.ModelChange,
@@ -448,7 +442,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 							cells
 						]],
 					synchronous,
-					endSelections: endSelections
+					endSelections: endSelections,
+					transient: false
 				}
 			}
 		});
@@ -464,8 +459,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 		this._cells.splice(index, count);
 		this._eventEmitter.emit({
-			triggerDirty: { value: true },
-			contentChange: { value: { kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous, endSelections } }
+			contentChange: { value: { kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]], synchronous, endSelections, transient: false } }
 		});
 	}
 
@@ -513,9 +507,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		this._eventEmitter.emit({
-			triggerDirty: { value: triggerDirtyChange },
 			contentChange: {
-				value: { kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this._cells.indexOf(cell), metadata: cell.metadata, synchronous: true }
+				value: { kind: NotebookCellsChangeType.ChangeCellMetadata, versionId: this._versionId, index: this._cells.indexOf(cell), metadata: cell.metadata, synchronous: true, transient: !triggerDirtyChange }
 			}
 		});
 	}
@@ -526,8 +519,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			cell.language = languageId;
 
 			this._eventEmitter.emit({
-				triggerDirty: { value: true },
-				contentChange: { value: { kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this._cells.indexOf(cell), language: languageId, synchronous: true } }
+				contentChange: { value: { kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this._cells.indexOf(cell), language: languageId, synchronous: true, transient: false } }
 			});
 		}
 	}
@@ -539,7 +531,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			cell.spliceNotebookCellOutputs(splices);
 
 			this._eventEmitter.emit({
-				triggerDirty: { value: !this.transientOptions.transientOutputs },
 				contentChange: {
 					value: {
 						kind: NotebookCellsChangeType.Output,
@@ -602,8 +593,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cells = this._cells.splice(index, length);
 			this._cells.splice(newIdx, 0, ...cells);
 			this._eventEmitter.emit({
-				triggerDirty: { value: true },
-				contentChange: { value: { kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous, endSelections } }
+				contentChange: { value: { kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, length, newIdx, cells, synchronous, endSelections, transient: false } }
 			});
 		}
 

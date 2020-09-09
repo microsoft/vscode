@@ -41,6 +41,8 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	private readonly _name: string;
 	private readonly _workingCopyResource: URI;
 
+	private _dirty = false;
+
 	constructor(
 		readonly resource: URI,
 		readonly viewType: string,
@@ -80,6 +82,13 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		return this._notebook;
 	}
 
+	setDirty(newState: boolean) {
+		if (this._dirty !== newState) {
+			this._dirty = newState;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
 	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
 		if (this._notebook.supportBackup) {
 			const tokenSource = new CancellationTokenSource();
@@ -116,7 +125,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
 
-		this._notebook.setDirty(false);
+		this.setDirty(false);
 		this._onDidChangeDirty.fire();
 	}
 
@@ -150,19 +159,19 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 			if (e.kind !== NotebookCellsChangeType.Initialize) {
 				this._onDidChangeContent.fire();
 			}
-		}));
 
-		this._register(this._notebook.onDidChangeDirty(() => {
-			this._onDidChangeDirty.fire();
+			if (!e.transient) {
+				this.setDirty(true);
+			}
 		}));
 
 		if (forceReloadFromDisk) {
-			this._notebook.setDirty(false);
+			this.setDirty(false);
 		}
 
 		if (backupId) {
 			await this._backupFileService.discardBackup(this._workingCopyResource);
-			this._notebook.setDirty(true);
+			this.setDirty(true);
 		}
 
 		return this;
@@ -173,7 +182,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 	}
 
 	isDirty() {
-		return this._notebook?.isDirty;
+		return this._dirty;
 	}
 
 	isUntitled() {
@@ -225,7 +234,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		await this._notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
-		this._notebook.setDirty(false);
+		this.setDirty(false);
 		return true;
 	}
 
@@ -245,7 +254,7 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		await this._notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
 		const newStats = await this._resolveStats(this.resource);
 		this._lastResolvedFileStat = newStats;
-		this._notebook.setDirty(false);
+		this.setDirty(false);
 		return true;
 	}
 

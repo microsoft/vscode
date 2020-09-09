@@ -81,8 +81,8 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 	private static _autoReferenceDirtyModel(model: INotebookEditorModel, ref: () => IDisposable) {
 
 		const references = new DisposableStore();
-		const listener = model.notebook.onDidChangeDirty(() => {
-			if (model.notebook.isDirty) {
+		const listener = model.onDidChangeDirty(() => {
+			if (model.isDirty()) {
 				references.add(ref());
 			} else {
 				references.clear();
