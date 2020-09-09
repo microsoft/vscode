@@ -53,7 +53,7 @@ steps:
   displayName: Download Built-in Extensions
 
 - script: |
-    yarn smoketest --notebookRandom --screenshots /tmp/smoke
+    notebook_random_runs=200 notebook_random_test_actions=150 yarn smoketest --notebookRandom --screenshots /tmp/smoke
   displayName: Run Notebook Random Action Test
 
 - task: PublishPipelineArtifact@1
