@@ -115,7 +115,7 @@ export abstract class AbstractProblemCollector implements IDisposable {
 		}
 	}
 
-	protected abstract async processLineInternal(line: string): Promise<void>;
+	protected abstract processLineInternal(line: string): Promise<void>;
 
 	public dispose() {
 		this.modelListeners.dispose();
