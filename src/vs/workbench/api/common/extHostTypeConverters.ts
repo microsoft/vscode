@@ -537,10 +537,11 @@ export namespace WorkspaceEdit {
 				} else if (entry._type === types.FileEditType.Cell) {
 					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
 						resource: entry.uri,
 						edit: entry.edit,
-						metadata: entry.metadata,
-						modelVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
+						notebookMetadata: entry.notebookMetadata,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}

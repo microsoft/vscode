@@ -23,7 +23,7 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, INotebookSearchOptions, ICellRange, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -214,7 +214,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this._selections = selections;
-		this._notebook.selections = selections;
 		this._onDidChangeSelection.fire();
 	}
 
@@ -248,8 +247,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 
-		this._register(this._notebook.onDidChangeCells(e => {
-			const diffs = e.splices.map(splice => {
+		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
+			const diffs = changes.map(splice => {
 				return [splice[0], splice[1], splice[2].map(cell => {
 					return createCellViewModel(this._instantiationService, this, cell as NotebookCellTextModel);
 				})] as [number, number, CellViewModel[]];
@@ -272,7 +271,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 
 			this._onDidChangeViewCells.fire({
-				synchronous: e.synchronous,
+				synchronous: synchronous,
 				splices: diffs
 			});
 
@@ -303,17 +302,31 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 
 			this.selectionHandles = endSelectionHandles;
+		};
+
+		this._register(this._notebook.onDidChangeContent(e => {
+			let changes: NotebookCellTextModelSplice<ICell>[] = [];
+
+			if (e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize) {
+				changes = e.changes;
+				compute(changes, e.synchronous);
+				return;
+			} else if (e.kind === NotebookCellsChangeType.Move) {
+				compute([[e.index, e.length, []]], e.synchronous);
+				compute([[e.newIdx, 0, e.cells]], e.synchronous);
+			} else {
+				return;
+			}
 		}));
 
-		this._register(this._notebook.onDidChangeMetadata(e => {
-			this.eventDispatcher.emit([new NotebookMetadataChangedEvent(e)]);
-		}));
+		this._register(this._notebook.onDidChangeContent(e => {
+			if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+				this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
+			}
 
-		this._register(this._notebook.emitSelections(selections => {
-			// text model emit selection change (for example, undo/redo)
-			// we should update the selection handle wisely
-			// TODO@rebornix, if the editor is note selected, undo/redo should not change the focused element selection
-			this.updateSelectionsFromEdits(selections);
+			if (e.endSelections) {
+				this.updateSelectionsFromEdits(e.endSelections);
+			}
 		}));
 
 		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
@@ -607,14 +620,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []) {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
-		this._notebook.createCell2(index, source, language, type, metadata, synchronous, pushUndoStop, beforeSelections, undefined);
-		// TODO@rebornix, rely on createCell to be sync
+		const cell = this._notebook.createCellTextModel(source, language, type, [], metadata);
+		this._notebook.insertCell(index, cell, synchronous, pushUndoStop, beforeSelections, undefined);
+		// TODO, rely on createCell to be sync
 		return this.viewCells[index];
 	}
 
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean = true): CellViewModel {
-		this._notebook.insertCell2(index, cell, synchronous, pushUndoStop);
-		// TODO@rebornix, rely on createCell to be sync // this will trigger it to synchronous update
+		this._notebook.insertCell(index, cell, synchronous, pushUndoStop, undefined, undefined);
+		// TODO, rely on createCell to be sync // this will trigger it to synchronous update
 		return this._viewCells[index];
 	}
 
@@ -637,7 +651,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}
 
-		this._notebook.deleteCell2(index, synchronous, pushUndoStop, this.selectionHandles, endSelections);
+		this._notebook.deleteCell(index, synchronous, pushUndoStop, this.selectionHandles, endSelections);
 	}
 
 	/**
@@ -654,7 +668,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return false;
 		}
 
-		this._notebook.moveCellToIdx2(index, length, newIdx, synchronous, pushedToUndoStack, undefined, [viewCell.handle]);
+		this._notebook.moveCellToIdx(index, length, newIdx, synchronous, pushedToUndoStack, undefined, [viewCell.handle]);
 		return true;
 	}
 
@@ -757,9 +771,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 						},
 						deleteCell: (index: number) => {
 							this.deleteCell(index, true, false);
-						},
-						emitSelections: (selections: number[]) => {
-							this.updateSelectionsFromEdits(selections);
 						}
 					}
 				));
@@ -828,7 +839,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				insertContent,
 				cell,
 				{
-					insertCell: (index: number, cell: NotebookCellTextModel) => {
+					insertCell: (index: number, cell: NotebookCellTextModel, endSelections?: number[]) => {
 						this.insertCell(index, cell, true, false);
 					},
 					deleteCell: (index: number) => {
@@ -836,9 +847,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					},
 					createCellViewModel: (cell: NotebookCellTextModel) => {
 						return createCellViewModel(this._instantiationService, this, cell);
-					},
-					emitSelections: (selections: number[]) => {
-						this.updateSelectionsFromEdits(selections);
 					}
 				})
 			);
@@ -882,7 +890,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				insertContent,
 				below,
 				{
-					insertCell: (index: number, cell: NotebookCellTextModel) => {
+					insertCell: (index: number, cell: NotebookCellTextModel, endSelections?: number[]) => {
 						this.insertCell(index, cell, true, false);
 					},
 					deleteCell: (index: number) => {
@@ -890,9 +898,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					},
 					createCellViewModel: (cell: NotebookCellTextModel) => {
 						return createCellViewModel(this._instantiationService, this, cell);
-					},
-					emitSelections: (selections: number[]) => {
-						this.updateSelectionsFromEdits(selections);
 					}
 				})
 			);

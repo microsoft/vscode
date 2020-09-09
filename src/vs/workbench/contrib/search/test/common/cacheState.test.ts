@@ -207,7 +207,7 @@ suite('FileQueryCacheState', () => {
 		}
 
 		public awaitDisposal(n: number) {
-			return new Promise(resolve => {
+			return new Promise<void>(resolve => {
 				if (n === Object.keys(this.disposing).length) {
 					resolve();
 				} else {

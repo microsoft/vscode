@@ -4,26 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MainContext, MainThreadTextEditorsShape, IWorkspaceEditDto, WorkspaceEditType } from 'vs/workbench/api/common/extHost.protocol';
+import { MainContext, IWorkspaceEditDto, WorkspaceEditType, MainThreadBulkEditsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
-import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { assertType } from 'vs/base/common/types';
+import { ExtHostBulkEdits } from 'vs/workbench/api/common/extHostBulkEdits';
 
-suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
+suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 
 	const resource = URI.parse('foo:bar');
-	let editors: ExtHostEditors;
+	let bulkEdits: ExtHostBulkEdits;
 	let workspaceResourceEdits: IWorkspaceEditDto;
 
 	setup(() => {
 		workspaceResourceEdits = null!;
 
 		let rpcProtocol = new TestRPCProtocol();
-		rpcProtocol.set(MainContext.MainThreadTextEditors, new class extends mock<MainThreadTextEditorsShape>() {
+		rpcProtocol.set(MainContext.MainThreadBulkEdits, new class extends mock<MainThreadBulkEditsShape>() {
 			$tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceEditDto): Promise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
 				return Promise.resolve(true);
@@ -40,13 +40,13 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 				EOL: '\n',
 			}]
 		});
-		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors, null!);
+		bulkEdits = new ExtHostBulkEdits(rpcProtocol, documentsAndEditors, null!);
 	});
 
 	test('uses version id if document available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		await editors.applyWorkspaceEdit(edit);
+		await bulkEdits.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assertType(first._type === WorkspaceEditType.Text);
@@ -56,7 +56,7 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 	test('does not use version id if document is not available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
-		await editors.applyWorkspaceEdit(edit);
+		await bulkEdits.applyWorkspaceEdit(edit);
 		assert.equal(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assertType(first._type === WorkspaceEditType.Text);

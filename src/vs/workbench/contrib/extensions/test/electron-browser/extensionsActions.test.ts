@@ -469,7 +469,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' })));
 				assert.ok(!testObject.enabled);
-				return new Promise(c => {
+				return new Promise<void>(c => {
 					testObject.onDidChange(() => {
 						if (testObject.enabled) {
 							c();
@@ -1025,7 +1025,7 @@ suite('ExtensionsActions', () => {
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
 				assert.ok(!testObject.enabled);
-				return new Promise(c => {
+				return new Promise<void>(c => {
 					testObject.onDidChange(() => {
 						if (testObject.enabled) {
 							c();
@@ -1046,7 +1046,7 @@ suite('ExtensionsActions', () => {
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
 				assert.ok(!testObject.enabled);
-				return new Promise(c => {
+				return new Promise<void>(c => {
 					installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
 					testObject.onDidChange(() => {
 						if (testObject.enabled) {
@@ -1246,7 +1246,7 @@ suite('ReloadAction', () => {
 		const extensions = await workbenchService.queryLocal();
 		testObject.extension = extensions[0];
 
-		return new Promise(c => {
+		return new Promise<void>(c => {
 			testObject.onDidChange(() => {
 				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to enable the updated extension.') {
 					c();

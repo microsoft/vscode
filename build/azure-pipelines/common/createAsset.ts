@@ -53,7 +53,7 @@ async function uploadBlob(blobService: azure.BlobService, quality: string, blobN
 		}
 	};
 
-	await new Promise((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, filePath, blobOptions, err => err ? e(err) : c()));
+	await new Promise<void>((c, e) => blobService.createBlockBlobFromLocalFile(quality, blobName, filePath, blobOptions, err => err ? e(err) : c()));
 }
 
 function getEnv(name: string): string {

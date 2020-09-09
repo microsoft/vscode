@@ -44,7 +44,7 @@ function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceE
 		} else if (edit._type === WorkspaceEditType.Text) {
 			result.push(new ResourceTextEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
 		} else if (edit._type === WorkspaceEditType.Cell) {
-			result.push(new ResourceNotebookCellEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
+			result.push(new ResourceNotebookCellEdit(edit.resource, edit.edit, edit.notebookMetadata, edit.notebookVersionId, edit.metadata));
 		}
 	}
 	return result;

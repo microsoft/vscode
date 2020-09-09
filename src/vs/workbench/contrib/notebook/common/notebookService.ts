@@ -28,7 +28,6 @@ export interface IMainNotebookController {
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;
 	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	onDidReceiveMessage(editorId: string, rendererType: string | undefined, message: any): void;
-	removeNotebookDocument(uri: URI): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	backup(uri: URI, token: CancellationToken): Promise<string | undefined>;
@@ -55,7 +54,7 @@ export interface INotebookService {
 	getContributedNotebookOutputRenderers(id: string): NotebookOutputRendererInfo | undefined;
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 
-	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string, backupId?: string): Promise<NotebookTextModel>;
+	resolveNotebook(viewType: string, uri: URI, forceReload: boolean, backupId?: string): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
@@ -72,6 +71,7 @@ export interface INotebookService {
 	getToCopy(): { items: NotebookCellTextModel[], isCopy: boolean; } | undefined;
 
 	// editor events
+	resolveNotebookEditor(viewType: string, uri: URI, editorId: string): Promise<void>;
 	addNotebookEditor(editor: IEditor): void;
 	removeNotebookEditor(editor: IEditor): void;
 	getNotebookEditor(editorId: string): IEditor | undefined;

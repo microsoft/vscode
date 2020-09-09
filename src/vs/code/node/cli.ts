@@ -138,7 +138,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise(c => child.once('exit', () => c()));
+				await new Promise<void>(c => child.once('exit', () => c()));
 			});
 		}
 

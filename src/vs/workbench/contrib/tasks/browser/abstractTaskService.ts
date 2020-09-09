@@ -2390,7 +2390,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				picker.dispose();
 				if (!selection) {
-					resolve();
+					resolve(undefined);
 				}
 				resolve(selection);
 			}));

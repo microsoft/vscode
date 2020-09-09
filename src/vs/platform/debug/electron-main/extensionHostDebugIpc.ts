@@ -101,7 +101,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 			});
 		});
 
-		await new Promise(r => server.listen(0, r));
+		await new Promise<void>(r => server.listen(0, r));
 		codeWindow.win.on('close', () => server.close());
 
 		return { rendererDebugPort: (server.address() as AddressInfo).port };

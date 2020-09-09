@@ -318,7 +318,6 @@ class RequestRouter {
 		'open',
 		'updateOpen',
 		'configure',
-		'configurePlugin',
 	]);
 
 	constructor(
@@ -490,7 +489,8 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private static readonly semanticCommands = new Set<keyof TypeScriptRequests>([
 		'geterr',
 		'geterrForProject',
-		'projectInfo'
+		'projectInfo',
+		'configurePlugin',
 	]);
 
 	/**

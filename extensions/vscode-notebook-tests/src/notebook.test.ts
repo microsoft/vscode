@@ -1032,15 +1032,14 @@ suite('metadata', () => {
 });
 
 suite('regression', () => {
-	test('microsoft/vscode-github-issue-notebooks#26. Insert template cell in the new empty document', async function () {
-		assertInitalState();
-		const resource = await createRandomFile('', undefined, 'empty', '.vsctestnb');
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.document.getText(), '');
-		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
-		await saveFileAndCloseAll(resource);
-	});
+	// test('microsoft/vscode-github-issue-notebooks#26. Insert template cell in the new empty document', async function () {
+	// 	assertInitalState();
+	// 	await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { "viewType": "notebookCoreTest" });
+	// 	assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+	// 	assert.equal(vscode.notebook.activeNotebookEditor!.selection?.document.getText(), '');
+	// 	assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	// });
 
 	test('#97830, #97764. Support switch to other editor types', async function () {
 		assertInitalState();
@@ -1073,7 +1072,7 @@ suite('regression', () => {
 		// now it's dirty, open the resource with notebook editor should open a new one
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.notEqual(vscode.notebook.activeNotebookEditor, undefined, 'notebook first');
-		assert.notEqual(vscode.window.activeTextEditor, undefined);
+		// assert.notEqual(vscode.window.activeTextEditor, undefined);
 
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});

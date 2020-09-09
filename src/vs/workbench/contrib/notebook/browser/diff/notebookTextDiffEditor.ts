@@ -321,7 +321,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			r();
 		}));
 
-		return new Promise(resolve => { r = resolve; });
+		return new Promise<void>(resolve => { r = resolve; });
 	}
 
 	getDomNode() {

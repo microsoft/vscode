@@ -69,7 +69,12 @@ export class ExtensionsScanner extends Disposable {
 			promises.push(this.scanUserExtensions(true).then(null, e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_USER_EXTENSIONS))));
 		}
 
-		return Promise.all<ILocalExtension[]>(promises).then(flatten, errors => Promise.reject(this.joinErrors(errors)));
+		try {
+			const result = await Promise.all(promises);
+			return flatten(result);
+		} catch (error) {
+			throw this.joinErrors(error);
+		}
 	}
 
 	async scanUserExtensions(excludeOutdated: boolean): Promise<ILocalExtension[]> {
@@ -145,20 +150,31 @@ export class ExtensionsScanner extends Disposable {
 
 	async withUninstalledExtensions<T>(fn: (uninstalled: IStringDictionary<boolean>) => T): Promise<T> {
 		return this.uninstalledFileLimiter.queue(async () => {
-			let result: T | null = null;
-			return pfs.readFile(this.uninstalledPath, 'utf8')
-				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
-				.then<{ [id: string]: boolean }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
-				.then(uninstalled => { result = fn(uninstalled); return uninstalled; })
-				.then(uninstalled => {
-					if (Object.keys(uninstalled).length === 0) {
-						return pfs.rimraf(this.uninstalledPath);
-					} else {
-						const raw = JSON.stringify(uninstalled);
-						return pfs.writeFile(this.uninstalledPath, raw);
-					}
-				})
-				.then(() => result);
+			let raw: string | undefined;
+			try {
+				raw = await pfs.readFile(this.uninstalledPath, 'utf8');
+			} catch (err) {
+				if (err.code !== 'ENOENT') {
+					throw err;
+				}
+			}
+
+			let uninstalled = {};
+			if (raw) {
+				try {
+					uninstalled = JSON.parse(raw);
+				} catch (e) { /* ignore */ }
+			}
+
+			const result = fn(uninstalled);
+
+			if (Object.keys(uninstalled).length) {
+				await pfs.writeFile(this.uninstalledPath, JSON.stringify(uninstalled));
+			} else {
+				await pfs.rimraf(this.uninstalledPath);
+			}
+
+			return result;
 		});
 	}
 
@@ -173,27 +189,35 @@ export class ExtensionsScanner extends Disposable {
 		await this.withUninstalledExtensions(uninstalled => delete uninstalled[new ExtensionIdentifierWithVersion(extension.identifier, extension.manifest.version).key()]);
 	}
 
-	private extractAtLocation(identifier: IExtensionIdentifier, zipPath: string, location: string, token: CancellationToken): Promise<void> {
+	private async extractAtLocation(identifier: IExtensionIdentifier, zipPath: string, location: string, token: CancellationToken): Promise<void> {
 		this.logService.trace(`Started extracting the extension from ${zipPath} to ${location}`);
-		return pfs.rimraf(location)
-			.then(
-				() => extract(zipPath, location, { sourcePath: 'extension', overwrite: true }, token)
-					.then(
-						() => this.logService.info(`Extracted extension to ${location}:`, identifier.id),
-						e => pfs.rimraf(location).finally(() => { })
-							.then(() => Promise.reject(new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING)))),
-				e => Promise.reject(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
+
+		// Clean the location
+		try {
+			await pfs.rimraf(location);
+		} catch (e) {
+			throw new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING);
+		}
+
+		try {
+			await extract(zipPath, location, { sourcePath: 'extension', overwrite: true }, token);
+			this.logService.info(`Extracted extension to ${location}:`, identifier.id);
+		} catch (e) {
+			try { await pfs.rimraf(location); } catch (e) { /* Ignore */ }
+			throw new ExtensionManagementError(e.message, e instanceof ExtractError && e.type ? e.type : INSTALL_ERROR_EXTRACTING);
+		}
 	}
 
-	private rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
-		return pfs.rename(extractPath, renamePath)
-			.then(undefined, error => {
-				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
-					return this.rename(identifier, extractPath, renamePath, retryUntil);
-				}
-				return Promise.reject(new ExtensionManagementError(error.message || localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING));
-			});
+	private async rename(identifier: IExtensionIdentifier, extractPath: string, renamePath: string, retryUntil: number): Promise<void> {
+		try {
+			await pfs.rename(extractPath, renamePath);
+		} catch (error) {
+			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
+				this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`, identifier.id);
+				return this.rename(identifier, extractPath, renamePath, retryUntil);
+			}
+			throw new ExtensionManagementError(error.message || localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING);
+		}
 	}
 
 	private async scanSystemExtensions(): Promise<ILocalExtension[]> {

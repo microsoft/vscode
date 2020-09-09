@@ -274,7 +274,7 @@ class HelpItemValue {
 	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
 
 	get url(): Promise<string> {
-		return new Promise(async (resolve) => {
+		return new Promise<string>(async (resolve) => {
 			if (this._url === undefined) {
 				if (this.urlOrCommand) {
 					let url = URI.parse(this.urlOrCommand);
