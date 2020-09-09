@@ -371,9 +371,14 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 
 			// Special treatment for side by side editors: if the active editor
 			// has 2 sides, we consider both, to support saving both sides.
-			// We only allow this when saving, not for "Save As".
+			// We only allow this when saving, not for "Save As" and not if any
+			// editor is untitled which would bring up a "Save As" dialog too.
 			// See also https://github.com/microsoft/vscode/issues/4180
-			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
+			// See also https://github.com/microsoft/vscode/issues/106330
+			if (
+				activeGroup.activeEditor instanceof SideBySideEditorInput &&
+				!options?.saveAs && !(activeGroup.activeEditor.primary.isUntitled() || activeGroup.activeEditor.secondary.isUntitled())
+			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
 			} else {
