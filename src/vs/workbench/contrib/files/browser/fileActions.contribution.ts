@@ -428,7 +428,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: OPEN_WITH_EXPLORER_COMMAND_ID,
 		title: nls.localize('explorerOpenWith', "Open With..."),
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceAvailableEditorIdsContext),
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceAvailableEditorIdsContext),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {

@@ -30,6 +30,7 @@ suite('FileUserDataProvider', () => {
 	let backupWorkspaceHomeOnDisk: URI;
 	let environmentService: IWorkbenchEnvironmentService;
 	const disposables = new DisposableStore();
+	let fileUserDataProvider: FileUserDataProvider;
 
 	setup(async () => {
 		const logService = new NullLogService();
@@ -49,12 +50,13 @@ suite('FileUserDataProvider', () => {
 		backupWorkspaceHomeOnDisk = joinPath(backupHome, workspaceId);
 		await Promise.all([testObject.createFolder(userDataHomeOnDisk), testObject.createFolder(backupWorkspaceHomeOnDisk)]);
 
-		const userDataFileSystemProvider = new FileUserDataProvider(userDataHomeOnDisk, backupWorkspaceHomeOnDisk, diskFileSystemProvider, environmentService, logService);
-		disposables.add(userDataFileSystemProvider);
-		disposables.add(testObject.registerProvider(Schemas.userData, userDataFileSystemProvider));
+		fileUserDataProvider = new FileUserDataProvider(userDataHomeOnDisk, backupWorkspaceHomeOnDisk, diskFileSystemProvider, environmentService, logService);
+		disposables.add(fileUserDataProvider);
+		disposables.add(testObject.registerProvider(Schemas.userData, fileUserDataProvider));
 	});
 
 	teardown(async () => {
+		fileUserDataProvider.dispose(); // need to dispose first, otherwise del will fail (https://github.com/microsoft/vscode/issues/106283)
 		await testObject.del(rootResource, { recursive: true });
 		disposables.clear();
 	});

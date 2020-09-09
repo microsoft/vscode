@@ -11,6 +11,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platf
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
@@ -252,22 +253,4 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
  */
 export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 	return Math.pow(1.2, zoomLevel);
-}
-
-export enum ColorScheme {
-
-	/**
-	 * The window should use standard colors.
-	 */
-	DEFAULT = 1,
-
-	/**
-	 * The window should use dark colors.
-	 */
-	DARK = 2,
-
-	/**
-	 * The window should use high contrast colors.
-	 */
-	HIGH_CONTRAST = 3
 }

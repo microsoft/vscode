@@ -38,6 +38,7 @@ import 'vs/workbench/services/workspaces/electron-sandbox/workspaceEditingServic
 import 'vs/workbench/services/configurationResolver/electron-sandbox/configurationResolverService';
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
+import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 
 //#endregion
 

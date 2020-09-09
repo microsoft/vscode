@@ -811,8 +811,8 @@ export class ExplorerView extends ViewPane {
 		}
 
 		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.innerHTML) {
-			this.styleElement.innerHTML = newStyles;
+		if (newStyles !== this.styleElement.textContent) {
+			this.styleElement.textContent = newStyles;
 		}
 	}
 

@@ -52,12 +52,10 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 
 		const cell = this.editingDelegate.createCellViewModel(this._deletedRawCell);
 		if (this.direction === 'above') {
-			this.editingDelegate.insertCell(this.index, this._deletedRawCell);
-			this.editingDelegate.emitSelections([cell.handle]);
+			this.editingDelegate.insertCell(this.index, this._deletedRawCell, [cell.handle]);
 			cell.focusMode = CellFocusMode.Editor;
 		} else {
-			this.editingDelegate.insertCell(this.index, cell.model);
-			this.editingDelegate.emitSelections([this.cell.handle]);
+			this.editingDelegate.insertCell(this.index, cell.model, [this.cell.handle]);
 			this.cell.focusMode = CellFocusMode.Editor;
 		}
 	}
@@ -72,8 +70,7 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 			{ range: this.inverseRange, text: this.insertContent }
 		]);
 
-		this.editingDelegate.deleteCell(this.index);
-		this.editingDelegate.emitSelections([this.cell.handle]);
+		this.editingDelegate.deleteCell(this.index, [this.cell.handle]);
 		this.cell.focusMode = CellFocusMode.Editor;
 	}
 }
@@ -110,10 +107,9 @@ export class SplitCellEdit implements IResourceUndoRedoElement {
 		this.cell.setSelections(this.selections);
 
 		for (let j = 1; j < this.cellContents.length; j++) {
-			this.editingDelegate.deleteCell(this.index + 1);
+			this.editingDelegate.deleteCell(this.index + 1, j === this.cellContents.length - 1 ? [this.cell.handle] : undefined);
 		}
 
-		this.editingDelegate.emitSelections([this.cell.handle]);
 		this.cell.focusMode = CellFocusMode.Editor;
 	}
 
@@ -134,7 +130,6 @@ export class SplitCellEdit implements IResourceUndoRedoElement {
 		}
 
 		if (lastCell) {
-			this.editingDelegate.emitSelections([lastCell.handle]);
 			lastCell.focusMode = CellFocusMode.Editor;
 		}
 	}
