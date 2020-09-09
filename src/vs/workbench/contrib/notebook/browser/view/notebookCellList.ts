@@ -1032,8 +1032,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		const newStyles = content.join('\n');
-		if (newStyles !== this.styleElement.innerHTML) {
-			this.styleElement.innerHTML = newStyles;
+		if (newStyles !== this.styleElement.textContent) {
+			this.styleElement.textContent = newStyles;
 		}
 	}
 

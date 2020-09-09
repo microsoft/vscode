@@ -4,7 +4,7 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-44 results - 27 files
+42 results - 25 files
 
 src/vs/base/browser/markdownRenderer.ts:
   156  				const strValue = values[0];
@@ -267,24 +267,6 @@ src/vs/workbench/contrib/debug/browser/repl.ts:
   311  					font-size: ${fontSize}px;
   312  					font-family: ${fontFamily};
 
-src/vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList.ts:
-  222  
-  223  		const newStyles = content.join('\n');
-  224  		if (newStyles !== this.styleElement.innerHTML) {
-  225: 			this.styleElement.innerHTML = newStyles;
-  226  		}
-  227  	}
-  228  }
-
-src/vs/workbench/contrib/notebook/browser/view/notebookCellList.ts:
-  1033  
-  1034  		const newStyles = content.join('\n');
-  1035  		if (newStyles !== this.styleElement.innerHTML) {
-  1036: 			this.styleElement.innerHTML = newStyles;
-  1037  		}
-  1038  	}
-  1039  
-
 src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
   454  
   455  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
@@ -335,7 +317,6 @@ src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
   64: 		this._styleElement.innerHTML = cssRules.join('\n');
   65  	}
   66  }
-  67  
 
 src/vs/workbench/contrib/webview/browser/pre/main.js:
   386  			// apply default styles
