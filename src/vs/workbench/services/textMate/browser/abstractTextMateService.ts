@@ -312,7 +312,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		grammarFactory.setTheme(theme, tokenColorMap);
 		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
 		let cssRules = generateTokensCSSForColorMap(colorMap);
-		this._styleElement.innerHTML = cssRules;
+		this._styleElement.textContent = cssRules;
 		TokenizationRegistry.setColorMap(colorMap);
 	}
 
