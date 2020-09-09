@@ -124,6 +124,18 @@ export class TabsTitleControl extends TitleControl {
 				this.updateTabsScrollbarSizing();
 			}
 		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.multiLineTabs')) {
+				const tabsAndActionsContainer = this.tabsAndActionsContainer as HTMLElement;
+
+				if (this.configurationService.getValue<boolean>('workbench.editor.multiLineTabs')) {
+					addClass(tabsAndActionsContainer, 'multi-line-tabs-container');
+				} else {
+					removeClass(tabsAndActionsContainer, 'multi-line-tabs-container');
+				}
+			}
+		}));
 	}
 
 	protected create(parent: HTMLElement): void {
@@ -133,6 +145,9 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsAndActionsContainer = document.createElement('div');
 		addClass(this.tabsAndActionsContainer, 'tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
+		if (this.configurationService.getValue<boolean>('workbench.editor.multiLineTabs')) {
+			addClass(this.tabsAndActionsContainer, 'multi-line-tabs-container');
+		}
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');

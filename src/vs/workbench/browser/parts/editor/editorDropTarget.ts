@@ -33,6 +33,7 @@ interface IDropOperation {
 class DropOverlay extends Themable {
 
 	private static readonly OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
+	private static readonly TABS_SELECTOR = 'div.tabs-container[role="tablist"]';
 
 	private static readonly MAX_FILE_UPLOAD_SIZE = 100 * 1024 * 1024; // 100mb
 
@@ -501,6 +502,10 @@ class DropOverlay extends Themable {
 
 	private getOverlayOffsetHeight(): number {
 		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
+			const tablist = document.querySelector(DropOverlay.TABS_SELECTOR) as HTMLElement;
+			if (tablist) {
+				return tablist.offsetHeight;
+			}
 			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
 		}
 
