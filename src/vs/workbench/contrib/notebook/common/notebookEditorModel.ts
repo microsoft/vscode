@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModel, NotebookCellsChangeType, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -145,9 +145,12 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		this._register(this._notebook);
 
-		this._register(this._notebook.onDidChangeContent(() => {
-			this._onDidChangeContent.fire();
+		this._register(this._notebook.onDidChangeContent(e => {
+			if (e.kind !== NotebookCellsChangeType.Initialize) {
+				this._onDidChangeContent.fire();
+			}
 		}));
+
 		this._register(this._notebook.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire();
 		}));

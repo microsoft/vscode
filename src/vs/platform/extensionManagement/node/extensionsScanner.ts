@@ -22,7 +22,7 @@ import { CancellationToken } from 'vscode';
 import { extract, ExtractError } from 'vs/base/node/zip';
 import { isWindows } from 'vs/base/common/platform';
 import { flatten } from 'vs/base/common/arrays';
-import { assign } from 'vs/base/common/objects';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
 const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
@@ -31,6 +31,7 @@ const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
 export type IMetadata = Partial<IGalleryMetadata & { isMachineScoped: boolean; }>;
+type ILocalExtensionManifest = IExtensionManifest & { __metadata?: IMetadata };
 
 export class ExtensionsScanner extends Disposable {
 
@@ -133,7 +134,7 @@ export class ExtensionsScanner extends Disposable {
 		const manifestPath = path.join(local.location.fsPath, 'package.json');
 		const raw = await pfs.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
-		assign(manifest, { __metadata: metadata });
+		(manifest as ILocalExtensionManifest).__metadata = metadata;
 		await pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
 		return local;
 	}
@@ -142,7 +143,7 @@ export class ExtensionsScanner extends Disposable {
 		return this.withUninstalledExtensions(uninstalled => uninstalled);
 	}
 
-	async withUninstalledExtensions<T>(fn: (uninstalled: { [id: string]: boolean; }) => T): Promise<T> {
+	async withUninstalledExtensions<T>(fn: (uninstalled: IStringDictionary<boolean>) => T): Promise<T> {
 		return this.uninstalledFileLimiter.queue(async () => {
 			let result: T | null = null;
 			return pfs.readFile(this.uninstalledPath, 'utf8')

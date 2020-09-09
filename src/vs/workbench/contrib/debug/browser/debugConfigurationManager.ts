@@ -46,6 +46,8 @@ jsonRegistry.registerSchema(launchSchemaId, launchSchema);
 
 const DEBUG_SELECTED_CONFIG_NAME_KEY = 'debug.selectedconfigname';
 const DEBUG_SELECTED_ROOT = 'debug.selectedroot';
+// Debug type is only stored if a dynamic configuration is used for better restore
+const DEBUG_SELECTED_TYPE = 'debug.selectedtype';
 
 interface IDynamicPickItem { label: string, launch: ILaunch, config: IConfig }
 
@@ -84,13 +86,15 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.initLaunches();
 		this.registerListeners();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
+		const previousSelectedType = this.storageService.get(DEBUG_SELECTED_TYPE, StorageScope.WORKSPACE);
 		const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
+		const previousSelectedName = this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE);
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
-			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
+			this.selectConfiguration(previousSelectedLaunch, previousSelectedName, undefined, previousSelectedType);
 		} else if (this.launches.length > 0) {
-			this.selectConfiguration(undefined);
+			this.selectConfiguration(undefined, previousSelectedName, undefined, previousSelectedType);
 		}
 	}
 
@@ -259,7 +263,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
-	async getDynamicProviders(): Promise<{ label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
+	async getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
 		const extensions = await this.extensionService.getExtensions();
 		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
 		const debugDynamicExtensionsTypes = extensions.reduce((acc, e) => {
@@ -289,9 +293,12 @@ export class ConfigurationManager implements IConfigurationManager {
 			return acc;
 		}, [] as string[]);
 
+		await Promise.all(debugDynamicExtensionsTypes.map(type => this.activateDebuggers(onDebugDynamicConfigurationsName, type)));
 		return debugDynamicExtensionsTypes.map(type => {
+			const provider = this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations)!;
 			return {
 				label: this.getDebuggerLabel(type)!,
+				provider,
 				pick: async () => {
 					const disposables = new DisposableStore();
 					const input = disposables.add(this.quickInputService.createQuickPick<IDynamicPickItem>());
@@ -308,15 +315,13 @@ export class ConfigurationManager implements IConfigurationManager {
 							await launch.openConfigFile(false, config.type);
 							// Only Launch have a pin trigger button
 							await (launch as Launch).writeConfiguration(config);
-							this.selectConfiguration(launch, config.name);
+							await this.selectConfiguration(launch, config.name);
 						}));
 						disposables.add(input.onDidHide(() => { chosenDidCancel = true; resolve(); }));
 					});
 
-					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
 					const token = new CancellationTokenSource();
 					const picks: Promise<IDynamicPickItem[]>[] = [];
-					const provider = this.configProviders.filter(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations)[0];
 					this.getLaunches().forEach(launch => {
 						if (launch.workspace && provider) {
 							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
@@ -508,7 +513,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return undefined;
 	}
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): void {
+	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, type?: string): Promise<void> {
 		if (typeof launch === 'undefined') {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
 			launch = this.getLaunch(rootUri);
@@ -526,14 +531,31 @@ export class ConfigurationManager implements IConfigurationManager {
 		} else {
 			this.storageService.remove(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
 		}
+
 		const names = launch ? launch.getConfigurationNames() : [];
 		if ((name && names.indexOf(name) >= 0) || config) {
 			this.setSelectedLaunchName(name);
 		} else if (!this.selectedName || names.indexOf(this.selectedName) === -1) {
-			this.setSelectedLaunchName(names.length ? names[0] : undefined);
+			// We could not find the previously used name. We should get all dynamic configurations from providers
+			// And potentially auto select the previously used dynamic configuration #96293
+			const providers = await this.getDynamicProviders();
+			const provider = providers.find(p => p.provider.type === type);
+			let nameToSet = names.length ? names[0] : undefined;
+			if (provider && launch && launch.workspace) {
+				const token = new CancellationTokenSource();
+				const dynamicConfigs = await provider.provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
+				const dynamicConfig = dynamicConfigs.find(c => c.name === name);
+				if (dynamicConfig) {
+					config = dynamicConfig;
+					nameToSet = name;
+				}
+			}
+
+			this.setSelectedLaunchName(nameToSet);
 		}
 
 		this.selectedConfig = config;
+		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedConfig?.type, StorageScope.WORKSPACE);
 		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (configForType) {
 			this.debugConfigurationTypeContext.set(configForType.type);

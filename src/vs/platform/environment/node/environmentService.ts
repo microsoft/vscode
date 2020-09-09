@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDebugParams, IExtensionHostDebugParams, BACKUPS, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
@@ -94,10 +94,10 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get backupHome(): URI { return URI.file(path.join(this.userDataPath, BACKUPS)); }
+	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome.fsPath, 'workspaces.json'); }
+	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }

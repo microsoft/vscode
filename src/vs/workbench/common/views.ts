@@ -10,7 +10,7 @@ import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/comm
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -644,6 +644,8 @@ export interface ITreeItem {
 
 	themeIcon?: ThemeIcon;
 
+	iconColor?: ThemeColor;
+
 	resourceUri?: UriComponents;
 
 	tooltip?: string | IMarkdownString;
@@ -666,6 +668,7 @@ export class ResolvableTreeItem implements ITreeItem {
 	icon?: UriComponents;
 	iconDark?: UriComponents;
 	themeIcon?: ThemeIcon;
+	iconColor?: ThemeColor;
 	resourceUri?: UriComponents;
 	tooltip?: string | IMarkdownString;
 	contextValue?: string;

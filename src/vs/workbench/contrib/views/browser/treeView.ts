@@ -24,7 +24,7 @@ import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
-import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
+import { FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { localize } from 'vs/nls';
@@ -42,6 +42,7 @@ import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/service
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isMacintosh } from 'vs/base/common/platform';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -113,6 +114,7 @@ export class TreeView extends Disposable implements ITreeView {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
@@ -434,6 +436,7 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	private onContextMenu(treeMenus: TreeMenus, treeEvent: ITreeContextMenuEvent<ITreeItem>, actionRunner: MultipleSelectionActionRunner): void {
+		this.hoverService.hideHover();
 		const node: ITreeItem | null = treeEvent.element;
 		if (node === null) {
 			return;
@@ -754,7 +757,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 			return ({ start, end });
 		}) : undefined;
-		const icon = this.themeService.getColorTheme().type === LIGHT ? node.icon : node.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		// reset
@@ -790,6 +793,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
+				if (node.iconColor) {
+					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.iconColor.id)?.toString() ?? '';
+				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
 			templateData.icon.style.backgroundImage = '';
@@ -922,7 +928,7 @@ class Aligner extends Disposable {
 	}
 
 	private hasIcon(node: ITreeItem): boolean {
-		const icon = this.themeService.getColorTheme().type === LIGHT ? node.icon : node.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
 		if (icon) {
 			return true;
 		}
@@ -1026,7 +1032,7 @@ export class CustomTreeView extends TreeView {
 		@IHoverService hoverService: IHoverService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, contextKeyService);
+		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService);
 	}
 
 	setVisibility(isVisible: boolean): void {

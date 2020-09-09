@@ -215,6 +215,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._cursorNavigationMode = v;
 	}
 
+	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
+
 	private readonly _onDidChangeVisibleRanges = this._register(new Emitter<void>());
 	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
 
@@ -266,6 +269,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	 */
 	public getId(): string {
 		return this._uuid;
+	}
+
+	getSelectionHandles(): number[] {
+		return this.viewModel?.selectionHandles || [];
 	}
 
 	hasModel() {
@@ -932,6 +939,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 		}
+
+		this._localStore.add(this.viewModel.onDidChangeSelection(() => {
+			this._onDidChangeSelection.fire();
+		}));
 
 		this._localStore.add(this._list!.onWillScroll(e => {
 			this._onWillScroll.fire(e);
@@ -1778,7 +1789,7 @@ export const notebookOutputContainerColor = registerColor('notebook.outputContai
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
-// TODO currently also used for toolbar border, if we keep all of this, pick a generic name
+// TODO@rebornix currently also used for toolbar border, if we keep all of this, pick a generic name
 export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeparator', {
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),

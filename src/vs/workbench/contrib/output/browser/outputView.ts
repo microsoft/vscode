@@ -35,7 +35,6 @@ import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { groupBy } from 'vs/base/common/arrays';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
-import { addClass } from 'vs/base/browser/dom';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class OutputViewPane extends ViewPane {
@@ -90,7 +89,7 @@ export class OutputViewPane extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 		this.editor.create(container);
-		addClass(container, 'output-view');
+		container.classList.add('output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
 		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
 		this._register(codeEditor.onDidChangeModelContent(() => {
@@ -293,7 +292,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 
 	render(container: HTMLElement): void {
 		super.render(container);
-		addClass(container, 'switch-output');
+		container.classList.add('switch-output');
 		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
 			container.style.borderColor = colors.selectBorder ? `${colors.selectBorder}` : '';
 		}));

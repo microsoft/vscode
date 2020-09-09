@@ -7,21 +7,21 @@ import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
-import { BACKUPS, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { ColorScheme, IPath } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService, IWorkbenchConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import product from 'vs/platform/product/common/product';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
-class BrowserWorkbenchConfiguration implements IWorkbenchConfiguration {
+class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
 	constructor(
 		private readonly options: IBrowserWorkbenchOptions,
-		private readonly payload: Map<string, string> | undefined,
-		private readonly backupHome: URI
+		private readonly payload: Map<string, string> | undefined
 	) { }
 
 	@memoize
@@ -29,9 +29,6 @@ class BrowserWorkbenchConfiguration implements IWorkbenchConfiguration {
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
-
-	@memoize
-	get backupWorkspaceResource(): URI { return joinPath(this.backupHome, this.options.workspaceId); }
 
 	@memoize
 	get filesToOpenOrCreate(): IPath[] | undefined {
@@ -80,7 +77,7 @@ class BrowserWorkbenchConfiguration implements IWorkbenchConfiguration {
 			return ColorScheme.DARK;
 		}
 
-		return ColorScheme.DEFAULT;
+		return ColorScheme.LIGHT;
 	}
 }
 
@@ -101,10 +98,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	declare readonly _serviceBrand: undefined;
 
-	private _configuration: IWorkbenchConfiguration | undefined = undefined;
-	get configuration(): IWorkbenchConfiguration {
+	private _configuration: IWindowConfiguration | undefined = undefined;
+	get configuration(): IWindowConfiguration {
 		if (!this._configuration) {
-			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload, this.backupHome);
+			this._configuration = new BrowserWorkbenchConfiguration(this.options, this.payload);
 		}
 
 		return this._configuration;
@@ -163,7 +160,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get keyboardLayoutResource(): URI { return joinPath(this.userRoamingDataHome, 'keyboardLayout.json'); }
 
 	@memoize
-	get backupHome(): URI { return joinPath(this.userRoamingDataHome, BACKUPS); }
+	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', this.options.workspaceId); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }

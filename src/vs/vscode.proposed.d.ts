@@ -973,6 +973,11 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
+		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
+		 */
+		iconColor?: ThemeColor;
+
+		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
@@ -1322,7 +1327,6 @@ declare module 'vscode' {
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		languages: string[];
-		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
 	}
 
@@ -2059,6 +2063,11 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
+		 * Human-readable string which is rendered less prominently in the title.
+		 */
+		description?: string;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
@@ -2086,6 +2095,15 @@ declare module 'vscode' {
 		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
 		 */
 		readonly onDidChangeVisibility: Event<void>;
+
+		/**
+		 * Reveal the view in the UI.
+		 *
+		 * If the view is collapsed, this will expand it.
+		 *
+		 * @param preserveFocus When `true` the view will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
 	}
 
 	interface WebviewViewResolveContext<T = unknown> {

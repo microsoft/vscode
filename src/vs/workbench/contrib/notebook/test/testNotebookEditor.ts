@@ -66,6 +66,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getSelectionHandles(): number[] {
+		return [];
+	}
 
 
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
@@ -82,6 +85,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidScroll = new Emitter<ScrollEvent>().event;
 	onWillDispose = new Emitter<void>().event;
 	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;
+	onDidChangeSelection: Event<void> = new Emitter<void>().event;
 	visibleRanges: ICellRange[] = [];
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
@@ -333,7 +337,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	) {
 		super();
 
-		if (_notebook && _notebook.onDidChangeCells) {
+		if (_notebook && _notebook.onDidChangeContent) {
 			this._register(_notebook.onDidChangeContent(() => {
 				this._dirty = true;
 				this._onDidChangeDirty.fire();

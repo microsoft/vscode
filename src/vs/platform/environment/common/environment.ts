@@ -18,8 +18,6 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 }
 
-export const BACKUPS = 'Backups';
-
 /**
  * A basic environment service that can be used in various processes,
  * such as main, renderer and shared process. Use subclasses of this
@@ -44,7 +42,6 @@ export interface IEnvironmentService {
 	snippetsHome: URI;
 
 	// --- data paths
-	backupHome: URI;
 	untitledWorkspacesHome: URI;
 
 	globalStorageHome: URI;
@@ -100,6 +97,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appSettingsHome: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
+	backupHome: string;
 	backupWorkspacesPath: string;
 	nodeCachedDataDir?: string;
 	installSourcePath: string;

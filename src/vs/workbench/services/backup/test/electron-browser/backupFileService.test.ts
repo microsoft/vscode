@@ -24,13 +24,11 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
-import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
-const appSettingsHome = path.join(userdataDir, 'User');
 const backupHome = path.join(userdataDir, 'Backups');
 const workspacesJsonPath = path.join(backupHome, 'workspaces.json');
 
@@ -67,7 +65,7 @@ export class NodeTestBackupFileService extends BackupFileService {
 		const fileService = new FileService(logService);
 		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, URI.file(workspaceBackupPath), diskFileSystemProvider, environmentService, logService));
 
 		super(environmentService, fileService, logService);
 
@@ -159,7 +157,7 @@ suite('BackupFileService', () => {
 			const backupResource = fooFile;
 			const workspaceHash = hashPath(workspaceResource);
 			const filePathHash = hashPath(backupResource);
-			const expectedPath = URI.file(path.join(appSettingsHome, BACKUPS, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			const expectedPath = URI.file(path.join(backupHome, workspaceHash, Schemas.file, filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.equal(service.toBackupResource(backupResource).toString(), expectedPath);
 		});
 
@@ -168,7 +166,7 @@ suite('BackupFileService', () => {
 			const backupResource = URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' });
 			const workspaceHash = hashPath(workspaceResource);
 			const filePathHash = hashPath(backupResource);
-			const expectedPath = URI.file(path.join(appSettingsHome, BACKUPS, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
+			const expectedPath = URI.file(path.join(backupHome, workspaceHash, Schemas.untitled, filePathHash)).with({ scheme: Schemas.userData }).toString();
 			assert.equal(service.toBackupResource(backupResource).toString(), expectedPath);
 		});
 	});
