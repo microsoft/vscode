@@ -6,7 +6,6 @@
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { CellKind, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, NotebookDocumentMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -125,12 +124,11 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	readonly onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
 	constructor(
-		private readonly viewType: string,
 		readonly id: string,
-		public uri: URI,
-		private _proxy: MainThreadNotebookShape,
-		private _webComm: vscode.NotebookCommunication,
-		public readonly notebookData: ExtHostNotebookDocument,
+		private readonly _viewType: string,
+		private readonly _proxy: MainThreadNotebookShape,
+		private readonly _webComm: vscode.NotebookCommunication,
+		readonly notebookData: ExtHostNotebookDocument,
 	) {
 		super();
 		this._register(this._webComm.onDidReceiveMessage(e => {
@@ -236,7 +234,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			compressedEditsIndex++;
 		}
 
-		return this._proxy.$tryApplyEdits(this.viewType, this.uri, editData.documentVersionId, compressedEdits, editData.newMetadata);
+		return this._proxy.$tryApplyEdits(this._viewType, this.document.uri, editData.documentVersionId, compressedEdits, editData.newMetadata);
 	}
 
 	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {

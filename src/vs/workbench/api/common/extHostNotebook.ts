@@ -529,7 +529,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const uriStr = URI.revive(uriComponents).toString();
 		let editor: { editor: ExtHostNotebookEditor; } | undefined;
 		this._editors.forEach(e => {
-			if (e.editor.uri.toString() === uriStr) {
+			if (e.editor.document.uri.toString() === uriStr) {
 				editor = e;
 			}
 		});
@@ -619,9 +619,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		const editor = new ExtHostNotebookEditor(
-			document.notebookDocument.viewType,
 			editorId,
-			revivedUri,
+			document.notebookDocument.viewType,
 			this._proxy,
 			webComm.contentProviderComm,
 			document
@@ -656,7 +655,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				}
 
 				for (const e of this._editors.values()) {
-					if (e.editor.uri.toString() === revivedUri.toString()) {
+					if (e.editor.document.uri.toString() === revivedUri.toString()) {
 						e.editor.dispose();
 						this._editors.delete(e.editor.id);
 						editorChanged = true;
