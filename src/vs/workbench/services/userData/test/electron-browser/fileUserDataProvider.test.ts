@@ -59,7 +59,7 @@ suite('FileUserDataProvider', () => {
 		disposables.clear();
 	});
 
-	test('exists return false when file does not exist', async () => {
+	test.skip('exists return false when file does not exist', async () => {
 		const exists = await testObject.exists(environmentService.settingsResource);
 		assert.equal(exists, false);
 	});
