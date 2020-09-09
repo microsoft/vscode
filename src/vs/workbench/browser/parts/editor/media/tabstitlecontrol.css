@@ -195,6 +195,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	margin-top: auto;
 	margin-bottom: auto;
+	line-height: 35px; /* aligns icon and label vertically centered in the tab */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink .tab-label {
@@ -230,10 +231,6 @@
 
 .monaco-workbench.hc-black .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink > .monaco-icon-label > .monaco-icon-label-container {
 	text-overflow: ellipsis;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .monaco-icon-label::before {
-	height: 16px; /* tweak the icon size of the editor labels when icons are enabled */
 }
 
 /* Tab Actions */
