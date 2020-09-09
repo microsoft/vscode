@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 //*START
 export interface IElement {
 	tagName: string;
+	id: string;
 	className: string;
 	textContent: string;
 	attributes: { [name: string]: string; };

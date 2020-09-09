@@ -35,6 +35,7 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 
 	return {
 		tagName: element.tagName,
+		id: element.id,
 		className: element.className,
 		textContent: element.textContent || '',
 		attributes,

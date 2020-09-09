@@ -21,6 +21,9 @@ const SLOW = false;
 
 const SCREENSHOT_EACH_STEP = true;
 
+const NUM_TEST_RUNS = process.env['notebook_random_runs'] ? parseInt(process.env['notebook_random_runs']) : 10;
+const ACTIONS_PER_TEST = process.env['notebook_random_test_actions'] ? parseInt(process.env['notebook_random_test_actions']) : 35;
+
 export function setup() {
 	describe.only('Notebooks keyboard smashing test', () => {
 		after(async function () {
@@ -29,8 +32,22 @@ export function setup() {
 			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
 		});
 
-		afterEach(async function () {
+		beforeEach(async function () {
 			const app = this.app as Application;
+			await app.workbench.notebook.createRealNotebook();
+			await app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
+			await app.workbench.quickaccess.runCommand('notifications.clearAll');
+		});
+
+		afterEach(async function () {
+			this.timeout(1000000);
+
+			const app = this.app as Application;
+			// if (app.pauseAtEnd) {
+			// 	console.log(`Done. Pausing...`);
+			// 	await wait(1000000);
+			// }
+
 			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllGroups');
 		});
@@ -42,10 +59,13 @@ export function setup() {
 			await actionRunner.runActionList(actionList);
 		}
 
-		async function testSetup(app: Application) {
-			await app.workbench.notebook.createRealNotebook();
-			await app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
-			await app.workbench.quickaccess.runCommand('notifications.clearAll');
+		for (let i = 0; i < NUM_TEST_RUNS; i++) {
+			it(`test iteration ${i}`, async function () {
+				this.timeout(1000 * 60 * 60 * 8); // 8 hours
+
+				const app = this.app as Application;
+				await testMain(app);
+			});
 		}
 
 		async function testMain(app: Application) {
@@ -54,7 +74,7 @@ export function setup() {
 				if (app.notebookActionList) {
 					await runActionListTest(app, actionRunner);
 				} else {
-					await actionRunner.doRandomActions(35);
+					await actionRunner.doRandomActions(ACTIONS_PER_TEST);
 				}
 			} catch (e) {
 				console.error('Failed: ' + actionRunner.id);
@@ -66,16 +86,6 @@ export function setup() {
 
 				throw e;
 			}
-		}
-
-		for (let i = 0; i < 10; i++) {
-			it(`test iteration ${i}`, async function () {
-				this.timeout(1000 * 60 * 60 * 8); // 8 hours
-
-				const app = this.app as Application;
-				await testSetup(app);
-				await testMain(app);
-			});
 		}
 	});
 }
@@ -122,13 +132,15 @@ class NotebookActionRunner {
 
 	private async assertLayoutInvariant() {
 		await this.actions['focusTop']();
+		await this.actions['focusNextEditorGroup']();
+		await this.actions['focusTop']();
 
 		await this.app.captureScreenshot(`${this.id}/0_before`);
 		await this.app.workbench.quickaccess.runCommand('workbench.action.files.save');
 
 		const originalCells = await this.app.workbench.notebook.getCellDatas();
 		for (let group of originalCells) {
-			assert.deepEqual(group, originalCells[0]);
+			assert.deepEqual(group, originalCells[0], 'Each originalCells group should match the first group');
 		}
 
 		await this.app.workbench.quickaccess.runCommand('workbench.action.closeAllGroups');

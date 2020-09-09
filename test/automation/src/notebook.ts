@@ -30,13 +30,34 @@ export class Notebook {
 			return [];
 		}
 
+		const notebooks = await this.code.waitForElements('.notebookOverlay', false);
+		const ids = notebooks.map(n => n.id);
+
+		const cellGroups = await Promise.all(ids.map(id => this.getCellDatasForNotebook(id)));
+		cellGroups.forEach((group, groupI) => {
+			group.forEach((cell, i) => {
+				const prev = group[i - 1];
+				if (prev && cell.top <= prev.top) {
+					console.error(cellGroups);
+					throw new Error(`Cell [${groupI}, ${i}] is in the wrong order`);
+				}
+			});
+		});
+
+		return cellGroups;
+	}
+
+	private async getCellDatasForNotebook(notebookId: string): Promise<ICellData[]> {
+		// preview-mode or collapsed markdown
+		const markdownSelector = `#${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), #${notebookId} .monaco-list-row .collapsed .markdown`;
 		const [cells, cellEditorsOrMarkdowns, languagePickersOrMarkdowns] = await Promise.all([
-			this.code.waitForElements('.notebookOverlay .monaco-list-row', false),
-			this.code.waitForElements('.notebookOverlay .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-editor-container > .monaco-editor, .notebookOverlay .monaco-list-row .markdown', false),
-			this.code.waitForElements('.notebookOverlay .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-language-picker, .notebookOverlay .monaco-list-row .markdown', false),
+			this.code.waitForElements(`#${notebookId} .monaco-list-row`, false),
+			this.code.waitForElements(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-editor-container > .monaco-editor, ${markdownSelector}`, false),
+			this.code.waitForElements(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-language-picker, #${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), ${markdownSelector}`, false)
 		]);
 
 		if (cells.length !== cellEditorsOrMarkdowns.length) {
+			console.log(notebookId);
 			throw new Error(`Number of cells does not match number of editors/rendered markdowns. ${cells.length} cells, ${cellEditorsOrMarkdowns.length} editors/markdowns`);
 		}
 
@@ -44,7 +65,7 @@ export class Notebook {
 			throw new Error(`Number of cells does not match number of language pickers/rendered markdowns. ${cells.length} cells, ${languagePickersOrMarkdowns.length} language pickers/markdowns`);
 		}
 
-		const flatCellDatas = cells.map((element, i) => {
+		return cells.map((element, i) => {
 			const editorOrMarkdown = cellEditorsOrMarkdowns[i];
 			const languagePickerOrMarkdown = languagePickersOrMarkdowns[i];
 			const editorHeight = editorOrMarkdown.className.includes('monaco-editor') ? editorOrMarkdown.height : undefined;
@@ -54,40 +75,20 @@ export class Notebook {
 				top: element.top,
 				elementHeight: element.height,
 				language,
-				posInSet: Number.parseInt(element.attributes['aria-posinset'])
+				posInSet: Number.parseInt(element.attributes['aria-posinset']) - 1
 			};
 			if (typeof editorHeight === 'number') {
 				cellData.editorHeight = editorHeight;
 			}
 
 			return cellData;
+		}).sort((a, b) => {
+			return a.posInSet - b.posInSet;
 		});
-
-		let currentGroup: ICellData[] = [];
-		const cellDatas: ICellData[][] = [currentGroup];
-		flatCellDatas.forEach(cell => {
-			if (currentGroup[cell.posInSet]) {
-				currentGroup = [];
-				cellDatas.push(currentGroup);
-			}
-
-			currentGroup[cell.posInSet] = cell;
-		});
-
-		cellDatas.forEach(group => {
-			group.forEach((cell, i) => {
-				const prev = group[i];
-				if (prev && cell.top <= prev.top) {
-					throw new Error('Cells are in the wrong order');
-				}
-			});
-		});
-
-		return cellDatas;
 	}
 
 	async notebookIsEmpty(): Promise<boolean> {
-		const empty = this.code.waitForElement(`.notebookOverlay .emptyNotebook`, () => true, 2);
+		const empty = await this.code.waitForElement(`.notebookOverlay .emptyNotebook`, () => true, 2);
 		return !!empty;
 	}
 
@@ -152,12 +153,6 @@ export class Notebook {
 		await this._waitForActiveCellEditorContents(c => {
 			c = c.replace(/\n/g, '').trim();
 			text = text.replace(/\n\n/g, ' ').replace(/\n/g, '').trim();
-
-			// console.log('a', c, c.length);
-			// console.log('b', text, text.length);
-
-			// console.log(c.split('').map(char => char.charCodeAt(0)));
-			// console.log(text.split('').map(char => char.charCodeAt(0)));
 
 			return c.includes(text);
 		});
