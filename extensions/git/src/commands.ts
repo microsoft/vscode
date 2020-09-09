@@ -980,10 +980,10 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._stageChanges(textEditor, [changes[index]]).then(() => {
-			const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
-			textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
-		});
+		await this._stageChanges(textEditor, [changes[index]]);
+		
+		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
