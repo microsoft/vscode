@@ -678,8 +678,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private setUninstalled(...extensions: ILocalExtension[]): Promise<{ [id: string]: boolean }> {
 		const ids: ExtensionIdentifierWithVersion[] = extensions.map(e => new ExtensionIdentifierWithVersion(e.identifier, e.manifest.version));
 		return this.extensionsScanner.withUninstalledExtensions(uninstalled => {
-			const newUninstalled = (ids.reduce<IStringDictionary<boolean>>((result, id) => { result[id.key()] = true; return result; }, {}));
-			return { ...uninstalled, ...newUninstalled };
+			ids.forEach(id => uninstalled[id.key()] = true);
+			return uninstalled;
 		});
 	}
 
