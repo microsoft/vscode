@@ -317,7 +317,7 @@ export class ConfigurationManager implements IConfigurationManager {
 							await (launch as Launch).writeConfiguration(config);
 							await this.selectConfiguration(launch, config.name);
 						}));
-						disposables.add(input.onDidHide(() => { chosenDidCancel = true; resolve(); }));
+						disposables.add(input.onDidHide(() => { chosenDidCancel = true; resolve(undefined); }));
 					});
 
 					const token = new CancellationTokenSource();

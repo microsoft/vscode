@@ -230,7 +230,7 @@ export class LaunchMainService implements ILaunchMainService {
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
 		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
-			return new Promise((resolve, reject) => {
+			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
 				const remoteAuthority = window.remoteAuthority;
 				if (remoteAuthority) {
 					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
@@ -254,7 +254,7 @@ export class LaunchMainService implements ILaunchMainService {
 						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
 					}, 5000);
 				} else {
-					resolve();
+					resolve(undefined);
 				}
 			});
 		});
