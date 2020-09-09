@@ -28,12 +28,13 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationSession } from 'vs/editor/common/modes';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -125,7 +126,8 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -159,41 +161,54 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 		const otherCommands = accountsMenu.getActions();
 		const providers = this.authenticationService.getProviderIds();
 		const allSessions = providers.map(async id => {
-			const sessions = await this.authenticationService.getSessions(id);
+			try {
+				const sessions = await this.authenticationService.getSessions(id);
 
-			const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
-			sessions.forEach(session => {
-				if (groupedSessions[session.account.label]) {
-					groupedSessions[session.account.label].push(session);
-				} else {
-					groupedSessions[session.account.label] = [session];
-				}
-			});
+				const groupedSessions: { [label: string]: AuthenticationSession[] } = {};
+				sessions.forEach(session => {
+					if (groupedSessions[session.account.label]) {
+						groupedSessions[session.account.label].push(session);
+					} else {
+						groupedSessions[session.account.label] = [session];
+					}
+				});
 
-			return {
-				providerId: id,
-				sessions: groupedSessions
-			};
+				return {
+					providerId: id,
+					sessions: groupedSessions
+				};
+			} catch {
+				return {
+					providerId: id
+				};
+			}
 		});
 
 		const result = await Promise.all(allSessions);
 		let menus: IAction[] = [];
+		const authenticationSession = this.environmentService.options?.credentialsProvider ? await getCurrentAuthenticationSessionInfo(this.environmentService, this.productService) : undefined;
 		result.forEach(sessionInfo => {
 			const providerDisplayName = this.authenticationService.getLabel(sessionInfo.providerId);
-			Object.keys(sessionInfo.sessions).forEach(accountName => {
-				const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === this.environmentService.options?.authenticationSessionId);
-				const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
-					return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
-				});
-				const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
-					return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
-				});
 
-				const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+			if (sessionInfo.sessions) {
+				Object.keys(sessionInfo.sessions).forEach(accountName => {
+					const hasEmbedderAccountSession = sessionInfo.sessions[accountName].some(session => session.id === (authenticationSession?.id || this.environmentService.options?.authenticationSessionId));
+					const manageExtensionsAction = new Action(`configureSessions${accountName}`, nls.localize('manageTrustedExtensions', "Manage Trusted Extensions"), '', true, _ => {
+						return this.authenticationService.manageTrustedExtensionsForAccount(sessionInfo.providerId, accountName);
+					});
+					const signOutAction = new Action('signOut', nls.localize('signOut', "Sign Out"), '', true, _ => {
+						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
+					});
 
-				const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
+					const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+
+					const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
+					menus.push(menu);
+				});
+			} else {
+				const menu = new Action('providerUnavailable', nls.localize('authProviderUnavailable', '{0} is currently unavailable', providerDisplayName));
 				menus.push(menu);
-			});
+			}
 		});
 
 		if (menus.length && otherCommands.length) {

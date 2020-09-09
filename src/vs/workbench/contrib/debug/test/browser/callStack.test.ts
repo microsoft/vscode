@@ -42,8 +42,8 @@ function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFr
 		sourceReference: 11,
 	}, 'aDebugSessionId');
 
-	firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
-	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+	firstStackFrame = new StackFrame(thread, 0, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 0);
+	secondStackFrame = new StackFrame(thread, 1, secondSource, 'app2.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 
 	return { firstStackFrame, secondStackFrame };
 }
@@ -297,7 +297,7 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range);
+		let decorations = createDecorationsForStackFrame(firstStackFrame, firstStackFrame.range, true);
 		assert.equal(decorations.length, 2);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
 		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe');
@@ -305,7 +305,7 @@ suite('Debug - CallStack', () => {
 		assert.equal(decorations[1].options.className, 'debug-top-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range);
+		decorations = createDecorationsForStackFrame(secondStackFrame, firstStackFrame.range, true);
 		assert.equal(decorations.length, 2);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
 		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe-focused');
@@ -313,7 +313,7 @@ suite('Debug - CallStack', () => {
 		assert.equal(decorations[1].options.className, 'debug-focused-stack-frame-line');
 		assert.equal(decorations[1].options.isWholeLine, true);
 
-		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6));
+		decorations = createDecorationsForStackFrame(firstStackFrame, new Range(1, 5, 1, 6), true);
 		assert.equal(decorations.length, 3);
 		assert.deepEqual(decorations[0].range, new Range(1, 2, 1, 1));
 		assert.equal(decorations[0].options.glyphMarginClassName, 'codicon-debug-stackframe');

@@ -3,10 +3,9 @@
 const mappings = [
 	['bat', 'source.batchfile'],
 	['c', 'source.c'],
-	['cc', 'source.cpp'],
 	['clj', 'source.clojure'],
 	['coffee', 'source.coffee'],
-	['cpp', 'source.cpp'],
+	['cpp', 'source.cpp', '\\.(?:cpp|c\\+\\+|cc|cxx|hxx|h\\+\\+|hh)'],
 	['cs', 'source.cs'],
 	['cshtml', 'text.html.cshtml'],
 	['css', 'source.css'],
@@ -17,8 +16,7 @@ const mappings = [
 	['go', 'source.go'],
 	['groovy', 'source.groovy'],
 	['h', 'source.objc'],
-	['handlebars', 'text.html.handlebars'],
-	['hbs', 'text.html.handlebars'],
+	['handlebars', 'text.html.handlebars', '\\.(?:handlebars|hbs)'],
 	['hlsl', 'source.hlsl'],
 	['hpp', 'source.objcpp'],
 	['html', 'text.html.basic'],
@@ -35,10 +33,8 @@ const mappings = [
 	['md', 'text.html.markdown'],
 	['mm', 'source.objcpp'],
 	['p6', 'source.perl.6'],
-	['perl', 'source.perl'],
+	['perl', 'source.perl', '\\.(?:perl|pl|pm)'],
 	['php', 'source.php'],
-	['pl', 'source.perl'],
-	['pm', 'source.perl'],
 	['ps1', 'source.powershell'],
 	['pug', 'text.pug'],
 	['py', 'source.python'],
@@ -54,8 +50,7 @@ const mappings = [
 	['tsx', 'source.tsx'],
 	['vb', 'source.asp.vb.net'],
 	['xml', 'text.xml'],
-	['yaml', 'source.yaml'],
-	['yml', 'source.yaml'],
+	['yaml', 'source.yaml', '\\.(?:ya?ml)'],
 ];
 
 const scopes = {

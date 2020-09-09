@@ -14,8 +14,8 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IAction, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
@@ -58,7 +58,7 @@ interface ColumnItem {
 
 const oddRowBackgroundColor = new Color(new RGBA(130, 130, 130, 0.04));
 
-export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorPane {
+export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorPane {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
 
@@ -138,9 +138,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 		this.createBody(keybindingsEditorElement);
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
-		return super.setInput(input, options, token)
+		return super.setInput(input, options, context, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
 	}
 
@@ -358,7 +358,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 
 		this._register(this.recordKeysAction.onDidChange(e => {
 			if (e.checked !== undefined) {
-				DOM.toggleClass(recordingBadge, 'disabled', !e.checked);
+				recordingBadge.classList.toggle('disabled', !e.checked);
 				if (e.checked) {
 					this.searchWidget.inputBox.setPlaceHolder(keybindingsSearchPlaceholder);
 					this.searchWidget.inputBox.setAriaLabel(keybindingsSearchPlaceholder);
@@ -424,7 +424,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 
 	private layoutSearchWidget(dimension: DOM.Dimension): void {
 		this.searchWidget.layout(dimension);
-		DOM.toggleClass(this.headerContainer, 'small', dimension.width < 400);
+		this.headerContainer.classList.toggle('small', dimension.width < 400);
 		this.searchWidget.inputBox.inputElement.style.paddingRight = `${DOM.getTotalWidth(this.actionsContainer) + 12}px`;
 	}
 
@@ -474,10 +474,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onDidChangeFocus(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
-			DOM.addClass(this.keybindingsList.getHTMLElement(), 'focused');
+			this.keybindingsList.getHTMLElement().classList.add('focused');
 		}));
 		this._register(this.keybindingsList.onDidBlur(() => {
-			DOM.removeClass(this.keybindingsList.getHTMLElement(), 'focused');
+			this.keybindingsList.getHTMLElement().classList.remove('focused');
 			this.keybindingFocusContextKey.reset();
 		}));
 		this._register(this.keybindingsList.onMouseDblClick(() => {
@@ -821,7 +821,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 	) { }
 
 	renderTemplate(parent: HTMLElement): KeybindingItemTemplate {
-		DOM.addClass(parent, 'keybinding-item');
+		parent.classList.add('keybinding-item');
 
 		const actions = this.instantiationService.createInstance(ActionsColumn, parent, this.keybindingsEditor);
 		const command = this.instantiationService.createInstance(CommandColumn, parent, this.keybindingsEditor);
@@ -844,7 +844,7 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 	}
 
 	renderElement(keybindingEntry: IKeybindingItemEntry, index: number, template: KeybindingItemTemplate): void {
-		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
+		template.parent.classList.toggle('odd', index % 2 === 1);
 		for (const column of template.columns) {
 			column.render(keybindingEntry);
 		}
@@ -940,7 +940,7 @@ class CommandColumn extends Column {
 		const keybindingItem = keybindingItemEntry.keybindingItem;
 		const commandIdMatched = !!(keybindingItem.commandLabel && keybindingItemEntry.commandIdMatches);
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
-		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
+		this.commandColumn.classList.toggle('vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
 		let commandLabel: HighlightedLabel | undefined;
 		if (keybindingItem.commandLabel) {
 			commandLabel = new HighlightedLabel(this.commandColumn, false);
@@ -1064,18 +1064,18 @@ class WhenColumn extends Column {
 	}
 
 	private startEditing(): void {
-		DOM.addClass(this.element, 'input-mode');
+		this.element.classList.add('input-mode');
 		this.whenInput.focus();
 		this.whenInput.select();
 	}
 
 	private finishEditing(): void {
-		DOM.removeClass(this.element, 'input-mode');
+		this.element.classList.remove('input-mode');
 		this._onDidAccept.fire();
 	}
 
 	private cancelEditing(): void {
-		DOM.removeClass(this.element, 'input-mode');
+		this.element.classList.remove('input-mode');
 		this._onDidReject.fire();
 	}
 
@@ -1089,8 +1089,8 @@ class WhenColumn extends Column {
 			}
 		}, this, this.renderDisposables);
 		this.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
-		DOM.toggleClass(this.whenLabel, 'code', !!keybindingItemEntry.keybindingItem.when);
-		DOM.toggleClass(this.whenLabel, 'empty', !keybindingItemEntry.keybindingItem.when);
+		this.whenLabel.classList.toggle('code', !!keybindingItemEntry.keybindingItem.when);
+		this.whenLabel.classList.toggle('empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
 			const whenLabel = new HighlightedLabel(this.whenLabel, false);
 			whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches);

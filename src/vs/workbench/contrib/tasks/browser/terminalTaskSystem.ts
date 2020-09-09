@@ -81,12 +81,12 @@ class InstanceManager {
 
 class VariableResolver {
 
-	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: TaskSystemInfo | undefined, private _values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
+	constructor(public workspaceFolder: IWorkspaceFolder | undefined, public taskSystemInfo: TaskSystemInfo | undefined, public readonly values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
 	}
 	resolve(value: string): string {
 		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
 			// Strip out the ${} because the map contains them variables without those characters.
-			let result = this._values.get(match.substring(2, match.length - 1));
+			let result = this.values.get(match.substring(2, match.length - 1));
 			if ((result !== undefined) && (result !== null)) {
 				return result;
 			}
@@ -840,7 +840,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}, (_error) => {
 				// The process never got ready. Need to think how to handle this.
 			});
-			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id, resolver.values));
 			const mapKey = task.getMapKey();
 			this.busyTasks[mapKey] = task;
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
@@ -1331,6 +1331,22 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this.collectCommandVariables(variables, task.command, task);
 		}
 		this.collectMatcherVariables(variables, task.configurationProperties.problemMatchers);
+
+		if (task.command.runtime === RuntimeType.CustomExecution && CustomTask.is(task)) {
+			this.collectDefinitionVariables(variables, task._source.config.element);
+		}
+	}
+
+	private collectDefinitionVariables(variables: Set<string>, definition: any): void {
+		if (Types.isString(definition)) {
+			this.collectVariables(variables, definition);
+		} else if (Types.isArray(definition)) {
+			definition.forEach((element: any) => this.collectDefinitionVariables(variables, element));
+		} else if (Types.isObject(definition)) {
+			for (const key in definition) {
+				this.collectDefinitionVariables(variables, definition[key]);
+			}
+		}
 	}
 
 	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration, task: CustomTask | ContributedTask): void {

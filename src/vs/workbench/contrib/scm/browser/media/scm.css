@@ -81,7 +81,7 @@
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
 	font-size: 12px;
-	padding-right: 2px;
+	margin-right: 2px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:last-of-type {
@@ -231,4 +231,15 @@
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .mtk1 {
 	color: inherit;
+}
+
+/* Repositories */
+
+.scm-repositories-view .scm-provider {
+	margin: 0 12px 0 20px;
+	overflow: hidden;
+}
+
+.scm-repositories-view .scm-provider > .label > .name {
+	font-weight: normal;
 }

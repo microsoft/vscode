@@ -51,6 +51,10 @@ export class PackageJSONContribution implements IJSONContribution {
 		return Promise.resolve(null);
 	}
 
+	private isEnabled() {
+		return this.canRunNPM || this.onlineEnabled();
+	}
+
 	private onlineEnabled() {
 		return !!workspace.getConfiguration('npm').get('fetchOnlinePackageInfo');
 	}
@@ -63,7 +67,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		isLast: boolean,
 		collector: ISuggestionsCollector
 	): Thenable<any> | null {
-		if (!this.onlineEnabled()) {
+		if (!this.isEnabled()) {
 			return null;
 		}
 
@@ -180,7 +184,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	public async collectValueSuggestions(_fileName: string, location: Location, result: ISuggestionsCollector): Promise<any> {
-		if (!this.onlineEnabled()) {
+		if (!this.isEnabled()) {
 			return null;
 		}
 
@@ -245,17 +249,36 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
+	private isValidNPMName(name: string): boolean {
+		// following rules from https://github.com/npm/validate-npm-package-name
+		if (!name || name.length > 214 || name.match(/^[_.]/)) {
+			return false;
+		}
+		const match = name.match(/^(?:@([^/]+?)[/])?([^/]+?)$/);
+		if (match) {
+			const scope = match[1];
+			if (scope && encodeURIComponent(scope) !== scope) {
+				return false;
+			}
+			const name = match[2];
+			return encodeURIComponent(name) === name;
+		}
+		return true;
+	}
+
 	private async fetchPackageInfo(pack: string): Promise<ViewPackageInfo | undefined> {
+		if (!this.isValidNPMName(pack)) {
+			return undefined; // avoid unnecessary lookups
+		}
 		let info: ViewPackageInfo | undefined;
 		if (this.canRunNPM) {
 			info = await this.npmView(pack);
 		}
-		if (!info) {
+		if (!info && this.onlineEnabled()) {
 			info = await this.npmjsView(pack);
 		}
 		return info;
 	}
-
 
 	private npmView(pack: string): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
@@ -303,6 +326,9 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	public getInfoContribution(_fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
+		if (!this.isEnabled()) {
+			return null;
+		}
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
 			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {

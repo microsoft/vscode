@@ -203,7 +203,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private getBuildTask(workspaceFolder: vscode.WorkspaceFolder | undefined, label: string, command: string, args: string[], buildTaskidentifier: TypeScriptTaskDefinition): vscode.Task {
-		const buildTask = new vscode.Task2(
+		const buildTask = new vscode.Task(
 			buildTaskidentifier,
 			workspaceFolder || vscode.TaskScope.Workspace,
 			localize('buildTscLabel', 'build - {0}', label),

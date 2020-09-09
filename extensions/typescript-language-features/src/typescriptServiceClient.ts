@@ -532,7 +532,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
-				// @ts-expect-error, remove after 4.0 protocol update
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
 			},
 			watchOptions
@@ -637,6 +636,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
+		if (fileSchemes.disabledSchemes.has(resource.scheme)) {
+			return undefined;
+		}
+
 		switch (resource.scheme) {
 			case fileSchemes.file:
 				{
@@ -648,10 +651,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 					// Both \ and / must be escaped in regular expressions
 					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
-				}
-			case fileSchemes.git:
-				{
-					return undefined;
 				}
 			default:
 				{
@@ -666,10 +665,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	public toOpenedFilePath(document: vscode.TextDocument): string | undefined {
 		if (!this.bufferSyncSupport.ensureHasBuffer(document.uri)) {
-			console.error(`Unexpected resource ${document.uri}`);
+			if (!fileSchemes.disabledSchemes.has(document.uri.scheme)) {
+				console.error(`Unexpected resource ${document.uri}`);
+			}
 			return undefined;
 		}
 		return this.toPath(document.uri) || undefined;
+	}
+
+	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
+		switch (capability) {
+			case ClientCapability.Semantic:
+				{
+					switch (resource.scheme) {
+						case fileSchemes.file:
+						case fileSchemes.untitled:
+							return true;
+						default:
+							return false;
+					}
+				}
+			case ClientCapability.Syntax:
+			case ClientCapability.EnhancedSyntax:
+				{
+					return true;
+				}
+		}
 	}
 
 	public toResource(filepath: string): vscode.Uri {

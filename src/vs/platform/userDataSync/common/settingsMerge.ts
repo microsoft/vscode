@@ -10,7 +10,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
 import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
-import { firstIndex, distinct } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IMergeResult {
@@ -275,8 +275,11 @@ export function areSame(localContent: string, remoteContent: string, ignoredSett
 }
 
 export function isEmpty(content: string): boolean {
-	const nodes = parseSettings(content);
-	return nodes.length === 0;
+	if (content) {
+		const nodes = parseSettings(content);
+		return nodes.length === 0;
+	}
+	return true;
 }
 
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
@@ -317,7 +320,7 @@ interface InsertLocation {
 
 function getInsertLocation(key: string, sourceTree: INode[], targetTree: INode[]): InsertLocation {
 
-	const sourceNodeIndex = firstIndex(sourceTree, (node => node.setting?.key === key));
+	const sourceNodeIndex = sourceTree.findIndex(node => node.setting?.key === key);
 
 	const sourcePreviousNode: INode = sourceTree[sourceNodeIndex - 1];
 	if (sourcePreviousNode) {

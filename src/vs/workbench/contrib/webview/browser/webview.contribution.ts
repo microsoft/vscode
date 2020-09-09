@@ -14,7 +14,7 @@ import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } fro
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { Webview, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
-import { getActiveWebview, HideWebViewEditorFindCommand, ReloadWebviewAction, SelectAllWebviewEditorCommand, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
+import { getActiveWebviewEditor, HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
@@ -35,12 +35,11 @@ registerAction2(ShowWebViewEditorFindWidgetAction);
 registerAction2(HideWebViewEditorFindCommand);
 registerAction2(WebViewEditorFindNextCommand);
 registerAction2(WebViewEditorFindPreviousCommand);
-registerAction2(SelectAllWebviewEditorCommand);
 registerAction2(ReloadWebviewAction);
 
 
-function getActiveElectronBasedWebview(accessor: ServicesAccessor): Webview | undefined {
-	const webview = getActiveWebview(accessor);
+function getInnerActiveWebview(accessor: ServicesAccessor): Webview | undefined {
+	const webview = getActiveWebviewEditor(accessor);
 	if (!webview) {
 		return undefined;
 	}
@@ -63,8 +62,8 @@ const PRIORITY = 100;
 
 function overrideCommandForWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
 	command?.addImplementation(PRIORITY, accessor => {
-		const webview = getActiveElectronBasedWebview(accessor);
-		if (webview) {
+		const webview = getInnerActiveWebview(accessor);
+		if (webview && webview.isFocused) {
 			f(webview);
 			return true;
 		}

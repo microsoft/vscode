@@ -9,6 +9,7 @@ import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHost
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionRuntime } from 'vs/workbench/api/common/extHostTypes';
 
 class WorkerRequireInterceptor extends RequireInterceptor {
 
@@ -31,6 +32,7 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 }
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
+	readonly extensionRuntime = ExtensionRuntime.Webworker;
 
 	private _fakeModules?: WorkerRequireInterceptor;
 

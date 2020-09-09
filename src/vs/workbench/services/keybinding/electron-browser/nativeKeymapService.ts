@@ -15,6 +15,7 @@ import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { WindowsKeyboardMapper, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals, IMacLinuxKeyboardMapping } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -134,7 +135,7 @@ export class KeyboardMapperFactory {
 class NativeKeymapService extends Disposable implements IKeymapService {
 	public _serviceBrand: undefined;
 
-	private readonly _onDidChangeKeyboardMapper = new Emitter<void>();
+	private readonly _onDidChangeKeyboardMapper = this._register(new Emitter<void>());
 	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	constructor() {
@@ -143,6 +144,10 @@ class NativeKeymapService extends Disposable implements IKeymapService {
 		this._register(KeyboardMapperFactory.INSTANCE.onDidChangeKeyboardMapper(() => {
 			this._onDidChangeKeyboardMapper.fire();
 		}));
+
+		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
+			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
+		});
 	}
 
 	getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {

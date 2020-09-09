@@ -144,7 +144,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	public renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 
-		dom.addClass(parent, 'markers-panel');
+		parent.classList.add('markers-panel');
 
 		const container = dom.append(parent, dom.$('.markers-panel-container'));
 
@@ -178,7 +178,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.smallLayout = width < 600 && height > 100;
 		if (this.smallLayout !== wasSmallLayout) {
 			if (this.filterActionBar) {
-				dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.smallLayout);
+				this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
 			}
 		}
 		const contentHeight = this.smallLayout ? height - 44 : height;
@@ -333,7 +333,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private setTreeSelection(): void {
 		if (this.tree && this.tree.getSelection().length === 0) {
-			const firstMarker = this.markersWorkbenchService.markersModel.resourceMarkers[0].markers[0];
+			const firstMarker = this.markersWorkbenchService.markersModel.resourceMarkers[0]?.markers[0];
 			if (firstMarker) {
 				this.tree.setFocus([firstMarker]);
 				this.tree.setSelection([firstMarker]);
@@ -395,8 +395,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 
 	private createFilterActionBar(parent: HTMLElement): void {
 		this.filterActionBar = this._register(new ActionBar(parent, { actionViewItemProvider: action => this.getActionViewItem(action) }));
-		dom.addClass(this.filterActionBar.getContainer(), 'markers-panel-filter-container');
-		dom.toggleClass(this.filterActionBar.getContainer(), 'hide', !this.smallLayout);
+		this.filterActionBar.getContainer().classList.add('markers-panel-filter-container');
+		this.filterActionBar.getContainer().classList.toggle('hide', !this.smallLayout);
 	}
 
 	private createMessageBox(parent: HTMLElement): void {
@@ -692,18 +692,20 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		if (typeof autoReveal === 'boolean' && autoReveal) {
 			let currentActiveResource = this.getResourceForCurrentActiveResource();
 			if (currentActiveResource) {
-				if (this.tree.hasElement(currentActiveResource) && !this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
-					this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
-					if (focus) {
-						this.tree.setFocus(this.tree.getSelection());
-					}
-				} else {
-					this.tree.expand(currentActiveResource);
-					this.tree.reveal(currentActiveResource, 0);
+				if (this.tree.hasElement(currentActiveResource)) {
+					if (!this.tree.isCollapsed(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
+						this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
+						if (focus) {
+							this.tree.setFocus(this.tree.getSelection());
+						}
+					} else {
+						this.tree.expand(currentActiveResource);
+						this.tree.reveal(currentActiveResource, 0);
 
-					if (focus) {
-						this.tree.setFocus([currentActiveResource]);
-						this.tree.setSelection([currentActiveResource]);
+						if (focus) {
+							this.tree.setFocus([currentActiveResource]);
+							this.tree.setSelection([currentActiveResource]);
+						}
 					}
 				}
 			} else if (focus) {
@@ -912,7 +914,7 @@ class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
 	}
 
 	toggleVisibility(hide: boolean): void {
-		dom.toggleClass(this.container, 'hidden', hide);
+		this.container.classList.toggle('hidden', hide);
 	}
 
 }

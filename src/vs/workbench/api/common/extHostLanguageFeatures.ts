@@ -25,7 +25,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -177,7 +177,7 @@ class CodeLensAdapter {
 	}
 
 	releaseCodeLenses(cachedId: number): void {
-		dispose(this._disposables.get(cachedId));
+		this._disposables.get(cachedId)?.dispose();
 		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
@@ -324,14 +324,17 @@ class OnTypeRenameAdapter {
 		private readonly _provider: vscode.OnTypeRenameProvider
 	) { }
 
-	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
+	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
 		return asPromise(() => this._provider.provideOnTypeRenameRanges(doc, pos, token)).then(value => {
-			if (Array.isArray(value)) {
-				return coalesce(value.map(typeConvert.Range.from));
+			if (value && Array.isArray(value.ranges)) {
+				return {
+					ranges: coalesce(value.ranges.map(typeConvert.Range.from)),
+					wordPattern: value.wordPattern
+				};
 			}
 			return undefined;
 		});
@@ -452,7 +455,7 @@ class CodeActionAdapter {
 	}
 
 	public releaseCodeActions(cachedId: number): void {
-		dispose(this._disposables.get(cachedId));
+		this._disposables.get(cachedId)?.dispose();
 		this._disposables.delete(cachedId);
 		this._cache.delete(cachedId);
 	}
@@ -935,7 +938,7 @@ class SuggestAdapter {
 	}
 
 	releaseCompletionItems(id: number): any {
-		dispose(this._disposables.get(id));
+		this._disposables.get(id)?.dispose();
 		this._disposables.delete(id);
 		this._cache.delete(id);
 	}
@@ -1117,7 +1120,7 @@ class ColorProviderAdapter {
 	provideColors(resource: URI, token: CancellationToken): Promise<extHostProtocol.IRawColorInfo[]> {
 		const doc = this._documents.getDocument(resource);
 		return asPromise(() => this._provider.provideDocumentColors(doc, token)).then(colors => {
-			if (!Array.isArray<vscode.ColorInformation>(colors)) {
+			if (!Array.isArray(colors)) {
 				return [];
 			}
 
@@ -1549,15 +1552,24 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	// --- on type rename
 
-	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, stopPattern?: RegExp): vscode.Disposable {
+	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, wordPattern?: RegExp): vscode.Disposable {
 		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
-		const serializedStopPattern = stopPattern ? ExtHostLanguageFeatures._serializeRegExp(stopPattern) : undefined;
-		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedStopPattern);
+		const serializedWordPattern = wordPattern ? ExtHostLanguageFeatures._serializeRegExp(wordPattern) : undefined;
+		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedWordPattern);
 		return this._createDisposable(handle);
 	}
 
-	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
-		return this._withAdapter(handle, OnTypeRenameAdapter, adapter => adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token), undefined);
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: extHostProtocol.IRegExpDto; } | undefined> {
+		return this._withAdapter(handle, OnTypeRenameAdapter, async adapter => {
+			const res = await adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token);
+			if (res) {
+				return {
+					ranges: res.ranges,
+					wordPattern: res.wordPattern ? ExtHostLanguageFeatures._serializeRegExp(res.wordPattern) : undefined
+				};
+			}
+			return undefined;
+		}, undefined);
 	}
 
 	// --- references

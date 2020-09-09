@@ -36,53 +36,44 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
-import 'vs/workbench/services/search/node/searchService';
+import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/output/electron-browser/outputChannelModelService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
-import 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import 'vs/workbench/services/keybinding/electron-browser/keybinding.contribution';
 import 'vs/workbench/services/extensions/electron-browser/extensionService';
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
-import 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
-import 'vs/workbench/services/accessibility/electron-browser/accessibilityService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncAccountService';
+import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreManagementService';
+import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
-import 'vs/workbench/services/path/electron-browser/pathService';
 import 'vs/workbench/services/experiment/electron-browser/experimentService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { IUserDataAutoSyncService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/electron-browser/userDataAutoSyncService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { TimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
-registerSingleton(IUserDataSyncStoreManagementService, UserDataSyncStoreManagementService);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 registerSingleton(ITunnelService, TunnelService);
 registerSingleton(ITimerService, TimerService);
+registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 
 //#endregion
 
 
 //#region --- workbench contributions
-
-// Logs
-import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 
 // Tags
 import 'vs/workbench/contrib/tags/electron-browser/workspaceTagsService';
@@ -135,6 +126,5 @@ import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribu
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper.contribution';
-import { UserDataSyncStoreManagementService } from 'vs/workbench/contrib/userDataSync/electron-browser/userDataSyncStoreManagementService';
 
 //#endregion

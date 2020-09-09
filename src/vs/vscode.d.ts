@@ -1112,7 +1112,7 @@ declare module 'vscode' {
 		 * isn't one of the main editors, e.g. an embedded editor, or when the editor
 		 * column is larger than three.
 		 */
-		viewColumn?: ViewColumn;
+		readonly viewColumn?: ViewColumn;
 
 		/**
 		 * Perform an edit on the document associated with this text editor.
@@ -1160,7 +1160,7 @@ declare module 'vscode' {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * ~~Show the text editor.~~
+		 * Show the text editor.
 		 *
 		 * @deprecated Use [window.showTextDocument](#window.showTextDocument) instead.
 		 *
@@ -1170,7 +1170,7 @@ declare module 'vscode' {
 		show(column?: ViewColumn): void;
 
 		/**
-		 * ~~Hide the text editor.~~
+		 * Hide the text editor.
 		 *
 		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
 		 * This method shows unexpected behavior and will be removed in the next major update.
@@ -2498,9 +2498,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * ~~MarkedString can be used to render human-readable text. It is either a markdown string
+	 * MarkedString can be used to render human-readable text. It is either a markdown string
 	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.~~
+	 * markdown strings will be sanitized - that means html will be escaped.
 	 *
 	 * @deprecated This type is deprecated, please use [`MarkdownString`](#MarkdownString) instead.
 	 */
@@ -2753,7 +2753,7 @@ declare module 'vscode' {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
-		 * ~~Creates a new symbol information object.~~
+		 * Creates a new symbol information object.
 		 *
 		 * @deprecated Please use the constructor taking a [location](#Location) object.
 		 *
@@ -3086,6 +3086,8 @@ declare module 'vscode' {
 		 * @param uri Uri of the new file..
 		 * @param options Defines if an existing file should be overwritten or be
 		 * ignored. When overwrite and ignoreIfExists are both set overwrite wins.
+		 * When both are unset and when the file already exists then the edit cannot
+		 * be applied successfully.
 		 * @param metadata Optional metadata for the entry.
 		 */
 		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
@@ -3818,6 +3820,13 @@ declare module 'vscode' {
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
+		 *
+		 * Note that `sortText` is only used for the initial ordering of completion
+		 * items. When having a leading word (prefix) ordering is based on how
+		 * well completion match that prefix and the initial ordering is only used
+		 * when completions match equal. The prefix is defined by the
+		 * [`range`](#CompletionItem.range)-property and can therefore be different
+		 * for each completion.
 		 */
 		sortText?: string;
 
@@ -3825,6 +3834,10 @@ declare module 'vscode' {
 		 * A string that should be used when filtering a set of
 		 * completion items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
+		 *
+		 * Note that the filter text is matched against the leading word (prefix) which is defined
+		 * by the [`range`](#CompletionItem.range)-property.
+		 * prefix.
 		 */
 		filterText?: string;
 
@@ -3872,12 +3885,12 @@ declare module 'vscode' {
 		/**
 		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
 		 *
-		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
+		 * An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
-		 * [insertText](#CompletionItem.insertText) is ignored.~~
+		 * [insertText](#CompletionItem.insertText) is ignored.
 		 *
-		 * ~~The [range](#Range) of the edit must be single-line and on the same
-		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
+		 * The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
 		 */
 		textEdit?: TextEdit;
 
@@ -5218,7 +5231,7 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 
 		/**
-		 * ~~Reveal this channel in the UI.~~
+		 * Reveal this channel in the UI.
 		 *
 		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
 		 *
@@ -5624,10 +5637,27 @@ declare module 'vscode' {
 		/**
 		 * Get the absolute path of a resource contained in the extension.
 		 *
+		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
+		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
+		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
 		 */
 		asAbsolutePath(relativePath: string): string;
+
+		/**
+		 * The uri of a workspace specific directory in which the extension
+		 * can store private state. The directory might not exist and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 * The value is `undefined` when no workspace nor folder has been opened.
+		 *
+		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
+		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly storageUri: Uri | undefined;
 
 		/**
 		 * An absolute file path of a workspace specific directory in which the extension
@@ -5636,8 +5666,22 @@ declare module 'vscode' {
 		 *
 		 * Use [`workspaceState`](#ExtensionContext.workspaceState) or
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @deprecated Use [storagePath](#ExtensionContent.storageUri) instead.
 		 */
 		readonly storagePath: string | undefined;
+
+		/**
+		 * The uri of a directory in which the extension can store global state.
+		 * The directory might not exist on disk and creation is
+		 * up to the extension. However, the parent directory is guaranteed to be existent.
+		 *
+		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly globalStorageUri: Uri;
 
 		/**
 		 * An absolute file path in which the extension can store global state.
@@ -5645,13 +5689,27 @@ declare module 'vscode' {
 		 * up to the extension. However, the parent directory is guaranteed to be existent.
 		 *
 		 * Use [`globalState`](#ExtensionContext.globalState) to store key value data.
+		 *
+		 * @deprecated Use [globalStoragePath](#ExtensionContent.globalStorageUri) instead.
 		 */
 		readonly globalStoragePath: string;
+
+		/**
+		 * The uri of a directory in which the extension can create log files.
+		 * The directory might not exist on disk and creation is up to the extension. However,
+		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @see [`workspace.fs`](#FileSystem) for how to read and write files and folders from
+		 *  an uri.
+		 */
+		readonly logUri: Uri;
 
 		/**
 		 * An absolute file path of a directory in which the extension can create log files.
 		 * The directory might not exist on disk and creation is up to the extension. However,
 		 * the parent directory is guaranteed to be existent.
+		 *
+		 * @deprecated Use [logUri](#ExtensionContext.logUri) instead.
 		 */
 		readonly logPath: string;
 
@@ -6081,9 +6139,10 @@ declare module 'vscode' {
 		 * [Pseudoterminal.close](#Pseudoterminal.close). When the task is complete fire
 		 * [Pseudoterminal.onDidClose](#Pseudoterminal.onDidClose).
 		 * @param process The [Pseudoterminal](#Pseudoterminal) to be used by the task to display output.
-		 * @param callback The callback that will be called when the task is started by a user.
+		 * @param callback The callback that will be called when the task is started by a user. Any ${} style variables that
+		 * were in the task definition will be resolved and passed into the callback.
 		 */
-		constructor(callback: () => Thenable<Pseudoterminal>);
+		constructor(callback: (resolvedDefinition: TaskDefinition) => Thenable<Pseudoterminal>);
 	}
 
 	/**
@@ -6131,7 +6190,7 @@ declare module 'vscode' {
 		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
-		 * ~~Creates a new task.~~
+		 * Creates a new task.
 		 *
 		 * @deprecated Use the new constructors that allow specifying a scope for the task.
 		 *
@@ -6159,6 +6218,13 @@ declare module 'vscode' {
 		 * The task's name
 		 */
 		name: string;
+
+		/**
+		 * A human-readable string which is rendered less prominently on a separate line in places
+		 * where the task's name is displayed. Supports rendering of [theme icons](#ThemeIcon)
+		 * via the `$(<name>)`-syntax.
+		 */
+		detail?: string;
 
 		/**
 		 * The task's execution engine
@@ -6211,7 +6277,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return an array of tasks
 		 */
-		provideTasks(token?: CancellationToken): ProviderResult<T[]>;
+		provideTasks(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
@@ -6226,7 +6292,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The resolved task
 		 */
-		resolveTask(task: T, token?: CancellationToken): ProviderResult<T>;
+		resolveTask(task: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -8079,8 +8145,8 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * ~~Show progress in the Source Control viewlet while running the given callback and while
-		 * its returned promise isn't resolve or rejected.~~
+		 * Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.
 		 *
 		 * @deprecated Use `withProgress` instead.
 		 *
@@ -9516,8 +9582,8 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * ~~The folder that is open in the editor. `undefined` when no folder
-		 * has been opened.~~
+		 * The folder that is open in the editor. `undefined` when no folder
+		 * has been opened.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
@@ -9897,7 +9963,7 @@ declare module 'vscode' {
 		export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
 
 		/**
-		 * ~~Register a task provider.~~
+		 * Register a task provider.
 		 *
 		 * @deprecated Use the corresponding function on the `tasks` namespace instead
 		 *
@@ -10636,8 +10702,8 @@ declare module 'vscode' {
 	export namespace scm {
 
 		/**
-		 * ~~The [input box](#SourceControlInputBox) for the last source control
-		 * created by the extension.~~
+		 * The [input box](#SourceControlInputBox) for the last source control
+		 * created by the extension.
 		 *
 		 * @deprecated Use SourceControl.inputBox instead
 		 */
@@ -10652,6 +10718,27 @@ declare module 'vscode' {
 		 * @return An instance of [source control](#SourceControl).
 		 */
 		export function createSourceControl(id: string, label: string, rootUri?: Uri): SourceControl;
+	}
+
+	/**
+	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolMessage {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
+	}
+
+	/**
+	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolSource {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+	}
+
+	/**
+	 * A DebugProtocolBreakpoint is an opaque stand-in type for the [Breakpoint](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint) type defined in the Debug Adapter Protocol.
+	 */
+	export interface DebugProtocolBreakpoint {
+		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Breakpoint).
 	}
 
 	/**
@@ -10717,6 +10804,15 @@ declare module 'vscode' {
 		 * Send a custom request to the debug adapter.
 		 */
 		customRequest(command: string, args?: any): Thenable<any>;
+
+		/**
+		 * Maps a VS Code breakpoint to the corresponding Debug Adapter Protocol (DAP) breakpoint that is managed by the debug adapter of the debug session.
+		 * If no DAP breakpoint exists (either because the VS Code breakpoint was not yet registered or because the debug adapter is not interested in the breakpoint), the value `undefined` is returned.
+		 *
+		 * @param breakpoint A VS Code [breakpoint](#Breakpoint).
+		 * @return A promise that resolves to the Debug Adapter Protocol breakpoint or `undefined`.
+		 */
+		getDebugProtocolBreakpoint(breakpoint: Breakpoint): Thenable<DebugProtocolBreakpoint | undefined>;
 	}
 
 	/**
@@ -10858,6 +10954,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a debug adapter running as a Named Pipe (on Windows)/UNIX Domain Socket (on non-Windows) based server.
+	 */
+	export class DebugAdapterNamedPipeServer {
+		/**
+		 * The path to the NamedPipe/UNIX Domain Socket.
+		 */
+		readonly path: string;
+
+		/**
+		 * Create a description for a debug adapter running as a socket based server.
+		 */
+		constructor(path: string);
+	}
+
+	/**
 	 * A debug adapter that implements the Debug Adapter Protocol can be registered with VS Code if it implements the DebugAdapter interface.
 	 */
 	export interface DebugAdapter extends Disposable {
@@ -10878,13 +10989,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A DebugProtocolMessage is an opaque stand-in type for the [ProtocolMessage](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugProtocolMessage {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Base_Protocol_ProtocolMessage).
-	}
-
-	/**
 	 * A debug adapter descriptor for an inline implementation.
 	 */
 	export class DebugAdapterInlineImplementation {
@@ -10895,7 +10999,7 @@ declare module 'vscode' {
 		constructor(implementation: DebugAdapter);
 	}
 
-	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterInlineImplementation;
+	export type DebugAdapterDescriptor = DebugAdapterExecutable | DebugAdapterServer | DebugAdapterNamedPipeServer | DebugAdapterInlineImplementation;
 
 	export interface DebugAdapterDescriptorFactory {
 		/**
@@ -11090,13 +11194,19 @@ declare module 'vscode' {
 		 * Defaults to Separate.
 		 */
 		consoleMode?: DebugConsoleMode;
-	}
 
-	/**
-	 * A DebugProtocolSource is an opaque stand-in type for the [Source](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source) type defined in the Debug Adapter Protocol.
-	 */
-	export interface DebugProtocolSource {
-		// Properties: see details [here](https://microsoft.github.io/debug-adapter-protocol/specification#Types_Source).
+		/**
+		 * Controls whether this session should run without debugging, thus ignoring breakpoints.
+		 * When this property is not specified, the value from the parent session (if there is one) is used.
+		 */
+		noDebug?: boolean;
+
+		/**
+		 * Controls if the debug session's parent session is shown in the CALL STACK view even if it has only a single child.
+		 * By default, the debug session will never hide its parent.
+		 * If compact is true, debug sessions with a single child are hidden in the CALL STACK view to make the tree more compact.
+		 */
+		compact?: boolean;
 	}
 
 	/**
@@ -11214,6 +11324,12 @@ declare module 'vscode' {
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
+
+		/**
+		 * Stop the given debug session or stop all debug sessions if session is omitted.
+		 * @param session The [debug session](#DebugSession) to stop; if omitted all sessions are stopped.
+		 */
+		export function stopDebugging(session?: DebugSession): Thenable<void>;
 
 		/**
 		 * Add breakpoints.

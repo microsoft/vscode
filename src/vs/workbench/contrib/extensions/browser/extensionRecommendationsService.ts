@@ -13,7 +13,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { distinct, shuffle } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { DynamicWorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/dynamicWorkspaceRecommendations';
@@ -22,7 +21,7 @@ import { ExperimentalRecommendations } from 'vs/workbench/contrib/extensions/bro
 import { WorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/workspaceRecommendations';
 import { FileBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/fileBasedRecommendations';
 import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/keymapRecommendations';
-import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 
@@ -37,6 +36,8 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly promptedExtensionRecommendations: PromptedExtensionRecommendations;
+
 	// Recommendations
 	private readonly fileBasedRecommendations: FileBasedRecommendations;
 	private readonly workspaceRecommendations: WorkspaceRecommendations;
@@ -49,7 +50,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	// Ignored Recommendations
 	private globallyIgnoredRecommendations: string[] = [];
 
-	public loadWorkspaceConfigPromise: Promise<void>;
+	public readonly activationPromise: Promise<void>;
 	private sessionSeed: number;
 
 	private readonly _onRecommendationChange = this._register(new Emitter<RecommendationChangeNotification>());
@@ -57,7 +58,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -71,17 +72,18 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		storageKeysSyncRegistryService.registerStorageKey({ key: ignoredRecommendationsStorageKey, version: 1 });
 
 		const isExtensionAllowedToBeRecommended = (extensionId: string) => this.isExtensionAllowedToBeRecommended(extensionId);
-		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations, isExtensionAllowedToBeRecommended);
-		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations, isExtensionAllowedToBeRecommended);
-		this.experimentalRecommendations = instantiationService.createInstance(ExperimentalRecommendations, isExtensionAllowedToBeRecommended);
-		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations, isExtensionAllowedToBeRecommended);
-		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations, isExtensionAllowedToBeRecommended);
-		this.dynamicWorkspaceRecommendations = instantiationService.createInstance(DynamicWorkspaceRecommendations, isExtensionAllowedToBeRecommended);
-		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations, isExtensionAllowedToBeRecommended);
+		this.promptedExtensionRecommendations = instantiationService.createInstance(PromptedExtensionRecommendations, isExtensionAllowedToBeRecommended);
+		this.workspaceRecommendations = instantiationService.createInstance(WorkspaceRecommendations, this.promptedExtensionRecommendations);
+		this.fileBasedRecommendations = instantiationService.createInstance(FileBasedRecommendations, this.promptedExtensionRecommendations);
+		this.experimentalRecommendations = instantiationService.createInstance(ExperimentalRecommendations, this.promptedExtensionRecommendations);
+		this.configBasedRecommendations = instantiationService.createInstance(ConfigBasedRecommendations, this.promptedExtensionRecommendations);
+		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations, this.promptedExtensionRecommendations);
+		this.dynamicWorkspaceRecommendations = instantiationService.createInstance(DynamicWorkspaceRecommendations, this.promptedExtensionRecommendations);
+		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations, this.promptedExtensionRecommendations);
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;
-			this.loadWorkspaceConfigPromise = Promise.resolve();
+			this.activationPromise = Promise.resolve();
 			return;
 		}
 
@@ -89,15 +91,31 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		this.globallyIgnoredRecommendations = this.getCachedIgnoredRecommendations();
 
 		// Activation
-		this.loadWorkspaceConfigPromise = this.workspaceRecommendations.activate().then(() => this.fileBasedRecommendations.activate());
-		this.experimentalRecommendations.activate();
-		this.keymapRecommendations.activate();
-		if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
-			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.activateProactiveRecommendations());
-		}
+		this.activationPromise = this.activate();
 
 		this._register(this.extensionManagementService.onDidInstallExtension(e => this.onDidInstallExtension(e)));
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));
+	}
+
+	private async activate(): Promise<void> {
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		// activate all recommendations
+		await Promise.all([
+			this.workspaceRecommendations.activate(),
+			this.fileBasedRecommendations.activate(),
+			this.experimentalRecommendations.activate(),
+			this.keymapRecommendations.activate(),
+			this.lifecycleService.when(LifecyclePhase.Eventually)
+				.then(async () => {
+					if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+						await this.activateProactiveRecommendations();
+					}
+				})
+		]);
+
+		await this.promptWorkspaceRecommendations();
+		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations)(() => this.promptWorkspaceRecommendations()));
 	}
 
 	private isEnabled(): boolean {
@@ -133,9 +151,12 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return output;
 	}
 
-	async getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]> {
+	async getConfigBasedRecommendations(): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
 		await this.configBasedRecommendations.activate();
-		return this.toExtensionRecommendations(this.configBasedRecommendations.recommendations);
+		return {
+			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
+			others: this.toExtensionRecommendations(this.configBasedRecommendations.otherRecommendations)
+		};
 	}
 
 	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
@@ -191,6 +212,13 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
 	}
 
+	async getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
+		await this.exeBasedRecommendations.activate();
+		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
+			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };
+		return { important: this.toExtensionRecommendations(important), others: this.toExtensionRecommendations(others) };
+	}
+
 	getFileBasedRecommendations(): IExtensionRecommendation[] {
 		return this.toExtensionRecommendations(this.fileBasedRecommendations.recommendations);
 	}
@@ -231,7 +259,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 						]
 					}
 				*/
-				this.telemetryService.publicLog('extensionGallery:install:recommendations', assign(e.gallery.telemetryData, { recommendationReason: recommendationReason.reasonId }));
+				this.telemetryService.publicLog('extensionGallery:install:recommendations', { ...e.gallery.telemetryData, recommendationReason: recommendationReason.reasonId });
 			}
 		}
 	}
@@ -252,6 +280,16 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.workspaceRecommendations.ignoredRecommendations
 		];
 		return allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
+	}
+
+	private async promptWorkspaceRecommendations(): Promise<void> {
+		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
+			.map(({ extensionId }) => extensionId)
+			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
+
+		if (allowedRecommendations.length) {
+			await this.promptedExtensionRecommendations.promptWorkspaceRecommendations(allowedRecommendations);
+		}
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {

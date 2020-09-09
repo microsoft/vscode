@@ -5,14 +5,14 @@
 
 import * as nls from 'vs/nls';
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary, forEach } from 'vs/base/common/collections';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
@@ -414,10 +414,18 @@ export class MainThreadTask implements MainThreadTaskShape {
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange((event: TaskEvent) => {
+		this._taskService.onDidStateChange(async (event: TaskEvent) => {
 			const task = event.__task!;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$onDidStartTask(TaskExecutionDTO.from(task.getTaskExecution()), event.terminalId!);
+				const execution = TaskExecutionDTO.from(task.getTaskExecution());
+				let resolvedDefinition: TaskDefinitionDTO = execution.task!.definition;
+				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
+					const dictionary: IStringDictionary<string> = {};
+					Array.from(event.resolvedVariables.entries()).forEach(entry => dictionary[entry[0]] = entry[1]);
+					resolvedDefinition = await this._configurationResolverService.resolveAny(task.getWorkspaceFolder(),
+						execution.task.definition, dictionary);
+				}
+				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
@@ -509,11 +517,27 @@ export class MainThreadTask implements MainThreadTaskShape {
 		});
 	}
 
+	private getWorkspace(value: UriComponents | string): string | IWorkspace | IWorkspaceFolder | null {
+		let workspace;
+		if (typeof value === 'string') {
+			workspace = value;
+		} else {
+			const workspaceObject = this._workspaceContextServer.getWorkspace();
+			const uri = URI.revive(value);
+			if (workspaceObject.configuration?.toString() === uri.toString()) {
+				workspace = workspaceObject;
+			} else {
+				workspace = this._workspaceContextServer.getWorkspaceFolder(uri);
+			}
+		}
+		return workspace;
+	}
+
 	public async $getTaskExecution(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		if (TaskHandleDTO.is(value)) {
-			const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
-			if (workspaceFolder) {
-				const task = await this._taskService.getTask(workspaceFolder, value.id, true);
+			const workspace = this.getWorkspace(value.workspaceFolder);
+			if (workspace) {
+				const task = await this._taskService.getTask(workspace, value.id, true);
 				if (task) {
 					return {
 						id: task._id,
@@ -538,9 +562,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
-				if (workspaceFolder) {
-					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
+				const workspace = this.getWorkspace(value.workspaceFolder);
+				if (workspace) {
+					this._taskService.getTask(workspace, value.id, true).then((task: Task | undefined) => {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {

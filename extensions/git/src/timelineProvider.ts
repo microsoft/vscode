@@ -232,7 +232,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	private onRepositoryStatusChanged(_repo: Repository) {
 		// console.log(`GitTimelineProvider.onRepositoryStatusChanged`);
 
-		// This is crappy, but for now just save the last time a status was run and use that as the timestamp for staged items
+		// This is less than ideal, but for now just save the last time a status was run and use that as the timestamp for staged items
 		this.repoStatusDate = new Date();
 
 		this.fireChanged();

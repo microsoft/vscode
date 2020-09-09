@@ -754,13 +754,23 @@
           "when": "scmProvider == git"
         },
         {
-          "command": "git.checkout",
-          "group": "1_header",
+          "command": "git.pull",
+          "group": "1_header@1",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.push",
+          "group": "1_header@2",
           "when": "scmProvider == git"
         },
         {
           "command": "git.clone",
-          "group": "1_header",
+          "group": "1_header@3",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.checkout",
+          "group": "1_header@4",
           "when": "scmProvider == git"
         },
         {
@@ -1915,7 +1925,11 @@
       "[git-commit]": {
         "editor.rulers": [
           72
-        ]
+        ],
+        "workbench.editor.restoreViewState": false
+      },
+      "[git-rebase]": {
+        "workbench.editor.restoreViewState": false
       }
     },
     "viewsWelcome": [

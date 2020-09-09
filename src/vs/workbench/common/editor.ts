@@ -24,23 +24,34 @@ import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/ed
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
-export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
+// Editor State Context Keys
+export const EditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
+export const EditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
+export const EditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
+export const EditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
+
+/** TODO@ben remove me eventually */
+/** @deprecated */
+export const Deprecated_EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
+/** @deprecated */
+export const Deprecated_EditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
+
+// Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
-export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
-export const EditorStickyContext = new RawContextKey<boolean>('editorSticky', false);
-export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
-export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
+
+// Editor Group Context Keys
+export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
+
+// Editor Layout Context Keys
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
@@ -819,6 +830,8 @@ export class EditorModel extends Disposable implements IEditorModel {
 	private readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose = this._onDispose.event;
 
+	private disposed = false;
+
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
@@ -834,9 +847,17 @@ export class EditorModel extends Disposable implements IEditorModel {
 	}
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean {
+		return this.disposed;
+	}
+
+	/**
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
 	dispose(): void {
+		this.disposed = true;
 		this._onDispose.fire();
 
 		super.dispose();
@@ -1135,6 +1156,22 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 
 		return gotApplied;
 	}
+}
+
+/**
+ * Context passed into `EditorPane#setInput` to give additional
+ * context information around why the editor was opened.
+ */
+export interface IEditorOpenContext {
+
+	/**
+	 * An indicator if the editor input is new for the group the editor is in.
+	 * An editor is new for a group if it was not part of the group before and
+	 * otherwise was already opened in the group and just became the active editor.
+	 *
+	 * This hint can e.g. be used to decide wether to restore view state or not.
+	 */
+	newInGroup?: boolean;
 }
 
 export interface IEditorIdentifier {

@@ -41,7 +41,6 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape {
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
 	getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string;
 	getDefaultShellArgs(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string[] | string;
-	registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
@@ -174,6 +173,9 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	public setDimensions(cols: number, rows: number): boolean {
 		if (cols === this._cols && rows === this._rows) {
 			// Nothing changed
+			return false;
+		}
+		if (cols === 0 || rows === 0) {
 			return false;
 		}
 		this._cols = cols;
@@ -318,7 +320,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
 
 	private readonly _bufferer: TerminalDataBufferer;
-	private readonly _linkHandlers: Set<vscode.TerminalLinkHandler> = new Set();
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
@@ -338,6 +339,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
+		supportsProcesses: boolean,
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
@@ -346,6 +348,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
+		this._proxy.$registerProcessSupport(supportsProcesses);
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
@@ -559,19 +562,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		return id;
 	}
 
-	public registerLinkHandler(handler: vscode.TerminalLinkHandler): vscode.Disposable {
-		this._linkHandlers.add(handler);
-		if (this._linkHandlers.size === 1 && this._linkProviders.size === 0) {
-			this._proxy.$startHandlingLinks();
-		}
-		return new VSCodeDisposable(() => {
-			this._linkHandlers.delete(handler);
-			if (this._linkHandlers.size === 0 && this._linkProviders.size === 0) {
-				this._proxy.$stopHandlingLinks();
-			}
-		});
-	}
-
 	public registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable {
 		this._linkProviders.add(provider);
 		if (this._linkProviders.size === 1) {
@@ -583,25 +573,6 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 				this._proxy.$stopLinkProvider();
 			}
 		});
-	}
-
-	public async $handleLink(id: number, link: string): Promise<boolean> {
-		const terminal = this._getTerminalById(id);
-		if (!terminal) {
-			return false;
-		}
-
-		// Call each handler synchronously so multiple handlers aren't triggered at once
-		const it = this._linkHandlers.values();
-		let next = it.next();
-		while (!next.done) {
-			const handled = await next.value.handleLink(terminal, link);
-			if (handled) {
-				return true;
-			}
-			next = it.next();
-		}
-		return false;
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
@@ -836,6 +807,12 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 }
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
+		super(false, extHostRpc);
+	}
+
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		throw new NotSupportedError();
 	}
