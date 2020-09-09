@@ -30,20 +30,15 @@ export interface INotebookLoadOptions {
 
 
 export class NotebookEditorModel extends EditorModel implements INotebookEditorModel {
-	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
-	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
 	private _notebook!: NotebookTextModel;
-	private _lastResolvedFileStat: IFileStatWithMetadata | undefined;
-
-	get lastResolvedFileStat() {
-		return this._lastResolvedFileStat;
-	}
-
-	get notebook() {
-		return this._notebook;
-	}
+	private _lastResolvedFileStat?: IFileStatWithMetadata;
 
 	private readonly _name: string;
 	private readonly _workingCopyResource: URI;
@@ -62,21 +57,29 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 
 		this._name = labelService.getUriBasenameLabel(resource);
 
-		const input = this;
+		const that = this;
 		this._workingCopyResource = resource.with({ scheme: Schemas.vscodeNotebook });
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input._workingCopyResource;
-			get name() { return input._name; }
-			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
-			readonly onDidChangeDirty = input.onDidChangeDirty;
-			readonly onDidChangeContent = input.onDidChangeContent;
-			isDirty(): boolean { return input.isDirty(); }
-			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
-			save(): Promise<boolean> { return input.save(); }
-			revert(options?: IRevertOptions): Promise<void> { return input.revert(options); }
+			readonly resource = that._workingCopyResource;
+			get name() { return that._name; }
+			readonly capabilities = that.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
+			readonly onDidChangeDirty = that.onDidChangeDirty;
+			readonly onDidChangeContent = that.onDidChangeContent;
+			isDirty(): boolean { return that.isDirty(); }
+			backup(): Promise<IWorkingCopyBackup> { return that.backup(); }
+			save(): Promise<boolean> { return that.save(); }
+			revert(options?: IRevertOptions): Promise<void> { return that.revert(options); }
 		};
 
 		this._register(this._workingCopyService.registerWorkingCopy(workingCopyAdapter));
+	}
+
+	get lastResolvedFileStat() {
+		return this._lastResolvedFileStat;
+	}
+
+	get notebook() {
+		return this._notebook;
 	}
 
 	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
