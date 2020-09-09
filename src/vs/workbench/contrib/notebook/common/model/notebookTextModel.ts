@@ -153,16 +153,31 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _operationManager: NotebookOperationManager;
 	private _eventEmitter: DelayedEmitter;
 
+	get cells(): readonly NotebookCellTextModel[] {
+		return this._cells;
+	}
+
+	get versionId() {
+		return this._versionId;
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly supportBackup: boolean,
 		readonly uri: URI,
+		cells: ICellDto2[],
+		languages: string[],
+		metadata: NotebookDocumentMetadata,
+		options: TransientOptions,
 		@IUndoRedoService private _undoService: IUndoRedoService,
 		@ITextModelService private _modelService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
 	) {
 		super();
-		this._cells = [];
+		this.transientOptions = options;
+		this.metadata = metadata;
+		this.updateLanguages(languages);
+		this._initialize(cells);
 
 		this._operationManager = new NotebookOperationManager(this._undoService, uri);
 		this._eventEmitter = new DelayedEmitter(
@@ -172,34 +187,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		);
 	}
 
-	dispose() {
-		this._onWillDispose.fire();
-		dispose(this._cellListeners.values());
-		dispose(this._cells);
-		super.dispose();
-	}
-
-	get cells(): readonly NotebookCellTextModel[] {
-		return this._cells;
-	}
-
-	get versionId() {
-		return this._versionId;
-	}
-
-	createCellTextModel(
-		source: string,
-		language: string,
-		cellKind: CellKind,
-		outputs: IProcessedOutput[],
-		metadata: NotebookCellMetadata | undefined
-	) {
-		const cellHandle = this._cellhandlePool++;
-		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
-	}
-
-	initialize(cells: ICellDto2[]) {
+	private _initialize(cells: ICellDto2[]) {
 		this._cells = [];
 		this._versionId = 0;
 
@@ -220,6 +208,25 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._cells.splice(0, 0, ...mainCells);
 		this._increaseVersionId();
+	}
+
+
+	dispose() {
+		this._onWillDispose.fire();
+		dispose(this._cellListeners.values());
+		dispose(this._cells);
+		super.dispose();
+	}
+	createCellTextModel(
+		source: string,
+		language: string,
+		cellKind: CellKind,
+		outputs: IProcessedOutput[],
+		metadata: NotebookCellMetadata | undefined
+	) {
+		const cellHandle = this._cellhandlePool++;
+		const cellUri = CellUri.generate(this.uri, cellHandle);
+		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
 	}
 
 	pushStackElement(label: string) {

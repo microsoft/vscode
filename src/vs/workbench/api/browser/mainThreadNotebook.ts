@@ -458,27 +458,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					});
 				});
 			},
-			createNotebook: async (textModel: NotebookTextModel, backupId?: string) => {
-				// open notebook document
-				const data = await this._proxy.$resolveNotebookData(textModel.viewType, textModel.uri, backupId);
-				textModel.updateLanguages(data.languages);
-				textModel.metadata = data.metadata;
-				textModel.transientOptions = options;
-
-				if (data.cells.length) {
-					textModel.initialize(data!.cells);
-				} else if (textModel.uri.scheme === Schemas.untitled) {
-					textModel.initialize([{
-						cellKind: CellKind.Code,
-						language: textModel.resolvedLanguages.length ? textModel.resolvedLanguages[0] : '',
-						outputs: [],
-						metadata: undefined,
-						source: ''
-					}]);
-				}
-
-				this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
-				return;
+			resolveNotebookDocument: async (viewType: string, uri: URI, backupId?: string) => {
+				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
+				return {
+					data,
+					transientOptions: options
+				};
 			},
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
 				await this._proxy.$resolveNotebookEditor(viewType, uri, editorId);
