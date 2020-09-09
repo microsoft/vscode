@@ -4,7 +4,7 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-52 results - 34 files
+44 results - 27 files
 
 src/vs/base/browser/markdownRenderer.ts:
   156  				const strValue = values[0];
@@ -23,15 +23,6 @@ src/vs/base/browser/markdownRenderer.ts:
   243  		// allowedTags should included everything that markdown renders to.
   244  		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
 
-src/vs/base/browser/ui/codicons/codiconStyles.ts:
-  20  		for (let c of iconRegistry.all) {
-  21  			rules.push(formatRule(c));
-  22  		}
-  23: 		codiconStyleSheet.innerHTML = rules.join('\n');
-  24  	}
-  25  
-  26  	const delayer = new RunOnceScheduler(updateAll, 0);
-
 src/vs/base/browser/ui/contextview/contextview.ts:
   157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
   158  				this.container.appendChild(this.shadowRootHostElement);
@@ -40,15 +31,6 @@ src/vs/base/browser/ui/contextview/contextview.ts:
   161  					<style>
   162  						${SHADOW_ROOT_CSS}
   163  					</style>
-
-src/vs/base/browser/ui/list/listWidget.ts:
-  826  
-  827  		const newStyles = content.join('\n');
-  828  		if (newStyles !== this.styleElement.innerHTML) {
-  829: 			this.styleElement.innerHTML = newStyles;
-  830  		}
-  831  	}
-  832  }
 
 src/vs/base/browser/ui/menu/menu.ts:
   229  	private initializeStyleSheet(container: HTMLElement): void {
@@ -74,15 +56,6 @@ src/vs/base/browser/ui/menu/menubar.ts:
   555  
   556  		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 
-src/vs/base/browser/ui/sash/sash.ts:
-  266  				}
-  267  			}
-  268  
-  269: 			style.innerHTML = `* { cursor: ${cursor} !important; }`;
-  270  		};
-  271  
-  272  		const disposables = new DisposableStore();
-
 src/vs/base/browser/ui/selectBox/selectBoxCustom.ts:
   367  			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
   368  		}
@@ -99,15 +72,6 @@ src/vs/base/browser/ui/selectBox/selectBoxCustom.ts:
   684  			elementWidth = dom.getTotalWidth(container);
   685  		}
   686  
-
-src/vs/base/browser/ui/tree/abstractTree.ts:
-  1476  
-  1477  		const newStyles = content.join('\n');
-  1478  		if (newStyles !== this.styleElement.innerHTML) {
-  1479: 			this.styleElement.innerHTML = newStyles;
-  1480  		}
-  1481  
-  1482  		this.view.style(styles);
 
 src/vs/base/parts/quickinput/browser/quickInput.ts:
   1693  			}
@@ -364,15 +328,6 @@ src/vs/workbench/contrib/sash/browser/sash.ts:
   40  			.monaco-sash.horizontal { cursor: ns-resize; left: 0; width: 100%; height: ${size}px; }
   41  			.monaco-sash:not(.disabled).orthogonal-start::before, .monaco-sash:not(.disabled).orthogonal-end::after { content: ' '; height: ${size * 2}px; width: ${size * 2}px; z-index: 100; display: block; cursor: all-scroll; position: absolute; }
 
-src/vs/workbench/contrib/scm/browser/dirtydiffDecorator.ts:
-  1301  
-  1302  	private setViewState(state: IViewState): void {
-  1303  		this.viewState = state;
-  1304: 		this.stylesheet.innerHTML = `
-  1305  			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
-  1306  			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
-  1307  				opacity: ${state.visibility === 'always' ? 1 : 0};
-
 src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
   61  				}
   62  			}
@@ -380,6 +335,7 @@ src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
   64: 		this._styleElement.innerHTML = cssRules.join('\n');
   65  	}
   66  }
+  67  
 
 src/vs/workbench/contrib/webview/browser/pre/main.js:
   386  			// apply default styles
@@ -415,24 +371,3 @@ src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
   307  				this.content.appendChild(innerContent);
   308  
   309  				model.snippets.forEach((snippet, i) => {
-
-src/vs/workbench/services/textMate/browser/abstractTextMateService.ts:
-  312  		grammarFactory.setTheme(theme, tokenColorMap);
-  313  		let colorMap = AbstractTextMateService._toColorMap(tokenColorMap);
-  314  		let cssRules = generateTokensCSSForColorMap(colorMap);
-  315: 		this._styleElement.innerHTML = cssRules;
-  316  		TokenizationRegistry.setColorMap(colorMap);
-  317  	}
-  318  
-
-src/vs/workbench/services/themes/browser/workbenchThemeService.ts:
-  685  		const elStyle = document.createElement('style');
-  686  		elStyle.type = 'text/css';
-  687  		elStyle.className = rulesClassName;
-  688: 		elStyle.innerHTML = styleSheetContent;
-  689  		document.head.appendChild(elStyle);
-  690  	} else {
-  691: 		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
-  692  	}
-  693  }
-  694  
