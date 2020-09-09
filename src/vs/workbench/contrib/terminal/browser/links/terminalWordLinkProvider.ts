@@ -77,7 +77,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	}
 
 	private _createTerminalLink(startX: number, endX: number, y: number, text: string, activateCallback: XtermLinkMatcherHandler): TerminalLink {
-		if (text.slice(-1) === ':') {
+		if (text.charAt(text.length - 1) === ':') {
 			text = text.slice(0, -1);
 			endX--;
 		}
