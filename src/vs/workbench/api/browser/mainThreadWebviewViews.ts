@@ -38,6 +38,11 @@ export class MainThreadWebviewsViews extends Disposable implements extHostProtoc
 		webviewView.description = value;
 	}
 
+	public $show(handle: extHostProtocol.WebviewHandle, preserveFocus: boolean): void {
+		const webviewView = this.getWebviewView(handle);
+		webviewView.show(preserveFocus);
+	}
+
 	public $registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void {
 		if (this._webviewViewProviders.has(viewType)) {
 			throw new Error(`View provider for ${viewType} already registered`);

@@ -19,6 +19,8 @@ export interface WebviewView {
 
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDispose: Event<void>;
+
+	show(preserveFocus: boolean): void;
 }
 
 export interface IWebviewViewResolver {

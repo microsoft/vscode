@@ -21,7 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -57,6 +57,7 @@ export class WebviewViewPane extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWebviewViewService private readonly webviewViewService: IWebviewViewService,
+		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -168,6 +169,10 @@ export class WebviewViewPane extends ViewPane {
 
 					get description(): string | undefined { return self.titleDescription; },
 					set description(value: string | undefined) { self.updateTitleDescription(value); },
+
+					show: (preserveFocus) => {
+						this.viewService.openView(this.id, !preserveFocus);
+					}
 				};
 
 				await this.webviewViewService.resolve(this.id, webviewView, source.token);

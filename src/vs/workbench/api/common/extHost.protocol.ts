@@ -641,6 +641,8 @@ export interface MainThreadWebviewViewsShape extends IDisposable {
 
 	$setWebviewViewTitle(handle: WebviewHandle, value: string | undefined): void;
 	$setWebviewViewDescription(handle: WebviewHandle, value: string | undefined): void;
+
+	$show(handle: WebviewHandle, preserveFocus: boolean): void;
 }
 
 export interface WebviewPanelViewStateData {

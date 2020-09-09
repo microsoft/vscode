@@ -99,6 +99,11 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		this.#onDidChangeVisibility.fire();
 	}
 
+	public show(preserveFocus?: boolean): void {
+		this.assertNotDisposed();
+		this.#proxy.$show(this.#handle, !!preserveFocus);
+	}
+
 	private assertNotDisposed() {
 		if (this.#isDisposed) {
 			throw new Error('Webview is disposed');
