@@ -11,6 +11,7 @@ const product = require("../../product.json");
 async function main() {
     const buildDir = process.env['AGENT_BUILDDIRECTORY'];
     const tempDir = process.env['AGENT_TEMPDIRECTORY'];
+    const arch = process.env['VSCODE_ARCH'];
     if (!buildDir) {
         throw new Error('$AGENT_BUILDDIRECTORY not set');
     }
@@ -18,7 +19,7 @@ async function main() {
         throw new Error('$AGENT_TEMPDIRECTORY not set');
     }
     const baseDir = path.dirname(__dirname);
-    const appRoot = path.join(buildDir, 'VSCode-darwin');
+    const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
     const appName = product.nameLong + '.app';
     const appFrameworkPath = path.join(appRoot, appName, 'Contents', 'Frameworks');
     const helperAppBaseName = product.nameShort;
