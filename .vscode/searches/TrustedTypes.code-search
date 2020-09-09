@@ -4,7 +4,7 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-57 results - 39 files
+52 results - 34 files
 
 src/vs/base/browser/markdownRenderer.ts:
   156  				const strValue = values[0];
@@ -92,13 +92,13 @@ src/vs/base/browser/ui/selectBox/selectBoxCustom.ts:
   372  		this.applyStyles();
   373  	}
 
-  705  			});
-  706  
-  707  
-  708: 			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
-  709  			elementWidth = dom.getTotalWidth(container);
-  710  		}
-  711  
+  680  			});
+  681  
+  682  
+  683: 			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
+  684  			elementWidth = dom.getTotalWidth(container);
+  685  		}
+  686  
 
 src/vs/base/browser/ui/tree/abstractTree.ts:
   1476  
@@ -227,29 +227,29 @@ src/vs/editor/standalone/browser/colorizer.ts:
   46  	}
 
 src/vs/editor/standalone/browser/standaloneThemeServiceImpl.ts:
-  211  		if (!this._globalStyleElement) {
-  212  			this._globalStyleElement = dom.createStyleSheet();
-  213  			this._globalStyleElement.className = 'monaco-colors';
-  214: 			this._globalStyleElement.innerHTML = this._css;
-  215  			this._styleElements.push(this._globalStyleElement);
-  216  		}
-  217  		return Disposable.None;
+  212  		if (!this._globalStyleElement) {
+  213  			this._globalStyleElement = dom.createStyleSheet();
+  214  			this._globalStyleElement.className = 'monaco-colors';
+  215: 			this._globalStyleElement.innerHTML = this._css;
+  216  			this._styleElements.push(this._globalStyleElement);
+  217  		}
+  218  		return Disposable.None;
 
-  220  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-  221  		const styleElement = dom.createStyleSheet(domNode);
-  222  		styleElement.className = 'monaco-colors';
-  223: 		styleElement.innerHTML = this._css;
-  224  		this._styleElements.push(styleElement);
-  225  		return {
-  226  			dispose: () => {
+  221  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
+  222  		const styleElement = dom.createStyleSheet(domNode);
+  223  		styleElement.className = 'monaco-colors';
+  224: 		styleElement.innerHTML = this._css;
+  225  		this._styleElements.push(styleElement);
+  226  		return {
+  227  			dispose: () => {
 
-  290  		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
-  291  
-  292  		this._css = cssRules.join('\n');
-  293: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
-  294  
-  295  		TokenizationRegistry.setColorMap(colorMap);
-  296  		this._onColorThemeChange.fire(theme);
+  291  		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
+  292  
+  293  		this._css = cssRules.join('\n');
+  294: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
+  295  
+  296  		TokenizationRegistry.setColorMap(colorMap);
+  297  		this._onColorThemeChange.fire(theme);
 
 src/vs/editor/test/browser/controller/imeTester.ts:
   55  			let content = this._model.getModelLineContent(i);
@@ -267,24 +267,6 @@ src/vs/editor/test/browser/controller/imeTester.ts:
   73  	container.appendChild(title);
   74  
   75  	let startBtn = document.createElement('button');
-
-src/vs/workbench/browser/parts/compositePart.ts:
-  414  		const $this = this;
-  415  		return {
-  416  			updateTitle: (id, title, keybinding) => {
-  417: 				titleLabel.innerHTML = strings.escape(title);
-  418  				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
-  419  			},
-  420  
-
-src/vs/workbench/browser/parts/statusbar/statusbarPart.ts:
-  672  			this.styleElement = createStyleSheet(container);
-  673  		}
-  674  
-  675: 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor}; }`;
-  676  	}
-  677  
-  678  	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
 
 src/vs/workbench/contrib/comments/browser/commentsView.ts:
   109  			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
@@ -321,24 +303,6 @@ src/vs/workbench/contrib/debug/browser/repl.ts:
   311  					font-size: ${fontSize}px;
   312  					font-family: ${fontFamily};
 
-src/vs/workbench/contrib/debug/browser/statusbarColorProvider.ts:
-  84  			this.styleElement = createStyleSheet(container);
-  85  		}
-  86  
-  87: 		this.styleElement.innerHTML = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
-  88  	}
-  89  
-  90  	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
-
-src/vs/workbench/contrib/files/browser/views/explorerView.ts:
-  812  
-  813  		const newStyles = content.join('\n');
-  814  		if (newStyles !== this.styleElement.innerHTML) {
-  815: 			this.styleElement.innerHTML = newStyles;
-  816  		}
-  817  	}
-  818  
-
 src/vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList.ts:
   222  
   223  		const newStyles = content.join('\n');
@@ -358,29 +322,29 @@ src/vs/workbench/contrib/notebook/browser/view/notebookCellList.ts:
   1039  
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
-  443  
-  444  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-  445  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-  446: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
-  447  
-  448  		// Remove all rendered content nodes after the
-  449  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
+  454  
+  455  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+  456  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
+  457: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
+  458  
+  459  		// Remove all rendered content nodes after the
+  460  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
 
-  587  
-  588  	private getDragImageImpl(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
-  589  		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
-  590: 		dragImageContainer.innerHTML = templateData.container.innerHTML;
-  591  
-  592  		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
-  593  		if (!editorContainer) {
+  598  
+  599  	private getDragImageImpl(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
+  600  		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
+  601: 		dragImageContainer.innerHTML = templateData.container.innerHTML;
+  602  
+  603  		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
+  604  		if (!editorContainer) {
 
-  599  			return null;
-  600  		}
-  601  
-  602: 		editorContainer.innerHTML = richEditorText;
-  603  
-  604  		return dragImageContainer;
-  605  	}
+  610  			return null;
+  611  		}
+  612  
+  613: 		editorContainer.innerHTML = richEditorText;
+  614  
+  615  		return dragImageContainer;
+  616  	}
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
@@ -408,15 +372,6 @@ src/vs/workbench/contrib/scm/browser/dirtydiffDecorator.ts:
   1305  			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
   1306  			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
   1307  				opacity: ${state.visibility === 'always' ? 1 : 0};
-
-src/vs/workbench/contrib/watermark/browser/watermark.ts:
-  141  				const dd = dom.append(dl, $('dd'));
-  142  				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
-  143  				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
-  144: 				dd.innerHTML = keybinding.element.outerHTML;
-  145  			});
-  146  		};
-  147  
 
 src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
   61  				}
@@ -471,13 +426,13 @@ src/vs/workbench/services/textMate/browser/abstractTextMateService.ts:
   318  
 
 src/vs/workbench/services/themes/browser/workbenchThemeService.ts:
-  692  		const elStyle = document.createElement('style');
-  693  		elStyle.type = 'text/css';
-  694  		elStyle.className = rulesClassName;
-  695: 		elStyle.innerHTML = styleSheetContent;
-  696  		document.head.appendChild(elStyle);
-  697  	} else {
-  698: 		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
-  699  	}
-  700  }
-  701  
+  685  		const elStyle = document.createElement('style');
+  686  		elStyle.type = 'text/css';
+  687  		elStyle.className = rulesClassName;
+  688: 		elStyle.innerHTML = styleSheetContent;
+  689  		document.head.appendChild(elStyle);
+  690  	} else {
+  691: 		(<HTMLStyleElement>themeStyles[0]).innerHTML = styleSheetContent;
+  692  	}
+  693  }
+  694  
