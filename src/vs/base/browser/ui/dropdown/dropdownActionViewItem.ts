@@ -78,18 +78,14 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			return null;
 		};
 
+		const isActionsArray = Array.isArray(this.menuActionsOrProvider);
 		const options: IDropdownMenuOptions = {
 			contextMenuProvider: this.contextMenuProvider,
 			labelRenderer: labelRenderer,
-			menuAsChild: this.options.menuAsChild
+			menuAsChild: this.options.menuAsChild,
+			actions: isActionsArray ? this.menuActionsOrProvider as IAction[] : undefined,
+			actionProvider: isActionsArray ? undefined : this.menuActionsOrProvider as IActionProvider
 		};
-
-		// Render the DropdownMenu around a simple action to toggle it
-		if (Array.isArray(this.menuActionsOrProvider)) {
-			options.actions = this.menuActionsOrProvider;
-		} else {
-			options.actionProvider = this.menuActionsOrProvider as IActionProvider;
-		}
 
 		this.dropdownMenu = this._register(new DropdownMenu(container, options));
 		this._register(this.dropdownMenu.onDidChangeVisibility(visible => {
