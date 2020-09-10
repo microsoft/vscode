@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CellKind, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, NotebookDocumentMetadata, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 
@@ -18,7 +18,6 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 	private _finalized: boolean = false;
 	private _collectedEdits: ICellEditOperation[] = [];
-	private _newNotebookDocumentMetadata?: NotebookDocumentMetadata;
 
 	constructor(documentVersionId: number) {
 		this._documentVersionId = documentVersionId;
@@ -28,8 +27,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		this._finalized = true;
 		return {
 			documentVersionId: this._documentVersionId,
-			cellEdits: this._collectedEdits,
-			newMetadata: this._newNotebookDocumentMetadata
+			cellEdits: this._collectedEdits
 		};
 	}
 
@@ -41,7 +39,10 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 	replaceNotebookMetadata(value: vscode.NotebookDocumentMetadata): void {
 		this._throwIfFinalized();
-		this._newNotebookDocumentMetadata = { ...notebookDocumentMetadataDefaults, ...value };
+		this._collectedEdits.push({
+			editType: CellEditType.DocumentMetadata,
+			metadata: { ...notebookDocumentMetadataDefaults, ...value }
+		});
 	}
 
 	replaceCellMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
@@ -235,7 +236,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			compressedEditsIndex++;
 		}
 
-		return this._proxy.$tryApplyEdits(this._viewType, this.document.uri, editData.documentVersionId, compressedEdits, editData.newMetadata);
+		return this._proxy.$tryApplyEdits(this._viewType, this.document.uri, editData.documentVersionId, compressedEdits);
 	}
 
 	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {

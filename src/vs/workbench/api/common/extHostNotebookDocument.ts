@@ -277,7 +277,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		const edit: IWorkspaceCellEditDto = {
 			_type: WorkspaceEditType.Cell,
 			metadata: undefined,
-			notebookMetadata: this._metadata,
+			edit: { editType: CellEditType.DocumentMetadata, metadata: this._metadata },
 			resource: this.uri,
 			notebookVersionId: this.notebookDocument.version,
 		};

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { CellEditType, ICellEditOperation, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
@@ -17,8 +17,7 @@ export class ResourceNotebookCellEdit extends ResourceEdit {
 
 	constructor(
 		readonly resource: URI,
-		readonly cellEdit?: ICellEditOperation,
-		readonly notebookMetadata?: NotebookDocumentMetadata,
+		readonly cellEdit: ICellEditOperation,
 		readonly versionId?: number,
 		readonly metadata?: WorkspaceEditMetadata
 	) {
@@ -49,23 +48,8 @@ export class BulkCellEdits {
 			// 	throw new Error(`Notebook '${first.resource}' has changed in the meantime`);
 			// }
 
-			const edits: ICellEditOperation[] = [];
-			let newMetadata: NotebookDocumentMetadata | undefined;
-			for (let edit of group) {
-				if (edit.cellEdit) {
-					edits.push(edit.cellEdit);
-				}
-				newMetadata = edit.notebookMetadata ?? newMetadata;
-			}
-
-			// set metadata
-			if (newMetadata) {
-				edits.push({
-					editType: CellEditType.DocumentMetadata,
-					metadata: newMetadata
-				});
-			}
 			// apply edits
+			const edits = group.map(entry => entry.cellEdit);
 			this._notebookService.transformEditsOutputs(ref.object.notebook, edits);
 			ref.object.notebook.applyEdit(ref.object.notebook.versionId, edits, true);
 			ref.dispose();
