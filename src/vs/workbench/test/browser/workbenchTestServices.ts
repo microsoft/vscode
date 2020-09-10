@@ -1231,6 +1231,10 @@ export class TestPathService implements IPathService {
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
 	}
+
+	defaultUriScheme(): string {
+		return Schemas.vscodeRemote;
+	}
 }
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {

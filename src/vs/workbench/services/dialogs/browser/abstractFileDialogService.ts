@@ -10,12 +10,10 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -25,6 +23,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -42,7 +41,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IModeService private readonly modeService: IModeService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IPathService private readonly pathService: IPathService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -230,7 +230,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
-		return !this.environmentService.configuration.remoteAuthority ? (!defaultUriScheme || defaultUriScheme === Schemas.file ? Schemas.file : defaultUriScheme) : REMOTE_HOST_SCHEME;
+		return defaultUriScheme ?? this.pathService.defaultUriScheme();
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {

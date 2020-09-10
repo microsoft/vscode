@@ -8,14 +8,23 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IPathService, AbstractPathService } from 'vs/workbench/services/path/common/pathService';
+import { Schemas } from 'vs/base/common/network';
 
 export class NativePathService extends AbstractPathService {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(environmentService.userHome, remoteAgentService);
+	}
+
+	defaultUriScheme(): string {
+		if (this.environmentService.configuration.remoteAuthority) {
+			return Schemas.vscodeRemote;
+		} else {
+			return Schemas.file;
+		}
 	}
 }
 
