@@ -478,15 +478,44 @@ function registerSplitEditorCommands() {
 
 function registerCloseEditorCommands() {
 
+	// A special handler for "Close Editor" depending on context
+	// - keybindining: do not close sticky editors, rather open the next non-sticky editor
+	// - menu: always close editor, even sticky ones
 	function closeEditorHandler(accessor: ServicesAccessor, forceCloseStickyEditors: boolean, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<unknown> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const editorService = accessor.get(IEditorService);
+
 		let keepStickyEditors = true;
 		if (forceCloseStickyEditors) {
 			keepStickyEditors = false; // explicitly close sticky editors
-		} else if (resourceOrContext) {
+		} else if (resourceOrContext || context) {
 			keepStickyEditors = false; // we have a context, as such this command was used e.g. from the tab context menu
 		}
 
+		// Without context: skip over sticky editor and select next if active editor is sticky
+		if (keepStickyEditors && !resourceOrContext && !context) {
+			const activeGroup = editorGroupsService.activeGroup;
+			const activeEditor = activeGroup.activeEditor;
+
+			if (activeEditor && activeGroup.isSticky(activeEditor)) {
+
+				// Open next recently active in same group
+				const nextNonStickyEditorInGroup = activeGroup.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true })[0];
+				if (nextNonStickyEditorInGroup) {
+					return activeGroup.openEditor(nextNonStickyEditorInGroup);
+				}
+
+				// Open next recently active across all groups
+				const nextNonStickyEditorInAllGroups = editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true })[0];
+				if (nextNonStickyEditorInAllGroups) {
+					return Promise.resolve(editorGroupsService.getGroup(nextNonStickyEditorInAllGroups.groupId)?.openEditor(nextNonStickyEditorInAllGroups.editor));
+				}
+			}
+		}
+
+		// With context: proceed to close editors as instructed
 		const { editors, groups } = getEditorsContext(accessor, resourceOrContext, context);
+
 		return Promise.all(groups.map(async group => {
 			if (group) {
 				const editorsToClose = coalesce(editors
