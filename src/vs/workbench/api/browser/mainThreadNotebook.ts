@@ -494,11 +494,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
-	async $onNotebookChange(_viewType: string, uri: UriComponents): Promise<void> {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(uri));
-		textModel?.handleUnknownChange();
-	}
-
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {
 		const entry = this._notebookProviders.get(viewType);
 		if (entry) {
@@ -571,10 +566,24 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this.logService.debug('MainThreadNotebooks#spliceNotebookCellOutputs', resource.path, cellHandle);
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
-		if (textModel) {
-			this._notebookService.transformSpliceOutputs(textModel, splices);
-			textModel._spliceNotebookCellOutputs(cellHandle, splices);
+		if (!textModel) {
+			return;
 		}
+
+		this._notebookService.transformSpliceOutputs(textModel, splices);
+		const cell = textModel.cells.find(cell => cell.handle === cellHandle);
+
+		if (!cell) {
+			return;
+		}
+
+		textModel.applyEdit(textModel.versionId, [
+			{
+				editType: CellEditType.OutputsSplice,
+				index: textModel.cells.indexOf(cell),
+				splices
+			}
+		], true);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
@@ -587,11 +596,11 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return false;
 	}
 
-	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void {
+	$onUndoableContentChange(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
-			textModel.handleUnknownEdit(label, () => {
+			textModel.handleUnknownUndoableEdit(label, () => {
 				const isDirty = this._workingCopyService.isDirty(textModel.uri.with({ scheme: Schemas.vscodeNotebook }));
 				return this._proxy.$undoNotebook(textModel.viewType, textModel.uri, editId, isDirty);
 			}, () => {
@@ -603,7 +612,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	$onContentChange(resource: UriComponents, viewType: string): void {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		textModel?.handleUnknownChange();
+
+		if (textModel) {
+			textModel.applyEdit(textModel.versionId, [
+				{
+					editType: CellEditType.Unknown
+				}
+			], true);
+		}
 	}
 
 	async $tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType) {

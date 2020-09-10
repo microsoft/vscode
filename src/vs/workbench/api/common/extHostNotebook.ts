@@ -304,7 +304,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 				if (isEditEvent(e)) {
 					const editId = document.addEdit(e);
-					this._proxy.$onDidEdit(e.document.uri, viewType, editId, e.label);
+					this._proxy.$onUndoableContentChange(e.document.uri, viewType, editId, e.label);
 				} else {
 					this._proxy.$onContentChange(e.document.uri, viewType);
 				}

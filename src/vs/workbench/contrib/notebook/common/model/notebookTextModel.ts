@@ -303,7 +303,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return {
 				edit,
 				end:
-					edit.editType === CellEditType.DocumentMetadata
+					(edit.editType === CellEditType.DocumentMetadata || edit.editType === CellEditType.Unknown)
 						? undefined
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : edit.index),
 				originalIndex: index,
@@ -332,6 +332,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					// TODO@rebornix, we should do diff first
 					this._spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]]);
 					break;
+				case CellEditType.OutputsSplice:
+					{
+						//TODO@joh,@rebornix no event, no undo stop (?)
+						this._assertIndex(edit.index);
+						const cell = this._cells[edit.index];
+						this._spliceNotebookCellOutputs(cell.handle, edit.splices);
+						break;
+					}
 				case CellEditType.Metadata:
 					this._assertIndex(edit.index);
 					this._changeCellMetadata(this._cells[edit.index].handle, edit.metadata, true);
@@ -343,6 +351,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.DocumentMetadata:
 					this._updateNotebookMetadata(edit.metadata);
 					break;
+				case CellEditType.Unknown:
+					this._handleUnknownChange();
+					break;
 			}
 		}
 
@@ -351,8 +362,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return true;
 	}
 
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
+		return new NotebookTextModelSnapshot(this);
+	}
 
-	handleUnknownEdit(label: string | undefined, undo: () => void, redo: () => void): void {
+	handleUnknownUndoableEdit(label: string | undefined, undo: () => void, redo: () => void): void {
 		this._operationManager.pushEditOperation({
 			type: UndoRedoElementType.Resource,
 			resource: this.uri,
@@ -371,15 +385,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}, true);
 	}
 
-	handleUnknownChange() {
+	private _handleUnknownChange() {
 		this._eventEmitter.emit({
 			kind: NotebookCellsChangeType.Unknown,
 			transient: false
 		}, true);
-	}
-
-	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
-		return new NotebookTextModelSnapshot(this);
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean): void {
@@ -552,8 +562,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	// TODO@rebornix, once adopted the new Edit API in ext host, the method should be private.
-	_spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
+	private _spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
 		const cell = this._mapping.get(cellHandle);
 		if (cell) {
 			cell.spliceNotebookCellOutputs(splices);
