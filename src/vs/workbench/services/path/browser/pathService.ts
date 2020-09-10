@@ -9,14 +9,25 @@ import { IPathService, AbstractPathService } from 'vs/workbench/services/path/co
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class BrowserPathService extends AbstractPathService {
 
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super(URI.from({ scheme: Schemas.vscodeRemote, authority: environmentService.configuration.remoteAuthority, path: '/' }), remoteAgentService);
+	}
+
+	defaultUriScheme(): string {
+		if (this.environmentService.configuration.remoteAuthority) {
+			return Schemas.vscodeRemote;
+		} else {
+			// Empty workspace is not supported, so we will always have at least one folder.
+			return this.contextService.getWorkspace().folders[0].uri.scheme;
+		}
 	}
 }
 

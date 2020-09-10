@@ -46,6 +46,14 @@ export interface IPathService {
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 
 	/**
+	 * Determines the best default URI scheme for the current workspace.
+	 * It uses information about whether we're running remote, in browser,
+	 * or native combined with information about the current workspace to
+	 * find the best default scheme.
+	 */
+	defaultUriScheme(): string;
+
+	/**
 	 * @deprecated use `userHome` instead.
 	 */
 	readonly resolvedUserHome: URI | undefined;
@@ -131,4 +139,6 @@ export abstract class AbstractPathService implements IPathService {
 			fragment: ''
 		});
 	}
+
+	abstract defaultUriScheme(): string;
 }
