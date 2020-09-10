@@ -1080,7 +1080,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority);
+			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -1563,7 +1563,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private async fileExists(path: string): Promise<boolean> {
-		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority);
+		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme);
 		if (await this.fileService.exists(uri)) {
 			return !((await this.fileService.resolve(uri)).isDirectory);
 		}

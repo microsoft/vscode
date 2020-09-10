@@ -211,7 +211,7 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority);
+		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority, this.pathService.defaultUriScheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {
