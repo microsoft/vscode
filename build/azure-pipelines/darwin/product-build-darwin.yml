@@ -77,7 +77,8 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch=$(VSCODE_ARCH)
+    export npm_config_arch=x64
+    export npm_config_target_arch=$(VSCODE_ARCH)
     export npm_config_node_gyp=$(which node-gyp)
     CHILD_CONCURRENCY=1 yarn --frozen-lockfile --verbose
   displayName: Install dependencies
@@ -92,7 +93,8 @@ steps:
 
 - script: |
     set -e
-    export npm_config_arch=$(VSCODE_ARCH)
+    export npm_config_arch=x64
+    export npm_config_target_arch=$(VSCODE_ARCH)
     export npm_config_node_gyp=$(which node-gyp)
     yarn postinstall
   displayName: Run postinstall scripts
