@@ -286,18 +286,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		super.dispose();
 	}
 
-	createCellTextModel(
-		source: string,
-		language: string,
-		cellKind: CellKind,
-		outputs: IProcessedOutput[],
-		metadata: NotebookCellMetadata | undefined
-	) {
-		const cellHandle = this._cellhandlePool++;
-		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
-	}
-
 	pushStackElement(label: string, selectionState: number[] | undefined) {
 		this._operationManager.pushStackElement(label, selectionState);
 	}
@@ -618,9 +606,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	//#region Notebook Text Model Edit API
+	//#region Split Cell API, should be replaced with applyEdit later on.
 
-	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
+	private _insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
 		if (pushUndoStop) {
 			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
 				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
@@ -630,6 +618,19 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._insertNewCell(index, [cell], synchronous, endSelections);
 	}
+
+	private _createCellTextModel(
+		source: string,
+		language: string,
+		cellKind: CellKind,
+		outputs: IProcessedOutput[],
+		metadata: NotebookCellMetadata | undefined
+	) {
+		const cellHandle = this._cellhandlePool++;
+		const cellUri = CellUri.generate(this.uri, cellHandle);
+		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
+	}
+
 
 	async splitNotebookCell(index: number, newLinesContents: string[], endSelections: number[]) {
 		const cell = this._cells[index];
@@ -649,8 +650,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		let insertIndex = index + 1;
 		const newCells = [];
 		for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
-			const cell = this.createCellTextModel(newLinesContents[j], language, kind, [], undefined);
-			this.insertCell(insertIndex, cell, true, false, undefined, j === newLinesContents.length - 1 ? endSelections : undefined);
+			const cell = this._createCellTextModel(newLinesContents[j], language, kind, [], undefined);
+			this._insertCell(insertIndex, cell, true, false, undefined, j === newLinesContents.length - 1 ? endSelections : undefined);
 			newCells.push(cell);
 		}
 	}
