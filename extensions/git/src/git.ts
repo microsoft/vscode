@@ -139,39 +139,28 @@ function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onLookup));
 }
 
-export function findGit(hints: string | string[] | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	let first: Promise<IGit>;
+export async function findGit(hint: string | string[] | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	const hints = Array.isArray(hint) ? hint : hint ? [hint] : [];
 
-	if (typeof hints === 'object') {
-		if (hints.length > 0) {
-
-			first = findSpecificGit(hints[0], onLookup);
-
-			let currentHintIndex = 1;
-
-			while (currentHintIndex < hints.length) {
-
-				first = findSpecificGit(hints[currentHintIndex], onLookup)
-					.then(undefined, () => first);
-
-				currentHintIndex++;
-			}
-		} else {
-			first = Promise.reject<IGit>(null);
+	for (const hint of hints) {
+		try {
+			return await findSpecificGit(hint, onLookup);
+		} catch {
+			// noop
 		}
-	} else {
-		first = hints ? findSpecificGit(hints, onLookup) : Promise.reject<IGit>(null);
 	}
 
-	return first
-		.then(undefined, () => {
-			switch (process.platform) {
-				case 'darwin': return findGitDarwin(onLookup);
-				case 'win32': return findGitWin32(onLookup);
-				default: return findSpecificGit('git', onLookup);
-			}
-		})
-		.then(null, () => Promise.reject(new Error('Git installation not found.')));
+	try {
+		switch (process.platform) {
+			case 'darwin': return await findGitDarwin(onLookup);
+			case 'win32': return await findGitWin32(onLookup);
+			default: return await findSpecificGit('git', onLookup);
+		}
+	} catch {
+		// noop
+	}
+
+	throw new Error('Git installation not found.');
 }
 
 export interface IExecutionResult<T extends string | Buffer> {
