@@ -549,21 +549,6 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	}
 }
 
-
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
-	for (let i = 0; i < arr.length; i++) {
-		const element = arr[i];
-		if (predicate(element, i, arr)) {
-			return element;
-		}
-	}
-
-	return undefined;
-}
-
 export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :
