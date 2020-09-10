@@ -977,7 +977,7 @@ registerAction2(class extends NotebookAction {
 			}
 		}).forEach(pasteCell => {
 			const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-			topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+			topPastedCell = viewModel.createCell(newIdx, pasteCell.getValue(), pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 		});
 
 		if (topPastedCell) {
@@ -1032,7 +1032,7 @@ registerAction2(class extends NotebookCellAction {
 				return cell;
 			}
 		}).forEach(pasteCell => {
-			topPastedCell = viewModel.insertCell(currCellIndex, pasteCell, true);
+			topPastedCell = viewModel.createCell(currCellIndex, pasteCell.getValue(), pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 			return;
 		});
 

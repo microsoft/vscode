@@ -302,7 +302,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushStackElement(label, selectionState);
 	}
 
-	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: number[] | undefined, endSelectionsComputer: () => number[] | undefined): boolean {
+	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: number[] | undefined, endSelectionsComputer: () => number[] | undefined, computeUndoRedo: boolean = true): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -334,33 +334,36 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		for (const { edit } of edits) {
 			switch (edit.editType) {
 				case CellEditType.Replace:
-					this._replaceCells(edit.index, edit.count, edit.cells, synchronous);
+					this._replaceCells(edit.index, edit.count, edit.cells, synchronous, computeUndoRedo);
 					break;
 				case CellEditType.Output:
 					//TODO@joh,@rebornix no event, no undo stop (?)
 					this._assertIndex(edit.index);
 					const cell = this._cells[edit.index];
 					// TODO@rebornix, we should do diff first
-					this._spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]]);
+					this._spliceNotebookCellOutputs(cell.handle, [[0, cell.outputs.length, edit.outputs]], computeUndoRedo);
 					break;
 				case CellEditType.OutputsSplice:
 					{
 						//TODO@joh,@rebornix no event, no undo stop (?)
 						this._assertIndex(edit.index);
 						const cell = this._cells[edit.index];
-						this._spliceNotebookCellOutputs(cell.handle, edit.splices);
+						this._spliceNotebookCellOutputs(cell.handle, edit.splices, computeUndoRedo);
 						break;
 					}
 				case CellEditType.Metadata:
 					this._assertIndex(edit.index);
-					this._changeCellMetadata(this._cells[edit.index].handle, edit.metadata, true);
+					this._changeCellMetadata(this._cells[edit.index].handle, edit.metadata, computeUndoRedo);
 					break;
 				case CellEditType.CellLanguage:
 					this._assertIndex(edit.index);
-					this._changeCellLanguage(this._cells[edit.index].handle, edit.language);
+					this._changeCellLanguage(this._cells[edit.index].handle, edit.language, computeUndoRedo);
 					break;
 				case CellEditType.DocumentMetadata:
-					this._updateNotebookMetadata(edit.metadata);
+					this._updateNotebookMetadata(edit.metadata, computeUndoRedo);
+					break;
+				case CellEditType.Move:
+					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, undefined, undefined);
 					break;
 				case CellEditType.Unknown:
 					this._handleUnknownChange();
@@ -404,7 +407,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}, true);
 	}
 
-	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean): void {
+	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
 
 		if (count === 0 && cellDtos.length === 0) {
 			return;
@@ -446,15 +449,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		const undoDiff = diffs.map(diff => {
-			const deletedCells = this._cells.slice(diff[0], diff[0] + diff[1]);
+			const deletedCells = oldViewCells.slice(diff[0], diff[0] + diff[1]);
 
 			return [diff[0], deletedCells, diff[2]] as [number, NotebookCellTextModel[], NotebookCellTextModel[]];
 		});
 
-		this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
-			insertCell: (index, cell, endSelections?: number[]) => { this._insertNewCell(index, [cell], true, endSelections); },
-			deleteCell: (index, endSelections?: number[]) => { this._removeCell(index, 1, true, endSelections); },
-		}, undefined, undefined), undefined, undefined);
+		if (computeUndoRedo) {
+			this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
+				insertCell: (index, cell, endSelections?: number[]) => { this._insertNewCell(index, [cell], true, endSelections); },
+				deleteCell: (index, endSelections?: number[]) => { this._removeCell(index, 1, true, endSelections); },
+			}, undefined, undefined), undefined, undefined);
+		}
 
 		// should be deferred
 		this._eventEmitter.emit({
@@ -479,7 +484,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata) {
+	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
 		this.metadata = metadata;
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, metadata: this.metadata, transient: false }, true);
 	}
@@ -534,7 +539,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return false;
 	}
 
-	private _changeCellMetadata(handle: number, metadata: NotebookCellMetadata, pushUndoStop: boolean) {
+	private _changeCellMetadata(handle: number, metadata: NotebookCellMetadata, computeUndoRedo: boolean) {
 		const cell = this._cells.find(cell => cell.handle === handle);
 
 		if (!cell) {
@@ -544,7 +549,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const triggerDirtyChange = this._isCellMetadataChanged(cell.metadata, metadata);
 
 		if (triggerDirtyChange) {
-			if (pushUndoStop) {
+			if (computeUndoRedo) {
 				const index = this._cells.indexOf(cell);
 				this._operationManager.pushEditOperation(new CellMetadataEdit(this.uri, index, Object.freeze(cell.metadata), Object.freeze(metadata), {
 					updateCellMetadata: (index, newMetadata) => {
@@ -565,7 +570,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellMetadata, index: this._cells.indexOf(cell), metadata: cell.metadata, transient: !triggerDirtyChange }, true);
 	}
 
-	private _changeCellLanguage(handle: number, languageId: string) {
+	private _changeCellLanguage(handle: number, languageId: string, computeUndoRedo: boolean) {
 		const cell = this._mapping.get(handle);
 		if (cell && cell.language !== languageId) {
 			cell.language = languageId;
@@ -574,7 +579,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	private _spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[]): void {
+	private _spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[], computeUndoRedo: boolean): void {
 		const cell = this._mapping.get(cellHandle);
 		if (cell) {
 			cell.spliceNotebookCellOutputs(splices);
@@ -586,6 +591,25 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				transient: this.transientOptions.transientOutputs,
 			}, true);
 		}
+	}
+
+	private _moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
+		if (pushedToUndoStack) {
+			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, length, newIdx, {
+				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
+					this._moveCellToIdx(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
+				},
+			}, beforeSelections, endSelections), beforeSelections, endSelections);
+		}
+
+		this._assertIndex(index);
+		this._assertIndex(newIdx);
+
+		const cells = this._cells.splice(index, length);
+		this._cells.splice(newIdx, 0, ...cells);
+		this._eventEmitter.emit({ kind: NotebookCellsChangeType.Move, index, length, newIdx, cells, transient: false }, synchronous, endSelections);
+
+		return true;
 	}
 
 	private _assertIndex(index: number) {
@@ -605,37 +629,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		this._insertNewCell(index, [cell], synchronous, endSelections);
-	}
-
-	deleteCell(index: number, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined) {
-		const cell = this._cells[index];
-		if (pushUndoStop) {
-			this._operationManager.pushEditOperation(new DeleteCellEdit(this.uri, index, cell, {
-				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
-				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
-			}, beforeSelections, endSelections), beforeSelections, endSelections);
-		}
-
-		this._removeCell(index, 1, synchronous, endSelections);
-	}
-
-	moveCellToIdx(index: number, length: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): boolean {
-		if (pushedToUndoStack) {
-			this._operationManager.pushEditOperation(new MoveCellEdit(this.uri, index, length, newIdx, {
-				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
-					this.moveCellToIdx(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
-				},
-			}, beforeSelections, endSelections), beforeSelections, endSelections);
-		}
-
-		this._assertIndex(index);
-		this._assertIndex(newIdx);
-
-		const cells = this._cells.splice(index, length);
-		this._cells.splice(newIdx, 0, ...cells);
-		this._eventEmitter.emit({ kind: NotebookCellsChangeType.Move, index, length, newIdx, cells, transient: false }, synchronous, endSelections);
-
-		return true;
 	}
 
 	async splitNotebookCell(index: number, newLinesContents: string[], endSelections: number[]) {

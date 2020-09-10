@@ -449,7 +449,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						}
 					}).forEach(pasteCell => {
 						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-						topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+						topPastedCell = viewModel.createCell(newIdx, pasteCell.getValue(), pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
 					if (topPastedCell) {
@@ -476,7 +476,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							return cell;
 						}
 					}).forEach(pasteCell => {
-						topPastedCell = viewModel.insertCell(0, pasteCell, true);
+						topPastedCell = viewModel.createCell(0, pasteCell.getValue(), pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
 					if (topPastedCell) {

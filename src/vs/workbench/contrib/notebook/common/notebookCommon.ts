@@ -423,7 +423,8 @@ export const enum CellEditType {
 	CellLanguage = 4,
 	DocumentMetadata = 5,
 	OutputsSplice = 6,
-	Unknown = 7
+	Move = 7,
+	Unknown = 8
 }
 
 export interface ICellDto2 {
@@ -465,17 +466,24 @@ export interface IDocumentMetadataEdit {
 	metadata: NotebookDocumentMetadata;
 }
 
-export interface ICellOutputsSplice {
+export interface ICellOutputsSpliceEdit {
 	editType: CellEditType.OutputsSplice;
 	index: number;
 	splices: NotebookCellOutputsSplice[];
+}
+
+export interface ICellMoveEdit {
+	editType: CellEditType.Move;
+	index: number;
+	length: number;
+	newIdx: number;
 }
 
 export interface IDocumentUnknownEdit {
 	editType: CellEditType.Unknown;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSplice | IDocumentUnknownEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
