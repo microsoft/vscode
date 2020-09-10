@@ -686,7 +686,7 @@ export interface ExtHostCustomEditorsShape {
 }
 
 export interface ExtHostWebviewViewsShape {
-	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, state: any, cancellation: CancellationToken): Promise<void>;
+	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, title: string | undefined, state: any, cancellation: CancellationToken): Promise<void>;
 
 	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewHandle, visible: boolean): void;
 
