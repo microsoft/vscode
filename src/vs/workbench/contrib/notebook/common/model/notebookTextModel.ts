@@ -266,7 +266,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		this._cells.splice(0, 0, ...mainCells);
-		this._increaseVersionId();
 	}
 
 	dispose() {
