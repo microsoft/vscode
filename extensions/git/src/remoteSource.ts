@@ -89,7 +89,7 @@ export async function pickRemoteSource(model: Model, options: PickRemoteSourceOp
 
 	const targetedProvider = model.getRemoteProviders().filter(provider => provider.name === options.providerName);
 	if (targetedProvider && targetedProvider.length === 1) {
-		await pickProviderSource(targetedProvider[0]);
+		return await pickProviderSource(targetedProvider[0]);
 	} else {
 		const providers = model.getRemoteProviders()
 			.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + (options.providerLabel ? options.providerLabel(provider) : provider.name), alwaysShow: true, provider }));
