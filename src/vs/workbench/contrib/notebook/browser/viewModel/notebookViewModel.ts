@@ -305,27 +305,32 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		};
 
 		this._register(this._notebook.onDidChangeContent(e => {
-			let changes: NotebookCellTextModelSplice<ICell>[] = [];
+			for (let i = 0; i < e.rawEvents.length; i++) {
+				const change = e.rawEvents[i];
+				let changes: NotebookCellTextModelSplice<ICell>[] = [];
 
-			if (e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize) {
-				changes = e.changes;
-				compute(changes, e.synchronous);
-				return;
-			} else if (e.kind === NotebookCellsChangeType.Move) {
-				compute([[e.index, e.length, []]], e.synchronous);
-				compute([[e.newIdx, 0, e.cells]], e.synchronous);
-			} else {
-				return;
+				if (change.kind === NotebookCellsChangeType.ModelChange || change.kind === NotebookCellsChangeType.Initialize) {
+					changes = change.changes;
+					compute(changes, e.synchronous);
+					return;
+				} else if (change.kind === NotebookCellsChangeType.Move) {
+					compute([[change.index, change.length, []]], e.synchronous);
+					compute([[change.newIdx, 0, change.cells]], e.synchronous);
+				} else {
+					return;
+				}
 			}
 		}));
 
-		this._register(this._notebook.onDidChangeContent(e => {
-			if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
-				this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
-			}
+		this._register(this._notebook.onDidChangeContent(contentChanges => {
+			contentChanges.rawEvents.forEach(e => {
+				if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+					this.eventDispatcher.emit([new NotebookMetadataChangedEvent(this._notebook.metadata)]);
+				}
+			});
 
-			if (e.endSelections) {
-				this.updateSelectionsFromEdits(e.endSelections);
+			if (contentChanges.endSelections) {
+				this.updateSelectionsFromEdits(contentChanges.endSelections);
 			}
 		}));
 

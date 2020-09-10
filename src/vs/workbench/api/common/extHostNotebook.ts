@@ -699,13 +699,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				}, viewType, { ...notebookDocumentMetadataDefaults, ...modelData.metadata }, uri, storageRoot);
 
 				document.acceptModelChanged({
-					kind: NotebookCellsChangeType.Initialize,
 					versionId: modelData.versionId,
-					changes: [[
-						0,
-						0,
-						modelData.cells
-					]]
+					rawEvents: [
+						{
+							kind: NotebookCellsChangeType.Initialize,
+							changes: [[
+								0,
+								0,
+								modelData.cells
+							]]
+						}
+					]
 				}, false);
 
 				// add cell document as vscode.TextDocument

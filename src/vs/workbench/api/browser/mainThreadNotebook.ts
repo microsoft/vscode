@@ -273,26 +273,30 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const notebookDocumentAddedHandler = (textModel: NotebookTextModel) => {
 			if (!this._editorEventListenersMapping.has(textModel.uri.toString())) {
 				const disposableStore = new DisposableStore();
-				disposableStore.add(textModel!.onDidChangeContent(e => {
-					const data =
-						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
-							? {
-								kind: e.kind,
-								versionId: e.versionId,
-								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
-							}
-							: (
-								e.kind === NotebookCellsChangeType.Move
-									? {
-										kind: e.kind,
-										index: e.index,
-										length: e.length,
-										newIdx: e.newIdx,
-										versionId: e.versionId,
-										cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
-									}
-									: e
-							);
+				disposableStore.add(textModel!.onDidChangeContent(event => {
+					const dto = event.rawEvents.map(e => {
+						const data =
+							e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
+								? {
+									kind: e.kind,
+									versionId: event.versionId,
+									changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
+								}
+								: (
+									e.kind === NotebookCellsChangeType.Move
+										? {
+											kind: e.kind,
+											index: e.index,
+											length: e.length,
+											newIdx: e.newIdx,
+											versionId: event.versionId,
+											cells: e.cells.map(cell => cellToDto(cell as NotebookCellTextModel))
+										}
+										: e
+								);
+
+						return data;
+					});
 
 					/**
 					 * TODO@rebornix, @jrieken
@@ -301,8 +305,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					 * The second event listener is `NotebookEditorModel`, which will then set `isDirty` to `true`.
 					 * Since `e.transient` decides if the model should be dirty or not, we will use the same logic here.
 					 */
-					this._proxy.$acceptModelChanged(textModel.uri, data, !e.transient);
-					if (e.kind === NotebookCellsChangeType.ChangeDocumentMetadata) {
+					const hasNonTransientEvent = event.rawEvents.find(e => !e.transient);
+					this._proxy.$acceptModelChanged(textModel.uri, {
+						rawEvents: dto,
+						versionId: event.versionId
+					}, !!hasNonTransientEvent);
+
+					const hasDocumentMetadataChangeEvent = event.rawEvents.find(e => e.kind === NotebookCellsChangeType.ChangeDocumentMetadata);
+					if (!!hasDocumentMetadataChangeEvent) {
 						this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
 					}
 				}));
