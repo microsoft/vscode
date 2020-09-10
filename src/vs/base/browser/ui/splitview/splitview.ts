@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import { clamp } from 'vs/base/common/numbers';
-import { range, firstIndex, pushToStart, pushToEnd } from 'vs/base/common/arrays';
+import { range, pushToStart, pushToEnd } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { domEvent } from 'vs/base/browser/event';
@@ -460,7 +460,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			item.enabled = false;
 		}
 
-		const index = firstIndex(this.sashItems, item => item.sash === sash);
+		const index = this.sashItems.findIndex(item => item.sash === sash);
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
@@ -709,11 +709,11 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			const onStartDisposable = onStart(this.onSashStart, this);
 			const onChange = Event.map(sash.onDidChange, sashEventMapper);
 			const onChangeDisposable = onChange(this.onSashChange, this);
-			const onEnd = Event.map(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
+			const onEnd = Event.map(sash.onDidEnd, () => this.sashItems.findIndex(item => item.sash === sash));
 			const onEndDisposable = onEnd(this.onSashEnd, this);
 
 			const onDidResetDisposable = sash.onDidReset(() => {
-				const index = firstIndex(this.sashItems, item => item.sash === sash);
+				const index = this.sashItems.findIndex(item => item.sash === sash);
 				const upIndexes = range(index, -1);
 				const downIndexes = range(index + 1, this.viewItems.length);
 				const snapBeforeIndex = this.findFirstSnapIndex(upIndexes);

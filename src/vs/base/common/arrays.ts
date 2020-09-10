@@ -400,28 +400,12 @@ export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean):
 }
 
 /**
- * @deprecated ES6: use `Array.findIndex`
- */
-export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
-	for (let i = 0; i < array.length; i++) {
-		const element = array[i];
-
-		if (fn(element)) {
-			return i;
-		}
-	}
-
-	return -1;
-}
-
-
-/**
  * @deprecated ES6: use `Array.find`
  */
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
-	const index = firstIndex(array, fn);
+	const index = array.findIndex(fn);
 	return index < 0 ? notFoundValue : array[index];
 }
 

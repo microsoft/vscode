@@ -663,7 +663,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._disposables.add(newCommentNode);
 		this._disposables.add(newCommentNode.onDidClick(clickedNode =>
-			this.setFocusedComment(arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
+			this.setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
 
 		return newCommentNode;
