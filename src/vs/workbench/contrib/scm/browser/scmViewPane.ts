@@ -137,6 +137,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	constructor(
 		private outerLayout: ISCMLayout,
+		private overflowWidgetsDomNode: HTMLElement,
 		private updateHeight: (input: ISCMInput, height: number) => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
@@ -147,7 +148,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
-		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement);
+		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		disposables.add(inputWidget);
 
 		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
@@ -1373,6 +1374,7 @@ class SCMInputWidget extends Disposable {
 
 	constructor(
 		container: HTMLElement,
+		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
@@ -1402,7 +1404,8 @@ class SCMInputWidget extends Disposable {
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false }
+			scrollbar: { alwaysConsumeMouseWheel: false },
+			overflowWidgetsDomNode
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1592,6 +1595,8 @@ export class SCMViewPane extends ViewPane {
 		// List
 		this.listContainer = append(container, $('.scm-view.show-file-icons'));
 
+		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
+
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
 		updateActionsVisibility();
@@ -1606,7 +1611,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(() => this.updateActions()));
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
@@ -1643,7 +1648,6 @@ export class SCMViewPane extends ViewPane {
 				filter,
 				sorter,
 				keyboardNavigationLabelProvider,
-				transformOptimization: false,
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 				},
@@ -1655,6 +1659,8 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
 		this._register(this.tree);
+
+		append(this.listContainer, overflowWidgetsDomNode);
 
 		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;
