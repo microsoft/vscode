@@ -107,6 +107,7 @@ steps:
 
 - script: |
     set -e
+    export SDKROOT=/Applications/Xcode_12_beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
     yarn electron-rebuild
   displayName: Rebuild native modules for ARM64
   condition: eq(variables['VSCODE_ARCH'], 'arm64')
