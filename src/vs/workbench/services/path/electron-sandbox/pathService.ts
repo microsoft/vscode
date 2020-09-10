@@ -12,19 +12,13 @@ import { Schemas } from 'vs/base/common/network';
 
 export class NativePathService extends AbstractPathService {
 
+	readonly defaultUriScheme = this.environmentService.configuration.remoteAuthority ? Schemas.vscodeRemote : Schemas.file;
+
 	constructor(
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(environmentService.userHome, remoteAgentService);
-	}
-
-	defaultUriScheme(): string {
-		if (this.environmentService.configuration.remoteAuthority) {
-			return Schemas.vscodeRemote;
-		} else {
-			return Schemas.file;
-		}
 	}
 }
 

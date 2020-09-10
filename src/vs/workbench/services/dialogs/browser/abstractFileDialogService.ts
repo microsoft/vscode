@@ -230,7 +230,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
-		return defaultUriScheme ?? this.pathService.defaultUriScheme();
+		return defaultUriScheme ?? this.pathService.defaultUriScheme;
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {

@@ -274,7 +274,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 
-		return joinPath(this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme()) || (await this.pathService.userHome()), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme) || (await this.pathService.userHome()), searchFileName);
 	}
 }
 

@@ -1232,9 +1232,7 @@ export class TestPathService implements IPathService {
 		return URI.file(path);
 	}
 
-	defaultUriScheme(): string {
-		return Schemas.vscodeRemote;
-	}
+	readonly defaultUriScheme = Schemas.vscodeRemote;
 }
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
