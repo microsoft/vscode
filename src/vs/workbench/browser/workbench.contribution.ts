@@ -89,7 +89,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
 				'enum': ['compact', 'shrink', 'normal'],
-				'default': 'compact',
+				'default': 'shrink',
 				'enumDescriptions': [
 					nls.localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
 					nls.localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name."),

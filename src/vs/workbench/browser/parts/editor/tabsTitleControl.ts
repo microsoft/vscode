@@ -585,11 +585,7 @@ export class TabsTitleControl extends TitleControl {
 
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
-		const tabActionBar = new ActionBar(tabActionsContainer, {
-			ariaLabel: localize('ariaLabelTabActions', "Tab actions"),
-			actionRunner: tabActionRunner,
-
-		});
+		const tabActionBar = new ActionBar(tabActionsContainer, { ariaLabel: localize('ariaLabelTabActions', "Tab actions"), actionRunner: tabActionRunner, });
 		tabActionBar.onDidBeforeRun(e => {
 			if (e.action.id === this.closeEditorAction.id) {
 				this.blockRevealActiveTabOnce();
@@ -1101,7 +1097,7 @@ export class TabsTitleControl extends TitleControl {
 		let name: string | undefined;
 		let forceLabel = false;
 		let description: string;
-		if (this.group.isSticky(index) && options.pinnedTabSizing === 'compact') {
+		if (options.pinnedTabSizing === 'compact' && this.group.isSticky(index)) {
 			const isShowingIcons = options.showIcons && options.hasIcons;
 			name = isShowingIcons ? '' : tabLabel.name?.charAt(0).toUpperCase();
 			description = '';
@@ -1287,7 +1283,7 @@ export class TabsTitleControl extends TitleControl {
 		//
 		// Synopsis
 		// - allTabsWidth:   			sum of all tab widths
-		// - stickyTabsWidth:			sum of all sticky tab widths (unless they inherit look from other tabs)
+		// - stickyTabsWidth:			sum of all sticky tab widths (unless `pinnedTabSizing: normal`)
 		// - visibleContainerWidth: 	size of tab container
 		// - availableContainerWidth: 	size of tab container minus size of sticky tabs
 		//
@@ -1306,7 +1302,7 @@ export class TabsTitleControl extends TitleControl {
 		// Compute width of sticky tabs depending on pinned tab sizing
 		// - compact: sticky-tabs * TAB_SIZES.compact
 		// -  shrink: sticky-tabs * TAB_SIZES.shrink
-		// - inherit: 0 (sticky tabs inherit look and feel from non-sticky tabs)
+		// -  normal: 0 (sticky tabs inherit look and feel from non-sticky tabs)
 		let stickyTabsWidth = 0;
 		if (this.group.stickyCount > 0) {
 			let stickyTabWidth = 0;
