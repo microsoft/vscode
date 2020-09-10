@@ -263,11 +263,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	showPreviousValue(): void {
-		this.navigateHistory(true);
+		if (!this.isReadonly) {
+			this.navigateHistory(true);
+		}
 	}
 
 	showNextValue(): void {
-		this.navigateHistory(false);
+		if (!this.isReadonly) {
+			this.navigateHistory(false);
+		}
 	}
 
 	focusFilter(): void {
@@ -393,7 +397,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	acceptReplInput(): void {
 		const session = this.tree.getInput();
-		if (session) {
+		if (session && !this.isReadonly) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
