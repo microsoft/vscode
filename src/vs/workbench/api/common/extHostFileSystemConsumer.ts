@@ -10,12 +10,15 @@ import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
 	readonly _serviceBrand: undefined;
 
 	private readonly _proxy: MainThreadFileSystemShape;
+
+	private readonly _schemes = new Map<string, { readonly isReadonly?: boolean }>();
 
 	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
@@ -45,6 +48,14 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 	copy(source: vscode.Uri, destination: vscode.Uri, options?: { overwrite?: boolean; }): Promise<void> {
 		return this._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
 	}
+	isWritableFileSystem(scheme: string): boolean | undefined {
+		const entry = this._schemes.get(scheme);
+		if (entry) {
+			return !entry.isReadonly;
+		}
+		return undefined;
+	}
+
 	private static _handleError(err: any): never {
 		// generic error
 		if (!(err instanceof Error)) {
@@ -67,6 +78,14 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
 			default: throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
 		}
+	}
+
+	/* internal */ _registerScheme(scheme: string, options: { readonly isReadonly?: boolean }): IDisposable {
+		this._schemes.set(scheme, options);
+
+		return toDisposable(() => {
+			return this._schemes.delete(scheme);
+		});
 	}
 }
 
