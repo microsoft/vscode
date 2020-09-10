@@ -1515,7 +1515,8 @@
         "git.path": {
           "type": [
             "string",
-            "null"
+            "null",
+            "array"
           ],
           "markdownDescription": "%config.path%",
           "default": null,
