@@ -722,13 +722,19 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
-		const getModuleLabel = () => {
-			const submodule = parentRepository?.submodules.find(s => path.join(parentRepository.root, s.path) === repository.root);
-			return submodule ? submodule.name : 'Git';
-		};
-
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', getModuleLabel(), root);
+		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+
+		const getAlternativeVisibleName = () =>
+			parentRepository
+				?.submodules
+				.find(s => path.join(parentRepository.root, s.path) === repository.root)
+				?.name;
+
+		if (parentRepository) {
+			this.disposables.push(parentRepository.onDidRunGitStatus(() => this._sourceControl.visibleName = getAlternativeVisibleName()));
+		}
+		this._sourceControl.visibleName = getAlternativeVisibleName();
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
