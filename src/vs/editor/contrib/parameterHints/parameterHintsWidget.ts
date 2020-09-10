@@ -312,7 +312,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (Array.isArray(param.label)) {
 			return param.label;
 		} else {
-			const idx = signature.label.lastIndexOf(param.label);
+			const idx = signature.label.lastIndexOf(`${param.label},`) ?? signature.label.lastIndexOf(`${param.label})`);
 			return idx >= 0
 				? [idx, idx + param.label.length]
 				: [0, 0];
