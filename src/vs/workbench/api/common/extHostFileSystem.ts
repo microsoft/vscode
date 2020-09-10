@@ -11,12 +11,11 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileChangeType } from 'vs/workbench/api/common/extHostTypes';
 import * as typeConverter from 'vs/workbench/api/common/extHostTypeConverters';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { Schemas } from 'vs/base/common/network';
 import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/linkComputer';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 class FsLinkProvider {
 
@@ -114,17 +113,14 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private readonly _proxy: MainThreadFileSystemShape;
 	private readonly _linkProvider = new FsLinkProvider();
 	private readonly _fsProvider = new Map<number, vscode.FileSystemProvider>();
-	private readonly _usedSchemes = new Set<string>();
+	private readonly _registeredSchemes = new Set<string>();
 	private readonly _watches = new Map<number, IDisposable>();
 
 	private _linkProviderRegistration?: IDisposable;
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures, private readonly _fileSystemConsumer: IExtHostConsumerFileSystem) {
+	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures, private _extHostFileSystemInfo: IExtHostFileSystemInfo) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
-
-		// register used schemes
-		Object.keys(Schemas).forEach(scheme => this._usedSchemes.add(scheme));
 	}
 
 	dispose(): void {
@@ -139,18 +135,16 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
 
-		if (this._usedSchemes.has(scheme)) {
+		if (this._registeredSchemes.has(scheme) || !this._extHostFileSystemInfo.isFreeScheme(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
 		}
-
-		const schemeRegistration = this._fileSystemConsumer._registerScheme(scheme, options);
 
 		//
 		this._registerLinkProviderIfNotYetRegistered();
 
 		const handle = this._handlePool++;
 		this._linkProvider.add(scheme);
-		this._usedSchemes.add(scheme);
+		this._registeredSchemes.add(scheme);
 		this._fsProvider.set(handle, provider);
 
 		let capabilities = files.FileSystemProviderCapabilities.FileReadWrite;
@@ -200,9 +194,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 		return toDisposable(() => {
 			subscription.dispose();
-			schemeRegistration.dispose();
 			this._linkProvider.delete(scheme);
-			this._usedSchemes.delete(scheme);
+			this._registeredSchemes.delete(scheme);
 			this._fsProvider.delete(handle);
 			this._proxy.$unregisterProvider(handle);
 		});
