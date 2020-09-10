@@ -126,8 +126,13 @@ function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | u
 		return vscode.Uri.file(pathUtils.join(process.env.HOME!, path.slice(2)));
 	}
 
-	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
-		folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
+	const uriFromFolderWithPath = function uriFromFolderWithPath(folder: vscode.WorkspaceFolder, path: string): vscode.Uri {
+		if (typeof path !== 'string' || typeof folder.uri.fsPath !== 'string') {
+			console.error('ERR!!!', { path, fsPath: folder.uri.fsPath });
+		}
+
+		return folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
+	};
 
 	if (vscode.workspace.workspaceFolders) {
 		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);
