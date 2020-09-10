@@ -343,10 +343,7 @@ export class SettingsEditor2 extends EditorPane {
 		super.setEditorVisible(visible, group);
 
 		if (!visible) {
-			// Wait for editor to be removed from DOM #106303
-			process.nextTick(() => {
-				this.searchWidget.onHide();
-			});
+			this.searchWidget.onHide();
 		}
 	}
 
