@@ -84,7 +84,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		if (defaultFormatterId) {
 			// good -> formatter configured
-			const [defaultFormatter] = formatter.filter(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
+			const defaultFormatter = formatter.find(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
 			if (defaultFormatter) {
 				// formatter available
 				return defaultFormatter;
