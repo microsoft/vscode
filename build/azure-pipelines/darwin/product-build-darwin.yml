@@ -107,6 +107,12 @@ steps:
 
 - script: |
     set -e
+    yarn electron-rebuild
+  displayName: Rebuild native modules for ARM64
+  condition: eq(variables['VSCODE_ARCH'], 'arm64')
+
+- script: |
+    set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
       yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
   displayName: Build
