@@ -32,7 +32,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, EditorPinnedContext, EditorStickyContext } from 'vs/workbench/common/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -86,8 +86,8 @@ export abstract class TitleControl extends Themable {
 		super(themeService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
-		this.editorPinnedContext = EditorPinnedContext.bindTo(contextKeyService);
-		this.editorStickyContext = EditorStickyContext.bindTo(contextKeyService);
+		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
+		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
@@ -137,7 +137,7 @@ export abstract class TitleControl extends Themable {
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
+			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
