@@ -25,7 +25,9 @@ export class BrowserPathService extends AbstractPathService {
 		if (this.environmentService.configuration.remoteAuthority) {
 			return Schemas.vscodeRemote;
 		} else {
-			// Empty workspace is not supported, so we will always have at least one folder.
+			if (this.contextService.getWorkspace().folders.length === 0) {
+				throw new Error('Empty workspace is not supported in browser when there is no remote');
+			}
 			return this.contextService.getWorkspace().folders[0].uri.scheme;
 		}
 	}
