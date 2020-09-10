@@ -232,7 +232,9 @@ export class TerminalService implements ITerminalService {
 	private _removeTab(tab: ITerminalTab): void {
 		// Get the index of the tab and remove it from the list
 		const index = this._terminalTabs.indexOf(tab);
-		const wasActiveTab = tab === this.getActiveTab();
+		const activeTab = this.getActiveTab();
+		const activeTabIndex = activeTab ? this._terminalTabs.indexOf(activeTab) : -1;
+		const wasActiveTab = tab === activeTab;
 		if (index !== -1) {
 			this._terminalTabs.splice(index, 1);
 		}
@@ -247,6 +249,9 @@ export class TerminalService implements ITerminalService {
 			if (activeInstance) {
 				activeInstance.focus(true);
 			}
+		} else if (activeTabIndex >= this._terminalTabs.length) {
+			const newIndex = this._terminalTabs.length - 1;
+			this.setActiveTabByIndex(newIndex);
 		}
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
