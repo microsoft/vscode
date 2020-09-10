@@ -115,7 +115,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 				Severity.Info,
 				message,
 				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document).then(resolve, reject) }],
-				{ silent, onCancel: resolve }
+				{ silent, onCancel: () => resolve(undefined) }
 			);
 
 			if (silent) {
