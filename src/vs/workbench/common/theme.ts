@@ -181,6 +181,12 @@ export const TAB_BORDER = registerColor('tab.border', {
 	hc: contrastBorder
 }, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_LAST_PINNED_BORDER = registerColor('tab.lastPinnedBorder', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('lastPinnedTabBorder', "Border to separate pinned tabs from other tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
 // < --- Editors --- >
 
 export const EDITOR_PANE_BACKGROUND = registerColor('editorPane.background', {
