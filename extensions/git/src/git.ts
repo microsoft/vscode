@@ -1322,8 +1322,13 @@ export class Repository {
 		if (opts.signCommit) {
 			args.push('-S');
 		}
+
 		if (opts.empty) {
 			args.push('--allow-empty');
+		}
+
+		if (opts.noVerify) {
+			args.push('--no-verify');
 		}
 
 		try {

@@ -21,7 +21,6 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
@@ -204,7 +203,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IElectronService private readonly electronService: IElectronService
 	) {

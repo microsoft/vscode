@@ -5,21 +5,21 @@
 14 results - 4 files
 
 src/vs/base/browser/dom.ts:
-  81  };
-  82  
-  83: /** @deprecated ES6 - use classList*/
-  84  export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+  83  };
+  84  
   85: /** @deprecated ES6 - use classList*/
-  86  export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+  86  export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
   87: /** @deprecated ES6 - use classList*/
-  88  export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+  88  export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
   89: /** @deprecated ES6 - use classList*/
-  90  export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+  90  export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
   91: /** @deprecated ES6 - use classList*/
-  92  export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+  92  export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
   93: /** @deprecated ES6 - use classList*/
-  94  export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
-  95  
+  94  export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+  95: /** @deprecated ES6 - use classList*/
+  96  export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+  97  
 
 src/vs/base/common/arrays.ts:
   401  
@@ -66,8 +66,8 @@ src/vs/base/common/strings.ts:
   170   */
   171  export function endsWith(haystack: string, needle: string): boolean {
 
-  861  
-  862  /**
-  863:  * @deprecated ES6
-  864   */
-  865  export function repeat(s: string, count: number): string {
+  857  
+  858  /**
+  859:  * @deprecated ES6
+  860   */
+  861  export function repeat(s: string, count: number): string {

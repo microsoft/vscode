@@ -973,6 +973,11 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
+		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
+		 */
+		iconColor?: ThemeColor;
+
+		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
@@ -1322,7 +1327,6 @@ declare module 'vscode' {
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
 		languages: string[];
-		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
 	}
 
@@ -1346,17 +1350,24 @@ declare module 'vscode' {
 	}
 
 	export interface WorkspaceEdit {
+		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
-	export interface NotebookEditorCellEdit {
+	export interface NotebookEditorEdit {
+
+		replaceNotebookMetadata(value: NotebookDocumentMetadata): void;
 
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceOutput(index: number, outputs: CellOutput[]): void;
-		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
+		replaceCellOutput(index: number, outputs: CellOutput[]): void;
+		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 
+		/** @deprecated */
+		replaceOutput(index: number, outputs: CellOutput[]): void;
+		/** @deprecated */
+		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		/** @deprecated */
@@ -1444,7 +1455,7 @@ declare module 'vscode' {
 		 */
 		asWebviewUri(localResource: Uri): Uri;
 
-		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 
 		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
@@ -1457,6 +1468,10 @@ declare module 'vscode' {
 		output: CellDisplayOutput;
 		mimeType: string;
 		outputId: string;
+	}
+
+	export interface NotebookDocumentMetadataChangeEvent {
+		readonly document: NotebookDocument;
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1736,6 +1751,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
@@ -2059,6 +2075,11 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
+		 * Human-readable string which is rendered less prominently in the title.
+		 */
+		description?: string;
+
+		/**
 		 * Event fired when the view is disposed.
 		 *
 		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
@@ -2086,6 +2107,15 @@ declare module 'vscode' {
 		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
 		 */
 		readonly onDidChangeVisibility: Event<void>;
+
+		/**
+		 * Reveal the view in the UI.
+		 *
+		 * If the view is collapsed, this will expand it.
+		 *
+		 * @param preserveFocus When `true` the view will not take focus.
+		 */
+		show(preserveFocus?: boolean): void;
 	}
 
 	interface WebviewViewResolveContext<T = unknown> {
@@ -2176,5 +2206,27 @@ declare module 'vscode' {
 			};
 		}): Disposable;
 	}
+	//#endregion
+
+	//#region
+
+	export interface FileSystem {
+		/**
+		 * Check if a given file system supports writing files.
+		 *
+		 * Keep in mind that just because a file system supports writing, that does
+		 * not mean that writes will always succeed. There may be permissions issues
+		 * or other errors that prevent writing a file.
+		 *
+		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
+		 *
+		 * @return `true` if the file system supports writing, `false` if it does not
+		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
+		 * know about the filesystem.
+		 */
+		isWritableFileSystem(scheme: string): boolean | undefined;
+	}
+
+
 	//#endregion
 }

@@ -27,7 +27,7 @@ export class SimpleReplElement implements IReplElement {
 	) { }
 
 	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}:${this.sourceData.lineNumber}` : '';
+		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
 		return this.value + sourceStr;
 	}
 
@@ -145,7 +145,7 @@ export class ReplGroup implements IReplElement {
 	}
 
 	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}:${this.sourceData.lineNumber}` : '';
+		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
 		return this.name + sourceStr;
 	}
 

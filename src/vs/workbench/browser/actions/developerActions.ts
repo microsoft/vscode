@@ -8,6 +8,7 @@ import 'vs/css!./media/actions';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
@@ -124,11 +125,7 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
 		const updateMouseIndicatorColor = () => {
-			const mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
-
-			let style = new Option().style;
-			style.color = mouseIndicatorColor;
-			mouseMarker.style.borderColor = (mouseIndicatorColor === '' || !style.color) ? '#ff0000' : mouseIndicatorColor;
+			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
 		};
 
 		let mouseIndicatorSize: number;
@@ -326,8 +323,8 @@ configurationRegistry.registerConfiguration({
 		'screencastMode.mouseIndicatorColor': {
 			type: 'string',
 			format: 'color-hex',
-			default: '#ff0000',
-			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (Hex) of the mouse indicator in screencast mode.")
+			default: '#FF0000',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorSize': {
 			type: 'number',

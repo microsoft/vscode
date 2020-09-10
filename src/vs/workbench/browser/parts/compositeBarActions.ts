@@ -205,7 +205,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
-			dom.addClass(this.container, 'clicked');
+			this.container.classList.add('clicked');
 		}));
 
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_UP, () => {
@@ -214,7 +214,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 
 			this.mouseUpTimeout = setTimeout(() => {
-				dom.removeClass(this.container, 'clicked');
+				this.container.classList.remove('clicked');
 			}, 800); // delayed to prevent focus feedback from showing on mouse up
 		}));
 
@@ -328,7 +328,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		if (this.options.icon && !this.activity.iconUrl) {
 			// Only apply codicon class to activity bar icon items without iconUrl
-			dom.addClass(this.label, 'codicon');
+			this.label.classList.add('codicon');
 		}
 
 		if (!this.options.icon) {
@@ -588,10 +588,10 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		const left = forceLeft || (preferLeft && !lastClasses.horizontal) || (!forceRight && lastClasses.horizontal === 'left');
 		const right = forceRight || (!preferLeft && !lastClasses.horizontal) || (!forceLeft && lastClasses.horizontal === 'right');
 
-		dom.toggleClass(element, 'top', showFeedback && top);
-		dom.toggleClass(element, 'bottom', showFeedback && bottom);
-		dom.toggleClass(element, 'left', showFeedback && left);
-		dom.toggleClass(element, 'right', showFeedback && right);
+		element.classList.toggle('top', showFeedback && top);
+		element.classList.toggle('bottom', showFeedback && bottom);
+		element.classList.toggle('left', showFeedback && left);
+		element.classList.toggle('right', showFeedback && right);
 
 		if (!showFeedback) {
 			return undefined;
@@ -646,11 +646,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	protected updateChecked(): void {
 		if (this.getAction().checked) {
-			dom.addClass(this.container, 'checked');
+			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
 			this.container.setAttribute('aria-expanded', 'true');
 		} else {
-			dom.removeClass(this.container, 'checked');
+			this.container.classList.remove('checked');
 			this.container.setAttribute('aria-label', this.container.title);
 			this.container.setAttribute('aria-expanded', 'false');
 		}
@@ -663,9 +663,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}
 
 		if (this.getAction().enabled) {
-			dom.removeClass(this.element, 'disabled');
+			this.element.classList.remove('disabled');
 		} else {
-			dom.addClass(this.element, 'disabled');
+			this.element.classList.add('disabled');
 		}
 	}
 

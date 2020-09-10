@@ -27,10 +27,14 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -48,6 +52,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
 	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
+	private _modifiedResourceDisposableStore = new DisposableStore();
+
 	get textModel() {
 		return this._model?.modified.notebook;
 	}
@@ -58,6 +64,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: FileService,
 
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
@@ -65,6 +72,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel());
+
+		this._register(this._modifiedResourceDisposableStore);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -142,7 +151,67 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			return;
 		}
 
+		this._modifiedResourceDisposableStore.add(this._fileService.watch(this._model.modified.resource));
+		this._modifiedResourceDisposableStore.add(this._fileService.onDidFilesChange(async e => {
+			if (this._model === null) {
+				return;
+			}
+
+			if (e.contains(this._model!.modified.resource)) {
+				if (this._model.modified.isDirty()) {
+					return;
+				}
+
+				const modified = this._model.modified;
+				const lastResolvedFileStat = modified.lastResolvedFileStat;
+				const currFileStat = await this._resolveStats(modified.resource);
+
+				if (lastResolvedFileStat && currFileStat && currFileStat.mtime > lastResolvedFileStat.mtime) {
+					await this._model.resolveModifiedFromDisk();
+					await this.updateLayout();
+					return;
+				}
+			}
+
+			if (e.contains(this._model!.original.resource)) {
+				if (this._model.original.isDirty()) {
+					return;
+				}
+
+				const original = this._model.original;
+				const lastResolvedFileStat = original.lastResolvedFileStat;
+				const currFileStat = await this._resolveStats(original.resource);
+
+				if (lastResolvedFileStat && currFileStat && currFileStat.mtime > lastResolvedFileStat.mtime) {
+					await this._model.resolveOriginalFromDisk();
+					await this.updateLayout();
+					return;
+				}
+			}
+		}));
+
+
 		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		await this.updateLayout();
+	}
+
+	private async _resolveStats(resource: URI) {
+		if (resource.scheme === Schemas.untitled) {
+			return undefined;
+		}
+
+		try {
+			const newStats = await this._fileService.resolve(resource, { resolveMetadata: true });
+			return newStats;
+		} catch (e) {
+			return undefined;
+		}
+	}
+
+	async updateLayout() {
+		if (!this._model) {
+			return;
+		}
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
@@ -252,7 +321,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			r();
 		}));
 
-		return new Promise(resolve => { r = resolve; });
+		return new Promise<void>(resolve => { r = resolve; });
 	}
 
 	getDomNode() {
@@ -277,6 +346,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	clearInput(): void {
 		super.clearInput();
+
+		this._modifiedResourceDisposableStore.clear();
+		this._list?.splice(0, this._list?.length || 0);
 	}
 
 	getLayoutInfo(): NotebookLayoutInfo {

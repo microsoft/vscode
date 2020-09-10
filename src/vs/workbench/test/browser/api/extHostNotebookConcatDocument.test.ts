@@ -9,7 +9,8 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ExtHostNotebookConcatDocument } from 'vs/workbench/api/common/extHostNotebookConcatDocument';
-import { ExtHostNotebookDocument, ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import { URI } from 'vs/base/common/uri';
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Position, Location, Range } from 'vs/workbench/api/common/extHostTypes';
@@ -56,7 +57,6 @@ suite('NotebookConcatDocument', function () {
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
-				handle: 0,
 				uri: notebookUri,
 				viewType: 'test',
 				cells: [{

@@ -35,7 +35,7 @@ suite('MainThreadDocumentContentProviders', function () {
 			},
 		);
 
-		return new Promise((resolve, reject) => {
+		return new Promise<void>((resolve, reject) => {
 			let expectedEvents = 1;
 			model.onDidChangeContent(e => {
 				expectedEvents -= 1;

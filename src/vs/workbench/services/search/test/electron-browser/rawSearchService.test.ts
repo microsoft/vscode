@@ -11,13 +11,13 @@ import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, ISearchEngine, ISearchEngineStats, ISearchEngineSuccess, ISearchProgressItem, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFileMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { IProgressCallback, SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
-import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
+import { DiskSearch } from 'vs/workbench/services/search/electron-browser/searchService';
 
 const TEST_FOLDER_QUERIES = [
 	{ folder: URI.file(path.normalize('/some/where')) }
 ];
 
-const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, './fixtures'));
+const TEST_FIXTURES = path.normalize(getPathFromAmdModule(require, '../node/fixtures'));
 const MULTIROOT_QUERIES: IFolderQuery[] = [
 	{ folder: URI.file(path.join(TEST_FIXTURES, 'examples')) },
 	{ folder: URI.file(path.join(TEST_FIXTURES, 'more')) }

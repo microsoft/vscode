@@ -76,7 +76,7 @@ bootstrapWindow.load([
 /**
  * @param {{
  *	partsSplashPath?: string,
- *	highContrast?: boolean,
+ *	colorScheme: ('light' | 'dark' | 'hc'),
  *	autoDetectHighContrast?: boolean,
  *	extensionDevelopmentPath?: string[],
  *	folderUri?: object,
@@ -96,7 +96,7 @@ function showPartsSplash(configuration) {
 	}
 
 	// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
-	const isHighContrast = configuration.highContrast && configuration.autoDetectHighContrast;
+	const isHighContrast = configuration.colorScheme === 'hc' /* ColorScheme.HIGH_CONTRAST */ && configuration.autoDetectHighContrast;
 	if (data && isHighContrast && data.baseTheme !== 'hc-black') {
 		data = undefined;
 	}

@@ -146,7 +146,7 @@ class BulkEditPreviewContribution {
 		// the actual work...
 		try {
 
-			return await view.setInput(edits, session.cts.token);
+			return await view.setInput(edits, session.cts.token) ?? [];
 
 		} finally {
 			// restore UX state

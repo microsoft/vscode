@@ -436,7 +436,7 @@ export class SuggestModel implements IDisposable {
 
 		Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
 
-			dispose(this._requestToken);
+			this._requestToken?.dispose();
 
 			if (this._state === State.Idle) {
 				return;

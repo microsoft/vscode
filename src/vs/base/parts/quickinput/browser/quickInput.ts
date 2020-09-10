@@ -1416,7 +1416,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-		return new Promise<string>((resolve, reject) => {
+		return new Promise<string | undefined>((resolve) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;

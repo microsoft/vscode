@@ -87,7 +87,7 @@ suite('StorageService', () => {
 		class StorageTestEnvironmentService extends EnvironmentService {
 
 			constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
-				super(parseArgs(process.argv, OPTIONS), process.execPath);
+				super(parseArgs(process.argv, OPTIONS));
 			}
 
 			get workspaceStorageHome(): URI {

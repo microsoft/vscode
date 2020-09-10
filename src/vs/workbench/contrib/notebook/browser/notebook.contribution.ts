@@ -52,6 +52,7 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { Event } from 'vs/base/common/event';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 // Editor Contribution
 
@@ -97,6 +98,42 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
+class NotebookDiffEditorFactory implements IEditorInputFactory {
+	canSerialize(): boolean {
+		return true;
+	}
+
+	serialize(input: EditorInput): string {
+		assertType(input instanceof NotebookDiffEditorInput);
+		return JSON.stringify({
+			resource: input.resource,
+			originalResource: input.originalResource,
+			name: input.name,
+			originalName: input.originalName,
+			viewType: input.viewType,
+		});
+	}
+
+	deserialize(instantiationService: IInstantiationService, raw: string) {
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, group: number };
+		const data = <Data>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+		const { resource, originalResource, name, originalName, viewType } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
+			return undefined;
+		}
+
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName, viewType);
+		return input;
+	}
+
+	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		return false;
+	}
+
+}
 class NotebookEditorFactory implements IEditorInputFactory {
 	canSerialize(): boolean {
 		return true;
@@ -159,6 +196,11 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	NotebookEditorFactory
 );
 
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
+	NotebookDiffEditorInput.ID,
+	NotebookDiffEditorFactory
+);
+
 function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
 	return notebookService.getContributedNotebookProviders(uri)[0];
 }
@@ -170,6 +212,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
 	) {
 		super();
@@ -251,7 +294,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview)) {
+		if (originalInput instanceof DiffEditorInput && this.configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized()) {
 			return this._handleDiffEditorInput(originalInput, options, group);
 		}
 
@@ -521,9 +564,9 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
-		this._dirtyListener = Event.debounce(workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
+		this._dirtyListener = Event.debounce(_workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
 			const inputs = this._createMissingNotebookEditors();
 			this._editorService.openEditors(inputs);
 		});
@@ -537,7 +580,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 		const result: IResourceEditorInput[] = [];
 
 		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			if (notebook.isDirty && !this._editorService.isOpen({ resource: notebook.uri })) {
+			if (this._workingCopyService.isDirty(notebook.uri.with({ scheme: Schemas.vscodeNotebook })) && !this._editorService.isOpen({ resource: notebook.uri })) {
 				result.push({
 					resource: notebook.uri,
 					options: { inactive: true, preserveFocus: true, pinned: true }

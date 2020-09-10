@@ -74,8 +74,8 @@ export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGro
 export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
-export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
-export const ReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditor', false);
+export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
+export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
@@ -371,9 +371,14 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 
 			// Special treatment for side by side editors: if the active editor
 			// has 2 sides, we consider both, to support saving both sides.
-			// We only allow this when saving, not for "Save As".
+			// We only allow this when saving, not for "Save As" and not if any
+			// editor is untitled which would bring up a "Save As" dialog too.
 			// See also https://github.com/microsoft/vscode/issues/4180
-			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
+			// See also https://github.com/microsoft/vscode/issues/106330
+			if (
+				activeGroup.activeEditor instanceof SideBySideEditorInput &&
+				!options?.saveAs && !(activeGroup.activeEditor.primary.isUntitled() || activeGroup.activeEditor.secondary.isUntitled())
+			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
 			} else {

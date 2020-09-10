@@ -15,6 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -107,11 +108,11 @@ class StandaloneTheme implements IStandaloneTheme {
 		return Object.prototype.hasOwnProperty.call(this.getColors(), colorId);
 	}
 
-	public get type() {
+	public get type(): ColorScheme {
 		switch (this.base) {
-			case VS_THEME_NAME: return 'light';
-			case HC_BLACK_THEME_NAME: return 'hc';
-			default: return 'dark';
+			case VS_THEME_NAME: return ColorScheme.LIGHT;
+			case HC_BLACK_THEME_NAME: return ColorScheme.HIGH_CONTRAST;
+			default: return ColorScheme.DARK;
 		}
 	}
 

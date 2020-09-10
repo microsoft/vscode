@@ -306,7 +306,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
 
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
-			this.styleElement.innerHTML = `
+			this.styleElement.textContent = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
 					font-family: ${fontFamily};

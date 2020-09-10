@@ -217,6 +217,47 @@
         "category": "Git"
       },
       {
+        "command": "git.commitNoVerify",
+        "title": "%command.commitNoVerify%",
+        "category": "Git",
+        "icon": "$(check)"
+      },
+      {
+        "command": "git.commitStagedNoVerify",
+        "title": "%command.commitStagedNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitEmptyNoVerify",
+        "title": "%command.commitEmptyNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitStagedSignedNoVerify",
+        "title": "%command.commitStagedSignedNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitStagedAmendNoVerify",
+        "title": "%command.commitStagedAmendNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllNoVerify",
+        "title": "%command.commitAllNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllSignedNoVerify",
+        "title": "%command.commitAllSignedNoVerify%",
+        "category": "Git"
+      },
+      {
+        "command": "git.commitAllAmendNoVerify",
+        "title": "%command.commitAllAmendNoVerify%",
+        "category": "Git"
+      },
+      {
         "command": "git.restoreCommitTemplate",
         "title": "%command.restoreCommitTemplate%",
         "category": "Git"
@@ -580,6 +621,38 @@
         {
           "command": "git.commitAllAmend",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitStagedNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitEmptyNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitStagedSignedNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitStagedAmendNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitAllNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitAllSignedNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.commitAllAmendNoVerify",
+          "when": "config.git.enabled && !git.missing && config.git.allowNoVerifyCommit && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.restoreCommitTemplate",
@@ -1240,12 +1313,37 @@
           "group": "1_commit@5"
         },
         {
+          "command": "git.commitNoVerify",
+          "group": "1_commit@6",
+          "when": "config.git.allowNoVerifyCommit"
+        },
+        {
+          "command": "git.commitStagedNoVerify",
+          "group": "1_commit@7",
+          "when": "config.git.allowNoVerifyCommit"
+        },
+        {
+          "command": "git.commitAllNoVerify",
+          "group": "1_commit@8",
+          "when": "config.git.allowNoVerifyCommit"
+        },
+        {
           "command": "git.commitStagedAmend",
           "group": "2_amend@1"
         },
         {
           "command": "git.commitAllAmend",
-          "group": "2_amend@1"
+          "group": "2_amend@2"
+        },
+        {
+          "command": "git.commitStagedAmendNoVerify",
+          "group": "2_amend@3",
+          "when": "config.git.allowNoVerifyCommit"
+        },
+        {
+          "command": "git.commitAllAmendNoVerify",
+          "group": "2_amend@4",
+          "when": "config.git.allowNoVerifyCommit"
         },
         {
           "command": "git.commitStagedSigned",
@@ -1254,6 +1352,16 @@
         {
           "command": "git.commitAllSigned",
           "group": "3_signoff@2"
+        },
+        {
+          "command": "git.commitStagedSignedNoVerify",
+          "group": "3_signoff@3",
+          "when": "config.git.allowNoVerifyCommit"
+        },
+        {
+          "command": "git.commitAllSignedNoVerify",
+          "group": "3_signoff@4",
+          "when": "config.git.allowNoVerifyCommit"
         }
       ],
       "git.changes": [
@@ -1729,6 +1837,16 @@
           "type": "boolean",
           "default": true,
           "description": "%config.confirmForcePush%"
+        },
+        "git.allowNoVerifyCommit": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.allowNoVerifyCommit%"
+        },
+        "git.confirmNoVerifyCommit": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.confirmNoVerifyCommit%"
         },
         "git.openDiffOnClick": {
           "type": "boolean",

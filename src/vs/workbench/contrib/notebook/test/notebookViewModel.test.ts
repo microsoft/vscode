@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellMetadata, diff, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, diff, ICellRange, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook, TestCell, NotebookEditorTestModel, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -25,7 +25,7 @@ suite('NotebookViewModel', () => {
 	const modeService = instantiationService.get(IModeService);
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel(0, 'notebook', false, URI.parse('test'), undoRedoService, textModelService, modeService);
+		const notebook = new NotebookTextModel('notebook', false, URI.parse('test'), [], [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
@@ -69,18 +69,18 @@ suite('NotebookViewModel', () => {
 				['//c', 'javascript', CellKind.Code, [], { editable: true }],
 			],
 			(editor, viewModel) => {
-				viewModel.moveCellToIdx(0, 1, 0, false);
+				viewModel.moveCellToIdx(0, 1, 0, true);
 				// no-op
 				assert.equal(viewModel.viewCells[0].getText(), '//a');
 				assert.equal(viewModel.viewCells[1].getText(), '//b');
 
-				viewModel.moveCellToIdx(0, 1, 1, false);
+				viewModel.moveCellToIdx(0, 1, 1, true);
 				// b, a, c
 				assert.equal(viewModel.viewCells[0].getText(), '//b');
 				assert.equal(viewModel.viewCells[1].getText(), '//a');
 				assert.equal(viewModel.viewCells[2].getText(), '//c');
 
-				viewModel.moveCellToIdx(0, 1, 2, false);
+				viewModel.moveCellToIdx(0, 1, 2, true);
 				// a, c, b
 				assert.equal(viewModel.viewCells[0].getText(), '//a');
 				assert.equal(viewModel.viewCells[1].getText(), '//c');
@@ -100,12 +100,12 @@ suite('NotebookViewModel', () => {
 				['//c', 'javascript', CellKind.Code, [], { editable: true }],
 			],
 			(editor, viewModel) => {
-				viewModel.moveCellToIdx(1, 1, 0, false);
+				viewModel.moveCellToIdx(1, 1, 0, true);
 				// b, a, c
 				assert.equal(viewModel.viewCells[0].getText(), '//b');
 				assert.equal(viewModel.viewCells[1].getText(), '//a');
 
-				viewModel.moveCellToIdx(2, 1, 0, false);
+				viewModel.moveCellToIdx(2, 1, 0, true);
 				// c, b, a
 				assert.equal(viewModel.viewCells[0].getText(), '//c');
 				assert.equal(viewModel.viewCells[1].getText(), '//b');

@@ -257,6 +257,10 @@ export class OpenEditor implements IEditorIdentifier {
 		return this._group.previewEditor === this.editor;
 	}
 
+	isSticky(): boolean {
+		return this._group.isSticky(this.editor);
+	}
+
 	getResource(): URI | undefined {
 		return toResource(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	}

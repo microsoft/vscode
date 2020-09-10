@@ -22,6 +22,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
 
 
 type ParsedQuery = {
@@ -51,8 +52,9 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 
 	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
-		if (this._parsedQueries.length === 0) {
-			return parentVisibility;
+		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
+			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
+			return TreeVisibility.Visible;
 		}
 
 		let includeQueryPresent = false;
@@ -72,7 +74,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 			}
 		}
 
-		return includeQueryPresent ? includeQueryMatched : parentVisibility;
+		return includeQueryPresent ? includeQueryMatched : (typeof parentVisibility !== 'undefined' ? parentVisibility : TreeVisibility.Visible);
 	}
 }
 
@@ -111,7 +113,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService) {
 		super(null, action);
-		this.delayedFilterUpdate = new Delayer<void>(200);
+		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 

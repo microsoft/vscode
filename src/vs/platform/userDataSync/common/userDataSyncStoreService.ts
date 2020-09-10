@@ -15,7 +15,6 @@ import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/service
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWeb } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -355,10 +354,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		this.setDonotMakeRequestsUntil(undefined);
 
 		const commonHeaders = await this.commonHeadersPromise;
-		options.headers = assign(options.headers || {}, commonHeaders, {
+		options.headers = {
+			...(options.headers || {}),
+			...commonHeaders,
 			'X-Account-Type': this.authToken.type,
 			'authorization': `Bearer ${this.authToken.token}`,
-		});
+		};
 
 		// Add session headers
 		this.addSessionHeaders(options.headers);

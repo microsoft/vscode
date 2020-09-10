@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import * as ExtensionsActions from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -470,7 +469,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = extensions[0];
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local.identifier, version: '1.0.1' })));
 				assert.ok(!testObject.enabled);
-				return new Promise(c => {
+				return new Promise<void>(c => {
 					testObject.onDidChange(() => {
 						if (testObject.enabled) {
 							c();
@@ -1026,7 +1025,7 @@ suite('ExtensionsActions', () => {
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', { identifier: local[0].identifier, version: '1.0.2' }), aGalleryExtension('b', { identifier: local[1].identifier, version: '1.0.2' }), aGalleryExtension('c', local[2].manifest)));
 				assert.ok(!testObject.enabled);
-				return new Promise(c => {
+				return new Promise<void>(c => {
 					testObject.onDidChange(() => {
 						if (testObject.enabled) {
 							c();
@@ -1047,7 +1046,7 @@ suite('ExtensionsActions', () => {
 			.then(async () => {
 				instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...gallery));
 				assert.ok(!testObject.enabled);
-				return new Promise(c => {
+				return new Promise<void>(c => {
 					installEvent.fire({ identifier: local[0].identifier, gallery: gallery[0] });
 					testObject.onDidChange(() => {
 						if (testObject.enabled) {
@@ -1247,7 +1246,7 @@ suite('ReloadAction', () => {
 		const extensions = await workbenchService.queryLocal();
 		testObject.extension = extensions[0];
 
-		return new Promise(c => {
+		return new Promise<void>(c => {
 			testObject.onDidChange(() => {
 				if (testObject.enabled && testObject.tooltip === 'Please reload Visual Studio Code to enable the updated extension.') {
 					c();
@@ -2494,20 +2493,20 @@ suite('LocalInstallAction', () => {
 });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-	properties = assign({
+	manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
+	properties = {
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
-		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) }
-	}, properties);
+		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+		...properties
+	};
 	return <ILocalExtension>Object.create({ manifest, ...properties });
 }
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-	const galleryExtension = <IGalleryExtension>Object.create({});
-	assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
-	assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
-	assign(galleryExtension.assets, assets);
+	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
+	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
+	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 	return <IGalleryExtension>galleryExtension;
 }

@@ -436,20 +436,27 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.getEditors(EditorsOrder.SEQUENTIAL).map(({ editor }) => editor);
 	}
 
-	getEditors(order: EditorsOrder.MOST_RECENTLY_ACTIVE): ReadonlyArray<IEditorIdentifier>;
-	getEditors(order: EditorsOrder.SEQUENTIAL, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> {
-		if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
-			return this.editorsObserver.editors;
+		switch (order) {
+
+			// MRU
+			case EditorsOrder.MOST_RECENTLY_ACTIVE:
+				if (options?.excludeSticky) {
+					return this.editorsObserver.editors.filter(({ groupId, editor }) => !this.editorGroupService.getGroup(groupId)?.isSticky(editor));
+				}
+
+				return this.editorsObserver.editors;
+
+			// Sequential
+			case EditorsOrder.SEQUENTIAL:
+				const editors: IEditorIdentifier[] = [];
+
+				this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
+					editors.push(...group.getEditors(EditorsOrder.SEQUENTIAL, options).map(editor => ({ editor, groupId: group.id })));
+				});
+
+				return editors;
 		}
-
-		const editors: IEditorIdentifier[] = [];
-
-		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
-			editors.push(...group.getEditors(EditorsOrder.SEQUENTIAL, options).map(editor => ({ editor, groupId: group.id })));
-		});
-
-		return editors;
 	}
 
 	get activeEditor(): IEditorInput | undefined {
@@ -1323,15 +1330,7 @@ export class DelegatingEditorService implements IEditorService {
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
 
-	getEditors(order: EditorsOrder.MOST_RECENTLY_ACTIVE): ReadonlyArray<IEditorIdentifier>;
-	getEditors(order: EditorsOrder.SEQUENTIAL, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> {
-		if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
-			return this.editorService.getEditors(order);
-		}
-
-		return this.editorService.getEditors(order, options);
-	}
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> { return this.editorService.getEditors(order, options); }
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
