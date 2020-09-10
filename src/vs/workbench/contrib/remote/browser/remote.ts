@@ -286,9 +286,10 @@ class HelpItemValue {
 						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
 						this._url = await Promise.race([urlCommand, emptyString]);
 					}
-				} else {
-					this._url = '';
 				}
+			}
+			if (this._url === undefined) {
+				this._url = '';
 			}
 			resolve(this._url);
 		});
