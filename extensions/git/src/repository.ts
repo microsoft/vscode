@@ -687,7 +687,8 @@ export class Repository implements Disposable {
 		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
 		private pushErrorHandlerRegistry: IPushErrorHandlerRegistry,
 		globalState: Memento,
-		outputChannel: OutputChannel
+		outputChannel: OutputChannel,
+		parentRepository: Repository | undefined
 	) {
 		const workspaceWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(workspaceWatcher);
@@ -721,8 +722,13 @@ export class Repository implements Disposable {
 
 		this.disposables.push(new FileEventLogger(onWorkspaceWorkingTreeFileChange, onDotGitFileChange, outputChannel));
 
+		const getModuleLabel = () => {
+			const submodule = parentRepository?.submodules.find(s => path.join(parentRepository.root, s.path) === repository.root);
+			return submodule ? submodule.name : 'Git';
+		};
+
 		const root = Uri.file(repository.root);
-		this._sourceControl = scm.createSourceControl('git', 'Git', root);
+		this._sourceControl = scm.createSourceControl('git', getModuleLabel(), root);
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
