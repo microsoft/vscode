@@ -14,7 +14,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
@@ -53,7 +53,7 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string, args: IDiagnosticInfoOptions }): void => {
 			const connection = remoteAgentService.getConnection();
 			if (connection) {
-				const hostName = labelService.getHostLabel(REMOTE_HOST_SCHEME, connection.remoteAuthority);
+				const hostName = labelService.getHostLabel(Schemas.vscodeRemote, connection.remoteAuthority);
 				remoteAgentService.getDiagnosticInfo(request.args)
 					.then(info => {
 						if (info) {

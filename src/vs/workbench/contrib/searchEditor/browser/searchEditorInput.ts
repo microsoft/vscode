@@ -5,7 +5,6 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
-import * as network from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { extname, isEqual, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -24,7 +23,6 @@ import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditorModel } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
 import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEditor, serializeSearchConfiguration } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
@@ -82,7 +80,6 @@ export class SearchEditorInput extends EditorInput {
 		private searchEditorModel: SearchEditorModel,
 		@IModelService private readonly modelService: IModelService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
@@ -277,10 +274,7 @@ export class SearchEditorInput extends EditorInput {
 
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
-
-		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome()), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme()) || (await this.pathService.userHome()), searchFileName);
 	}
 }
 

@@ -35,6 +35,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { extUri } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -117,7 +118,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 
@@ -514,7 +516,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private preferResourceEditorInput(input: IEditorInput): IEditorInput | IResourceEditorInput {
 		const resource = input.resource;
-		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
+		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData || resource.scheme === this.pathService.defaultUriScheme())) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
 			return { resource };

@@ -11,7 +11,6 @@ import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quic
 import { URI } from 'vs/base/common/uri';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -109,7 +108,7 @@ export class SimpleFileDialog {
 	private remoteAuthority: string | undefined;
 	private requiresTrailing: boolean = false;
 	private trailing: string | undefined;
-	protected scheme: string = REMOTE_HOST_SCHEME;
+	protected scheme: string = Schemas.vscodeRemote;
 	private contextKey: IContextKey<boolean>;
 	private userEnteredPathSegment: string = '';
 	private autoCompletePathSegment: string = '';

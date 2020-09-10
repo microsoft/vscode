@@ -18,7 +18,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -593,7 +592,7 @@ function anExtensionManagementServerService(localExtensionManagementServer: IExt
 			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === Schemas.vscodeRemote) {
 				return remoteExtensionManagementServer;
 			}
 			return webExtensionManagementServer;
