@@ -9,11 +9,14 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, ITextSearchMatch, OneLineRange, QueryType, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { FileMatch, Match, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { isWindows } from 'vs/base/common/platform';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -25,7 +28,7 @@ suite('Search - Viewlet', () => {
 	});
 
 	test('Data Source', function () {
-		let result: SearchResult = instantiation.createInstance(SearchResult, null);
+		const result: SearchResult = instantiation.createInstance(SearchResult, null);
 		result.query = {
 			type: QueryType.Text,
 			contentPattern: { pattern: 'foo' },
@@ -55,20 +58,20 @@ suite('Search - Viewlet', () => {
 			}]
 		}]);
 
-		let fileMatch = result.matches()[0];
-		let lineMatch = fileMatch.matches()[0];
+		const fileMatch = result.matches()[0];
+		const lineMatch = fileMatch.matches()[0];
 
 		assert.equal(fileMatch.id(), 'file:///c%3A/foo');
 		assert.equal(lineMatch.id(), 'file:///c%3A/foo>[2,1 -> 2,2]b');
 	});
 
 	test('Comparer', () => {
-		let fileMatch1 = aFileMatch('C:\\foo');
-		let fileMatch2 = aFileMatch('C:\\with\\path');
-		let fileMatch3 = aFileMatch('C:\\with\\path\\foo');
-		let lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
-		let lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
-		let lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const fileMatch1 = aFileMatch(isWindows ? 'C:\\foo' : '/c/foo');
+		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path' : '/c/with/path');
+		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path\\foo' : '/c/with/path/foo');
+		const lineMatch1 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(0, 1, 1));
+		const lineMatch2 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
+		const lineMatch3 = new Match(fileMatch1, ['bar'], new OneLineRange(0, 1, 1), new OneLineRange(2, 1, 1));
 
 		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
 		assert(searchMatchComparer(fileMatch2, fileMatch1) > 0);
@@ -80,9 +83,23 @@ suite('Search - Viewlet', () => {
 		assert(searchMatchComparer(lineMatch2, lineMatch3) === 0);
 	});
 
+	test('Advanced Comparer', () => {
+		const fileMatch1 = aFileMatch(isWindows ? 'C:\\with\\path\\foo10' : '/c/with/path/foo10');
+		const fileMatch2 = aFileMatch(isWindows ? 'C:\\with\\path2\\foo1' : '/c/with/path2/foo1');
+		const fileMatch3 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.a' : '/c/with/path2/bar.a');
+		const fileMatch4 = aFileMatch(isWindows ? 'C:\\with\\path2\\bar.b' : '/c/with/path2/bar.b');
+
+		// By default, path < path2
+		assert(searchMatchComparer(fileMatch1, fileMatch2) < 0);
+		// By filenames, foo10 > foo1
+		assert(searchMatchComparer(fileMatch1, fileMatch2, SearchSortOrder.FileNames) > 0);
+		// By type, bar.a < bar.b
+		assert(searchMatchComparer(fileMatch3, fileMatch4, SearchSortOrder.Type) < 0);
+	});
+
 	function aFileMatch(path: string, searchResult?: SearchResult, ...lineMatches: ITextSearchMatch[]): FileMatch {
-		let rawMatch: IFileMatch = {
-			resource: uri.file('C:\\' + path),
+		const rawMatch: IFileMatch = {
+			resource: uri.file(path),
 			results: lineMatches
 		};
 		return instantiation.createInstance(FileMatch, null, null, null, searchResult, rawMatch);
@@ -90,6 +107,7 @@ suite('Search - Viewlet', () => {
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

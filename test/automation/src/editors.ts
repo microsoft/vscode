@@ -17,27 +17,27 @@ export class Editors {
 		}
 	}
 
-	async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
-		await this.code.waitAndClick(`.tabs-container div.tab[aria-label="${tabName}, tab"]`);
-		await this.waitForEditorFocus(tabName, untitled);
+	async selectTab(fileName: string): Promise<void> {
+		await this.code.waitAndClick(`.tabs-container div.tab[data-resource-name$="${fileName}"]`);
+		await this.waitForEditorFocus(fileName);
 	}
 
-	async waitForActiveEditor(filename: string): Promise<any> {
-		const selector = `.editor-instance .monaco-editor[data-uri$="${filename}"] textarea`;
+	async waitForActiveEditor(fileName: string): Promise<any> {
+		const selector = `.editor-instance .monaco-editor[data-uri$="${fileName}"] textarea`;
 		return this.code.waitForActiveElement(selector);
 	}
 
-	async waitForEditorFocus(fileName: string, untitled: boolean = false): Promise<void> {
+	async waitForEditorFocus(fileName: string): Promise<void> {
 		await this.waitForActiveTab(fileName);
 		await this.waitForActiveEditor(fileName);
 	}
 
 	async waitForActiveTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][aria-label="${fileName}, tab"]`);
+		await this.code.waitForElement(`.tabs-container div.tab.active${isDirty ? '.dirty' : ''}[aria-selected="true"][data-resource-name$="${fileName}"]`);
 	}
 
 	async waitForTab(fileName: string, isDirty: boolean = false): Promise<void> {
-		await this.code.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[aria-label="${fileName}, tab"]`);
+		await this.code.waitForElement(`.tabs-container div.tab${isDirty ? '.dirty' : ''}[data-resource-name$="${fileName}"]`);
 	}
 
 	async newUntitledFile(): Promise<void> {
@@ -47,6 +47,6 @@ export class Editors {
 			await this.code.dispatchKeybinding('ctrl+n');
 		}
 
-		await this.waitForEditorFocus('Untitled-1', true);
+		await this.waitForEditorFocus('Untitled-1');
 	}
 }

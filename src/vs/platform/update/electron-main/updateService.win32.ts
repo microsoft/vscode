@@ -12,7 +12,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import product from 'vs/platform/product/common/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
@@ -49,7 +49,7 @@ function getUpdateType(): UpdateType {
 
 export class Win32UpdateService extends AbstractUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private availableUpdate: IAvailableUpdate | undefined;
 
@@ -63,12 +63,16 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
+	}
+
+	initialize(): void {
+		super.initialize();
 
 		if (getUpdateType() === UpdateType.Setup) {
 			/* __GDPR__
@@ -81,15 +85,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
-			telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
+			this.telemetryService.publicLog('update:win32SetupTarget', { target: product.target });
 		}
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		let platform = 'win32';
 
-		if (process.arch === 'x64') {
-			platform += '-x64';
+		if (process.arch !== 'ia32') {
+			platform += `-${process.arch}`;
 		}
 
 		if (getUpdateType() === UpdateType.Archive) {

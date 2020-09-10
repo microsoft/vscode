@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Location, getLocation, createScanner, SyntaxKind, ScanError } from 'jsonc-parser';
+import { Location, getLocation, createScanner, SyntaxKind, ScanError, JSONScanner } from 'jsonc-parser';
 import { basename } from 'path';
 import { BowerJSONContribution } from './bowerJSONContribution';
 import { PackageJSONContribution } from './packageJSONContribution';
@@ -25,13 +25,13 @@ export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
 	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null;
 	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
-	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any>;
+	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
 	collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any>;
 	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
 
-export function addJSONProviders(xhr: XHRRequest): Disposable {
-	const contributions = [new PackageJSONContribution(xhr), new BowerJSONContribution(xhr)];
+export function addJSONProviders(xhr: XHRRequest, canRunNPM: boolean): Disposable {
+	const contributions = [new PackageJSONContribution(xhr, canRunNPM), new BowerJSONContribution(xhr)];
 	const subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
 		const selector = contribution.getDocumentSelector();
@@ -111,7 +111,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			add: (suggestion: CompletionItem) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
-					suggestion.range = overwriteRange;
+					suggestion.range = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
 					items.push(suggestion);
 				}
 			},
@@ -123,8 +123,9 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		let collectPromise: Thenable<any> | null = null;
 
 		if (location.isAtPropertyKey) {
-			const addValue = !location.previousNode || !location.previousNode.colonOffset;
-			const isLast = this.isLast(document, position);
+			const scanner = createScanner(document.getText(), true);
+			const addValue = !location.previousNode || !this.hasColonAfter(scanner, location.previousNode.offset + location.previousNode.length);
+			const isLast = this.isLast(scanner, document.offsetAt(position));
 			collectPromise = this.jsonContribution.collectPropertySuggestions(fileName, location, currentWord, addValue, isLast, collector);
 		} else {
 			if (location.path.length === 0) {
@@ -153,15 +154,19 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return text.substring(i + 1, position.character);
 	}
 
-	private isLast(document: TextDocument, position: Position): boolean {
-		const scanner = createScanner(document.getText(), true);
-		scanner.setPosition(document.offsetAt(position));
+	private isLast(scanner: JSONScanner, offset: number): boolean {
+		scanner.setPosition(offset);
 		let nextToken = scanner.scan();
 		if (nextToken === SyntaxKind.StringLiteral && scanner.getTokenError() === ScanError.UnexpectedEndOfString) {
 			nextToken = scanner.scan();
 		}
 		return nextToken === SyntaxKind.CloseBraceToken || nextToken === SyntaxKind.EOF;
 	}
+	private hasColonAfter(scanner: JSONScanner, offset: number): boolean {
+		scanner.setPosition(offset);
+		return scanner.scan() === SyntaxKind.ColonToken;
+	}
+
 }
 
 export const xhrDisabled = () => Promise.reject({ responseText: 'Use of online resources is disabled.' });

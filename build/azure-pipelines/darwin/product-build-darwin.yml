@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -96,9 +96,13 @@ steps:
 - script: |
     set -e
     ./scripts/test.sh --build --tfs "Unit Tests"
-    # APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
-    # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
-  displayName: Run unit tests
+  displayName: Run unit tests (Electron)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
+  displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
@@ -111,23 +115,72 @@ steps:
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
     ./scripts/test-integration.sh --build --tfs "Integration Tests"
-  displayName: Run integration tests
+  displayName: Run integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-# Web Smoke Tests disabled due to https://github.com/microsoft/vscode/issues/80308
-# - script: |
-#     set -e
-#     cd test/smoke
-#     yarn compile
-#     cd -
-#     yarn smoketest --web --headless
-#   continueOnError: true
-#   displayName: Run web smoke tests
-#   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
     set -e
-    pushd ../VSCode-darwin && zip -r -X -y ../VSCode-darwin.zip * && popd
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+    ./resources/server/test/test-web-integration.sh --browser webkit
+  displayName: Run integration tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    APP_ROOT=$(agent.builddirectory)/VSCode-darwin
+    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
+    ./resources/server/test/test-remote-integration.sh
+  displayName: Run remote integration tests (Electron)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    APP_ROOT=$(agent.builddirectory)/VSCode-darwin
+    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    yarn smoketest --build "$APP_ROOT/$APP_NAME"
+  continueOnError: true
+  displayName: Run smoke tests (Electron)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+    yarn smoketest --web --headless
+  continueOnError: true
+  displayName: Run smoke tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: crash-dump-macos
+    targetPath: .build/crashes
+  displayName: 'Publish Crash Reports'
+  continueOnError: true
+  condition: failed()
+
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()
+
+- script: |
+    set -e
+    security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+    security default-keychain -s $(agent.tempdirectory)/buildagent.keychain
+    security unlock-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
+    echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
+    security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
+    DEBUG=electron-osx-sign* node build/darwin/sign.js
+  displayName: Set Hardened Entitlements
+
+- script: |
+    set -e
+    pushd $(agent.builddirectory)/VSCode-darwin && zip -r -X -y $(agent.builddirectory)/VSCode-darwin.zip * && popd
   displayName: Archive build
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
@@ -141,13 +194,60 @@ steps:
         {
           "keyCode": "CP-401337-Apple",
           "operationSetCode": "MacAppDeveloperSign",
-          "parameters": [ ],
+          "parameters": [
+            {
+              "parameterName": "Hardening",
+              "parameterValue": "--options=runtime"
+            }
+          ],
           "toolName": "sign",
           "toolVersion": "1.0"
         }
       ]
-    SessionTimeout: 120
+    SessionTimeout: 60
   displayName: Codesign
+
+- script: |
+    zip -d $(agent.builddirectory)/VSCode-darwin.zip "*.pkg"
+  displayName: Clean Archive
+
+- script: |
+    APP_ROOT=$(agent.builddirectory)/VSCode-darwin
+    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    BUNDLE_IDENTIFIER=$(node -p "require(\"$APP_ROOT/$APP_NAME/Contents/Resources/app/product.json\").darwinBundleIdentifier")
+    echo "##vso[task.setvariable variable=BundleIdentifier]$BUNDLE_IDENTIFIER"
+  displayName: Export bundle identifier
+
+- task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
+  inputs:
+    ConnectedServiceName: 'ESRP CodeSign'
+    FolderPath: '$(agent.builddirectory)'
+    Pattern: 'VSCode-darwin.zip'
+    signConfigType: inlineSignParams
+    inlineOperation: |
+      [
+        {
+          "keyCode": "CP-401337-Apple",
+          "operationSetCode": "MacAppNotarize",
+          "parameters": [
+            {
+              "parameterName": "BundleId",
+              "parameterValue": "$(BundleIdentifier)"
+            }
+          ],
+          "toolName": "sign",
+          "toolVersion": "1.0"
+        }
+      ]
+    SessionTimeout: 60
+  displayName: Notarization
+
+- script: |
+    set -e
+    APP_ROOT=$(agent.builddirectory)/VSCode-darwin
+    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
+  displayName: Verify start after signing (export configuration)
 
 - script: |
     set -e
@@ -155,9 +255,14 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
     ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
+
+- script: |
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+    yarn gulp upload-vscode-configuration
+  displayName: Upload configuration (for Bing settings search)
+  continueOnError: true
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'

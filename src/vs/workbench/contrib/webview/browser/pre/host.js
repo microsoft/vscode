@@ -5,6 +5,7 @@
 // @ts-check
 (function () {
 	const id = document.location.search.match(/\bid=([\w-]+)/)[1];
+	const onElectron = /platform=electron/.test(document.location.search);
 
 	const hostMessaging = new class HostMessaging {
 		constructor() {
@@ -35,35 +36,49 @@
 		}
 	}();
 
+	function fatalError(/** @type {string} */ message) {
+		console.error(`Webview fatal error: ${message}`);
+		hostMessaging.postMessage('fatal-error', { message });
+	}
+
 	const workerReady = new Promise(async (resolveWorkerReady) => {
+		if (onElectron) {
+			return resolveWorkerReady();
+		}
+
 		if (!areServiceWorkersEnabled()) {
-			console.log('Service Workers are not enabled. Webviews will not work properly');
+			fatalError('Service Workers are not enabled in browser. Webviews will not work.');
 			return resolveWorkerReady();
 		}
 
 		const expectedWorkerVersion = 1;
 
-		navigator.serviceWorker.register('service-worker.js').then(async registration => {
-			await navigator.serviceWorker.ready;
+		navigator.serviceWorker.register('service-worker.js').then(
+			async registration => {
+				await navigator.serviceWorker.ready;
 
-			const versionHandler = (event) => {
-				if (event.data.channel !== 'version') {
-					return;
-				}
+				const versionHandler = (event) => {
+					if (event.data.channel !== 'version') {
+						return;
+					}
 
-				navigator.serviceWorker.removeEventListener('message', versionHandler);
-				if (event.data.version === expectedWorkerVersion) {
-					return resolveWorkerReady();
-				} else {
-					// If we have the wrong version, try once to unregister and re-register
-					return registration.update()
-						.then(() => navigator.serviceWorker.ready)
-						.finally(resolveWorkerReady);
-				}
-			};
-			navigator.serviceWorker.addEventListener('message', versionHandler);
-			registration.active.postMessage({ channel: 'version' });
-		});
+					navigator.serviceWorker.removeEventListener('message', versionHandler);
+					if (event.data.version === expectedWorkerVersion) {
+						return resolveWorkerReady();
+					} else {
+						// If we have the wrong version, try once to unregister and re-register
+						return registration.update()
+							.then(() => navigator.serviceWorker.ready)
+							.finally(resolveWorkerReady);
+					}
+				};
+				navigator.serviceWorker.addEventListener('message', versionHandler);
+				registration.active.postMessage({ channel: 'version' });
+			},
+			error => {
+				fatalError(`Could not register service workers: ${error}.`);
+				resolveWorkerReady();
+			});
 
 		const forwardFromHostToWorker = (channel) => {
 			hostMessaging.onMessage(channel, event => {
@@ -90,10 +105,21 @@
 		}
 	}
 
-	window.createWebviewManager({
+	/** @type {import('./main').WebviewHost} */
+	const host = {
 		postMessage: hostMessaging.postMessage.bind(hostMessaging),
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
-		fakeLoad: true
-	});
+		fakeLoad: !onElectron,
+		rewriteCSP: onElectron
+			? (csp) => {
+				return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
+			}
+			: (csp, endpoint) => {
+				const endpointUrl = new URL(endpoint);
+				return csp.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+			}
+	};
+
+	(/** @type {any} */ (window)).createWebviewManager(host);
 }());

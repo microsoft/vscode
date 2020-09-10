@@ -10,8 +10,8 @@ import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { ResourceMap } from 'vs/base/common/map';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -48,22 +48,47 @@ export function ConfigurationTargetToString(configurationTarget: ConfigurationTa
 	}
 }
 
+export interface IConfigurationChange {
+	keys: string[];
+	overrides: [string, string[]][];
+}
+
 export interface IConfigurationChangeEvent {
 
-	source: ConfigurationTarget;
-	affectedKeys: string[];
-	affectsConfiguration(configuration: string, resource?: URI): boolean;
+	readonly source: ConfigurationTarget;
+	readonly affectedKeys: string[];
+	readonly change: IConfigurationChange;
+
+	affectsConfiguration(configuration: string, overrides?: IConfigurationOverrides): boolean;
 
 	// Following data is used for telemetry
-	sourceConfig: any;
+	readonly sourceConfig: any;
+}
 
-	// Following data is used for Extension host configuration event
-	changedConfiguration: IConfigurationModel;
-	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
+export interface IConfigurationValue<T> {
+
+	readonly defaultValue?: T;
+	readonly userValue?: T;
+	readonly userLocalValue?: T;
+	readonly userRemoteValue?: T;
+	readonly workspaceValue?: T;
+	readonly workspaceFolderValue?: T;
+	readonly memoryValue?: T;
+	readonly value?: T;
+
+	readonly default?: { value?: T, override?: T };
+	readonly user?: { value?: T, override?: T };
+	readonly userLocal?: { value?: T, override?: T };
+	readonly userRemote?: { value?: T, override?: T };
+	readonly workspace?: { value?: T, override?: T };
+	readonly workspaceFolder?: { value?: T, override?: T };
+	readonly memory?: { value?: T, override?: T };
+
+	readonly overrideIdentifiers?: string[];
 }
 
 export interface IConfigurationService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	onDidChangeConfiguration: Event<IConfigurationChangeEvent>;
 
@@ -87,18 +112,9 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
 
-	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		userLocal?: T,
-		userRemote?: T,
-		workspace?: T,
-		workspaceFolder?: T,
-		memory?: T,
-		value: T,
-	};
+	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
 
 	keys(): {
 		default: string[];
@@ -116,6 +132,7 @@ export interface IConfigurationModel {
 }
 
 export interface IOverrides {
+	keys: string[];
 	contents: any;
 	identifiers: string[];
 }
@@ -127,35 +144,89 @@ export interface IConfigurationData {
 	folders: [UriComponents, IConfigurationModel][];
 }
 
-export function compare(from: IConfigurationModel, to: IConfigurationModel): { added: string[], removed: string[], updated: string[] } {
-	const added = to.keys.filter(key => from.keys.indexOf(key) === -1);
-	const removed = from.keys.filter(key => to.keys.indexOf(key) === -1);
+export interface IConfigurationCompareResult {
+	added: string[];
+	removed: string[];
+	updated: string[];
+	overrides: [string, string[]][];
+}
+
+export function compare(from: IConfigurationModel | undefined, to: IConfigurationModel | undefined): IConfigurationCompareResult {
+	const added = to
+		? from ? to.keys.filter(key => from.keys.indexOf(key) === -1) : [...to.keys]
+		: [];
+	const removed = from
+		? to ? from.keys.filter(key => to.keys.indexOf(key) === -1) : [...from.keys]
+		: [];
 	const updated: string[] = [];
 
-	for (const key of from.keys) {
-		const value1 = getConfigurationValue(from.contents, key);
-		const value2 = getConfigurationValue(to.contents, key);
-		if (!objects.equals(value1, value2)) {
-			updated.push(key);
+	if (to && from) {
+		for (const key of from.keys) {
+			if (to.keys.indexOf(key) !== -1) {
+				const value1 = getConfigurationValue(from.contents, key);
+				const value2 = getConfigurationValue(to.contents, key);
+				if (!objects.equals(value1, value2)) {
+					updated.push(key);
+				}
+			}
 		}
 	}
 
-	return { added, removed, updated };
+	const overrides: [string, string[]][] = [];
+	const byOverrideIdentifier = (overrides: IOverrides[]): IStringDictionary<IOverrides> => {
+		const result: IStringDictionary<IOverrides> = {};
+		for (const override of overrides) {
+			for (const identifier of override.identifiers) {
+				result[keyFromOverrideIdentifier(identifier)] = override;
+			}
+		}
+		return result;
+	};
+	const toOverridesByIdentifier: IStringDictionary<IOverrides> = to ? byOverrideIdentifier(to.overrides) : {};
+	const fromOverridesByIdentifier: IStringDictionary<IOverrides> = from ? byOverrideIdentifier(from.overrides) : {};
+
+	if (Object.keys(toOverridesByIdentifier).length) {
+		for (const key of added) {
+			const override = toOverridesByIdentifier[key];
+			if (override) {
+				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+			}
+		}
+	}
+	if (Object.keys(fromOverridesByIdentifier).length) {
+		for (const key of removed) {
+			const override = fromOverridesByIdentifier[key];
+			if (override) {
+				overrides.push([overrideIdentifierFromKey(key), override.keys]);
+			}
+		}
+	}
+
+	if (Object.keys(toOverridesByIdentifier).length && Object.keys(fromOverridesByIdentifier).length) {
+		for (const key of updated) {
+			const fromOverride = fromOverridesByIdentifier[key];
+			const toOverride = toOverridesByIdentifier[key];
+			if (fromOverride && toOverride) {
+				const result = compare({ contents: fromOverride.contents, keys: fromOverride.keys, overrides: [] }, { contents: toOverride.contents, keys: toOverride.keys, overrides: [] });
+				overrides.push([overrideIdentifierFromKey(key), [...result.added, ...result.removed, ...result.updated]]);
+			}
+		}
+	}
+
+	return { added, removed, updated, overrides };
 }
 
 export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
 	const overrides: IOverrides[] = [];
-	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	for (const key of Object.keys(raw)) {
 		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
 			const overrideRaw: any = {};
 			for (const keyInOverrideRaw in raw[key]) {
-				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
-					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
-				}
+				overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
 			}
 			overrides.push({
 				identifiers: [overrideIdentifierFromKey(key).trim()],
+				keys: Object.keys(overrideRaw),
 				contents: toValuesTree(overrideRaw, conflictReporter)
 			});
 		}
@@ -194,8 +265,12 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 		curr = obj;
 	}
 
-	if (typeof curr === 'object') {
-		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+	if (typeof curr === 'object' && curr !== null) {
+		try {
+			curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+		} catch (e) {
+			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
+		}
 	} else {
 		conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 	}
@@ -248,14 +323,16 @@ export function getConfigurationValue<T>(config: any, settingPath: string, defau
 
 export function merge(base: any, add: any, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
-		if (key in base) {
-			if (types.isObject(base[key]) && types.isObject(add[key])) {
-				merge(base[key], add[key], overwrite);
-			} else if (overwrite) {
+		if (key !== '__proto__') {
+			if (key in base) {
+				if (types.isObject(base[key]) && types.isObject(add[key])) {
+					merge(base[key], add[key], overwrite);
+				} else if (overwrite) {
+					base[key] = add[key];
+				}
+			} else {
 				base[key] = add[key];
 			}
-		} else {
-			base[key] = add[key];
 		}
 	});
 }
@@ -277,10 +354,6 @@ export function getDefaultValues(): any {
 	return valueTreeRoot;
 }
 
-export function overrideIdentifierFromKey(key: string): string {
-	return key.substring(1, key.length - 1);
-}
-
 export function keyFromOverrideIdentifier(overrideIdentifier: string): string {
 	return `[${overrideIdentifier}]`;
 }
@@ -289,11 +362,11 @@ export function getMigratedSettingValue<T>(configurationService: IConfigurationS
 	const setting = configurationService.inspect<T>(currentSettingName);
 	const legacySetting = configurationService.inspect<T>(legacySettingName);
 
-	if (typeof setting.user !== 'undefined' || typeof setting.workspace !== 'undefined' || typeof setting.workspaceFolder !== 'undefined') {
-		return setting.value;
-	} else if (typeof legacySetting.user !== 'undefined' || typeof legacySetting.workspace !== 'undefined' || typeof legacySetting.workspaceFolder !== 'undefined') {
-		return legacySetting.value;
+	if (typeof setting.userValue !== 'undefined' || typeof setting.workspaceValue !== 'undefined' || typeof setting.workspaceFolderValue !== 'undefined') {
+		return setting.value!;
+	} else if (typeof legacySetting.userValue !== 'undefined' || typeof legacySetting.workspaceValue !== 'undefined' || typeof legacySetting.workspaceFolderValue !== 'undefined') {
+		return legacySetting.value!;
 	} else {
-		return setting.default;
+		return setting.defaultValue!;
 	}
 }

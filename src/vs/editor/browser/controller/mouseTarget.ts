@@ -17,6 +17,7 @@ import { HorizontalPosition } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import * as dom from 'vs/base/browser/dom';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -79,7 +80,7 @@ interface IETextRange {
 	setEndPoint(how: string, SourceRange: IETextRange): void;
 }
 
-declare var IETextRange: {
+declare const IETextRange: {
 	prototype: IETextRange;
 	new(): IETextRange;
 };
@@ -87,6 +88,13 @@ declare var IETextRange: {
 interface IHitTestResult {
 	position: Position | null;
 	hitTarget: Element | null;
+}
+
+export class PointerHandlerLastRenderData {
+	constructor(
+		public readonly lastViewCursorsRenderData: IViewCursorRenderData[],
+		public readonly lastTextareaPosition: Position | null
+	) { }
 }
 
 export class MouseTarget implements IMouseTarget {
@@ -232,19 +240,19 @@ export class HitTestContext {
 	public readonly viewDomNode: HTMLElement;
 	public readonly lineHeight: number;
 	public readonly typicalHalfwidthCharacterWidth: number;
-	public readonly lastViewCursorsRenderData: IViewCursorRenderData[];
+	public readonly lastRenderData: PointerHandlerLastRenderData;
 
 	private readonly _context: ViewContext;
 	private readonly _viewHelper: IPointerHandlerHelper;
 
-	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastViewCursorsRenderData: IViewCursorRenderData[]) {
+	constructor(context: ViewContext, viewHelper: IPointerHandlerHelper, lastRenderData: PointerHandlerLastRenderData) {
 		this.model = context.model;
 		const options = context.configuration.options;
 		this.layoutInfo = options.get(EditorOption.layoutInfo);
 		this.viewDomNode = viewHelper.viewDomNode;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-		this.lastViewCursorsRenderData = lastViewCursorsRenderData;
+		this.lastRenderData = lastRenderData;
 		this._context = context;
 		this._viewHelper = viewHelper;
 	}
@@ -412,7 +420,7 @@ class HitTestRequest extends BareHitTestRequest {
 		let mouseColumn = this.mouseColumn;
 		if (position && position.column < this._ctx.model.getLineMaxColumn(position.lineNumber)) {
 			// Most likely, the line contains foreign decorations...
-			mouseColumn = CursorColumns.visibleColumnFromColumn(this._ctx.model.getLineContent(position.lineNumber), position.column, this._ctx.model.getOptions().tabSize) + 1;
+			mouseColumn = CursorColumns.visibleColumnFromColumn(this._ctx.model.getLineContent(position.lineNumber), position.column, this._ctx.model.getTextModelOptions().tabSize) + 1;
 		}
 		return new MouseTarget(this.target, type, mouseColumn, position, range, detail);
 	}
@@ -462,8 +470,8 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(lastViewCursorsRenderData: IViewCursorRenderData[], editorPos: EditorPagePosition, pos: PageCoordinates, target: HTMLElement | null): IMouseTarget {
-		const ctx = new HitTestContext(this._context, this._viewHelper, lastViewCursorsRenderData);
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, target: HTMLElement | null): IMouseTarget {
+		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
 		const request = new HitTestRequest(ctx, editorPos, pos, target);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request, false);
@@ -544,7 +552,7 @@ export class MouseTargetFactory {
 
 		if (request.target) {
 			// Check if we've hit a painted cursor
-			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
+			const lastViewCursorsRenderData = ctx.lastRenderData.lastViewCursorsRenderData;
 
 			for (const d of lastViewCursorsRenderData) {
 
@@ -560,7 +568,7 @@ export class MouseTargetFactory {
 			// first or last rendered view line dom node, therefore help it out
 			// and first check if we are on top of a cursor
 
-			const lastViewCursorsRenderData = ctx.lastViewCursorsRenderData;
+			const lastViewCursorsRenderData = ctx.lastRenderData.lastViewCursorsRenderData;
 			const mouseContentHorizontalOffset = request.mouseContentHorizontalOffset;
 			const mouseVerticalOffset = request.mouseVerticalOffset;
 
@@ -602,7 +610,10 @@ export class MouseTargetFactory {
 	private static _hitTestTextArea(ctx: HitTestContext, request: ResolvedHitTestRequest): MouseTarget | null {
 		// Is it the textarea?
 		if (ElementPath.isTextArea(request.targetPath)) {
-			return request.fulfill(MouseTargetType.TEXTAREA);
+			if (ctx.lastRenderData.lastTextareaPosition) {
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, ctx.lastRenderData.lastTextareaPosition);
+			}
+			return request.fulfill(MouseTargetType.TEXTAREA, ctx.lastRenderData.lastTextareaPosition);
 		}
 		return null;
 	}
@@ -662,6 +673,13 @@ export class MouseTargetFactory {
 					const lineWidth = ctx.getLineWidth(lineNumber);
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), undefined, detail);
+				}
+
+				const lineWidth = ctx.getLineWidth(lineNumber);
+				if (request.mouseContentHorizontalOffset >= lineWidth) {
+					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
+					const pos = new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber));
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, undefined, detail);
 				}
 			}
 
@@ -818,8 +836,17 @@ export class MouseTargetFactory {
 	}
 
 	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
-
-		const range: Range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
+		let range: Range;
+		if (shadowRoot) {
+			if (typeof shadowRoot.caretRangeFromPoint === 'undefined') {
+				range = shadowCaretRangeFromPoint(shadowRoot, coords.clientX, coords.clientY);
+			} else {
+				range = shadowRoot.caretRangeFromPoint(coords.clientX, coords.clientY);
+			}
+		} else {
+			range = document.caretRangeFromPoint(coords.clientX, coords.clientY);
+		}
 
 		if (!range || !range.startContainer) {
 			return {
@@ -895,6 +922,23 @@ export class MouseTargetFactory {
 					position: null,
 					hitTarget: <HTMLElement>hitResult.offsetNode.parentNode
 				};
+			}
+		}
+
+		// For inline decorations, Gecko returns the `<span>` of the line and the offset is the `<span>` with the inline decoration
+		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.ELEMENT_NODE) {
+			const parent1 = hitResult.offsetNode.parentNode; // expected to be the view line div
+			const parent1ClassName = parent1 && parent1.nodeType === parent1.ELEMENT_NODE ? (<HTMLElement>parent1).className : null;
+
+			if (parent1ClassName === ViewLine.CLASS_NAME) {
+				const tokenSpan = hitResult.offsetNode.childNodes[Math.min(hitResult.offset, hitResult.offsetNode.childNodes.length - 1)];
+				if (tokenSpan) {
+					const p = ctx.getPositionFromDOMInfo(<HTMLElement>tokenSpan, 0);
+					return {
+						position: p,
+						hitTarget: null
+					};
+				}
 			}
 		}
 
@@ -990,5 +1034,96 @@ export class MouseTargetFactory {
 			position: null,
 			hitTarget: null
 		};
+	}
+}
+
+export function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number): Range {
+	const range = document.createRange();
+
+	// Get the element under the point
+	let el: Element | null = shadowRoot.elementFromPoint(x, y);
+
+	if (el !== null) {
+		// Get the last child of the element until its firstChild is a text node
+		// This assumes that the pointer is on the right of the line, out of the tokens
+		// and that we want to get the offset of the last token of the line
+		while (el && el.firstChild && el.firstChild.nodeType !== el.firstChild.TEXT_NODE) {
+			el = <Element>el.lastChild;
+		}
+
+		// Grab its rect
+		const rect = el.getBoundingClientRect();
+
+		// And its font
+		const font = window.getComputedStyle(el, null).getPropertyValue('font');
+
+		// And also its txt content
+		const text = (el as any).innerText;
+
+		// Position the pixel cursor at the left of the element
+		let pixelCursor = rect.left;
+		let offset = 0;
+		let step: number;
+
+		// If the point is on the right of the box put the cursor after the last character
+		if (x > rect.left + rect.width) {
+			offset = text.length;
+		} else {
+			const charWidthReader = CharWidthReader.getInstance();
+			// Goes through all the characters of the innerText, and checks if the x of the point
+			// belongs to the character.
+			for (let i = 0; i < text.length + 1; i++) {
+				// The step is half the width of the character
+				step = charWidthReader.getCharWidth(text.charAt(i), font) / 2;
+				// Move to the center of the character
+				pixelCursor += step;
+				// If the x of the point is smaller that the position of the cursor, the point is over that character
+				if (x < pixelCursor) {
+					offset = i;
+					break;
+				}
+				// Move between the current character and the next
+				pixelCursor += step;
+			}
+		}
+
+		// Creates a range with the text node of the element and set the offset found
+		range.setStart(el.firstChild!, offset);
+		range.setEnd(el.firstChild!, offset);
+	}
+
+	return range;
+}
+
+class CharWidthReader {
+	private static _INSTANCE: CharWidthReader | null = null;
+
+	public static getInstance(): CharWidthReader {
+		if (!CharWidthReader._INSTANCE) {
+			CharWidthReader._INSTANCE = new CharWidthReader();
+		}
+		return CharWidthReader._INSTANCE;
+	}
+
+	private readonly _cache: { [cacheKey: string]: number; };
+	private readonly _canvas: HTMLCanvasElement;
+
+	private constructor() {
+		this._cache = {};
+		this._canvas = document.createElement('canvas');
+	}
+
+	public getCharWidth(char: string, font: string): number {
+		const cacheKey = char + font;
+		if (this._cache[cacheKey]) {
+			return this._cache[cacheKey];
+		}
+
+		const context = this._canvas.getContext('2d')!;
+		context.font = font;
+		const metrics = context.measureText(char);
+		const width = metrics.width;
+		this._cache[cacheKey] = width;
+		return width;
 	}
 }

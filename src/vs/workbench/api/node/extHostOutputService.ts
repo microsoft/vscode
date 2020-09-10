@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MainThreadOutputServiceShape } from '../common/extHost.protocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { OutputAppender } from 'vs/workbench/services/output/node/outputAppender';
@@ -14,6 +14,7 @@ import { AbstractExtHostOutputChannel, ExtHostPushOutputChannel, ExtHostOutputSe
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostOutputChannelBackedByFile extends AbstractExtHostOutputChannel {
 
@@ -55,6 +56,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@ILogService private readonly logService: ILogService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
 		super(extHostRpc);
@@ -90,7 +92,7 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {
 			// Do not crash if logger cannot be created
-			console.log(error);
+			this.logService.error(error);
 			return new ExtHostPushOutputChannel(name, this._proxy);
 		}
 	}

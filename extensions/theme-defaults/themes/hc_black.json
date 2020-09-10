@@ -114,6 +114,19 @@
 			"settings": {
 				"foreground": "#CE9178"
 			}
+		},
+		{
+			"name": "HC Search Editor context line override",
+			"scope": "meta.resultLinePrefix.contextLinePrefix.search",
+			"settings": {
+				"foreground": "#CBEDCB",
+			}
 		}
-	]
+	],
+	"semanticTokenColors": {
+		"newOperator": "#FFFFFF",
+		"stringLiteral": "#ce9178",
+		"customLiteral": "#DCDCAA",
+		"numberLiteral": "#b5cea8",
+	}
 }

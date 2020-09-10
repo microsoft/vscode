@@ -269,7 +269,7 @@ class TaskDetector {
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
 			const thisCapture = this;
-			this.taskProvider = vscode.workspace.registerTaskProvider('jake', {
+			this.taskProvider = vscode.tasks.registerTaskProvider('jake', {
 				provideTasks(): Promise<vscode.Task[]> {
 					return thisCapture.getTasks();
 				},

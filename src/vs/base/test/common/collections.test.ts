@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import * as collections from 'vs/base/common/collections';
 
-
 suite('Collections', () => {
 
 	test('forEach', () => {

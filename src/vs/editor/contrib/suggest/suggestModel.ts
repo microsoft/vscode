@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -21,6 +21,8 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { isLowSurrogate, isHighSurrogate } from 'vs/base/common/strings';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -95,7 +97,7 @@ export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
 	private _quickSuggestDelay: number = 10;
-	private _triggerCharacterListener?: IDisposable;
+	private readonly _triggerCharacterListener = new DisposableStore();
 	private readonly _triggerQuickSuggest = new TimeoutTimer();
 	private _state: State = State.Idle;
 
@@ -115,7 +117,8 @@ export class SuggestModel implements IDisposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _editorWorker: IEditorWorkerService
+		private readonly _editorWorkerService: IEditorWorkerService,
+		private readonly _clipboardService: IClipboardService
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -141,10 +144,10 @@ export class SuggestModel implements IDisposable {
 		}));
 
 		let editorIsComposing = false;
-		this._toDispose.add(this._editor.onCompositionStart(() => {
+		this._toDispose.add(this._editor.onDidCompositionStart(() => {
 			editorIsComposing = true;
 		}));
-		this._toDispose.add(this._editor.onCompositionEnd(() => {
+		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
 			// refilter when composition ends
 			editorIsComposing = false;
 			this._refilterCompletionItems();
@@ -181,8 +184,7 @@ export class SuggestModel implements IDisposable {
 	}
 
 	private _updateTriggerCharacters(): void {
-
-		dispose(this._triggerCharacterListener);
+		this._triggerCharacterListener.clear();
 
 		if (this._editor.getOption(EditorOption.readOnly)
 			|| !this._editor.hasModel()
@@ -191,29 +193,49 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const supportsByTriggerCharacter: { [ch: string]: Set<CompletionItemProvider> } = Object.create(null);
+		const supportsByTriggerCharacter = new Map<string, Set<CompletionItemProvider>>();
 		for (const support of CompletionProviderRegistry.all(this._editor.getModel())) {
 			for (const ch of support.triggerCharacters || []) {
-				let set = supportsByTriggerCharacter[ch];
+				let set = supportsByTriggerCharacter.get(ch);
 				if (!set) {
-					set = supportsByTriggerCharacter[ch] = new Set();
+					set = new Set();
 					set.add(getSnippetSuggestSupport());
+					supportsByTriggerCharacter.set(ch, set);
 				}
 				set.add(support);
 			}
 		}
 
-		this._triggerCharacterListener = this._editor.onDidType(text => {
-			const lastChar = text.charAt(text.length - 1);
-			const supports = supportsByTriggerCharacter[lastChar];
 
+		const checkTriggerCharacter = (text?: string) => {
+
+			if (!text) {
+				// came here from the compositionEnd-event
+				const position = this._editor.getPosition()!;
+				const model = this._editor.getModel()!;
+				text = model.getLineContent(position.lineNumber).substr(0, position.column - 1);
+			}
+
+			let lastChar = '';
+			if (isLowSurrogate(text.charCodeAt(text.length - 1))) {
+				if (isHighSurrogate(text.charCodeAt(text.length - 2))) {
+					lastChar = text.substr(text.length - 2);
+				}
+			} else {
+				lastChar = text.charAt(text.length - 1);
+			}
+
+			const supports = supportsByTriggerCharacter.get(lastChar);
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: CompletionItem[] | undefined = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				const items = this._completionModel?.adopt(supports);
 				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
 			}
-		});
+		};
+
+		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
+		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(checkTriggerCharacter));
 	}
 
 	// --- trigger/retrigger/cancel suggest
@@ -266,9 +288,7 @@ export class SuggestModel implements IDisposable {
 		) {
 			// Early exit if nothing needs to be done!
 			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-			if (this._state !== State.Idle) {
-				this.cancel();
-			}
+			this.cancel();
 			return;
 		}
 
@@ -404,9 +424,9 @@ export class SuggestModel implements IDisposable {
 		}
 
 		let itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
-		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
+		let wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
-		let items = provideSuggestionItems(
+		let completions = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
 			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom),
@@ -414,9 +434,9 @@ export class SuggestModel implements IDisposable {
 			this._requestToken.token
 		);
 
-		Promise.all([items, wordDistance]).then(([items, wordDistance]) => {
+		Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
 
-			dispose(this._requestToken);
+			this._requestToken?.dispose();
 
 			if (this._state === State.Idle) {
 				return;
@@ -426,7 +446,13 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			let clipboardText: string | undefined;
+			if (completions.needsClipboard || isNonEmptyArray(existingItems)) {
+				clipboardText = await this._clipboardService.readText();
+			}
+
 			const model = this._editor.getModel();
+			let items = completions.items;
 
 			if (isNonEmptyArray(existingItems)) {
 				const cmpFn = getSuggestionComparator(snippetSortOrder);
@@ -440,15 +466,12 @@ export class SuggestModel implements IDisposable {
 			},
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
-				this._editor.getOption(EditorOption.snippetSuggestions)
+				this._editor.getOption(EditorOption.snippetSuggestions),
+				clipboardText
 			);
 
 			// store containers so that they can be disposed later
-			for (const item of items) {
-				if (isDisposable(item.container)) {
-					this._completionDisposables.add(item.container);
-				}
-			}
+			this._completionDisposables.add(completions.dispoables);
 
 			this._onNewContext(ctx);
 
@@ -493,6 +516,8 @@ export class SuggestModel implements IDisposable {
 		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
 		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
 		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
+		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
+		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
 
 		return result;
 	}
@@ -528,6 +553,12 @@ export class SuggestModel implements IDisposable {
 
 		if (!this._completionModel) {
 			// happens when IntelliSense is not yet computed
+			return;
+		}
+
+		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
+			// started a new word while IntelliSense shows -> retrigger
+			this.trigger({ auto: this._context.auto, shy: false }, true);
 			return;
 		}
 

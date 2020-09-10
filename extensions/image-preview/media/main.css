@@ -94,16 +94,16 @@ body img {
 }
 
 .loading-indicator,
-.image-load-error-message {
+.image-load-error {
 	display: none;
 }
 
 .loading .loading-indicator,
-.error .image-load-error-message {
+.error .image-load-error {
 	display: block;
 }
 
-.image-load-error-message {
+.image-load-error {
 	margin: 1em;
 }
 

@@ -8,11 +8,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { forEach } from 'vs/base/common/collections';
-import { RunOnOptions, Task, TaskRunSource } from 'vs/workbench/contrib/tasks/common/tasks';
+import { RunOnOptions, Task, TaskRunSource, TASKS_CATEGORY } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { Action } from 'vs/base/common/actions';
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { Action2 } from 'vs/platform/actions/common/actions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
@@ -132,27 +133,29 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 }
 
-export class ManageAutomaticTaskRunning extends Action {
+export class ManageAutomaticTaskRunning extends Action2 {
 
 	public static readonly ID = 'workbench.action.tasks.manageAutomaticRunning';
 	public static readonly LABEL = nls.localize('workbench.action.tasks.manageAutomaticRunning', "Manage Automatic Tasks in Folder");
 
-	constructor(
-		id: string, label: string,
-		@IStorageService private readonly storageService: IStorageService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: ManageAutomaticTaskRunning.ID,
+			title: ManageAutomaticTaskRunning.LABEL,
+			category: TASKS_CATEGORY
+		});
 	}
 
-	public async run(event?: any): Promise<any> {
+	public async run(accessor: ServicesAccessor): Promise<any> {
+		const quickInputService = accessor.get(IQuickInputService);
+		const storageService = accessor.get(IStorageService);
 		const allowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.allowAutomaticTasks', "Allow Automatic Tasks in Folder") };
 		const disallowItem: IQuickPickItem = { label: nls.localize('workbench.action.tasks.disallowAutomaticTasks', "Disallow Automatic Tasks in Folder") };
-		const value = await this.quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
+		const value = await quickInputService.pick([allowItem, disallowItem], { canPickMany: false });
 		if (!value) {
 			return;
 		}
 
-		this.storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE);
+		storageService.store(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, value === allowItem, StorageScope.WORKSPACE);
 	}
 }

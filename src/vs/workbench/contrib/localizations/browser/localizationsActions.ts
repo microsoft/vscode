@@ -6,14 +6,13 @@
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
+import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
-import { firstIndex } from 'vs/base/common/arrays';
-import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -37,8 +36,7 @@ export class ConfigureLocaleAction extends Action {
 	}
 
 	private async getLanguageOptions(): Promise<IQuickPickItem[]> {
-		// Contributed languages are those installed via extension packs, so does not include English
-		const availableLanguages = ['en', ...await this.localizationService.getLanguageIds(LanguageType.Contributed)];
+		const availableLanguages = await this.localizationService.getLanguageIds();
 		availableLanguages.sort();
 
 		return availableLanguages
@@ -46,9 +44,9 @@ export class ConfigureLocaleAction extends Action {
 			.concat({ label: localize('installAdditionalLanguages', "Install additional languages...") });
 	}
 
-	public async run(event?: any): Promise<void> {
+	public async run(): Promise<void> {
 		const languageOptions = await this.getLanguageOptions();
-		const currentLanguageIndex = firstIndex(languageOptions, l => l.label === language);
+		const currentLanguageIndex = languageOptions.findIndex(l => l.label === language);
 
 		try {
 			const selectedLanguage = await this.quickInputService.pick(languageOptions,
@@ -60,14 +58,16 @@ export class ConfigureLocaleAction extends Action {
 
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
 				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-					.then((viewlet: IExtensionsViewlet) => {
-						viewlet.search('@category:"language packs"');
-						viewlet.focus();
+					.then(viewlet => viewlet?.getViewPaneContainer())
+					.then(viewlet => {
+						const extensionsViewlet = viewlet as IExtensionsViewPaneContainer;
+						extensionsViewlet.search('@category:"language packs"');
+						extensionsViewlet.focus();
 					});
 			}
 
 			if (selectedLanguage) {
-				await this.jsonEditingService.write(this.environmentService.argvResource, [{ key: 'locale', value: selectedLanguage.label }], true);
+				await this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['locale'], value: selectedLanguage.label }], true);
 				const restart = await this.dialogService.confirm({
 					type: 'info',
 					message: localize('relaunchDisplayLanguageMessage', "A restart is required for the change in display language to take effect."),

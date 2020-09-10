@@ -85,6 +85,8 @@ export namespace Event {
 	 * Given a collection of events, returns a single event which emits
 	 * whenever any of the provided events emit.
 	 */
+	export function any<T>(...events: Event<T>[]): Event<T>;
+	export function any(...events: Event<any>[]): Event<void>;
 	export function any<T>(...events: Event<T>[]): Event<T> {
 		return (listener, thisArgs = null, disposables?) => combinedDisposable(...events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 	}
@@ -148,6 +150,7 @@ export namespace Event {
 
 					if (leading && !handle) {
 						emitter.fire(output);
+						output = undefined;
 					}
 
 					clearTimeout(handle);
@@ -270,6 +273,7 @@ export namespace Event {
 		map<O>(fn: (i: T) => O): IChainableEvent<O>;
 		forEach(fn: (i: T) => void): IChainableEvent<T>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		reduce<R>(merge: (last: R | undefined, event: T) => R, initial?: R): IChainableEvent<R>;
 		latch(): IChainableEvent<T>;
 		debounce(merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): IChainableEvent<T>;
@@ -290,6 +294,8 @@ export namespace Event {
 			return new ChainableEvent(forEach(this.event, fn));
 		}
 
+		filter(fn: (e: T) => boolean): IChainableEvent<T>;
+		filter<R>(fn: (e: T | R) => e is R): IChainableEvent<R>;
 		filter(fn: (e: T) => boolean): IChainableEvent<T> {
 			return new ChainableEvent(filter(this.event, fn));
 		}
@@ -322,8 +328,8 @@ export namespace Event {
 	}
 
 	export interface NodeEventEmitter {
-		on(event: string | symbol, listener: Function): this;
-		removeListener(event: string | symbol, listener: Function): this;
+		on(event: string | symbol, listener: Function): unknown;
+		removeListener(event: string | symbol, listener: Function): unknown;
 	}
 
 	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
@@ -434,14 +440,14 @@ class LeakageMonitor {
 			this._warnCountdown = threshold * 0.5;
 
 			// find most frequent listener and print warning
-			let topStack: string;
+			let topStack: string | undefined;
 			let topCount: number = 0;
-			this._stacks.forEach((count, stack) => {
+			for (const [stack, count] of this._stacks) {
 				if (!topStack || topCount < count) {
 					topStack = stack;
 					topCount = count;
 				}
-			});
+			}
 
 			console.warn(`[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`);
 			console.warn(topStack!);
@@ -570,8 +576,8 @@ export class Emitter<T> {
 				this._deliveryQueue = new LinkedList();
 			}
 
-			for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-				this._deliveryQueue.push([e.value, event]);
+			for (let listener of this._listeners) {
+				this._deliveryQueue.push([listener, event]);
 			}
 
 			while (this._deliveryQueue.size > 0) {
@@ -665,8 +671,8 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 			this._asyncDeliveryQueue = new LinkedList();
 		}
 
-		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
-			this._asyncDeliveryQueue.push([e.value, data]);
+		for (const listener of this._listeners) {
+			this._asyncDeliveryQueue.push([listener, data]);
 		}
 
 		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {

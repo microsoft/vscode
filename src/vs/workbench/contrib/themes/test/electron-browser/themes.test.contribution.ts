@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchThemeService, IColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
@@ -37,11 +37,11 @@ interface IThemesResult {
 }
 
 class ThemeDocument {
-	private readonly _theme: IColorTheme;
+	private readonly _theme: IWorkbenchColorTheme;
 	private readonly _cache: { [scopes: string]: ThemeRule; };
 	private readonly _defaultColor: string;
 
-	constructor(theme: IColorTheme) {
+	constructor(theme: IWorkbenchColorTheme) {
 		this._theme = theme;
 		this._cache = Object.create(null);
 		this._defaultColor = '#000000';

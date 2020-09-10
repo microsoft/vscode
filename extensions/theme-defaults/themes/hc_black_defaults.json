@@ -136,6 +136,7 @@
 		{
 			"scope": "markup.heading",
 			"settings": {
+				"fontStyle": "bold",
 				"foreground": "#6796e6"
 			}
 		},
@@ -337,5 +338,6 @@
 				"foreground": "#569cd6"
 			}
 		}
-	]
+	],
+	"semanticHighlighting": true
 }

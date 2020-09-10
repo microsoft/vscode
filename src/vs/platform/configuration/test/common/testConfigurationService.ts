@@ -5,14 +5,20 @@
 
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
+import { getConfigurationKeys, IConfigurationOverrides, IConfigurationService, getConfigurationValue, isConfigurationOverrides, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
+import { Emitter } from 'vs/base/common/event';
 
 export class TestConfigurationService implements IConfigurationService {
 	public _serviceBrand: undefined;
 
-	private configuration = Object.create(null);
+	private configuration: any;
+	readonly onDidChangeConfiguration = new Emitter<any>().event;
 
-	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
+	constructor(configuration?: any) {
+		this.configuration = configuration || Object.create(null);
+	}
+
+	private configurationByRoot: TernarySearchTree<string, any> = TernarySearchTree.forPaths<any>();
 
 	public reloadConfiguration<T>(): Promise<T> {
 		return Promise.resolve(this.getValue());
@@ -33,7 +39,7 @@ export class TestConfigurationService implements IConfigurationService {
 		return configuration;
 	}
 
-	public updateValue(key: string, overrides?: IConfigurationOverrides): Promise<void> {
+	public updateValue(key: string, value: any): Promise<void> {
 		return Promise.resolve(undefined);
 	}
 
@@ -49,27 +55,13 @@ export class TestConfigurationService implements IConfigurationService {
 		return Promise.resolve(undefined);
 	}
 
-	public onDidChangeConfiguration() {
-		return { dispose() { } };
-	}
-
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): {
-		default: T,
-		user: T,
-		userLocal?: T,
-		userRemote?: T,
-		workspace?: T,
-		workspaceFolder?: T
-		value: T,
-	} {
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
 		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),
-			default: getConfigurationValue<T>(config, key),
-			user: getConfigurationValue<T>(config, key),
-			workspace: undefined,
-			workspaceFolder: undefined
+			defaultValue: getConfigurationValue<T>(config, key),
+			userValue: getConfigurationValue<T>(config, key)
 		};
 	}
 

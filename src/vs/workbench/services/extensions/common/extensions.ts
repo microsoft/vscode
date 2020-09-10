@@ -24,6 +24,8 @@ export const nullExtensionDescription = Object.freeze(<IExtensionDescription>{
 	isBuiltin: false,
 });
 
+export const webWorkerExtHostConfig = 'extensions.webWorker';
+
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
@@ -84,7 +86,15 @@ export interface IExtensionHostProfile {
 	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
 
-export interface IExtensionHostStarter {
+export const enum ExtensionHostKind {
+	LocalProcess,
+	LocalWebWorker,
+	Remote
+}
+
+export interface IExtensionHost {
+	readonly kind: ExtensionHostKind;
+	readonly remoteAuthority: string | null;
 	readonly onExit: Event<[number, string | null]>;
 
 	start(): Promise<IMessagePassingProtocol> | null;
@@ -130,8 +140,13 @@ export interface IResponsiveStateChangeEvent {
 	isResponsive: boolean;
 }
 
+export const enum ActivationKind {
+	Normal = 0,
+	Immediate = 1
+}
+
 export interface IExtensionService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event emitted when extensions are registered after their extension points got handled.
@@ -167,8 +182,15 @@ export interface IExtensionService {
 
 	/**
 	 * Send an activation event and activate interested extensions.
+	 *
+	 * This will wait for the normal startup of the extension host(s).
+	 *
+	 * In extraordinary circumstances, if the activation event needs to activate
+	 * one or more extensions before the normal startup is finished, then you can use
+	 * `ActivationKind.Immediate`. Please do not use this flag unless really necessary
+	 * and you understand all consequences.
 	 */
-	activateByEvent(activationEvent: string): Promise<void>;
+	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
 	 * An promise that resolves when the installed extensions are registered after
@@ -257,9 +279,20 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 	};
 }
 
+export function toExtensionDescription(extension: IExtension): IExtensionDescription {
+	return {
+		identifier: new ExtensionIdentifier(extension.identifier.id),
+		isBuiltin: extension.type === ExtensionType.System,
+		isUnderDevelopment: false,
+		extensionLocation: extension.location,
+		...extension.manifest,
+		uuid: extension.identifier.uuid
+	};
+}
+
 
 export class NullExtensionService implements IExtensionService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	onDidRegisterExtensions: Event<void> = Event.None;
 	onDidChangeExtensionsStatus: Event<ExtensionIdentifier[]> = Event.None;
 	onDidChangeExtensions: Event<void> = Event.None;

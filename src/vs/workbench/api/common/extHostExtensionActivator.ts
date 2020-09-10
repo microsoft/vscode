@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -252,7 +252,15 @@ export class ExtensionsActivator {
 			return;
 		}
 
-		const currentExtension = this._registry.getExtensionDescription(currentActivation.id)!;
+		const currentExtension = this._registry.getExtensionDescription(currentActivation.id);
+		if (!currentExtension) {
+			// Error condition 0: unknown extension
+			this._host.onExtensionActivationError(currentActivation.id, new MissingDependencyError(currentActivation.id.value));
+			const error = new Error(`Unknown dependency '${currentActivation.id.value}'`);
+			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentActivation.id), new FailedExtension(error));
+			return;
+		}
+
 		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		let currentExtensionGetsGreenLight = true;
 

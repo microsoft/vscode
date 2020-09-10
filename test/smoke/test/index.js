@@ -7,20 +7,19 @@ const path = require('path');
 const Mocha = require('mocha');
 const minimist = require('minimist');
 
-const suite = 'Smoke Tests';
-
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
-	string: [
-		'f'
-	]
+	boolean: 'web',
+	string: ['f', 'g']
 });
 
+const suite = opts['web'] ? 'Browser Smoke Tests' : 'Smoke Tests';
+
 const options = {
-	useColors: true,
+	color: true,
 	timeout: 60000,
 	slow: 30000,
-	grep: opts['f']
+	grep: opts['f'] || opts['g']
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
@@ -29,7 +28,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 		reporterEnabled: 'spec, mocha-junit-reporter',
 		mochaJunitReporterReporterOptions: {
 			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
 		}
 	};
 }

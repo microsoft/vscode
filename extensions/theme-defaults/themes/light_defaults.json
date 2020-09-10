@@ -13,9 +13,17 @@
 		"sideBarTitle.foreground": "#6F6F6F",
 		"list.hoverBackground": "#E8E8E8",
 		"input.placeholderForeground": "#767676",
+		"searchEditor.textInputBorder": "#CECECE",
 		"settings.textInputBorder": "#CECECE",
 		"settings.numberInputBorder": "#CECECE",
 		"statusBarItem.remoteForeground": "#FFF",
-		"statusBarItem.remoteBackground": "#16825D"
-	}
+		"statusBarItem.remoteBackground": "#16825D",
+		"sideBarSectionHeader.background": "#0000",
+		"sideBarSectionHeader.border": "#61616130",
+		"tab.lastPinnedBorder": "#81818130",
+		"notebook.focusedCellBackground": "#c8ddf150",
+		"notebook.cellBorderColor": "#dae3e9",
+		"notebook.outputContainerBackgroundColor": "#c8ddf150"
+	},
+	"semanticHighlighting": true
 }

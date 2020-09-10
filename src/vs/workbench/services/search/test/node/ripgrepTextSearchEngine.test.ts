@@ -20,6 +20,7 @@ suite('RipgrepTextSearchEngine', () => {
 		assert.equal(unicodeEscapesToPCRE2('\\u{1234}'), '\\x{1234}');
 		assert.equal(unicodeEscapesToPCRE2('\\u{1234}\\u{0001}'), '\\x{1234}\\x{0001}');
 		assert.equal(unicodeEscapesToPCRE2('foo\\u{1234}bar'), 'foo\\x{1234}bar');
+		assert.equal(unicodeEscapesToPCRE2('[\\u00A0-\\u00FF]'), '[\\x{00A0}-\\x{00FF}]');
 
 		assert.equal(unicodeEscapesToPCRE2('foo\\u{123456}7bar'), 'foo\\u{123456}7bar');
 		assert.equal(unicodeEscapesToPCRE2('\\u123'), '\\u123');
@@ -28,16 +29,18 @@ suite('RipgrepTextSearchEngine', () => {
 	});
 
 	test('fixRegexNewline', () => {
-		function testFixRegexNewline([inputReg, testStr, shouldMatch]: [string, string, boolean]): void {
+		function testFixRegexNewline([inputReg, testStr, shouldMatch]: readonly [string, string, boolean]): void {
 			const fixed = fixRegexNewline(inputReg);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
 		}
 
-		[
+		([
 			['foo', 'foo', true],
 
 			['foo\\n', 'foo\r\n', true],
+			['foo\\n\\n', 'foo\n\n', true],
+			['foo\\n\\n', 'foo\r\n\r\n', true],
 			['foo\\n', 'foo\n', true],
 			['foo\\nabc', 'foo\r\nabc', true],
 			['foo\\nabc', 'foo\nabc', true],
@@ -45,17 +48,17 @@ suite('RipgrepTextSearchEngine', () => {
 
 			['foo\\n+abc', 'foo\r\nabc', true],
 			['foo\\n+abc', 'foo\n\n\nabc', true],
-		].forEach(testFixRegexNewline);
+		] as const).forEach(testFixRegexNewline);
 	});
 
 	test('fixNewline', () => {
-		function testFixNewline([inputReg, testStr, shouldMatch = true]: [string, string, boolean]): void {
+		function testFixNewline([inputReg, testStr, shouldMatch = true]: readonly [string, string, boolean?]): void {
 			const fixed = fixNewline(inputReg);
 			const reg = new RegExp(fixed);
 			assert.equal(reg.test(testStr), shouldMatch, `${inputReg} => ${reg}, ${testStr}, ${shouldMatch}`);
 		}
 
-		[
+		([
 			['foo', 'foo'],
 
 			['foo\n', 'foo\r\n'],
@@ -66,7 +69,7 @@ suite('RipgrepTextSearchEngine', () => {
 
 			['foo\nbarc', 'foobar', false],
 			['foobar', 'foo\nbar', false],
-		].forEach(testFixNewline);
+		] as const).forEach(testFixNewline);
 	});
 
 	suite('RipgrepParser', () => {

@@ -18,12 +18,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { fromNow } from 'vs/base/common/date';
 
 export class DialogService implements IDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private allowableCommands = ['copy', 'cut'];
+	private allowableCommands = ['copy', 'cut', 'editor.action.clipboardCopyAction', 'editor.action.clipboardCutAction'];
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -121,18 +122,24 @@ export class DialogService implements IDialogService {
 	}
 
 	async about(): Promise<void> {
-		const detail = nls.localize('aboutDetail',
-			"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
-			this.productService.version || 'Unknown',
-			this.productService.commit || 'Unknown',
-			this.productService.date || 'Unknown',
-			navigator.userAgent
-		);
+		const detailString = (useAgo: boolean): string => {
+			return nls.localize('aboutDetail',
+				"Version: {0}\nCommit: {1}\nDate: {2}\nBrowser: {3}",
+				this.productService.version || 'Unknown',
+				this.productService.commit || 'Unknown',
+				this.productService.date ? `${this.productService.date}${useAgo ? ' (' + fromNow(new Date(this.productService.date), true) + ')' : ''}` : 'Unknown',
+				navigator.userAgent
+			);
+		};
+
+		const detail = detailString(true);
+		const detailToCopy = detailString(false);
+
 
 		const { choice } = await this.show(Severity.Info, this.productService.nameLong, [nls.localize('copy', "Copy"), nls.localize('ok', "OK")], { detail, cancelId: 1 });
 
 		if (choice === 0) {
-			this.clipboardService.writeText(detail);
+			this.clipboardService.writeText(detailToCopy);
 		}
 	}
 }

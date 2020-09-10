@@ -10,15 +10,17 @@ import { hash } from 'vs/base/common/hash';
 import { coalesce } from 'vs/base/common/arrays';
 import { equals, deepClone } from 'vs/base/common/objects';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IBackupFileService, IResolvedBackup } from 'vs/workbench/services/backup/common/backup';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IResolvedBackup, IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { keys, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TextSnapshotReadable } from 'vs/workbench/services/textfile/common/textfiles';
+import { TextSnapshotReadable, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: URI): Promise<IBackupFilesModel>;
@@ -28,6 +30,7 @@ export interface IBackupFilesModel {
 	get(): URI[];
 	remove(resource: URI): void;
 	count(): number;
+
 	clear(): void;
 }
 
@@ -37,7 +40,8 @@ interface IBackupCacheEntry {
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
-	private cache: ResourceMap<IBackupCacheEntry> = new ResourceMap();
+
+	private readonly cache = new ResourceMap<IBackupCacheEntry>();
 
 	constructor(private fileService: IFileService) { }
 
@@ -91,7 +95,7 @@ export class BackupFilesModel implements IBackupFilesModel {
 	}
 
 	get(): URI[] {
-		return this.cache.keys();
+		return [...this.cache.keys()];
 	}
 
 	remove(resource: URI): void {
@@ -105,13 +109,14 @@ export class BackupFilesModel implements IBackupFilesModel {
 
 export class BackupFileService implements IBackupFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private impl: IBackupFileService;
+	private impl: BackupFileServiceImpl | InMemoryBackupFileService;
 
 	constructor(
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
-		@IFileService protected fileService: IFileService
+		@IFileService protected fileService: IFileService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.impl = this.initialize();
 	}
@@ -122,10 +127,10 @@ export class BackupFileService implements IBackupFileService {
 		return hash(str).toString(16);
 	}
 
-	private initialize(): IBackupFileService {
-		const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+	private initialize(): BackupFileServiceImpl | InMemoryBackupFileService {
+		const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
 		if (backupWorkspaceResource) {
-			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService);
+			return new BackupFileServiceImpl(backupWorkspaceResource, this.hashPath, this.fileService, this.logService);
 		}
 
 		return new InMemoryBackupFileService(this.hashPath);
@@ -135,7 +140,7 @@ export class BackupFileService implements IBackupFileService {
 
 		// Re-init implementation (unless we are running in-memory)
 		if (this.impl instanceof BackupFileServiceImpl) {
-			const backupWorkspaceResource = this.environmentService.configuration.backupWorkspaceResource;
+			const backupWorkspaceResource = this.environmentService.backupWorkspaceHome;
 			if (backupWorkspaceResource) {
 				this.impl.initialize(backupWorkspaceResource);
 			} else {
@@ -152,28 +157,24 @@ export class BackupFileService implements IBackupFileService {
 		return this.impl.hasBackupSync(resource, versionId);
 	}
 
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
-		return this.impl.loadBackupResource(resource);
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+		return this.impl.backup(resource, content, versionId, meta);
 	}
 
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		return this.impl.backupResource(resource, content, versionId, meta);
+	discardBackup(resource: URI): Promise<void> {
+		return this.impl.discardBackup(resource);
 	}
 
-	discardResourceBackup(resource: URI): Promise<void> {
-		return this.impl.discardResourceBackup(resource);
+	discardBackups(): Promise<void> {
+		return this.impl.discardBackups();
 	}
 
-	discardAllWorkspaceBackups(): Promise<void> {
-		return this.impl.discardAllWorkspaceBackups();
+	getBackups(): Promise<URI[]> {
+		return this.impl.getBackups();
 	}
 
-	getWorkspaceFileBackups(): Promise<URI[]> {
-		return this.impl.getWorkspaceFileBackups();
-	}
-
-	resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
-		return this.impl.resolveBackupContent(backup);
+	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
+		return this.impl.resolve(resource);
 	}
 
 	toBackupResource(resource: URI): URI {
@@ -181,18 +182,17 @@ export class BackupFileService implements IBackupFileService {
 	}
 }
 
-class BackupFileServiceImpl implements IBackupFileService {
+class BackupFileServiceImpl extends Disposable implements IBackupFileService {
 
 	private static readonly PREAMBLE_END_MARKER = '\n';
 	private static readonly PREAMBLE_META_SEPARATOR = ' '; // using a character that is know to be escaped in a URI as separator
 	private static readonly PREAMBLE_MAX_LENGTH = 10000;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private backupWorkspacePath!: URI;
 
-	private isShuttingDown: boolean;
-	private ioOperationQueues: ResourceQueue; // queue IO operations to ensure write order
+	private readonly ioOperationQueues = this._register(new ResourceQueue()); // queue IO operations to ensure write/delete file order
 
 	private ready!: Promise<IBackupFilesModel>;
 	private model!: IBackupFilesModel;
@@ -200,10 +200,10 @@ class BackupFileServiceImpl implements IBackupFileService {
 	constructor(
 		backupWorkspaceResource: URI,
 		private readonly hashPath: (resource: URI) => string,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService
 	) {
-		this.isShuttingDown = false;
-		this.ioOperationQueues = new ResourceQueue();
+		super();
 
 		this.initialize(backupWorkspaceResource);
 	}
@@ -232,23 +232,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		return this.model.has(backupResource, versionId);
 	}
 
-	async loadBackupResource(resource: URI): Promise<URI | undefined> {
-		const model = await this.ready;
-
-		// Return directly if we have a known backup with that resource
-		const backupResource = this.toBackupResource(resource);
-		if (model.has(backupResource)) {
-			return backupResource;
-		}
-
-		return undefined;
-	}
-
-	async backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
-		if (this.isShuttingDown) {
-			return;
-		}
-
+	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const model = await this.ready;
 
 		const backupResource = this.toBackupResource(resource);
@@ -273,39 +257,52 @@ class BackupFileServiceImpl implements IBackupFileService {
 			}
 
 			// Update content with value
-			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content, preamble));
+			await this.fileService.writeFile(backupResource, new TextSnapshotReadable(content || stringToSnapshot(''), preamble));
 
 			// Update model
 			model.add(backupResource, versionId, meta);
 		});
 	}
 
-	async discardResourceBackup(resource: URI): Promise<void> {
+	async discardBackups(): Promise<void> {
 		const model = await this.ready;
+
+		await this.deleteIgnoreFileNotFound(this.backupWorkspacePath);
+
+		model.clear();
+	}
+
+	discardBackup(resource: URI): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
 
+		return this.doDiscardBackup(backupResource);
+	}
+
+	private async doDiscardBackup(backupResource: URI): Promise<void> {
+		const model = await this.ready;
+
 		return this.ioOperationQueues.queueFor(backupResource).queue(async () => {
-			await this.fileService.del(backupResource, { recursive: true });
+			await this.deleteIgnoreFileNotFound(backupResource);
 
 			model.remove(backupResource);
 		});
 	}
 
-	async discardAllWorkspaceBackups(): Promise<void> {
-		this.isShuttingDown = true;
-
-		const model = await this.ready;
-
-		await this.fileService.del(this.backupWorkspacePath, { recursive: true });
-
-		model.clear();
+	private async deleteIgnoreFileNotFound(resource: URI): Promise<void> {
+		try {
+			await this.fileService.del(resource, { recursive: true });
+		} catch (error) {
+			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+				throw error; // re-throw any other error than file not found which is OK
+			}
+		}
 	}
 
-	async getWorkspaceFileBackups(): Promise<URI[]> {
+	async getBackups(): Promise<URI[]> {
 		const model = await this.ready;
 
-		const backups = await Promise.all(model.get().map(async fileBackup => {
-			const backupPreamble = await this.readToMatchingString(fileBackup, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
+		const backups = await Promise.all(model.get().map(async backupResource => {
+			const backupPreamble = await this.readToMatchingString(backupResource, BackupFileServiceImpl.PREAMBLE_END_MARKER, BackupFileServiceImpl.PREAMBLE_MAX_LENGTH);
 			if (!backupPreamble) {
 				return undefined;
 			}
@@ -325,18 +322,25 @@ class BackupFileServiceImpl implements IBackupFileService {
 		return coalesce(backups);
 	}
 
-	private async readToMatchingString(file: URI, matchingString: string, maximumBytesToRead: number): Promise<string> {
+	private async readToMatchingString(file: URI, matchingString: string, maximumBytesToRead: number): Promise<string | undefined> {
 		const contents = (await this.fileService.readFile(file, { length: maximumBytesToRead })).value.toString();
 
-		const newLineIndex = contents.indexOf(matchingString);
-		if (newLineIndex >= 0) {
-			return contents.substr(0, newLineIndex);
+		const matchingStringIndex = contents.indexOf(matchingString);
+		if (matchingStringIndex >= 0) {
+			return contents.substr(0, matchingStringIndex);
 		}
 
-		throw new Error(`Backup: Could not find ${JSON.stringify(matchingString)} in first ${maximumBytesToRead} bytes of ${file}`);
+		// Unable to find matching string in file
+		return undefined;
 	}
 
-	async resolveBackupContent<T extends object>(backup: URI): Promise<IResolvedBackup<T>> {
+	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
+		const backupResource = this.toBackupResource(resource);
+
+		const model = await this.ready;
+		if (!model.has(backupResource)) {
+			return undefined; // require backup to be present
+		}
 
 		// Metadata extraction
 		let metaRaw = '';
@@ -364,7 +368,7 @@ class BackupFileServiceImpl implements IBackupFileService {
 		};
 
 		// Read backup into factory
-		const content = await this.fileService.readFileStream(backup);
+		const content = await this.fileService.readFileStream(backupResource);
 		const factory = await createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
 
 		// Extract meta data (if any)
@@ -384,7 +388,9 @@ class BackupFileServiceImpl implements IBackupFileService {
 		// the meta-end marker ('\n') and as such the backup can only be invalid. We bail out
 		// here if that is the case.
 		if (!metaEndFound) {
-			throw new Error(`Backup: Could not find meta end marker in ${backup}. The file is probably corrupt.`);
+			this.logService.trace(`Backup: Could not find meta end marker in ${backupResource}. The file is probably corrupt (filesize: ${content.size}).`);
+
+			return undefined;
 		}
 
 		return { value: factory, meta };
@@ -397,14 +403,14 @@ class BackupFileServiceImpl implements IBackupFileService {
 
 export class InMemoryBackupFileService implements IBackupFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private backups: Map<string, ITextSnapshot> = new Map();
 
 	constructor(private readonly hashPath: (resource: URI) => string) { }
 
-	hasBackups(): Promise<boolean> {
-		return Promise.resolve(this.backups.size > 0);
+	async hasBackups(): Promise<boolean> {
+		return this.backups.size > 0;
 	}
 
 	hasBackupSync(resource: URI, versionId?: number): boolean {
@@ -413,45 +419,31 @@ export class InMemoryBackupFileService implements IBackupFileService {
 		return this.backups.has(backupResource.toString());
 	}
 
-	loadBackupResource(resource: URI): Promise<URI | undefined> {
+	async backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
 		const backupResource = this.toBackupResource(resource);
-		if (this.backups.has(backupResource.toString())) {
-			return Promise.resolve(backupResource);
-		}
-
-		return Promise.resolve(undefined);
+		this.backups.set(backupResource.toString(), content || stringToSnapshot(''));
 	}
 
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void> {
+	async resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined> {
 		const backupResource = this.toBackupResource(resource);
-		this.backups.set(backupResource.toString(), content);
-
-		return Promise.resolve();
-	}
-
-	async resolveBackupContent<T extends object>(backupResource: URI): Promise<IResolvedBackup<T>> {
 		const snapshot = this.backups.get(backupResource.toString());
 		if (snapshot) {
 			return { value: createTextBufferFactoryFromSnapshot(snapshot) };
 		}
 
-		throw new Error('Unexpected backup resource to resolve');
+		return undefined;
 	}
 
-	getWorkspaceFileBackups(): Promise<URI[]> {
-		return Promise.resolve(keys(this.backups).map(key => URI.parse(key)));
+	async getBackups(): Promise<URI[]> {
+		return Array.from(this.backups.keys()).map(key => URI.parse(key));
 	}
 
-	discardResourceBackup(resource: URI): Promise<void> {
+	async discardBackup(resource: URI): Promise<void> {
 		this.backups.delete(this.toBackupResource(resource).toString());
-
-		return Promise.resolve();
 	}
 
-	discardAllWorkspaceBackups(): Promise<void> {
+	async discardBackups(): Promise<void> {
 		this.backups.clear();
-
-		return Promise.resolve();
 	}
 
 	toBackupResource(resource: URI): URI {

@@ -1,5 +1,4 @@
 {
 	"displayName": "Search Result",
-	"description": "Provides syntax highlighting and language features for tabbed search results.",
-	"searchResult.rerunSearch.title": "Search Again"
+	"description": "Provides syntax highlighting and language features for tabbed search results."
 }

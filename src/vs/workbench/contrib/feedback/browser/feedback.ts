@@ -11,9 +11,9 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,6 +21,9 @@ import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } f
 import { IStatusbarService } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IFeedback {
 	feedback: string;
@@ -94,7 +97,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		return {
 			x: position.left + position.width, // center above the container
-			y: position.top - 9, // above status bar
+			y: position.top - 26, // above status bar and beak
 			width: position.width,
 			height: position.height
 		};
@@ -113,13 +116,19 @@ export class FeedbackDropdown extends Dropdown {
 		dom.append(this.feedbackForm, dom.$('h2.title')).textContent = nls.localize("label.sendASmile", "Tweet us your feedback.");
 
 		// Close Button (top right)
-		const closeBtn = dom.append(this.feedbackForm, dom.$('div.cancel'));
+		const closeBtn = dom.append(this.feedbackForm, dom.$('div.cancel' + Codicon.close.cssSelector));
 		closeBtn.tabIndex = 0;
 		closeBtn.setAttribute('role', 'button');
 		closeBtn.title = nls.localize('close', "Close");
 
+		disposables.add(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, keyboardEvent => {
+			const standardKeyboardEvent = new StandardKeyboardEvent(keyboardEvent);
+			if (standardKeyboardEvent.keyCode === KeyCode.Escape) {
+				this.hide();
+			}
+		}));
 		disposables.add(dom.addDisposableListener(closeBtn, dom.EventType.MOUSE_OVER, () => {
-			const theme = this.themeService.getTheme();
+			const theme = this.themeService.getColorTheme();
 			let darkenFactor: number | undefined;
 			switch (theme.type) {
 				case 'light':
@@ -262,13 +271,14 @@ export class FeedbackDropdown extends Dropdown {
 
 		const hideButtonLabel = dom.append(hideButtonContainer, dom.$('label'));
 		hideButtonLabel.setAttribute('for', 'hide-button');
-		hideButtonLabel.textContent = nls.localize('showFeedback', "Show Feedback Smiley in Status Bar");
+		hideButtonLabel.textContent = nls.localize('showFeedback', "Show Feedback Icon in Status Bar");
 
 		// Button: Send Feedback
 		this.sendButton = new Button(buttonsContainer);
 		this.sendButton.enabled = false;
 		this.sendButton.label = nls.localize('tweet', "Tweet");
-		dom.addClass(this.sendButton.element, 'send');
+		dom.prepend(this.sendButton.element, dom.$('span.codicon.codicon-twitter'));
+		dom.addClasses(this.sendButton.element, 'send');
 		this.sendButton.element.title = nls.localize('tweetFeedback', "Tweet Feedback");
 		disposables.add(attachButtonStyler(this.sendButton, this.themeService));
 
@@ -277,12 +287,12 @@ export class FeedbackDropdown extends Dropdown {
 		disposables.add(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, editorWidgetForeground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
 			if (this.feedbackForm) {
 				this.feedbackForm.style.backgroundColor = colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : '';
-				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : null;
+				this.feedbackForm.style.color = colors.editorWidgetForeground ? colors.editorWidgetForeground.toString() : '';
 				this.feedbackForm.style.boxShadow = colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : '';
 			}
 			if (this.feedbackDescriptionInput) {
 				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
-				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
+				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
 				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
 			}
 
@@ -375,6 +385,8 @@ export class FeedbackDropdown extends Dropdown {
 		if (this.options.onFeedbackVisibilityChange) {
 			this.options.onFeedbackVisibilityChange(true);
 		}
+
+		this.updateCharCountText();
 	}
 
 	protected onHide(): void {
@@ -423,7 +435,7 @@ export class FeedbackDropdown extends Dropdown {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Sentiment Buttons
 	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
@@ -432,7 +444,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// Links
-	const linkColor = theme.getColor(buttonBackground) || theme.getColor(contrastBorder);
+	const linkColor = theme.getColor(textLinkForeground) || theme.getColor(contrastBorder);
 	if (linkColor) {
 		collector.addRule(`.monaco-workbench .feedback-form .content .channels a { color: ${linkColor}; }`);
 	}

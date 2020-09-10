@@ -7,14 +7,12 @@ import 'vs/css!./media/compositepart';
 import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IActionViewItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -30,7 +28,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
+import { Dimension, append, $, hide, show, addClasses } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 
@@ -59,12 +57,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
 
 	protected toolBar: ToolBar | undefined;
+	protected titleLabelElement: HTMLElement | undefined;
 
-	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
-	private mapActionsBindingToComposite = new Map<string, () => void>();
+	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
+	private readonly mapActionsBindingToComposite = new Map<string, () => void>();
 	private activeComposite: Composite | undefined;
 	private lastActiveCompositeId: string;
-	private instantiatedCompositeItems: Map<string, CompositeItem>;
+	private readonly instantiatedCompositeItems = new Map<string, CompositeItem>();
 	private titleLabel: ICompositeTitleLabel | undefined;
 	private progressBar: ProgressBar | undefined;
 	private contentAreaSize: Dimension | undefined;
@@ -72,26 +71,25 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private currentCompositeOpenToken: string | undefined;
 
 	constructor(
-		private notificationService: INotificationService,
-		protected storageService: IStorageService,
-		private telemetryService: ITelemetryService,
-		protected contextMenuService: IContextMenuService,
-		protected layoutService: IWorkbenchLayoutService,
-		protected keybindingService: IKeybindingService,
-		protected instantiationService: IInstantiationService,
+		private readonly notificationService: INotificationService,
+		protected readonly storageService: IStorageService,
+		private readonly telemetryService: ITelemetryService,
+		protected readonly contextMenuService: IContextMenuService,
+		protected readonly layoutService: IWorkbenchLayoutService,
+		protected readonly keybindingService: IKeybindingService,
+		protected readonly instantiationService: IInstantiationService,
 		themeService: IThemeService,
 		protected readonly registry: CompositeRegistry<T>,
-		private activeCompositeSettingsKey: string,
-		private defaultCompositeId: string,
-		private nameForTelemetry: string,
-		private compositeCSSClass: string,
-		private titleForegroundColor: string | undefined,
+		private readonly activeCompositeSettingsKey: string,
+		private readonly defaultCompositeId: string,
+		private readonly nameForTelemetry: string,
+		private readonly compositeCSSClass: string,
+		private readonly titleForegroundColor: string | undefined,
 		id: string,
 		options: IPartOptions
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
-		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
@@ -105,6 +103,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Fullfill promise with composite that is being opened
 			return this.activeComposite;
+		}
+
+		// We cannot open the composite if we have not been created yet
+		if (!this.element) {
+			return;
 		}
 
 		// Open
@@ -317,11 +320,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
-	private collectCompositeActions(composite: Composite): () => void {
+	private collectCompositeActions(composite?: Composite): () => void {
 
 		// From Composite
-		const primaryActions: IAction[] = composite.getActions().slice(0);
-		const secondaryActions: IAction[] = composite.getSecondaryActions().slice(0);
+		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
+		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
 		// From Part
 		primaryActions.push(...this.getActions());
@@ -332,7 +335,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
-		return toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
+		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions));
 	}
 
 	protected getActiveComposite(): IComposite | undefined {
@@ -369,7 +372,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Empty Actions
 		if (this.toolBar) {
-			this.toolBar.setActions([])();
+			this.collectCompositeActions()();
 		}
 		this.onDidCompositeClose.fire(composite);
 
@@ -380,7 +383,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
-		addClass(titleArea, 'title');
+		titleArea.classList.add('title');
 
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
@@ -393,8 +396,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment()
+			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+			toggleMenuTitle: nls.localize('viewsAndMoreActions', "Views and More Actions...")
 		}));
+
+		this.collectCompositeActions()();
 
 		return titleArea;
 	}
@@ -402,16 +408,17 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		const titleContainer = append(parent, $('.title-label'));
 		const titleLabel = append(titleContainer, $('h2'));
+		this.titleLabelElement = titleLabel;
 
 		const $this = this;
 		return {
-			updateTitle: (id, title, keybinding) => {
-				titleLabel.innerHTML = strings.escape(title);
+			updateTitle: (_id, title, keybinding) => {
+				titleLabel.innerText = title;
 				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
 			},
 
 			updateStyles: () => {
-				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) : null;
+				titleLabel.style.color = $this.titleForegroundColor ? $this.getColor($this.titleForegroundColor) || '' : '';
 			}
 		};
 	}

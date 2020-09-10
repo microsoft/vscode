@@ -33,7 +33,9 @@
 .monaco-editor .parameter-hints-widget .monaco-scrollable-element,
 .monaco-editor .parameter-hints-widget .body {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
+	min-height: 100%;
 }
 
 .monaco-editor .parameter-hints-widget .signature {
@@ -51,6 +53,10 @@
 
 .monaco-editor .parameter-hints-widget .docs .markdown-docs {
 	white-space: initial;
+}
+
+.monaco-editor .parameter-hints-widget .docs .markdown-docs code {
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .parameter-hints-widget .docs .code {
@@ -72,6 +78,7 @@
 
 .monaco-editor .parameter-hints-widget.multiple .controls {
 	display: flex;
+	padding: 0 2px;
 }
 
 .monaco-editor .parameter-hints-widget.multiple .button {
@@ -83,11 +90,6 @@
 
 .monaco-editor .parameter-hints-widget .button.previous {
 	bottom: 24px;
-	background-image: url('arrow-up.svg');
-}
-
-.monaco-editor .parameter-hints-widget .button.next {
-	background-image: url('arrow-down.svg');
 }
 
 .monaco-editor .parameter-hints-widget .overloads {
@@ -95,6 +97,7 @@
 	height: 12px;
 	line-height: 12px;
 	opacity: 0.5;
+	font-family: var(--monaco-monospace-font);
 }
 
 .monaco-editor .parameter-hints-widget .signature .parameter.active {
@@ -105,16 +108,4 @@
 .monaco-editor .parameter-hints-widget .documentation-parameter > .parameter {
 	font-weight: bold;
 	margin-right: 0.5em;
-}
-
-/*** VS Dark & High Contrast*/
-
-.monaco-editor.hc-black .parameter-hints-widget .button.previous,
-.monaco-editor.vs-dark .parameter-hints-widget .button.previous {
-	background-image: url('arrow-up-dark.svg');
-}
-
-.monaco-editor.hc-black .parameter-hints-widget .button.next,
-.monaco-editor.vs-dark .parameter-hints-widget .button.next {
-	background-image: url('arrow-down-dark.svg');
 }

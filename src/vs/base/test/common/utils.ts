@@ -25,36 +25,33 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
-		return new Promise(resolve => {
-			process.nextTick(() => {
-				this.completeCallback(value);
-				resolve();
-			});
+		return new Promise<void>(resolve => {
+			this.completeCallback(value);
+			resolve();
 		});
 	}
 
 	public error(err: any) {
-		return new Promise(resolve => {
-			process.nextTick(() => {
-				this.errorCallback(err);
-				resolve();
-			});
+		return new Promise<void>(resolve => {
+			this.errorCallback(err);
+			resolve();
 		});
 	}
 
 	public cancel() {
-		process.nextTick(() => {
+		new Promise<void>(resolve => {
 			this.errorCallback(canceled());
+			resolve();
 		});
 	}
 }
 
 export function toResource(this: any, path: string) {
 	if (isWindows) {
-		return URI.file(join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+		return URI.file(join('C:\\', btoa(this.test.fullTitle()), path));
 	}
 
-	return URI.file(join('/', Buffer.from(this.test.fullTitle()).toString('base64'), path));
+	return URI.file(join('/', btoa(this.test.fullTitle()), path));
 }
 
 export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {

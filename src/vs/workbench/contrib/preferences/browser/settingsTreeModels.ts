@@ -5,16 +5,17 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
+import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -155,23 +156,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	update(inspectResult: IInspectResult): void {
 		const { isConfigured, inspected, targetSelector } = inspectResult;
 
-		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
+		const displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
 		const overriddenScopeList: string[] = [];
-		if (targetSelector !== 'workspace' && typeof inspected.workspace !== 'undefined') {
+		if (targetSelector !== 'workspaceValue' && typeof inspected.workspaceValue !== 'undefined') {
 			overriddenScopeList.push(localize('workspace', "Workspace"));
 		}
 
-		if (targetSelector !== 'userRemote' && typeof inspected.userRemote !== 'undefined') {
+		if (targetSelector !== 'userRemoteValue' && typeof inspected.userRemoteValue !== 'undefined') {
 			overriddenScopeList.push(localize('remote', "Remote"));
 		}
 
-		if (targetSelector !== 'userLocal' && typeof inspected.userLocal !== 'undefined') {
+		if (targetSelector !== 'userLocalValue' && typeof inspected.userLocalValue !== 'undefined') {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
 		this.value = displayValue;
 		this.scopeValue = isConfigured && inspected[targetSelector];
-		this.defaultValue = inspected.default;
+		this.defaultValue = inspected.defaultValue;
 
 		this.isConfigured = isConfigured;
 		if (isConfigured || this.setting.tags || this.tags) {
@@ -217,6 +218,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
+		} else if (isObjectSetting(this.setting)) {
+			this.valueType = SettingValueType.Object;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -374,26 +377,17 @@ export class SettingsTreeModel {
 
 interface IInspectResult {
 	isConfigured: boolean;
-	inspected: {
-		default: any,
-		user: any,
-		userLocal?: any,
-		userRemote?: any,
-		workspace?: any,
-		workspaceFolder?: any,
-		memory?: any,
-		value: any,
-	};
-	targetSelector: 'userLocal' | 'userRemote' | 'workspace' | 'workspaceFolder';
+	inspected: IConfigurationValue<any>;
+	targetSelector: 'userLocalValue' | 'userRemoteValue' | 'workspaceValue' | 'workspaceFolderValue';
 }
 
 function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): IInspectResult {
 	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
 	const inspected = configurationService.inspect(key, inspectOverrides);
-	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocal' :
-		target === ConfigurationTarget.USER_REMOTE ? 'userRemote' :
-			target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-				'workspaceFolder';
+	const targetSelector = target === ConfigurationTarget.USER_LOCAL ? 'userLocalValue' :
+		target === ConfigurationTarget.USER_REMOTE ? 'userRemoteValue' :
+			target === ConfigurationTarget.WORKSPACE ? 'workspaceValue' :
+				'workspaceFolderValue';
 	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
 
 	return { isConfigured, inspected, targetSelector };
@@ -430,7 +424,7 @@ function wordifyKey(key: string): string {
 				match;
 		});
 
-	for (let [k, v] of knownTermMappings) {
+	for (const [k, v] of knownTermMappings) {
 		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
 	}
 
@@ -472,6 +466,44 @@ export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'files.watcherExclude';
+}
+
+function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
+	return type === 'string' || type === 'boolean';
+}
+
+function isObjectSetting({
+	type,
+	objectProperties,
+	objectPatternProperties,
+	objectAdditionalProperties
+}: ISetting): boolean {
+	if (type !== 'object') {
+		return false;
+	}
+
+	// object can have any shape
+	if (
+		isUndefinedOrNull(objectProperties) &&
+		isUndefinedOrNull(objectPatternProperties) &&
+		isUndefinedOrNull(objectAdditionalProperties)
+	) {
+		return false;
+	}
+
+	// object additional properties allow it to have any shape
+	if (objectAdditionalProperties === true) {
+		return false;
+	}
+
+	const schemas = [...Object.values(objectProperties ?? {}), ...Object.values(objectPatternProperties ?? {})];
+
+	if (typeof objectAdditionalProperties === 'object') {
+		schemas.push(objectAdditionalProperties);
+	}
+
+	// This should not render boolean only objects
+	return schemas.every(isObjectRenderableSchema) && schemas.some(({ type }) => type === 'string');
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -599,7 +631,7 @@ const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
-	let extensions: string[] = [];
+	const extensions: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -611,7 +643,7 @@ export function parseQuery(query: string): IParsedQuery {
 	});
 
 	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
-		let extensionIdQuery: string = extensionId || quotedExtensionId;
+		const extensionIdQuery: string = extensionId || quotedExtensionId;
 		if (extensionIdQuery) {
 			extensions.push(...extensionIdQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
 		}

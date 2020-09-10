@@ -7,6 +7,7 @@ import { EditorModel, EditorInput, SideBySideEditorInput, TEXT_DIFF_EDITOR_ID, B
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
+import { localize } from 'vs/nls';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -16,28 +17,28 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	static readonly ID = 'workbench.editors.diffEditorInput';
 
-	private cachedModel: DiffEditorModel | null = null;
+	private cachedModel: DiffEditorModel | undefined = undefined;
 
 	constructor(
-		name: string,
+		protected name: string | undefined,
 		description: string | undefined,
-		original: EditorInput,
-		modified: EditorInput,
+		public readonly originalInput: EditorInput,
+		public readonly modifiedInput: EditorInput,
 		private readonly forceOpenAsBinary?: boolean
 	) {
-		super(name, description, original, modified);
+		super(name, description, originalInput, modifiedInput);
 	}
 
 	getTypeId(): string {
 		return DiffEditorInput.ID;
 	}
 
-	get originalInput(): EditorInput {
-		return this.details;
-	}
+	getName(): string {
+		if (!this.name) {
+			return localize('sideBySideLabels', "{0} ↔ {1}", this.originalInput.getName(), this.modifiedInput.getName());
+		}
 
-	get modifiedInput(): EditorInput {
-		return this.master;
+		return this.name;
 	}
 
 	async resolve(): Promise<EditorModel> {
@@ -80,6 +81,14 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return new DiffEditorModel(originalEditorModel, modifiedEditorModel);
 	}
 
+	matches(otherInput: unknown): boolean {
+		if (!super.matches(otherInput)) {
+			return false;
+		}
+
+		return otherInput instanceof DiffEditorInput && otherInput.forceOpenAsBinary === this.forceOpenAsBinary;
+	}
+
 	dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two inputs
@@ -87,7 +96,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		// them without sideeffects.
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
-			this.cachedModel = null;
+			this.cachedModel = undefined;
 		}
 
 		super.dispose();

@@ -4,23 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IKeybindingService private readonly keybindingsService: IKeybindingService,
 		@ITextModelService private readonly textModelService: ITextModelService,
+		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
+		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 	) { }
 
-	public async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
+	async resolveDefaultIgnoredSettings(): Promise<string[]> {
+		return getDefaultIgnoredSettings();
+	}
+
+	async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
 		const keys: IStringDictionary<string> = {};
 		for (const userbinding of userBindings) {
 			keys[userbinding] = this.keybindingsService.resolveUserBinding(userbinding).map(part => part.getUserSettingsLabel()).join(' ');
@@ -29,12 +36,21 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 	}
 
 	async resolveFormattingOptions(resource: URI): Promise<FormattingOptions> {
-		const modelReference = await this.textModelService.createModelReference(resource);
-		const { insertSpaces, tabSize } = modelReference.object.textEditorModel.getOptions();
-		const eol = modelReference.object.textEditorModel.getEOL();
-		modelReference.dispose();
-		return { eol, insertSpaces, tabSize };
+		try {
+			const modelReference = await this.textModelService.createModelReference(resource);
+			const { insertSpaces, tabSize } = modelReference.object.textEditorModel.getOptions();
+			const eol = modelReference.object.textEditorModel.getEOL();
+			modelReference.dispose();
+			return { eol, insertSpaces, tabSize };
+		} catch (e) {
+		}
+		return {
+			eol: this.textResourcePropertiesService.getEOL(resource),
+			insertSpaces: this.textResourceConfigurationService.getValue<boolean>(resource, 'editor.insertSpaces'),
+			tabSize: this.textResourceConfigurationService.getValue(resource, 'editor.tabSize')
+		};
 	}
+
 }
 
 registerSingleton(IUserDataSyncUtilService, UserDataSyncUtilService);

@@ -8,23 +8,23 @@ import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import product from 'vs/platform/product/common/product';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { PerfviewInput } from 'vs/workbench/contrib/performance/electron-browser/perfviewEditor';
+import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -55,7 +55,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
 			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
-			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
+			.then(() => new Promise<void>(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
 					exists(profileFilenamePrefix).then(exists => {
 						if (exists) {
@@ -108,14 +108,17 @@ export class StartupProfiler implements IWorkbenchContribution {
 	}
 
 	private async _createPerfIssue(files: string[]): Promise<void> {
-		const reportIssueUrl = product.reportIssueUrl;
+		const reportIssueUrl = this._productService.reportIssueUrl;
 		if (!reportIssueUrl) {
 			return;
 		}
 
 		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
-		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
-		ref.dispose();
+		try {
+			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+		} finally {
+			ref.dispose();
+		}
 
 		const body = `
 1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:

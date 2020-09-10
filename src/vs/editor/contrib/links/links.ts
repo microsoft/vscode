@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
@@ -25,6 +25,10 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import * as resources from 'vs/base/common/resources';
+import * as strings from 'vs/base/common/strings';
 
 function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
@@ -97,7 +101,7 @@ class LinkOccurrence {
 	}
 }
 
-class LinkDetector implements editorCommon.IEditorContribution {
+export class LinkDetector implements IEditorContribution {
 
 	public static readonly ID: string = 'editor.linkDetector';
 
@@ -291,7 +295,29 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		const { link } = occurrence;
 
 		link.resolve(CancellationToken.None).then(uri => {
-			// open the uri
+
+			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
+			if (typeof uri === 'string' && this.editor.hasModel()) {
+				const modelUri = this.editor.getModel().uri;
+				if (modelUri.scheme === Schemas.file && strings.startsWith(uri, 'file:')) {
+					const parsedUri = URI.parse(uri);
+					if (parsedUri.scheme === Schemas.file) {
+						const fsPath = resources.originalFSPath(parsedUri);
+
+						let relativePath: string | null = null;
+						if (strings.startsWith(fsPath, '/./')) {
+							relativePath = `.${fsPath.substr(1)}`;
+						} else if (strings.startsWith(fsPath, '//./')) {
+							relativePath = `.${fsPath.substr(2)}`;
+						}
+
+						if (relativePath) {
+							uri = resources.joinPath(modelUri, relativePath);
+						}
+					}
+				}
+			}
+
 			return this.openerService.open(uri, { openToSide, fromUserGesture });
 
 		}, err => {

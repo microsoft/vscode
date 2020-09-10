@@ -22,10 +22,11 @@ import { FileWatcher as UnixWatcherService } from 'vs/platform/files/node/watche
 import { FileWatcher as WindowsWatcherService } from 'vs/platform/files/node/watcher/win32/watcherService';
 import { FileWatcher as NsfwWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcherService';
 import { FileWatcher as NodeJSWatcherService } from 'vs/platform/files/node/watcher/nodejs/watcherService';
-import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ReadableStreamEvents, transform } from 'vs/base/common/stream';
-import { createReadStream } from 'vs/platform/files/common/io';
+import { ReadableStreamEvents, newWriteableStream } from 'vs/base/common/stream';
+import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { insert } from 'vs/base/common/arrays';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -45,7 +46,10 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
 
-	constructor(private logService: ILogService, private options?: IDiskFileSystemProviderOptions) {
+	constructor(
+		private readonly logService: ILogService,
+		private readonly options?: IDiskFileSystemProviderOptions
+	) {
 		super();
 	}
 
@@ -76,10 +80,10 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async stat(resource: URI): Promise<IStat> {
 		try {
-			const { stat, isSymbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
+			const { stat, symbolicLink } = await statLink(this.toFilePath(resource)); // cannot use fs.stat() here to support links properly
 
 			return {
-				type: this.toType(stat, isSymbolicLink),
+				type: this.toType(stat, symbolicLink),
 				ctime: stat.birthtime.getTime(), // intentionally not using ctime here, we want the creation time
 				mtime: stat.mtime.getTime(),
 				size: stat.size
@@ -115,12 +119,28 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private toType(entry: Stats | Dirent, isSymbolicLink = entry.isSymbolicLink()): FileType {
-		if (isSymbolicLink) {
-			return FileType.SymbolicLink | (entry.isDirectory() ? FileType.Directory : FileType.File);
+	private toType(entry: Stats | Dirent, symbolicLink?: { dangling: boolean }): FileType {
+
+		// Signal file type by checking for file / directory, except:
+		// - symbolic links pointing to non-existing files are FileType.Unknown
+		// - files that are neither file nor directory are FileType.Unknown
+		let type: FileType;
+		if (symbolicLink?.dangling) {
+			type = FileType.Unknown;
+		} else if (entry.isFile()) {
+			type = FileType.File;
+		} else if (entry.isDirectory()) {
+			type = FileType.Directory;
+		} else {
+			type = FileType.Unknown;
 		}
 
-		return entry.isFile() ? FileType.File : entry.isDirectory() ? FileType.Directory : FileType.Unknown;
+		// Always signal symbolic link as file type additionally
+		if (symbolicLink) {
+			type |= FileType.SymbolicLink;
+		}
+
+		return type;
 	}
 
 	//#endregion
@@ -137,13 +157,15 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const fileStream = createReadStream(this, resource, {
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+
+		readFileIntoStream(this, resource, stream, data => data.buffer, {
 			...opts,
 			bufferSize: this.BUFFER_SIZE
 		}, token);
 
-		return transform(fileStream, { data: data => data.buffer }, data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		return stream;
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
@@ -179,9 +201,9 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 	}
 
-	private mapHandleToPos: Map<number, number> = new Map();
+	private readonly mapHandleToPos: Map<number, number> = new Map();
 
-	private writeHandles: Set<number> = new Set();
+	private readonly writeHandles: Set<number> = new Set();
 	private canFlush: boolean = true;
 
 	async open(resource: URI, opts: FileOpenOptions): Promise<number> {
@@ -455,12 +477,11 @@ export class DiskFileSystemProvider extends Disposable implements
 	}
 
 	private async validateTargetDeleted(from: URI, to: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<void> {
-		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
 		let isSameResourceWithDifferentPathCase = false;
+		const isPathCaseSensitive = !!(this.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 		if (!isPathCaseSensitive) {
 			isSameResourceWithDifferentPathCase = isEqual(fromFilePath, toFilePath, true /* ignore case */);
 		}
@@ -484,15 +505,15 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	//#region File Watching
 
-	private _onDidWatchErrorOccur: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidErrorOccur: Event<string> = this._onDidWatchErrorOccur.event;
+	private readonly _onDidWatchErrorOccur = this._register(new Emitter<string>());
+	readonly onDidErrorOccur = this._onDidWatchErrorOccur.event;
 
-	private _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
-	get onDidChangeFile(): Event<readonly IFileChange[]> { return this._onDidChangeFile.event; }
+	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private recursiveWatcher: WindowsWatcherService | UnixWatcherService | NsfwWatcherService | undefined;
-	private recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
-	private recursiveWatchRequestDelayer: ThrottledDelayer<void> = this._register(new ThrottledDelayer<void>(0));
+	private readonly recursiveFoldersToWatch: { path: string, excludes: string[] }[] = [];
+	private recursiveWatchRequestDelayer = this._register(new ThrottledDelayer<void>(0));
 
 	private recursiveWatcherLogLevelListener: IDisposable | undefined;
 
@@ -508,7 +529,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		// Add to list of folders to watch recursively
 		const folderToWatch = { path: this.toFilePath(resource), excludes };
-		this.recursiveFoldersToWatch.push(folderToWatch);
+		const remove = insert(this.recursiveFoldersToWatch, folderToWatch);
 
 		// Trigger update
 		this.refreshRecursiveWatchers();
@@ -516,7 +537,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		return toDisposable(() => {
 
 			// Remove from list of folders to watch recursively
-			this.recursiveFoldersToWatch.splice(this.recursiveFoldersToWatch.indexOf(folderToWatch), 1);
+			remove();
 
 			// Trigger update
 			this.refreshRecursiveWatchers();
@@ -527,10 +548,8 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		// Buffer requests for recursive watching to decide on right watcher
 		// that supports potentially watching more than one folder at once
-		this.recursiveWatchRequestDelayer.trigger(() => {
+		this.recursiveWatchRequestDelayer.trigger(async () => {
 			this.doRefreshRecursiveWatchers();
-
-			return Promise.resolve();
 		});
 	}
 
@@ -651,6 +670,9 @@ export class DiskFileSystemProvider extends Disposable implements
 				break;
 			case 'EISDIR':
 				code = FileSystemProviderErrorCode.FileIsADirectory;
+				break;
+			case 'ENOTDIR':
+				code = FileSystemProviderErrorCode.FileNotADirectory;
 				break;
 			case 'EEXIST':
 				code = FileSystemProviderErrorCode.FileExists;

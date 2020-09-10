@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -107,7 +107,6 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
     ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/publish.sh
   displayName: Publish
 

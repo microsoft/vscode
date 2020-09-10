@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ReferencesModel, OneReference } from 'vs/editor/contrib/gotoSymbol/referencesModel';
-import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -19,13 +19,14 @@ import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isEqual } from 'vs/base/common/resources';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
 
 export const ISymbolNavigationService = createDecorator<ISymbolNavigationService>('ISymbolNavigationService');
 
 export interface ISymbolNavigationService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	reset(): void;
 	put(anchor: OneReference): void;
 	revealNext(source: ICodeEditor): Promise<any>;
@@ -33,7 +34,7 @@ export interface ISymbolNavigationService {
 
 class SymbolNavigationService implements ISymbolNavigationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _ctxHasSymbols: IContextKey<boolean>;
 
@@ -54,8 +55,8 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 	reset(): void {
 		this._ctxHasSymbols.reset();
-		dispose(this._currentState);
-		dispose(this._currentMessage);
+		this._currentState?.dispose();
+		this._currentMessage?.dispose();
 		this._currentModel = undefined;
 		this._currentIdx = -1;
 	}
@@ -127,7 +128,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(reference.range),
-				revealInCenterIfOutsideViewport: true
+				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
 			}
 		}, source).finally(() => {
 			this._ignoreEditorChange = false;
@@ -137,7 +138,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 	private _showMessage(): void {
 
-		dispose(this._currentMessage);
+		this._currentMessage?.dispose();
 
 		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
 		const message = kb
@@ -155,10 +156,7 @@ registerEditorCommand(new class extends EditorCommand {
 	constructor() {
 		super({
 			id: 'editor.gotoNextSymbolFromResult',
-			precondition: ContextKeyExpr.and(
-				ctxHasSymbols,
-				ContextKeyExpr.equals('config.editor.gotoLocation.multiple', 'goto')
-			),
+			precondition: ctxHasSymbols,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.F12
@@ -200,7 +198,7 @@ class EditorState {
 	dispose(): void {
 		this._disposables.dispose();
 		this._onDidChange.dispose();
-		this._listener.forEach(dispose);
+		dispose(this._listener.values());
 	}
 
 	private _onDidAddEditor(editor: ICodeEditor): void {
@@ -211,7 +209,7 @@ class EditorState {
 	}
 
 	private _onDidRemoveEditor(editor: ICodeEditor): void {
-		dispose(this._listener.get(editor));
+		this._listener.get(editor)?.dispose();
 		this._listener.delete(editor);
 	}
 }

@@ -10,16 +10,17 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
-import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { inputValidationInfoBorder, inputValidationInfoBackground, inputValidationInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
-export class MessageController extends Disposable implements editorCommon.IEditorContribution {
+export class MessageController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.messageController';
 
@@ -28,8 +29,6 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 	static get(editor: ICodeEditor): MessageController {
 		return editor.getContribution<MessageController>(MessageController.ID);
 	}
-
-	private readonly closeTimeout = 3000; // close after 3s
 
 	private readonly _editor: ICodeEditor;
 	private readonly _visible: IContextKey<boolean>;
@@ -70,7 +69,8 @@ export class MessageController extends Disposable implements editorCommon.IEdito
 		this._messageListeners.add(this._editor.onDidDispose(() => this.closeMessage()));
 		this._messageListeners.add(this._editor.onDidChangeModel(() => this.closeMessage()));
 
-		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), this.closeTimeout));
+		// 3sec
+		this._messageListeners.add(new TimeoutTimer(() => this.closeMessage(), 3000));
 
 		// close on mouse move
 		let bounds: Range;
@@ -144,7 +144,7 @@ class MessageWidget implements IContentWidget {
 	constructor(editor: ICodeEditor, { lineNumber, column }: IPosition, text: string) {
 
 		this._editor = editor;
-		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, editorCommon.ScrollType.Smooth);
+		this._editor.revealLinesInCenterIfOutsideViewport(lineNumber, lineNumber, ScrollType.Smooth);
 		this._position = { lineNumber, column: column - 1 };
 
 		this._domNode = document.createElement('div');
@@ -176,7 +176,7 @@ class MessageWidget implements IContentWidget {
 	}
 
 	getPosition(): IContentWidgetPosition {
-		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
+		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW] };
 	}
 }
 
@@ -185,7 +185,7 @@ registerEditorContribution(MessageController.ID, MessageController);
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(inputValidationInfoBorder);
 	if (border) {
-		let borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		let borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .anchor { border-top-color: ${border}; }`);
 		collector.addRule(`.monaco-editor .monaco-editor-overlaymessage .message { border: ${borderWidth}px solid ${border}; }`);
 	}

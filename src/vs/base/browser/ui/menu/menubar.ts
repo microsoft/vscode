@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./menubar';
 import * as browser from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import * as strings from 'vs/base/common/strings';
@@ -10,8 +11,8 @@ import * as nls from 'vs/nls';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
-import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, SubmenuAction, IMenuStyles, Direction } from 'vs/base/browser/ui/menu/menu';
-import { ActionRunner, IAction, IActionRunner } from 'vs/base/common/actions';
+import { cleanMnemonic, IMenuOptions, Menu, MENU_ESCAPED_MNEMONIC_REGEX, MENU_MNEMONIC_REGEX, IMenuStyles, Direction } from 'vs/base/browser/ui/menu/menu';
+import { ActionRunner, IAction, IActionRunner, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { KeyCode, ResolvedKeybinding, KeyMod } from 'vs/base/common/keyCodes';
@@ -21,8 +22,11 @@ import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
+
+const menuBarMoreIcon = registerIcon('menubar-more', Codicon.more);
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
@@ -31,10 +35,11 @@ export interface IMenuBarOptions {
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 	compactMode?: Direction;
+	getCompactMenuActions?: () => IAction[]
 }
 
 export interface MenuBarMenu {
-	actions: ReadonlyArray<IAction>;
+	actions: IAction[];
 	label: string;
 }
 
@@ -53,7 +58,7 @@ export class MenuBar extends Disposable {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
-		actions?: ReadonlyArray<IAction>;
+		actions?: IAction[];
 	}[];
 
 	private overflowMenu!: {
@@ -88,7 +93,7 @@ export class MenuBar extends Disposable {
 
 	private numMenusShown: number = 0;
 	private menuStyle: IMenuStyles | undefined;
-	private overflowLayoutScheduled: IDisposable | null = null;
+	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
@@ -135,8 +140,8 @@ export class MenuBar extends Disposable {
 				eventHandled = false;
 			}
 
-			// Never allow default tab behavior
-			if (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab)) {
+			// Never allow default tab behavior when not compact
+			if (this.options.compactMode === undefined && (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab))) {
 				event.preventDefault();
 			}
 
@@ -308,9 +313,10 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', "...");
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'title': label, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
+		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
+		const title = this.options.compactMode !== undefined ? label : undefined;
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.options.compactMode !== undefined ? 0 : -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + menuBarMoreIcon.cssSelector, { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);
@@ -320,7 +326,15 @@ export class MenuBar extends Disposable {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
-			if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
+			const triggerKeys = [KeyCode.Enter];
+			if (this.options.compactMode === undefined) {
+				triggerKeys.push(KeyCode.DownArrow);
+			} else {
+				triggerKeys.push(KeyCode.Space);
+				triggerKeys.push(this.options.compactMode === Direction.Right ? KeyCode.RightArrow : KeyCode.LeftArrow);
+			}
+
+			if ((triggerKeys.some(k => event.equals(k)) && !this.isOpen)) {
 				this.focusedMenu = { index: MenuBar.OVERFLOW_INDEX };
 				this.openedViaKeyboard = true;
 				this.focusState = MenubarState.OPEN;
@@ -418,9 +432,8 @@ export class MenuBar extends Disposable {
 		DOM.removeNode(this.overflowMenu.titleElement);
 		DOM.removeNode(this.overflowMenu.buttonElement);
 
-		if (this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = dispose(this.overflowLayoutScheduled);
-		}
+		dispose(this.overflowLayoutScheduled);
+		this.overflowLayoutScheduled = undefined;
 	}
 
 	blur(): void {
@@ -439,6 +452,16 @@ export class MenuBar extends Disposable {
 
 	getHeight(): number {
 		return this.container.clientHeight;
+	}
+
+	toggleFocus(): void {
+		if (!this.isFocused && this.options.visibility !== 'hidden') {
+			this.mnemonicsInUse = true;
+			this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
+			this.focusState = MenubarState.FOCUSED;
+		} else if (!this.isOpen) {
+			this.setUnfocusedState();
+		}
 	}
 
 	private updateOverflowAction(): void {
@@ -482,13 +505,19 @@ export class MenuBar extends Disposable {
 
 			this.overflowMenu.actions = [];
 			for (let idx = this.numMenusShown; idx < this.menuCache.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(this.menuCache[idx].label, this.menuCache[idx].actions || []));
+				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${this.menuCache[idx].label}`, this.menuCache[idx].label, this.menuCache[idx].actions || []));
 			}
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {
 				DOM.removeNode(this.overflowMenu.buttonElement);
 				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
 				this.overflowMenu.buttonElement.style.visibility = 'visible';
+			}
+
+			const compactMenuActions = this.options.getCompactMenuActions?.();
+			if (compactMenuActions && compactMenuActions.length) {
+				this.overflowMenu.actions.push(new Separator());
+				this.overflowMenu.actions.push(...compactMenuActions);
 			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);
@@ -503,25 +532,31 @@ export class MenuBar extends Disposable {
 		// Update the button label to reflect mnemonics
 
 		if (this.options.enableMnemonics) {
-			let innerHtml = strings.escape(label);
+			let cleanLabel = strings.escape(label);
 
 			// This is global so reset it
 			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
-			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 
 			// We can't use negative lookbehind so we match our negative and skip
 			while (escMatch && escMatch[1]) {
-				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 			}
+
+			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				innerHtml = `${innerHtml.substr(0, escMatch.index)}<mnemonic aria-hidden="true">${escMatch[3]}</mnemonic>${innerHtml.substr(escMatch.index + escMatch[0].length)}`;
+				titleElement.innerText = '';
+				titleElement.append(
+					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
+					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
+					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
+				);
+			} else {
+				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
 			}
-
-			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
-			titleElement.innerHTML = innerHtml;
 		} else {
-			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
@@ -560,7 +595,7 @@ export class MenuBar extends Disposable {
 		if (!this.overflowLayoutScheduled) {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
-				this.overflowLayoutScheduled = null;
+				this.overflowLayoutScheduled = undefined;
 			});
 		}
 
@@ -910,7 +945,7 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		const menuHolder = $('div.menubar-menu-items-holder');
+		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
 
 		DOM.addClass(customMenu.buttonElement, 'open');
 
@@ -921,7 +956,6 @@ export class MenuBar extends Disposable {
 			menuHolder.style.top = `0px`;
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
-			console.log(customMenu.buttonElement.getBoundingClientRect().right - this.container.clientWidth);
 		} else {
 			menuHolder.style.top = `${this.container.clientHeight}px`;
 			menuHolder.style.left = `${customMenu.buttonElement.getBoundingClientRect().left}px`;
@@ -934,7 +968,8 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right,
+			useEventAsContext: true
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

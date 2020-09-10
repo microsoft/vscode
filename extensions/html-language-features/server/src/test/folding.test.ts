@@ -5,10 +5,10 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { TextDocument } from 'vscode-html-languageservice';
 import { getFoldingRanges } from '../modes/htmlFolding';
-import { getLanguageModes } from '../modes/languageModes';
+import { TextDocument, getLanguageModes } from '../modes/languageModes';
 import { ClientCapabilities } from 'vscode-css-languageservice';
+import { getNodeFSRequestService } from '../node/nodeFs';
 
 interface ExpectedIndentRange {
 	startLine: number;
@@ -16,14 +16,14 @@ interface ExpectedIndentRange {
 	kind?: string;
 }
 
-function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
-	let document = TextDocument.create('test://foo/bar.json', 'json', 1, lines.join('\n'));
-	let workspace = {
+async function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): Promise<void> {
+	const document = TextDocument.create('test://foo/bar.html', 'html', 1, lines.join('\n'));
+	const workspace = {
 		settings: {},
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
-	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
-	let actual = getFoldingRanges(languageModes, document, nRanges, null);
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFSRequestService());
+	const actual = await getFoldingRanges(languageModes, document, nRanges, null);
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {
@@ -37,10 +37,10 @@ function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRan
 	return { startLine, endLine, kind };
 }
 
-suite('HTML Folding', () => {
+suite('HTML Folding', async () => {
 
-	test('Embedded JavaScript', () => {
-		let input = [
+	test('Embedded JavaScript', async () => {
+		const input = [
 			/*0*/'<html>',
 			/*1*/'<head>',
 			/*2*/'<script>',
@@ -50,11 +50,11 @@ suite('HTML Folding', () => {
 			/*6*/'</head>',
 			/*7*/'</html>',
 		];
-		assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
+		await await assertRanges(input, [r(0, 6), r(1, 5), r(2, 4), r(3, 4)]);
 	});
 
-	test('Embedded JavaScript - multiple areas', () => {
-		let input = [
+	test('Embedded JavaScript - multiple areas', async () => {
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<script>',
@@ -71,11 +71,11 @@ suite('HTML Folding', () => {
 			/*13*/'</head>',
 			/*14*/'</html>',
 		];
-		assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11)]);
+		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6), r(8, 11), r(9, 11), r(9, 11)]);
 	});
 
-	test('Embedded JavaScript - incomplete', () => {
-		let input = [
+	test('Embedded JavaScript - incomplete', async () => {
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<script>',
@@ -87,11 +87,11 @@ suite('HTML Folding', () => {
 			/* 8*/'</head>',
 			/* 9*/'</html>',
 		];
-		assertRanges(input, [r(0, 8), r(1, 7), r(2, 3), r(5, 6)]);
+		await assertRanges(input, [r(0, 8), r(1, 7), r(2, 3), r(5, 6)]);
 	});
 
-	test('Embedded JavaScript - regions', () => {
-		let input = [
+	test('Embedded JavaScript - regions', async () => {
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<script>',
@@ -104,11 +104,11 @@ suite('HTML Folding', () => {
 			/* 9*/'</head>',
 			/*10*/'</html>',
 		];
-		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
+		await assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
 	});
 
-	test('Embedded CSS', () => {
-		let input = [
+	test('Embedded CSS', async () => {
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<style>',
@@ -120,11 +120,11 @@ suite('HTML Folding', () => {
 			/* 8*/'</head>',
 			/* 9*/'</html>',
 		];
-		assertRanges(input, [r(0, 8), r(1, 7), r(2, 6), r(3, 5)]);
+		await assertRanges(input, [r(0, 8), r(1, 7), r(2, 6), r(3, 5)]);
 	});
 
-	test('Embedded CSS - multiple areas', () => {
-		let input = [
+	test('Embedded CSS - multiple areas', async () => {
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head style="color:red">',
 			/* 2*/'<style>',
@@ -141,11 +141,11 @@ suite('HTML Folding', () => {
 			/*13*/'</head>',
 			/*14*/'</html>',
 		];
-		assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6, 'comment'), r(8, 11), r(9, 10)]);
+		await assertRanges(input, [r(0, 13), r(1, 12), r(2, 6), r(3, 6, 'comment'), r(8, 11), r(9, 10)]);
 	});
 
-	test('Embedded CSS - regions', () => {
-		let input = [
+	test('Embedded CSS - regions', async () => {
+		const input = [
 			/* 0*/'<html>',
 			/* 1*/'<head>',
 			/* 2*/'<style>',
@@ -158,12 +158,12 @@ suite('HTML Folding', () => {
 			/* 9*/'</head>',
 			/*10*/'</html>',
 		];
-		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
+		await assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
 	});
 
 
-	// test('Embedded JavaScript - multi line comment', () => {
-	// 	let input = [
+	// test('Embedded JavaScript - multi line comment', async () => {
+	// 	const input = [
 	// 		/* 0*/'<html>',
 	// 		/* 1*/'<head>',
 	// 		/* 2*/'<script>',
@@ -174,11 +174,11 @@ suite('HTML Folding', () => {
 	// 		/* 7*/'</head>',
 	// 		/* 8*/'</html>',
 	// 	];
-	// 	assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
+	// 	await assertRanges(input, [r(0, 7), r(1, 6), r(2, 5), r(3, 5, 'comment')]);
 	// });
 
-	test('Test limit', () => {
-		let input = [
+	test('Test limit', async () => {
+		const input = [
 			/* 0*/'<div>',
 			/* 1*/' <span>',
 			/* 2*/'  <b>',
@@ -201,15 +201,15 @@ suite('HTML Folding', () => {
 			/*19*/' </span>',
 			/*20*/'</div>',
 		];
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', undefined);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14)], 'limit 5', 5);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11)], 'limit 4', 4);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
-		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
-		assertRanges(input, [r(0, 19)], 'limit 1', 1);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', undefined);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14)], 'limit 5', 5);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11)], 'limit 4', 4);
+		await assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
+		await assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
+		await assertRanges(input, [r(0, 19)], 'limit 1', 1);
 	});
 
 });

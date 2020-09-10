@@ -23,6 +23,7 @@ The server implements the following capabilities of the language server protocol
 - [Code Formatting](https://microsoft.github.io/language-server-protocol/specification#textDocument_rangeFormatting) supporting ranges and formatting the whole document.
 - [Folding Ranges](https://microsoft.github.io/language-server-protocol/specification#textDocument_foldingRange) for all folding ranges in the document.
 - Semantic Selection for semantic selection for one or multiple cursor positions.
+- [Goto Definition](https://microsoft.github.io/language-server-protocol/specification#textDocument_definition) for $ref references in JSON schemas
 - [Diagnostics (Validation)](https://microsoft.github.io/language-server-protocol/specification#textDocument_publishDiagnostics) are pushed for all open documents
    - syntax errors
    - structural validation based on the document's [JSON schema](http://json-schema.org/).
@@ -46,6 +47,8 @@ The client can send the following initialization options to the server:
 
 - `provideFormatter: boolean | undefined`. If defined, the value defines whether the server provides the `documentRangeFormattingProvider` capability on initialization. If undefined, the setting `json.format.enable` is used to determine whether formatting is provided. The formatter will then be registered through dynamic registration. If the client does not support dynamic registration, no formatter will be available.
 - `handledSchemaProtocols`: The URI schemas handles by the server. See section `Schema configuration` below.
+- `customCapabilities`: Additional non-LSP client capabilities:
+  - `rangeFormatting: { editLimit: x } }`: For performance reasons, limit the number of edits returned by the range formatter to `x`.
 
 ### Settings
 
@@ -59,13 +62,14 @@ The server supports the following settings:
 - json
   - `format`
     - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
-    - `schema`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
-	  - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard.
-	  - `url`: The URL of the schema, optional when also a schema is provided.
-	  - `schema`: The schema content.
+  - `schemas`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
+    - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there is at least one matching pattern and the last matching pattern is not an exclusion pattern.
+    - `url`: The URL of the schema, optional when also a schema is provided.
+    - `schema`: The schema content.
+  - `resultLimit`: The max number folding ranges and outline symbols to be computed (for performance reasons)
 
 ```json
-	{
+    {
         "http": {
             "proxy": "",
             "proxyStrictSSL": true
@@ -82,7 +86,7 @@ The server supports the following settings:
                     ],
                     "url": "http://json.schemastore.org/foo",
                     "schema": {
-                    	"type": "array"
+                        "type": "array"
                     }
                 }
             ]
@@ -139,19 +143,51 @@ In addition to the settings, schemas associations can also be provided through a
 
 Notification:
 - method: 'json/schemaAssociations'
-- params: `ISchemaAssociations` defined as follows
+- params: `ISchemaAssociations` or `ISchemaAssociation[]` defined as follows
 
 ```ts
 interface ISchemaAssociations {
-	[pattern: string]: string[];
+  /**
+   * An object where:
+   *  - keys are file names or file paths (using `/` as path separator). `*` can be used as a wildcard.
+   *  - values are an arrays of schema URIs
+   */
+  [pattern: string]: string[];
 }
+
+interface ISchemaAssociation {
+  /**
+   * The URI of the schema, which is also the identifier of the schema.
+   */
+  uri: string;
+
+  /**
+   * A list of file path patterns that are associated to the schema. The '*' wildcard can be used. Exclusion patterns starting with '!'.
+   * For example '*.schema.json', 'package.json', '!foo*.schema.json'.
+   * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
+   */
+  fileMatch: string[];
+
+}
+
 ```
+`ISchemaAssociations`
   - keys: a file names or file path (separated by `/`). `*` can be used as a wildcard.
   - values: An array of schema URLs
 
 Notification:
 - method: 'json/schemaContent'
 - params: `string` the URL of the schema that has changed.
+
+### Item Limit
+
+If the setting `resultLimit` is set, the JSON language server will limit the number of folding ranges and document symbols computed.
+When the limit is reached, a notification `json/resultLimitReached` is sent that can be shown that can be shown to the user.
+
+Notification:
+- method: 'json/resultLimitReached'
+- params: a human readable string to show to the user.
+
 
 ## Try
 
@@ -166,7 +202,7 @@ For that, install the `json-language-server` npm module:
 
 `npm install -g json-language-server`
 
-Start the language server with the `json-language-server` command. Use a command line argument to specify the prefered communication channel:
+Start the language server with the `json-language-server` command. Use a command line argument to specify the preferred communication channel:
 
 ```
 json-language-server --node-ipc

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -13,19 +13,18 @@ import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateR
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
-import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export class BrowserStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IWorkspaceStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<IWillSaveStateEvent> = this._register(new Emitter<IWillSaveStateEvent>());
-	readonly onWillSaveState: Event<IWillSaveStateEvent> = this._onWillSaveState.event;
+	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
@@ -37,45 +36,15 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private workspaceStorageFile: URI | undefined;
 
 	private initializePromise: Promise<void> | undefined;
-	private periodicSaveScheduler = this._register(new RunOnceScheduler(() => this.collectState(), 5000));
 
-	get hasPendingUpdate(): boolean {
-		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
-	}
+	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 5000 /* every 5s */));
+	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
-
-		// In the browser we do not have support for long running unload sequences. As such,
-		// we cannot ask for saving state in that moment, because that would result in a
-		// long running operation.
-		// Instead, periodically ask customers to save save. The library will be clever enough
-		// to only save state that has actually changed.
-		this.periodicSaveScheduler.schedule();
-	}
-
-	private collectState(): void {
-		runWhenIdle(() => {
-
-			// this event will potentially cause new state to be stored
-			// since new state will only be created while the document
-			// has focus, one optimization is to not run this when the
-			// document has no focus, assuming that state has not changed
-			//
-			// another optimization is to not collect more state if we
-			// have a pending update already running which indicates
-			// that the connection is either slow or disconnected and
-			// thus unhealthy.
-			if (document.hasFocus() && !this.hasPendingUpdate) {
-				this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
-			}
-
-			// repeat
-			this.periodicSaveScheduler.schedule();
-		});
 	}
 
 	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
@@ -94,6 +63,7 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 		// Workspace Storage
 		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
+
 		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this._onDidChangeStorage.fire({ key, scope: StorageScope.WORKSPACE })));
@@ -109,6 +79,29 @@ export class BrowserStorageService extends Disposable implements IStorageService
 			this.workspaceStorage.init(),
 			this.globalStorage.init()
 		]);
+
+		// Check to see if this is the first time we are "opening" the application
+		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
+		if (firstOpen === undefined) {
+			this.globalStorage.set(IS_NEW_KEY, true);
+		} else if (firstOpen) {
+			this.globalStorage.set(IS_NEW_KEY, false);
+		}
+
+		// Check to see if this is the first time we are "opening" this workspace
+		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
+		if (firstWorkspaceOpen === undefined) {
+			this.workspaceStorage.set(IS_NEW_KEY, true);
+		} else if (firstWorkspaceOpen) {
+			this.workspaceStorage.set(IS_NEW_KEY, false);
+		}
+
+		// In the browser we do not have support for long running unload sequences. As such,
+		// we cannot ask for saving state in that moment, because that would result in a
+		// long running operation.
+		// Instead, periodically ask customers to save save. The library will be clever enough
+		// to only save state that has actually changed.
+		this.periodicFlushScheduler.schedule();
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
@@ -156,6 +149,40 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
+	private doFlushWhenIdle(): void {
+
+		// Dispose any previous idle runner
+		dispose(this.runWhenIdleDisposable);
+
+		// Run when idle
+		this.runWhenIdleDisposable = runWhenIdle(() => {
+
+			// this event will potentially cause new state to be stored
+			// since new state will only be created while the document
+			// has focus, one optimization is to not run this when the
+			// document has no focus, assuming that state has not changed
+			//
+			// another optimization is to not collect more state if we
+			// have a pending update already running which indicates
+			// that the connection is either slow or disconnected and
+			// thus unhealthy.
+			if (document.hasFocus() && !this.hasPendingUpdate) {
+				this.flush();
+			}
+
+			// repeat
+			this.periodicFlushScheduler.schedule();
+		});
+	}
+
+	get hasPendingUpdate(): boolean {
+		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
+	}
+
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+	}
+
 	close(): void {
 		// We explicitly do not close our DBs because writing data onBeforeUnload()
 		// can result in unexpected results. Namely, it seems that - even though this
@@ -167,12 +194,23 @@ export class BrowserStorageService extends Disposable implements IStorageService
 		// get triggered in this phase.
 		this.dispose();
 	}
+
+	isNew(scope: StorageScope): boolean {
+		return this.getBoolean(IS_NEW_KEY, scope) === true;
+	}
+
+	dispose(): void {
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
+
+		super.dispose();
+	}
 }
 
 export class FileStorageDatabase extends Disposable implements IStorageDatabase {
 
-	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	private cache: Map<string, string> | undefined;
 
@@ -206,7 +244,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 		this.isWatching = true;
 
 		this._register(this.fileService.watch(this.file));
-		this._register(this.fileService.onFileChanges(e => {
+		this._register(this.fileService.onDidFilesChange(e => {
 			if (document.hasFocus()) {
 				return; // optimization: ignore changes from ourselves by checking for focus
 			}
@@ -222,9 +260,36 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 	private async onDidStorageChangeExternal(): Promise<void> {
 		const items = await this.doGetItemsFromFile();
 
+		// pervious cache, diff for changes
+		let changed = new Map<string, string>();
+		let deleted = new Set<string>();
+		if (this.cache) {
+			items.forEach((value, key) => {
+				const existingValue = this.cache?.get(key);
+				if (existingValue !== value) {
+					changed.set(key, value);
+				}
+			});
+
+			this.cache.forEach((_, key) => {
+				if (!items.has(key)) {
+					deleted.add(key);
+				}
+			});
+		}
+
+		// no previous cache, consider all as changed
+		else {
+			changed = items;
+		}
+
+		// Update cache
 		this.cache = items;
 
-		this._onDidChangeItemsExternal.fire({ items });
+		// Emit as event as needed
+		if (changed.size > 0 || deleted.size > 0) {
+			this._onDidChangeItemsExternal.fire({ changed, deleted });
+		}
 	}
 
 	async getItems(): Promise<Map<string, string>> {
@@ -246,7 +311,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 		this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 
-		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
+		return new Map(JSON.parse(itemsRaw.value.toString()));
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
@@ -266,7 +331,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 			try {
 				this._hasPendingUpdate = true;
 
-				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items))));
+				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(Array.from(items.entries()))));
 
 				this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 			} finally {

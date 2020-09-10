@@ -17,6 +17,10 @@
 		"menu.background": "#252526",
 		"menu.foreground": "#CCCCCC",
 		"statusBarItem.remoteForeground": "#FFF",
-		"statusBarItem.remoteBackground": "#16825D"
-	}
+		"statusBarItem.remoteBackground": "#16825D",
+		"sideBarSectionHeader.background": "#0000",
+		"sideBarSectionHeader.border": "#ccc3",
+		"tab.lastPinnedBorder": "#ccc3"
+	},
+	"semanticHighlighting": true
 }

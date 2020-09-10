@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -28,11 +28,11 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 		// dispose editor inset whenever the hosting editor goes away
 		this._disposables.add(_editors.onDidChangeVisibleTextEditors(() => {
 			const visibleEditor = _editors.getVisibleTextEditors();
-			this._insets.forEach(value => {
+			for (const value of this._insets.values()) {
 				if (visibleEditor.indexOf(value.editor) < 0) {
 					value.inset.dispose(); // will remove from `this._insets`
 				}
-			});
+			}
 		}));
 	}
 

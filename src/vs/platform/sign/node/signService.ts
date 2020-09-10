@@ -5,11 +5,19 @@
 
 import { ISignService } from 'vs/platform/sign/common/sign';
 
-export class SignService implements ISignService {
-	_serviceBrand: undefined;
+declare module vsda {
+	// the signer is a native module that for historical reasons uses a lower case class name
+	// eslint-disable-next-line @typescript-eslint/naming-convention
+	export class signer {
+		sign(arg: any): any;
+	}
+}
 
-	private vsda(): Promise<typeof import('vsda')> {
-		return import('vsda');
+export class SignService implements ISignService {
+	declare readonly _serviceBrand: undefined;
+
+	private vsda(): Promise<typeof vsda> {
+		return new Promise((resolve, reject) => require(['vsda'], resolve, reject));
 	}
 
 	async sign(value: string): Promise<string> {
@@ -20,9 +28,8 @@ export class SignService implements ISignService {
 				return signer.sign(value);
 			}
 		} catch (e) {
-			console.error('signer.sign: ' + e);
+			// ignore errors silently
 		}
-
 		return value;
 	}
 }

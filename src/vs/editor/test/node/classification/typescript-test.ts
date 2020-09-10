@@ -1,5 +1,5 @@
 ///
-/* tslint:disable */
+/* eslint-disable */
 const x01 = "string";
 ///         ^^^^^^^^ string
 
@@ -57,7 +57,7 @@ const x16 = / x07; /.test('3');
 ///         ^^^^^^^^ regex
 ///                       ^^^ string
 
-const x17 = `.dialog-modal-block${true ? '.dimmed' : ''}`;
+const x17 = `.monaco-dialog-modal-block${true ? '.dimmed' : ''}`;
 ///         ^^^^^^^^^^^^^^^^^^^^^^ string
 ///                                      ^^^^^^^^^ string
 ///                                                  ^^^^ string

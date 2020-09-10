@@ -12,7 +12,7 @@ const INITIALIZE = '$initialize';
 
 export interface IWorker extends IDisposable {
 	getId(): number;
-	postMessage(message: any, transfer: Transferable[]): void;
+	postMessage(message: any, transfer: ArrayBuffer[]): void;
 }
 
 export interface IWorkerCallback {
@@ -302,7 +302,7 @@ export class SimpleWorkerServer<H extends object> {
 	private _requestHandler: IRequestHandler | null;
 	private _protocol: SimpleWorkerProtocol;
 
-	constructor(postMessage: (msg: any, transfer?: Transferable[]) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
+	constructor(postMessage: (msg: any, transfer?: ArrayBuffer[]) => void, requestHandlerFactory: IRequestHandlerFactory<H> | null) {
 		this._requestHandlerFactory = requestHandlerFactory;
 		this._requestHandler = null;
 		this._protocol = new SimpleWorkerProtocol({

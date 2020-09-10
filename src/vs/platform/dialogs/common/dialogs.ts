@@ -160,7 +160,7 @@ export interface IDialogOptions {
  */
 export interface IDialogService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.
@@ -189,7 +189,7 @@ export const IFileDialogService = createDecorator<IFileDialogService>('fileDialo
  */
 export interface IFileDialogService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * The default path for a new file based on previously used files.
@@ -230,9 +230,9 @@ export interface IFileDialogService {
 	pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void>;
 
 	/**
-	 * Shows a save file file dialog and save the file at the chosen file URI.
+	 * Shows a save file dialog and save the file at the chosen file URI.
 	 */
-	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.
@@ -257,9 +257,8 @@ export const enum ConfirmResult {
 }
 
 const MAX_CONFIRM_FILES = 10;
-export function getConfirmMessage(start: string, fileNamesOrResources: readonly (string | URI)[]): string {
-	const message = [start];
-	message.push('');
+export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI)[]): string {
+	const message: string[] = [];
 	message.push(...fileNamesOrResources.slice(0, MAX_CONFIRM_FILES).map(fileNameOrResource => typeof fileNameOrResource === 'string' ? fileNameOrResource : basename(fileNameOrResource)));
 
 	if (fileNamesOrResources.length > MAX_CONFIRM_FILES) {
@@ -272,4 +271,13 @@ export function getConfirmMessage(start: string, fileNamesOrResources: readonly 
 
 	message.push('');
 	return message.join('\n');
+}
+
+export interface INativeOpenDialogOptions {
+	forceNewWindow?: boolean;
+
+	defaultPath?: string;
+
+	telemetryEventName?: string;
+	telemetryExtraData?: ITelemetryData;
 }
