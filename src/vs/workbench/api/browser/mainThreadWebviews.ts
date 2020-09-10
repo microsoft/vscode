@@ -69,7 +69,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		disposables.add(webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
 		disposables.add(webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
 
-		disposables.add(webview.onDispose(() => {
+		disposables.add(webview.onDidDispose(() => {
 			disposables.dispose();
 			this._webviews.delete(handle);
 		}));

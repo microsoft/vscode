@@ -145,7 +145,7 @@ abstract class NotebookAction extends Action2 {
 		this.runWithContext(accessor, context);
 	}
 
-	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void>;
+	abstract runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void>;
 
 	private isNotebookActionContext(context?: unknown): context is INotebookActionContext {
 		return !!context && !!(context as INotebookActionContext).notebookEditor;
@@ -185,7 +185,7 @@ abstract class NotebookCellAction extends NotebookAction {
 		this.runWithContext(accessor, context);
 	}
 
-	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
+	abstract runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
 registerAction2(class extends NotebookCellAction {
@@ -1387,7 +1387,12 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 			} else if (selection.languageId !== 'markdown' && context.cell?.language === 'markdown') {
 				await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, selection.languageId);
 			} else {
-				context.notebookEditor.viewModel!.notebookDocument.changeCellLanguage(context.cell.handle, selection.languageId);
+				const index = context.notebookEditor.viewModel!.notebookDocument.cells.indexOf(context.cell.model);
+				context.notebookEditor.viewModel!.notebookDocument.applyEdit(
+					context.notebookEditor.viewModel!.notebookDocument.versionId,
+					[{ editType: CellEditType.CellLanguage, index, language: selection.languageId }],
+					true
+				);
 			}
 		}
 	}

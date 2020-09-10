@@ -1191,14 +1191,14 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 	test('change event when there are global tasks', () => {
 		fs.writeFileSync(globalTasksFile, '{ "version": "1.0.0", "tasks": [{ "taskName": "myTask" }');
-		return new Promise((c) => testObject.onDidChangeConfiguration(() => c()));
+		return new Promise<void>((c) => testObject.onDidChangeConfiguration(() => c()));
 	});
 
 	test('creating workspace settings', async () => {
 		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.testSetting": "userValue" }');
 		await testObject.reloadConfiguration();
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
-		await new Promise(async (c) => {
+		await new Promise<void>(async (c) => {
 			const disposable = testObject.onDidChangeConfiguration(e => {
 				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
 				assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue');
@@ -1217,7 +1217,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		const workspaceSettingsResource = URI.file(path.join(workspaceDir, '.vscode', 'settings.json'));
 		await fileService.writeFile(workspaceSettingsResource, VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		await testObject.reloadConfiguration();
-		await new Promise(async (c) => {
+		await new Promise<void>(async (c) => {
 			const disposable = testObject.onDidChangeConfiguration(e => {
 				assert.ok(e.affectsConfiguration('configurationService.folder.testSetting'));
 				assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'userValue');
@@ -1822,7 +1822,7 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		await workspaceService.removeFolders([uri]);
 		fs.writeFileSync(path.join(uri.fsPath, '.vscode', 'settings.json'), '{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }');
 
-		return new Promise((c, e) => {
+		return new Promise<void>((c, e) => {
 			testObject.onDidChangeConfiguration(() => {
 				try {
 					assert.equal(testObject.getValue('configurationService.workspace.testResourceSetting', { resource: uri }), 'workspaceFolderValue');
@@ -1948,7 +1948,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
 		registerRemoteFileSystemProvider();
 		await initialize();
-		const promise = new Promise((c, e) => {
+		const promise = new Promise<void>((c, e) => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.equal(event.source, ConfigurationTarget.USER);
@@ -1968,7 +1968,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		fs.writeFileSync(remoteSettingsFile, '{ "configurationService.remote.machineSetting": "remoteValue" }');
 		registerRemoteFileSystemProviderOnActivation();
 		await initialize();
-		const promise = new Promise((c, e) => {
+		const promise = new Promise<void>((c, e) => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.equal(event.source, ConfigurationTarget.USER);
@@ -1989,7 +1989,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 		resolveRemoteEnvironment();
 		await initialize();
 		assert.equal(testObject.getValue('configurationService.remote.machineSetting'), 'isSet');
-		const promise = new Promise((c, e) => {
+		const promise = new Promise<void>((c, e) => {
 			testObject.onDidChangeConfiguration(event => {
 				try {
 					assert.equal(event.source, ConfigurationTarget.USER);

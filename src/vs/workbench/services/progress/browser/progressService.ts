@@ -224,9 +224,9 @@ export class ProgressService extends Disposable implements IProgressService {
 			// Create a promise that we can resolve as needed
 			// when the outside calls dispose on us
 			let promiseResolve: () => void;
-			const promise = new Promise<R>(resolve => promiseResolve = resolve);
+			const promise = new Promise<void>(resolve => promiseResolve = resolve);
 
-			this.withWindowProgress<R>({
+			this.withWindowProgress({
 				location: ProgressLocation.Window,
 				title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
 				command: 'notifications.showList'

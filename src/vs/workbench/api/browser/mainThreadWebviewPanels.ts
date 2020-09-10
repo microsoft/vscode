@@ -140,7 +140,7 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 		this._webviewInputs.add(handle, input);
 		this._mainThreadWebviews.addWebview(handle, input.webview);
 
-		input.webview.onDispose(() => {
+		input.webview.onDidDispose(() => {
 			this._proxy.$onDidDisposeWebviewPanel(handle).finally(() => {
 				this._webviewInputs.delete(handle);
 			});

@@ -652,7 +652,7 @@ export function registerTerminalActions() {
 			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const instance = terminalService.getActiveOrCreateInstance();
-			let editor = codeEditorService.getFocusedCodeEditor();
+			let editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
 			}

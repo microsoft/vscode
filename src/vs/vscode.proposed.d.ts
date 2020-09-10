@@ -1350,17 +1350,24 @@ declare module 'vscode' {
 	}
 
 	export interface WorkspaceEdit {
+		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
-	export interface NotebookEditorCellEdit {
+	export interface NotebookEditorEdit {
+
+		replaceNotebookMetadata(value: NotebookDocumentMetadata): void;
 
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceOutput(index: number, outputs: CellOutput[]): void;
-		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
+		replaceCellOutput(index: number, outputs: CellOutput[]): void;
+		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 
+		/** @deprecated */
+		replaceOutput(index: number, outputs: CellOutput[]): void;
+		/** @deprecated */
+		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
 		/** @deprecated */
 		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		/** @deprecated */
@@ -1448,7 +1455,7 @@ declare module 'vscode' {
 		 */
 		asWebviewUri(localResource: Uri): Uri;
 
-		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 
 		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
@@ -1461,6 +1468,10 @@ declare module 'vscode' {
 		output: CellDisplayOutput;
 		mimeType: string;
 		outputId: string;
+	}
+
+	export interface NotebookDocumentMetadataChangeEvent {
+		readonly document: NotebookDocument;
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1740,6 +1751,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;

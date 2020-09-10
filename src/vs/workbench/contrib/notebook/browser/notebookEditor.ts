@@ -25,6 +25,7 @@ import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorD
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -54,6 +55,7 @@ export class NotebookEditor extends EditorPane {
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
@@ -152,7 +154,7 @@ export class NotebookEditor extends EditorPane {
 			this._widget.value!.layout(this._dimension, this._rootElement);
 		}
 
-		const model = await input.resolve(this._widget.value!.getId());
+		const model = await input.resolve();
 		// Check for cancellation
 		if (token.isCancellationRequested) {
 			return undefined;
@@ -173,6 +175,8 @@ export class NotebookEditor extends EditorPane {
 			);
 			return;
 		}
+
+		await this._notebookService.resolveNotebookEditor(model.viewType, model.resource, this._widget.value!.getId());
 
 		const viewState = this._loadNotebookEditorViewState(input);
 

@@ -737,7 +737,7 @@ export class SearchResult extends Disposable {
 	set query(query: ITextQuery | null) {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
-		new Promise(resolve => this.disposePastResults = resolve)
+		new Promise<void>(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.clear()))
 			.then(() => oldFolderMatches.forEach(match => match.dispose()))
 			.then(() => this._isDirty = false);

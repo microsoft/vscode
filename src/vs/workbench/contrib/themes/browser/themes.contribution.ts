@@ -147,7 +147,7 @@ abstract class AbstractIconThemeAction extends Action {
 			}, applyTheme ? 0 : 200);
 		};
 
-		return new Promise((s, _) => {
+		return new Promise<void>((s, _) => {
 			let isCompleted = false;
 
 			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);

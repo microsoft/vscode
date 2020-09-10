@@ -532,25 +532,31 @@ export class MenuBar extends Disposable {
 		// Update the button label to reflect mnemonics
 
 		if (this.options.enableMnemonics) {
-			let innerHtml = strings.escape(label);
+			let cleanLabel = strings.escape(label);
 
 			// This is global so reset it
 			MENU_ESCAPED_MNEMONIC_REGEX.lastIndex = 0;
-			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+			let escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 
 			// We can't use negative lookbehind so we match our negative and skip
 			while (escMatch && escMatch[1]) {
-				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(innerHtml);
+				escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(cleanLabel);
 			}
+
+			const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
 
 			if (escMatch) {
-				innerHtml = `${innerHtml.substr(0, escMatch.index)}<mnemonic aria-hidden="true">${escMatch[3]}</mnemonic>${innerHtml.substr(escMatch.index + escMatch[0].length)}`;
+				titleElement.innerText = '';
+				titleElement.append(
+					strings.ltrim(replaceDoubleEscapes(cleanLabel.substr(0, escMatch.index)), ' '),
+					$('mnemonic', { 'aria-hidden': 'true' }, escMatch[3]),
+					strings.rtrim(replaceDoubleEscapes(cleanLabel.substr(escMatch.index + escMatch[0].length)), ' ')
+				);
+			} else {
+				titleElement.innerText = replaceDoubleEscapes(cleanLabel).trim();
 			}
-
-			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
-			titleElement.innerHTML = innerHtml;
 		} else {
-			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
+			titleElement.innerText = cleanMenuLabel.replace(/&&/g, '&');
 		}
 
 		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);

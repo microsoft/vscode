@@ -283,6 +283,14 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._metadataHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-header-container'));
 		this._metadataInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-info-container'));
 
+		const checkIfModified = (cell: CellDiffViewModel) => {
+			return cell.type !== 'delete' && cell.type !== 'insert' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
+		};
+
+		if (checkIfModified(this.cell)) {
+			this.cell.metadataFoldingState = PropertyFoldingState.Expanded;
+		}
+
 		this._metadataHeader = this.instantiationService.createInstance(
 			PropertyHeader,
 			this.cell,
@@ -291,7 +299,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type !== 'delete' && cell.type !== 'insert' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
+					return checkIfModified(cell);
 				},
 				getFoldingState: (cell) => {
 					return cell.metadataFoldingState;
@@ -311,6 +319,14 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._outputHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-header-container'));
 		this._outputInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-info-container'));
 
+		const checkIfOutputsModified = (cell: CellDiffViewModel) => {
+			return cell.type !== 'delete' && cell.type !== 'insert' && !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+		};
+
+		if (checkIfOutputsModified(this.cell)) {
+			this.cell.outputFoldingState = PropertyFoldingState.Expanded;
+		}
+
 		this._outputHeader = this.instantiationService.createInstance(
 			PropertyHeader,
 			this.cell,
@@ -319,10 +335,10 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type !== 'delete' && cell.type !== 'insert' && !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+					return checkIfOutputsModified(cell);
 				},
 				getFoldingState: (cell) => {
-					return this.cell.outputFoldingState;
+					return cell.outputFoldingState;
 				},
 				updateFoldingState: (cell, state) => {
 					cell.outputFoldingState = state;
@@ -449,8 +465,14 @@ abstract class AbstractCellRenderer extends Disposable {
 			}
 
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
-				this.notebookEditor.textModel!.changeCellLanguage(this.cell.modified!.handle, newLangauge);
+				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
+				this.notebookEditor.textModel!.applyEdit(
+					this.notebookEditor.textModel!.versionId,
+					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
+					true
+				);
 			}
+
 			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
 
 			if (index < 0) {

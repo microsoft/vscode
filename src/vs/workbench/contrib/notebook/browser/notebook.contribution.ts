@@ -564,9 +564,9 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
-		this._dirtyListener = Event.debounce(workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
+		this._dirtyListener = Event.debounce(_workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
 			const inputs = this._createMissingNotebookEditors();
 			this._editorService.openEditors(inputs);
 		});
@@ -580,7 +580,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 		const result: IResourceEditorInput[] = [];
 
 		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			if (notebook.isDirty && !this._editorService.isOpen({ resource: notebook.uri })) {
+			if (this._workingCopyService.isDirty(notebook.uri.with({ scheme: Schemas.vscodeNotebook })) && !this._editorService.isOpen({ resource: notebook.uri })) {
 				result.push({
 					resource: notebook.uri,
 					options: { inactive: true, preserveFocus: true, pinned: true }
