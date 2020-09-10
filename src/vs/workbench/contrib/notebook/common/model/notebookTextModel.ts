@@ -58,13 +58,23 @@ class StackOperation implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource;
 
 	private _operations: IUndoRedoElement[] = [];
+	private _beginSelectionState: number[] | undefined = undefined;
+	private _resultSelectionState: number[] | undefined = undefined;
 
-	constructor(readonly resource: URI, readonly label: string, private _delayedEmitter: DelayedEmitter) {
+	constructor(readonly resource: URI, readonly label: string, private _delayedEmitter: DelayedEmitter, selectionState: number[] | undefined) {
 		this.type = UndoRedoElementType.Resource;
+		this._beginSelectionState = selectionState;
 	}
 
-	pushEditOperation(element: IUndoRedoElement) {
+	pushEndSelectionState(selectionState: number[] | undefined) {
+		this._resultSelectionState = selectionState;
+	}
+	pushEditOperation(element: IUndoRedoElement, beginSelectionState: number[] | undefined, resultSelectionState: number[] | undefined) {
+		if (this._operations.length === 0) {
+			this._beginSelectionState = this._beginSelectionState || beginSelectionState;
+		}
 		this._operations.push(element);
+		this._resultSelectionState = resultSelectionState;
 	}
 
 	async undo(): Promise<void> {
@@ -72,7 +82,7 @@ class StackOperation implements IResourceUndoRedoElement {
 		for (let i = this._operations.length - 1; i >= 0; i--) {
 			await this._operations[i].undo();
 		}
-		this._delayedEmitter.endDeferredEmit();
+		this._delayedEmitter.endDeferredEmit(this._beginSelectionState);
 	}
 
 	async redo(): Promise<void> {
@@ -80,7 +90,7 @@ class StackOperation implements IResourceUndoRedoElement {
 		for (let i = 0; i < this._operations.length; i++) {
 			await this._operations[i].redo();
 		}
-		this._delayedEmitter.endDeferredEmit();
+		this._delayedEmitter.endDeferredEmit(this._resultSelectionState);
 	}
 }
 
@@ -90,19 +100,20 @@ export class NotebookOperationManager {
 
 	}
 
-	pushStackElement(label: string) {
+	pushStackElement(label: string, selectionState: number[] | undefined) {
 		if (this._pendingStackOperation) {
+			this._pendingStackOperation.pushEndSelectionState(selectionState);
 			this._undoService.pushElement(this._pendingStackOperation);
 			this._pendingStackOperation = null;
 			return;
 		}
 
-		this._pendingStackOperation = new StackOperation(this._resource, label, this._delayedEmitter);
+		this._pendingStackOperation = new StackOperation(this._resource, label, this._delayedEmitter, selectionState);
 	}
 
-	pushEditOperation(element: IUndoRedoElement) {
+	pushEditOperation(element: IUndoRedoElement, beginSelectionState: number[] | undefined, resultSelectionState: number[] | undefined) {
 		if (this._pendingStackOperation) {
-			this._pendingStackOperation.pushEditOperation(element);
+			this._pendingStackOperation.pushEditOperation(element, beginSelectionState, resultSelectionState);
 			return;
 		}
 
@@ -126,7 +137,7 @@ class DelayedEmitter {
 		this._deferredCnt++;
 	}
 
-	endDeferredEmit(): void {
+	endDeferredEmit(endSelections: number[] | undefined): void {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
 			this._computeEndState();
@@ -136,7 +147,7 @@ class DelayedEmitter {
 					{
 						rawEvents: this._notebookTextModelChangedEvent.rawEvents,
 						versionId: this._textModel.versionId,
-						endSelections: this._notebookTextModelChangedEvent.endSelections,
+						endSelections: endSelections || this._notebookTextModelChangedEvent.endSelections,
 						synchronous: this._notebookTextModelChangedEvent.synchronous
 					}
 				);
@@ -287,17 +298,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
 	}
 
-	pushStackElement(label: string) {
-		this._operationManager.pushStackElement(label);
+	pushStackElement(label: string, selectionState: number[] | undefined) {
+		this._operationManager.pushStackElement(label, selectionState);
 	}
 
-	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean): boolean {
+	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: number[] | undefined, endSelectionsComputer: () => number[] | undefined): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
 
 		this._eventEmitter.beginDeferredEmit();
-		this.pushStackElement('edit');
+		this.pushStackElement('edit', beginSelectionState);
 
 		const edits = rawEdits.map((edit, index) => {
 			return {
@@ -357,8 +368,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			}
 		}
 
-		this.pushStackElement('edit');
-		this._eventEmitter.endDeferredEmit();
+		const endSelections = endSelectionsComputer();
+		this.pushStackElement('edit', endSelections);
+		this._eventEmitter.endDeferredEmit(endSelections);
 		return true;
 	}
 
@@ -377,7 +389,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			redo: async () => {
 				redo();
 			},
-		});
+		}, undefined, undefined);
 
 		this._eventEmitter.emit({
 			kind: NotebookCellsChangeType.Unknown,
@@ -442,7 +454,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushEditOperation(new SpliceCellsEdit(this.uri, undoDiff, {
 			insertCell: (index, cell, endSelections?: number[]) => { this._insertNewCell(index, [cell], true, endSelections); },
 			deleteCell: (index, endSelections?: number[]) => { this._removeCell(index, 1, true, endSelections); },
-		}, undefined, undefined));
+		}, undefined, undefined), undefined, undefined);
 
 		// should be deferred
 		this._eventEmitter.emit({
@@ -542,7 +554,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						}
 						this._changeCellMetadata(cell.handle, newMetadata, false);
 					}
-				}));
+				}), undefined, undefined);
 			}
 			// should be deferred
 			cell.metadata = metadata;
@@ -589,7 +601,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
 				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
 				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
-			}, beforeSelections, endSelections));
+			}, beforeSelections, endSelections), beforeSelections, endSelections);
 		}
 
 		this._insertNewCell(index, [cell], synchronous, endSelections);
@@ -601,7 +613,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._operationManager.pushEditOperation(new DeleteCellEdit(this.uri, index, cell, {
 				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
 				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
-			}, beforeSelections, endSelections));
+			}, beforeSelections, endSelections), beforeSelections, endSelections);
 		}
 
 		this._removeCell(index, 1, synchronous, endSelections);
@@ -613,7 +625,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				moveCell: (fromIndex: number, length: number, toIndex: number, beforeSelections: number[] | undefined, endSelections: number[] | undefined) => {
 					this.moveCellToIdx(fromIndex, length, toIndex, true, false, beforeSelections, endSelections);
 				},
-			}, beforeSelections, endSelections));
+			}, beforeSelections, endSelections), beforeSelections, endSelections);
 		}
 
 		this._assertIndex(index);

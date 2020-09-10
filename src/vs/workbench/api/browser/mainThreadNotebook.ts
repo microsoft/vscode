@@ -162,7 +162,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return false;
 		}
 		this._notebookService.transformEditsOutputs(textModel, cellEdits);
-		return textModel.applyEdit(modelVersionId, cellEdits, true);
+		return textModel.applyEdit(modelVersionId, cellEdits, true, undefined, () => undefined);
 	}
 
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
@@ -460,7 +460,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
 				await new Promise(resolve => {
 					DOM.scheduleAtNextAnimationFrame(() => {
-						const ret = mainthreadTextModel!.applyEdit(mainthreadTextModel!.versionId, edits, true);
+						const ret = mainthreadTextModel!.applyEdit(mainthreadTextModel!.versionId, edits, true, undefined, () => undefined);
 						resolve(ret);
 					});
 				});
@@ -583,7 +583,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				index: textModel.cells.indexOf(cell),
 				splices
 			}
-		], true);
+		], true, undefined, () => undefined);
 	}
 
 	async $postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean> {
@@ -618,7 +618,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				{
 					editType: CellEditType.Unknown
 				}
-			], true);
+			], true, undefined, () => undefined);
 		}
 	}
 

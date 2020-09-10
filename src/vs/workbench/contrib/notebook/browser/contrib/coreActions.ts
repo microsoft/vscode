@@ -1297,7 +1297,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId, [{ editType: CellEditType.Output, index, outputs: [] }], true);
+		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId, [{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined);
 
 		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
 			context.notebookEditor.viewModel!.notebookDocument.applyEdit(context.notebookEditor.viewModel!.notebookDocument.versionId, [{
@@ -1308,7 +1308,7 @@ registerAction2(class extends NotebookCellAction {
 					lastRunDuration: undefined,
 					statusMessage: undefined
 				}
-			}], true);
+			}], true, undefined, () => undefined);
 		}
 	}
 });
@@ -1391,7 +1391,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 				context.notebookEditor.viewModel!.notebookDocument.applyEdit(
 					context.notebookEditor.viewModel!.notebookDocument.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: selection.languageId }],
-					true
+					true, undefined, () => undefined
 				);
 			}
 		}
@@ -1442,7 +1442,7 @@ registerAction2(class extends NotebookAction {
 		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId,
 			editor.viewModel.notebookDocument.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
-			})), true);
+			})), true, undefined, () => undefined);
 	}
 });
 
@@ -1576,7 +1576,7 @@ abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 			return;
 		}
 
-		textModel.applyEdit(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true);
+		textModel.applyEdit(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true, undefined, () => undefined);
 	}
 
 	abstract getMetadataDelta(): NotebookCellMetadata;
