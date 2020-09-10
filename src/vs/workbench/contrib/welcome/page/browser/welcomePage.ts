@@ -328,7 +328,7 @@ class WelcomePage extends Disposable {
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
 		if (prodName) {
-			prodName.innerHTML = this.productService.nameLong;
+			prodName.textContent = this.productService.nameLong;
 		}
 
 		recentlyOpened.then(({ workspaces }) => {
