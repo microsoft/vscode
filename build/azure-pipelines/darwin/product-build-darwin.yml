@@ -5,6 +5,11 @@ steps:
     echo -n $VSCODE_QUALITY > .build/quality
   displayName: Prepare cache flag
 
+- script: |
+    sudo xcode-select --switch /Applications/Xcode_12_beta.app
+  displayName: Switch to Xcode12
+  condition: eq(variables['VSCODE_ARCH'], 'arm64')
+
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
     keyfile: 'build/.cachesalt, .build/commit, .build/quality'
