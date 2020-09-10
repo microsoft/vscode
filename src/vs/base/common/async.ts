@@ -432,7 +432,7 @@ export function first<T>(promiseFactories: ITask<Promise<T>>[], shouldStop: (t: 
 
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
-	c: (value?: T | Promise<T>) => void;
+	c: (value: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 

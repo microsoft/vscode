@@ -295,7 +295,7 @@ suite('AsyncDataTree', function () {
 				return !!element.children && element.children.length > 0;
 			}
 			getChildren(element: Element): Promise<Element[]> {
-				return new Promise(c => calls.push(() => c(element.children)));
+				return new Promise(c => calls.push(() => c(element.children || [])));
 			}
 		};
 
@@ -338,7 +338,7 @@ suite('AsyncDataTree', function () {
 				return !!element.children && element.children.length > 0;
 			}
 			getChildren(element: Element): Promise<Element[]> {
-				return new Promise(c => calls.push(() => c(element.children)));
+				return new Promise(c => calls.push(() => c(element.children || [])));
 			}
 		};
 
