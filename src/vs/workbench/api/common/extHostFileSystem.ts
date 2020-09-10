@@ -16,6 +16,7 @@ import { State, StateMachine, LinkComputer, Edge } from 'vs/editor/common/modes/
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 
 class FsLinkProvider {
 
@@ -119,7 +120,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _linkProviderRegistration?: IDisposable;
 	private _handlePool: number = 0;
 
-	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures) {
+	constructor(mainContext: IMainContext, private _extHostLanguageFeatures: ExtHostLanguageFeatures, private readonly _fileSystemConsumer: IExtHostConsumerFileSystem) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
 
 		// register used schemes
@@ -141,6 +142,8 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
 		}
+
+		const schemeRegistration = this._fileSystemConsumer._registerScheme(scheme, options);
 
 		//
 		this._registerLinkProviderIfNotYetRegistered();
@@ -197,6 +200,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 
 		return toDisposable(() => {
 			subscription.dispose();
+			schemeRegistration.dispose();
 			this._linkProvider.delete(scheme);
 			this._usedSchemes.delete(scheme);
 			this._fsProvider.delete(handle);
