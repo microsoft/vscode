@@ -4,7 +4,7 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-42 results - 25 files
+39 results - 23 files
 
 src/vs/base/browser/markdownRenderer.ts:
   156  				const strValue = values[0];
@@ -44,17 +44,6 @@ src/vs/base/browser/ui/menu/menu.ts:
   237  			}
   238  
   239  			this.styleSheet = Menu.globalStyleSheet;
-
-src/vs/base/browser/ui/menu/menubar.ts:
-  548  			}
-  549  
-  550  			innerHtml = innerHtml.replace(/&amp;&amp;/g, '&amp;');
-  551: 			titleElement.innerHTML = innerHtml;
-  552  		} else {
-  553: 			titleElement.innerHTML = cleanMenuLabel.replace(/&&/g, '&');
-  554  		}
-  555  
-  556  		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(label);
 
 src/vs/base/browser/ui/selectBox/selectBoxCustom.ts:
   367  			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
@@ -300,15 +289,6 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   379  						cellOutputContainer.appendChild(outputNode);
   380  						domEval(outputNode);
   381  					} else {
-
-src/vs/workbench/contrib/sash/browser/sash.ts:
-  35  		const size = clamp(this.configurationService.getValue<number>(this.configurationName) ?? minSize, minSize, maxSize);
-  36  
-  37  		// Update styles
-  38: 		this.stylesheet.innerHTML = `
-  39  			.monaco-sash.vertical { cursor: ew-resize; top: 0; width: ${size}px; height: 100%; }
-  40  			.monaco-sash.horizontal { cursor: ns-resize; left: 0; width: 100%; height: ${size}px; }
-  41  			.monaco-sash:not(.disabled).orthogonal-start::before, .monaco-sash:not(.disabled).orthogonal-end::after { content: ' '; height: ${size * 2}px; width: ${size * 2}px; z-index: 100; display: block; cursor: all-scroll; position: absolute; }
 
 src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
   61  				}
