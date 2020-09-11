@@ -124,18 +124,8 @@ export class TabsTitleControl extends TitleControl {
 		this._register(this.accessor.onDidEditorPartOptionsChange(e => {
 			if (e.oldPartOptions.titleScrollbarSizing !== e.newPartOptions.titleScrollbarSizing) {
 				this.updateTabsScrollbarSizing();
-			}
-		}));
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.editor.multiLineTabs')) {
-				const tabsAndActionsContainer = this.tabsAndActionsContainer as HTMLElement;
-
-				if (this.configurationService.getValue<boolean>('workbench.editor.multiLineTabs')) {
-					addClass(tabsAndActionsContainer, 'multi-line-tabs-container');
-				} else {
-					removeClass(tabsAndActionsContainer, 'multi-line-tabs-container');
-				}
+			} else if (e.oldPartOptions.multiLineTabs !== e.newPartOptions.multiLineTabs) {
+				this.updateWrappedTabs();
 			}
 		}));
 	}
@@ -147,8 +137,8 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsAndActionsContainer = document.createElement('div');
 		addClass(this.tabsAndActionsContainer, 'tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
-		if (this.configurationService.getValue<boolean>('workbench.editor.multiLineTabs')) {
-			addClass(this.tabsAndActionsContainer, 'multi-line-tabs-container');
+		if (this.accessor.partOptions.multiLineTabs) {
+			this.tabsAndActionsContainer.classList.add('multi-line-tabs-container');
 		}
 
 		// Tabs Container
@@ -200,6 +190,16 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
 		});
+	}
+
+	private updateWrappedTabs(): void {
+		const tabsAndActionsContainer = this.tabsAndActionsContainer as HTMLElement;
+
+		if (this.accessor.partOptions.multiLineTabs) {
+			tabsAndActionsContainer.classList.add('multi-line-tabs-container');
+		} else {
+			tabsAndActionsContainer.classList.remove('multi-line-tabs-container');
+		}
 	}
 
 	private getTabsScrollbarSizing(): number {
@@ -542,7 +542,8 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
-			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
+			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
+			oldOptions.multiLineTabs !== newOptions.multiLineTabs
 		) {
 			this.redraw();
 		}
@@ -1057,6 +1058,10 @@ export class TabsTitleControl extends TitleControl {
 		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
+		// Add a border to the bottom of the tabs if multi-line tabs is enabled
+		if (this.accessor.partOptions.multiLineTabs) {
+			tabContainer.style.borderBottom = `1px solid ${borderRightColor}`;
+		}
 
 		// Settings
 		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;

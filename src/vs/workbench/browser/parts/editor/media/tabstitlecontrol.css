@@ -35,7 +35,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs> .tabs-and-actions-container.multi-line-tabs-container > .monaco-scrollable-element > .tabs-container > .tab {
-	border-bottom: 1px solid rgba(128,128,128,0.2);
+	flex-grow: 1;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {

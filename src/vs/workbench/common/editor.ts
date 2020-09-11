@@ -1243,6 +1243,7 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
+	multiLineTabs?: boolean;
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
