@@ -92,9 +92,9 @@ export class ProxyAuthHandler extends Disposable {
 			if (channel === 'vscode:proxyAuthResponse') {
 				const { username, password } = credentials;
 				cb(username, password);
+				win.removeListener('close', onWindowClose);
+				win.close();
 			}
-			win.removeListener('close', onWindowClose);
-			win.close();
 		});
 		win.loadURL(url);
 	}
