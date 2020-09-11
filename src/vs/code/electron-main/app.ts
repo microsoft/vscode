@@ -83,6 +83,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { EncryptionMainService, IEncryptionMainService } from 'vs/platform/encryption/electron-main/encryptionMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -451,6 +452,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService, [diagnosticsChannel]));
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
+		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService, [machineId]));
 		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
@@ -538,6 +540,10 @@ export class CodeApplication extends Disposable {
 		const issueMainService = accessor.get(IIssueMainService);
 		const issueChannel = createChannelReceiver(issueMainService);
 		electronIpcServer.registerChannel('issue', issueChannel);
+
+		const encryptionMainService = accessor.get(IEncryptionMainService);
+		const encryptionChannel = createChannelReceiver(encryptionMainService);
+		electronIpcServer.registerChannel('encryption', encryptionChannel);
 
 		const electronMainService = accessor.get(IElectronMainService);
 		const electronChannel = createChannelReceiver(electronMainService);

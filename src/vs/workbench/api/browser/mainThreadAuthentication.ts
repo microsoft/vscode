@@ -20,8 +20,7 @@ import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Platform, platform } from 'vs/base/common/platform';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { encrypt, decrypt } from 'vscode-encrypt';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser'];
 
@@ -225,7 +224,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IEncryptionService private readonly encryptionService: IEncryptionService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -461,14 +460,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $getPassword(key: string): Promise<string | undefined> {
 		const password = await this.credentialsService.getPassword(key, 'account');
-		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
-		const decrypted = password && await decrypt(telemetryInfo.machineId, password);
+		const decrypted = password && await this.encryptionService.decrypt(password);
 		return decrypted ?? undefined;
 	}
 
 	async $setPassword(key: string, value: string): Promise<void> {
-		const telemetryInfo = await this.telemetryService.getTelemetryInfo();
-		const encrypted = await encrypt(telemetryInfo.machineId, value);
+		const encrypted = await this.encryptionService.encrypt(value);
 		return this.credentialsService.setPassword(key, 'account', encrypted);
 	}
 
