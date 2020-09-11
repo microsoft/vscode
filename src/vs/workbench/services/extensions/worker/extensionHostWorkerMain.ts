@@ -14,7 +14,8 @@
 
 	require.config({
 		baseUrl: monacoBaseUrl,
-		catchError: true
+		catchError: true,
+		createTrustedScriptURL: (value: string) => value
 	});
 
 	require(['vs/workbench/services/extensions/worker/extensionHostWorker'], () => { }, err => console.error(err));
