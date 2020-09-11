@@ -73,7 +73,7 @@ class BrowserMain extends Disposable {
 	private logFullscreen(isInitial?: boolean, isResize?: boolean): void {
 		if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
 			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected browser fullscreen`);
-		} else if ((isMacintosh && window.outerHeight === screen.height) || (!isMacintosh && window.innerHeight === screen.height)) {
+		} else if ((window.innerHeight === screen.height) || (window.outerHeight === screen.height && window.outerWidth === screen.width)) {
 			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected native fullscreen`);
 		} else {
 			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected NO fullscreen`);
