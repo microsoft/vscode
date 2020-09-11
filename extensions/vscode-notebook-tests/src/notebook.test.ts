@@ -623,6 +623,52 @@ suite('Notebook API tests', () => {
 		await saveFileAndCloseAll(resource);
 	});
 
+	test('edit API batch edits', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		const cellMetadataChangeEvent = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
+		const version = vscode.notebook.activeNotebookEditor!.document.version;
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.CellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCellMetadata(0, { runnable: false });
+		});
+
+		await cellsChangeEvent;
+		await cellMetadataChangeEvent;
+		assert.strictEqual(version + 1, vscode.notebook.activeNotebookEditor!.document.version);
+		await saveAllFilesAndCloseAll(resource);
+	});
+
+	test('edit API batch edits undo/redo', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		const cellMetadataChangeEvent = getEventOncePromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebook.onDidChangeCellMetadata);
+		const version = vscode.notebook.activeNotebookEditor!.document.version;
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceCells(1, 0, [{ cellKind: vscode.CellKind.Code, language: 'javascript', source: 'test 2', outputs: [], metadata: undefined }]);
+			editBuilder.replaceCellMetadata(0, { runnable: false });
+		});
+
+		await cellsChangeEvent;
+		await cellMetadataChangeEvent;
+		assert.strictEqual(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
+		assert.strictEqual(vscode.notebook.activeNotebookEditor!.document.cells[0]?.metadata?.runnable, false);
+		assert.strictEqual(version + 1, vscode.notebook.activeNotebookEditor!.document.version);
+
+		await vscode.commands.executeCommand('undo');
+		assert.strictEqual(version + 2, vscode.notebook.activeNotebookEditor!.document.version);
+		assert.strictEqual(vscode.notebook.activeNotebookEditor!.document.cells[0]?.metadata?.runnable, undefined);
+		assert.strictEqual(vscode.notebook.activeNotebookEditor!.document.cells.length, 1);
+
+		await saveAllFilesAndCloseAll(resource);
+	});
+
 	test('initialzation should not emit cell change events.', async function () {
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');

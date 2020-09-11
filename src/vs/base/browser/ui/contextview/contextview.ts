@@ -363,6 +363,10 @@ let SHADOW_ROOT_CSS = /* css */ `
 		-ms-user-select: none;
 	}
 
+	:host {
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
+	}
+
 	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
 	:host-context(.mac:lang(zh-Hans)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif; }
 	:host-context(.mac:lang(zh-Hant)) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif; }

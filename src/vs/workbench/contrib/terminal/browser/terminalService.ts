@@ -25,7 +25,6 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
 import { isWindows, isMacintosh, OperatingSystem, isWeb } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
-import { find } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -459,7 +458,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab | undefined {
-		return find(this._terminalTabs, tab => tab.terminalInstances.indexOf(instance) !== -1);
+		return this._terminalTabs.find(tab => tab.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	public async showPanel(focus?: boolean): Promise<void> {

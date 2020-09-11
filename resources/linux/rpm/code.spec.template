@@ -23,7 +23,7 @@ mkdir -p %{buildroot}/usr/share/zsh/site-functions
 cp -r usr/share/@@NAME@@/* %{buildroot}/usr/share/@@NAME@@
 cp -r usr/share/applications/@@NAME@@.desktop %{buildroot}/usr/share/applications
 cp -r usr/share/applications/@@NAME@@-url-handler.desktop %{buildroot}/usr/share/applications
-cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime/packages/@@NAME-workspace.xml
+cp -r usr/share/mime/packages/@@NAME@@-workspace.xml %{buildroot}/usr/share/mime/packages/@@NAME@@-workspace.xml
 cp -r usr/share/pixmaps/@@ICON@@.png %{buildroot}/usr/share/pixmaps
 cp usr/share/bash-completion/completions/@@NAME@@ %{buildroot}/usr/share/bash-completion/completions/@@NAME@@
 cp usr/share/zsh/site-functions/_@@NAME@@ %{buildroot}/usr/share/zsh/site-functions/_@@NAME@@

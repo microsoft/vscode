@@ -342,11 +342,11 @@ abstract class AbstractCellRenderer {
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
 				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true);
+				], true, undefined, () => undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
 				textModel.applyEdit(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true);
+				], true, undefined, () => undefined);
 			}
 		}));
 	}
@@ -597,8 +597,9 @@ class CodeCellDragImageRenderer {
 	}
 
 	private getDragImageImpl(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
-		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
-		dragImageContainer.innerHTML = templateData.container.innerHTML;
+		const dragImageContainer = templateData.container.cloneNode(true) as HTMLElement;
+		dragImageContainer.classList.forEach(c => dragImageContainer.classList.remove(c));
+		dragImageContainer.classList.add('cell-drag-image', 'monaco-list-row', 'focused', `${type}-cell-row`);
 
 		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
 		if (!editorContainer) {

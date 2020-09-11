@@ -6,7 +6,7 @@
 import 'vs/css!./list';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import { range, firstIndex, binarySearch } from 'vs/base/common/arrays';
+import { range, binarySearch } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
@@ -55,7 +55,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 	}
 
 	renderElement(element: T, index: number, templateData: ITraitTemplateData): void {
-		const renderedElementIndex = firstIndex(this.renderedElements, el => el.templateData === templateData);
+		const renderedElementIndex = this.renderedElements.findIndex(el => el.templateData === templateData);
 
 		if (renderedElementIndex >= 0) {
 			const rendered = this.renderedElements[renderedElementIndex];
@@ -96,7 +96,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {
-		const index = firstIndex(this.renderedElements, el => el.templateData === templateData);
+		const index = this.renderedElements.findIndex(el => el.templateData === templateData);
 
 		if (index < 0) {
 			return;

@@ -6,7 +6,6 @@
 import { ICredentialsProvider, ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { find } from 'vs/base/common/arrays';
 
 export class BrowserCredentialsService implements ICredentialsService {
 
@@ -80,7 +79,7 @@ class InMemoryCredentialsProvider implements ICredentialsProvider {
 	}
 
 	private doFindPassword(service: string, account?: string): ICredential | undefined {
-		return find(this.credentials, credential =>
+		return this.credentials.find(credential =>
 			credential.service === service && (typeof account !== 'string' || credential.account === account));
 	}
 

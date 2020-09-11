@@ -210,11 +210,14 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {
+			mark('willInitRequiredUserData');
 			// Initialize required resources - settings & global state
 			await userDataInitializationService.initializeRequiredResources();
 
-			// Reload configuration after initializing
-			await configurationService.reloadConfiguration();
+			// Important Reload only local user configuration after initializing
+			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
+			await configurationService.reloadLocalUserConfiguration();
+			mark('didInitRequiredUserData');
 		}
 
 		return { serviceCollection, logService, storageService };

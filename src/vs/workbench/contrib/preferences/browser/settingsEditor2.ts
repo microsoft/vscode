@@ -9,7 +9,6 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
@@ -868,19 +867,19 @@ export class SettingsEditor2 extends EditorPane {
 			const remoteResult = props.searchResults[SearchResultIdx.Remote];
 			const localResult = props.searchResults[SearchResultIdx.Local];
 
-			const localIndex = arrays.firstIndex(localResult!.filterMatches, m => m.setting.key === props.key);
+			const localIndex = localResult!.filterMatches.findIndex(m => m.setting.key === props.key);
 			groupId = localIndex >= 0 ?
 				'local' :
 				'remote';
 
 			displayIndex = localIndex >= 0 ?
 				localIndex :
-				remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
+				remoteResult && (remoteResult.filterMatches.findIndex(m => m.setting.key === props.key) + localResult.filterMatches.length);
 
 			if (this.searchResultModel) {
 				const rawResults = this.searchResultModel.getRawResults();
 				if (rawResults[SearchResultIdx.Remote]) {
-					const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
+					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
 				}
 			}

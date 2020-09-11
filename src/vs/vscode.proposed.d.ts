@@ -717,16 +717,69 @@ declare module 'vscode' {
 
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
+	// TODO@jrieken FileDecoration, FileDecorationProvider etc.
+	// TODO@jrieken Add selector notion to limit decorations to a view.
+	// TODO@jrieken Rename `Decoration.letter` to `short` so that it could be used for coverage et al.
+
 	export class Decoration {
+
+		/**
+		 * A letter that represents this decoration.
+		 */
 		letter?: string;
+
+		/**
+		 * The human-readable title for this decoration.
+		 */
 		title?: string;
+
+		/**
+		 * The color of this decoration.
+		 */
 		color?: ThemeColor;
+
+		/**
+		 * The priority of this decoration.
+		 */
 		priority?: number;
+
+		/**
+		 * A flag expressing that this decoration should be
+		 * propagted to its parents.
+		 */
 		bubble?: boolean;
+
+		/**
+		 * Creates a new decoration.
+		 *
+		 * @param letter A letter that represents the decoration.
+		 * @param title The title of the decoration.
+		 * @param color The color of the decoration.
+		 */
+		constructor(letter?: string, title?: string, color?: ThemeColor);
 	}
 
+	/**
+	 * The decoration provider interfaces defines the contract between extensions and
+	 * file decorations.
+	 */
 	export interface DecorationProvider {
+
+		/**
+		 * An event to signal decorations for one or many files have changed.
+		 *
+		 * @see [EventEmitter](#EventEmitter
+		 */
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+
+		/**
+		 * Provide decorations for a given uri.
+		 *
+		 *
+		 * @param uri The uri of the file to provide a decoration for.
+		 * @param token A cancellation token.
+		 * @returns A decoration or a thenable that resolves to such.
+		 */
 		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 

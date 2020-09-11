@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
@@ -16,7 +16,7 @@ import { ITextCellEditingDelegate } from 'vs/workbench/contrib/notebook/common/m
 
 export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {
 	createCellViewModel?(cell: NotebookCellTextModel): BaseCellViewModel;
-	createCell?(index: number, source: string | string[], language: string, type: CellKind): BaseCellViewModel;
+	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[]): BaseCellViewModel;
 }
 
 export class JoinCellEdit implements IResourceUndoRedoElement {
@@ -126,7 +126,7 @@ export class SplitCellEdit implements IResourceUndoRedoElement {
 		let insertIndex = this.index + 1;
 		let lastCell;
 		for (let j = 1; j < this.cellContents.length; j++, insertIndex++) {
-			lastCell = this.editingDelegate.createCell(insertIndex, this.cellContents[j], this.language, this.cellKind);
+			lastCell = this.editingDelegate.createCell(insertIndex, this.cellContents[j], this.language, this.cellKind, {}, []);
 		}
 
 		if (lastCell) {
