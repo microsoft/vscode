@@ -66,18 +66,6 @@ class BrowserMain extends Disposable {
 
 		// Browser config
 		setFullscreen(!!detectFullscreen());
-
-		this.logFullscreen(true);
-	}
-
-	private logFullscreen(isInitial?: boolean, isResize?: boolean): void {
-		if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected browser fullscreen`);
-		} else if ((window.innerHeight === screen.height) || (window.outerHeight === screen.height && window.outerWidth === screen.width)) {
-			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected native fullscreen`);
-		} else {
-			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected NO fullscreen`);
-		}
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -146,13 +134,11 @@ class BrowserMain extends Disposable {
 		// Fullscreen (Browser)
 		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
 			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
-			this.logFullscreen(false, false);
 		});
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
 			setFullscreen(!!detectFullscreen());
-			this.logFullscreen(false, true);
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
