@@ -261,6 +261,31 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 	}
 }
 
+export class RemoveOnlyDisabledBreakpointsAction extends AbstractDebugAction {
+	static readonly ID = 'workbench.debug.viewlet.action.removeOnlyDisabledBreakpoints';
+	static readonly LABEL = nls.localize('removeOnlyDisabledBreakpoints', "Remove Only Disabled Breakpoints");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, 'debug-action codicon-close-all', debugService, keybindingService);
+		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
+	}
+
+	run(): Promise<any> {
+		const allDisabledBreakpoints = this.debugService.getModel().getBreakpoints({ disabledOnly: true });
+		let fn = async (breakpointToBeRemoved: any) => {
+			return await this.debugService.removeBreakpoints(breakpointToBeRemoved.getId());
+		};
+		let actions = allDisabledBreakpoints.map(fn);
+		return Promise.all(actions);
+	}
+
+	protected isEnabled(_: State): boolean {
+		const model = this.debugService.getModel();
+		return (model.getBreakpoints({ disabledOnly: true }).length > 0);
+	}
+}
+
+
 export class ToggleBreakpointsActivatedAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.toggleBreakpointsActivatedAction';
 	static readonly ACTIVATE_LABEL = nls.localize('activateBreakpoints', "Activate Breakpoints");

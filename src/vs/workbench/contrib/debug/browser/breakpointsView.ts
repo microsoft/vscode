@@ -215,6 +215,7 @@ export class BreakpointsView extends ViewPane {
 
 			actions.push(new EnableAllBreakpointsAction(EnableAllBreakpointsAction.ID, EnableAllBreakpointsAction.LABEL, this.debugService, this.keybindingService));
 			actions.push(new DisableAllBreakpointsAction(DisableAllBreakpointsAction.ID, DisableAllBreakpointsAction.LABEL, this.debugService, this.keybindingService));
+			actions.push(new RemoveOnlyDisabledBreakpointsAction(RemoveOnlyDisabledBreakpointsAction.ID, RemoveOnlyDisabledBreakpointsAction.LABEL, this.debugService, this.keybindingService));
 		}
 
 		actions.push(new Separator());
