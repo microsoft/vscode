@@ -121,18 +121,20 @@ export function activate(context: vscode.ExtensionContext) {
 
 
 function relativePathToUri(path: string, resultsUri: vscode.Uri): vscode.Uri | undefined {
-	if (pathUtils.isAbsolute(path)) { return vscode.Uri.file(path); }
-	if (path.indexOf('~/') === 0) {
-		return vscode.Uri.file(pathUtils.join(process.env.HOME!, path.slice(2)));
+	if (pathUtils.isAbsolute(path)) {
+		return vscode.Uri
+			.file(path)
+			.with({ scheme: process.env.HOME ? 'file' : 'vscode-userdata' });
 	}
 
-	const uriFromFolderWithPath = function uriFromFolderWithPath(folder: vscode.WorkspaceFolder, path: string): vscode.Uri {
-		if (typeof path !== 'string' || typeof folder.uri.fsPath !== 'string') {
-			console.error('ERR!!!', { path, fsPath: folder.uri.fsPath });
-		}
+	if (path.indexOf('~/') === 0) {
+		return vscode.Uri
+			.file(pathUtils.join(process.env.HOME ?? '', path.slice(2)))
+			.with({ scheme: process.env.HOME ? 'file' : 'vscode-userdata' });
+	}
 
-		return folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
-	};
+	const uriFromFolderWithPath = (folder: vscode.WorkspaceFolder, path: string): vscode.Uri =>
+		folder.uri.with({ path: pathUtils.join(folder.uri.fsPath, path) });
 
 	if (vscode.workspace.workspaceFolders) {
 		const multiRootFormattedPath = /^(.*) • (.*)$/.exec(path);
