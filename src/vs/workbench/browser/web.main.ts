@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, EventHelper, isWindowFullscreen } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, EventHelper, isWindowFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
@@ -118,14 +118,9 @@ class BrowserMain extends Disposable {
 
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
-		// Layout & Native Fullscreen
+		// Layout
 		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			workbench.layout();
-
-			setFullscreen(isWindowFullscreen());
-			this.logFullscreen(false, true);
-		}));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
@@ -153,6 +148,12 @@ class BrowserMain extends Disposable {
 			this._register(addDisposableListener(document, event, () => setFullscreen(isWindowFullscreen())));
 			this.logFullscreen(false, false);
 		});
+
+		// Fullscreen (Native)
+		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
+			setFullscreen(isWindowFullscreen());
+			this.logFullscreen(false, true);
+		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
