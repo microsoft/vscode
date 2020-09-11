@@ -119,7 +119,7 @@ export class ExtHostCell extends Disposable {
 				uri: that.uri,
 				cellKind: this._cellData.cellKind,
 				document,
-				language: document.languageId,
+				get language() { return document.languageId; },
 				get outputs() { return that._outputs; },
 				set outputs(value) { that._updateOutputs(value); },
 				get metadata() { return that._metadata; },
