@@ -17,7 +17,6 @@ import { WebviewEditorInputFactory } from 'vs/workbench/contrib/webview/browser/
 import { HideWebViewEditorFindCommand, ReloadWebviewAction, ShowWebViewEditorFindWidgetAction, WebViewEditorFindNextCommand, WebViewEditorFindPreviousCommand } from '../browser/webviewCommands';
 import { WebviewEditor } from './webviewEditor';
 import { WebviewInput } from './webviewEditorInput';
-import { WebviewService } from './webviewService';
 import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkbenchService';
 
 (Registry.as<IEditorRegistry>(EditorExtensions.Editors)).registerEditor(EditorDescriptor.create(
@@ -30,7 +29,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	WebviewEditorInputFactory.ID,
 	WebviewEditorInputFactory);
 
-registerSingleton(IWebviewService, WebviewService, true);
 registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
 
 registerAction2(ShowWebViewEditorFindWidgetAction);

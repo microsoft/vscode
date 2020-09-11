@@ -115,8 +115,7 @@ import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
-import 'vs/workbench/contrib/webview/browser/webviewService';
-import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';
