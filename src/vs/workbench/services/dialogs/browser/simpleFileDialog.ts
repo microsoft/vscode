@@ -108,7 +108,7 @@ export class SimpleFileDialog {
 	private remoteAuthority: string | undefined;
 	private requiresTrailing: boolean = false;
 	private trailing: string | undefined;
-	protected scheme: string = Schemas.vscodeRemote;
+	protected scheme: string;
 	private contextKey: IContextKey<boolean>;
 	private userEnteredPathSegment: string = '';
 	private autoCompletePathSegment: string = '';
@@ -141,6 +141,7 @@ export class SimpleFileDialog {
 	) {
 		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
+		this.scheme = this.pathService.defaultUriScheme;
 	}
 
 	set busy(busy: boolean) {
