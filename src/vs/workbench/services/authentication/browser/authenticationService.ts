@@ -43,6 +43,7 @@ export async function getCurrentAuthenticationSessionInfo(environmentService: IW
 	}
 	return undefined;
 }
+
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {

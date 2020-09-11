@@ -1,12 +1,5 @@
 steps:
 - script: |
-    curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh
-    brew install openssl
-    cd /usr/local/include
-    ln -s ../opt/openssl/include/openssl .
-  displayName: Install openssl
-
-- script: |
     mkdir -p .build
     echo -n $BUILD_SOURCEVERSION > .build/commit
     echo -n $VSCODE_QUALITY > .build/quality
