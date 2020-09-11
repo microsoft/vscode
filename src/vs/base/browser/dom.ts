@@ -784,11 +784,11 @@ function getSharedStyleSheet(): HTMLStyleElement {
 }
 
 function getDynamicStyleSheetRules(style: any) {
-	if (style && style.sheet && style.sheet.rules) {
+	if (style?.sheet?.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
 	}
-	if (style && style.sheet && style.sheet.cssRules) {
+	if (style?.sheet?.cssRules) {
 		// FF
 		return style.sheet.cssRules;
 	}
