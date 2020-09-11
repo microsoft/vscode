@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, EventHelper, isWindowFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
@@ -65,7 +65,7 @@ class BrowserMain extends Disposable {
 	private init(): void {
 
 		// Browser config
-		setFullscreen(isWindowFullscreen());
+		setFullscreen(!!detectFullscreen());
 
 		this.logFullscreen(true);
 	}
@@ -145,13 +145,13 @@ class BrowserMain extends Disposable {
 
 		// Fullscreen (Browser)
 		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
-			this._register(addDisposableListener(document, event, () => setFullscreen(isWindowFullscreen())));
+			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
 			this.logFullscreen(false, false);
 		});
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(isWindowFullscreen());
+			setFullscreen(!!detectFullscreen());
 			this.logFullscreen(false, true);
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}

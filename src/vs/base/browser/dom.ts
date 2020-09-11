@@ -1278,11 +1278,40 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	setTimeout(() => document.body.removeChild(anchor));
 }
 
-export function isWindowFullscreen(): boolean {
+export enum DetectedFullscreenMode {
+
+	/**
+	 * The document is fullscreen, e.g. because an element
+	 * in the document requested to be fullscreen.
+	 */
+	DOCUMENT = 1,
+
+	/**
+	 * The browser is fullsreen, e.g. because the user enabled
+	 * native window fullscreen for it.
+	 */
+	BROWSER
+}
+
+export interface IDetectedFullscreen {
+
+	/**
+	 * Figure out if the document is fullscreen or the browser.
+	 */
+	mode: DetectedFullscreenMode;
+
+	/**
+	 * Wether we know for sure that we are in fullscreen mode or
+	 * it is a guess.
+	 */
+	guess: boolean;
+}
+
+export function detectFullscreen(): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
 	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-		return true;
+		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
 
 	// There is no standard way to figure out if the browser
@@ -1290,13 +1319,21 @@ export function isWindowFullscreen(): boolean {
 	// height and comparing that to window height, we can guess
 	// it though.
 
-	// macOS: somehow innerHeight does not give a proper value
-	// but outerHeight seems to work
-	if (platform.isMacintosh) {
-		return window.outerHeight === screen.height;
+	if (window.innerHeight === screen.height) {
+		// if the height of the window matches the screen height, we can
+		// safely assume that the browser is fullscreen because no browser
+		// chrome is taking height away (e.g. like toolbars).
+		return { mode: DetectedFullscreenMode.BROWSER, guess: false };
 	}
 
-	// Windows/Linux: assume we are in fullscreen when the window
-	// covery the entire screen
-	return window.innerHeight === screen.height;
+	if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
+		// if the height of the browser matches the screen height, we can
+		// only guess that we are in fullscreen. It is also possible that
+		// the user has turned off taskbars in the OS and the browser is
+		// simply able to span the entire size of the screen.
+		return { mode: DetectedFullscreenMode.BROWSER, guess: true };
+	}
+
+	// Not in fullscreen
+	return null;
 }
