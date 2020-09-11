@@ -2172,9 +2172,15 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 
-	constructor(id: string) {
+	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
+		this.themeColor = color;
+	}
+
+	with(color: ThemeColor): ThemeIcon {
+		return new ThemeIcon(this.id, color);
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');

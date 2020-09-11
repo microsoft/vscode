@@ -25,10 +25,11 @@ export function themeColorFromId(id: ColorIdentifier) {
 // theme icon
 export interface ThemeIcon {
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 }
 
 export namespace ThemeIcon {
-	export function isThemeIcon(obj: any): obj is ThemeIcon {
+	export function isThemeIcon(obj: any): obj is ThemeIcon | { id: string } {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
 	}
 
