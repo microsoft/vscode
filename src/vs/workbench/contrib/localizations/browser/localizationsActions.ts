@@ -12,7 +12,6 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { language } from 'vs/base/common/platform';
-import { firstIndex } from 'vs/base/common/arrays';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -47,7 +46,7 @@ export class ConfigureLocaleAction extends Action {
 
 	public async run(): Promise<void> {
 		const languageOptions = await this.getLanguageOptions();
-		const currentLanguageIndex = firstIndex(languageOptions, l => l.label === language);
+		const currentLanguageIndex = languageOptions.findIndex(l => l.label === language);
 
 		try {
 			const selectedLanguage = await this.quickInputService.pick(languageOptions,

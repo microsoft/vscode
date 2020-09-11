@@ -50,6 +50,7 @@ import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
+import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -71,7 +72,7 @@ import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -90,8 +91,8 @@ registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService);
 registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
 registerSingleton(IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
-registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(IUserDataSyncService, UserDataSyncService, true);
+registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, true);
 registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);

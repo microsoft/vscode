@@ -91,7 +91,7 @@ class InsertSnippetAction extends EditorAction {
 		const clipboardService = accessor.get(IClipboardService);
 		const quickInputService = accessor.get(IQuickInputService);
 
-		const snippet = await new Promise<Snippet>(async (resolve, reject) => {
+		const snippet = await new Promise<Snippet | undefined>(async (resolve, reject) => {
 
 			const { lineNumber, column } = editor.getPosition();
 			let { snippet, name, langId } = Args.fromUser(arg);

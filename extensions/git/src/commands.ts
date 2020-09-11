@@ -6,7 +6,7 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider } from './api/git';
@@ -460,7 +460,7 @@ export class CommandCenter {
 
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
-		if (!url) {
+		if (!url || typeof url !== 'string') {
 			url = await pickRemoteSource(this.model, {
 				providerLabel: provider => localize('clonefrom', "Clone from {0}", provider.name),
 				urlLabel: localize('repourl', "Clone from URL")
@@ -1002,6 +1002,9 @@ export class CommandCenter {
 		}
 
 		await this._stageChanges(textEditor, [changes[index]]);
+
+		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
@@ -1049,6 +1052,9 @@ export class CommandCenter {
 		}
 
 		await this._revertChanges(textEditor, [...changes.slice(0, index), ...changes.slice(index + 1)]);
+
+		const firstStagedLine = changes[index].modifiedStartLineNumber - 1;
+		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
 	}
 
 	@command('git.revertSelectedRanges', { diff: true })
@@ -1070,7 +1076,9 @@ export class CommandCenter {
 			return;
 		}
 
+		const selectionsBeforeRevert = textEditor.selections;
 		await this._revertChanges(textEditor, selectedChanges);
+		textEditor.selections = selectionsBeforeRevert;
 	}
 
 	private async _revertChanges(textEditor: TextEditor, changes: LineChange[]): Promise<void> {
@@ -1083,7 +1091,6 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const selectionsBeforeRevert = textEditor.selections;
 		const visibleRangesBeforeRevert = textEditor.visibleRanges;
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 
@@ -1093,7 +1100,6 @@ export class CommandCenter {
 
 		await modifiedDocument.save();
 
-		textEditor.selections = selectionsBeforeRevert;
 		textEditor.revealRange(visibleRangesBeforeRevert[0]);
 	}
 
@@ -1435,6 +1441,26 @@ export class CommandCenter {
 			return false;
 		}
 
+		if (opts.noVerify) {
+			if (!config.get<boolean>('allowNoVerifyCommit')) {
+				await window.showErrorMessage(localize('no verify commit not allowed', "Commits without verification are not allowed, please enable them with the 'git.allowNoVerifyCommit' setting."));
+				return false;
+			}
+
+			if (config.get<boolean>('confirmNoVerifyCommit')) {
+				const message = localize('confirm no verify commit', "You are about to commit your changes without verification, this skips pre-commit hooks and can be undesirable.\n\nAre you sure to continue?");
+				const yes = localize('ok', "OK");
+				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+				if (pick === neverAgain) {
+					config.update('confirmNoVerifyCommit', false, true);
+				} else if (pick !== yes) {
+					return false;
+				}
+			}
+		}
+
 		const message = await getCommitMessage();
 
 		if (!message) {
@@ -1539,8 +1565,7 @@ export class CommandCenter {
 		await this.commitWithAnyInput(repository, { all: true, amend: true });
 	}
 
-	@command('git.commitEmpty', { repository: true })
-	async commitEmpty(repository: Repository): Promise<void> {
+	private async _commitEmpty(repository: Repository, noVerify?: boolean): Promise<void> {
 		const root = Uri.file(repository.root);
 		const config = workspace.getConfiguration('git', root);
 		const shouldPrompt = config.get<boolean>('confirmEmptyCommits') === true;
@@ -1558,7 +1583,52 @@ export class CommandCenter {
 			}
 		}
 
-		await this.commitWithAnyInput(repository, { empty: true });
+		await this.commitWithAnyInput(repository, { empty: true, noVerify });
+	}
+
+	@command('git.commitEmpty', { repository: true })
+	async commitEmpty(repository: Repository): Promise<void> {
+		await this._commitEmpty(repository);
+	}
+
+	@command('git.commitNoVerify', { repository: true })
+	async commitNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { noVerify: true });
+	}
+
+	@command('git.commitStagedNoVerify', { repository: true })
+	async commitStagedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, noVerify: true });
+	}
+
+	@command('git.commitStagedSignedNoVerify', { repository: true })
+	async commitStagedSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitStagedAmendNoVerify', { repository: true })
+	async commitStagedAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: false, amend: true, noVerify: true });
+	}
+
+	@command('git.commitAllNoVerify', { repository: true })
+	async commitAllNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, noVerify: true });
+	}
+
+	@command('git.commitAllSignedNoVerify', { repository: true })
+	async commitAllSignedNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, signoff: true, noVerify: true });
+	}
+
+	@command('git.commitAllAmendNoVerify', { repository: true })
+	async commitAllAmendNoVerify(repository: Repository): Promise<void> {
+		await this.commitWithAnyInput(repository, { all: true, amend: true, noVerify: true });
+	}
+
+	@command('git.commitEmptyNoVerify', { repository: true })
+	async commitEmptyNoVerify(repository: Repository): Promise<void> {
+		await this._commitEmpty(repository, true);
 	}
 
 	@command('git.restoreCommitTemplate', { repository: true })

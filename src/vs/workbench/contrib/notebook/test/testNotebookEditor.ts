@@ -12,13 +12,13 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { EditorModel } from 'vs/workbench/common/editor';
-import { ICellRange, ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookEditorCreationOptions, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCellMetadata, INotebookKernelInfo, IInsetRenderOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCellMetadata, IInsetRenderOutput, ICellRange, INotebookKernelInfo2, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { NotImplementedError } from 'vs/base/common/errors';
@@ -34,6 +34,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -64,6 +66,10 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getSelectionHandles(): number[] {
+		return [];
+	}
+
 
 	setOptions(options: NotebookEditorOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
@@ -78,7 +84,9 @@ export class TestNotebookEditor implements INotebookEditor {
 	onDidChangeActiveCell: Event<void> = new Emitter<void>().event;
 	onDidScroll = new Emitter<ScrollEvent>().event;
 	onWillDispose = new Emitter<void>().event;
-
+	onDidChangeVisibleRanges: Event<void> = new Emitter<void>().event;
+	onDidChangeSelection: Event<void> = new Emitter<void>().event;
+	visibleRanges: ICellRange[] = [];
 	uri?: URI | undefined;
 	textModel?: NotebookTextModel | undefined;
 
@@ -104,7 +112,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	cursorNavigationMode = false;
-	activeKernel: INotebookKernelInfo | undefined;
+	activeKernel: INotebookKernelInfo2 | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
 	activeCodeEditor: IEditor | undefined;
@@ -329,7 +337,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	) {
 		super();
 
-		if (_notebook && _notebook.onDidChangeCells) {
+		if (_notebook && _notebook.onDidChangeContent) {
 			this._register(_notebook.onDidChangeContent(() => {
 				this._dirty = true;
 				this._onDidChangeDirty.fire();
@@ -337,6 +345,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 			}));
 		}
 	}
+	lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	isDirty() {
 		return this._dirty;
@@ -384,11 +393,11 @@ export function setupInstantiationService() {
 
 export function withTestNotebook(instantiationService: TestInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string, string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const textModelService = instantiationService.get(ITextModelService);
+	const modeService = instantiationService.get(IModeService);
 
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, false, URI.parse('test'), undoRedoService, textModelService);
-	notebook.initialize(cells.map(cell => {
+	const notebook = new NotebookTextModel(viewType, false, URI.parse('test'), cells.map(cell => {
 		return {
 			source: cell[0],
 			language: cell[1],
@@ -396,7 +405,7 @@ export function withTestNotebook(instantiationService: TestInstantiationService,
 			outputs: cell[3],
 			metadata: cell[4]
 		};
-	}));
+	}), [], notebookDocumentMetadataDefaults, { transientMetadata: {}, transientOutputs: false }, undoRedoService, textModelService, modeService);
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
 	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);

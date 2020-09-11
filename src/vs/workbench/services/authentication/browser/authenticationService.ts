@@ -329,7 +329,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
 			// provider is now in the map.
-			await new Promise((resolve, _) => {
+			await new Promise<void>((resolve, _) => {
 				this.onDidRegisterAuthenticationProvider(e => {
 					if (e.id === providerId) {
 						provider = this._authenticationProviders.get(providerId);
@@ -432,24 +432,51 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession>> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id));
+	private async tryActivateProvider(providerId: string): Promise<MainThreadAuthenticationProvider> {
+		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(providerId));
+		let provider = this._authenticationProviders.get(providerId);
+		if (provider) {
+			return provider;
+		}
 
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
+		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
+		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
+		const didRegister: Promise<MainThreadAuthenticationProvider> = new Promise((resolve, _) => {
+			this.onDidRegisterAuthenticationProvider(e => {
+				if (e.id === providerId) {
+					provider = this._authenticationProviders.get(providerId);
+					if (provider) {
+						resolve(provider);
+					} else {
+						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+					}
+				}
+			});
+		});
+
+		const didTimeout: Promise<MainThreadAuthenticationProvider> = new Promise((_, reject) => {
+			setTimeout(() => {
+				reject();
+			}, 2000);
+		});
+
+		return Promise.race([didRegister, didTimeout]);
+	}
+
+	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession>> {
+		try {
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id);
 			return await authProvider.getSessions();
-		} else {
+		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
 	async login(id: string, scopes: string[]): Promise<AuthenticationSession> {
-		await this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id));
-
-		const authProvider = this._authenticationProviders.get(id);
-		if (authProvider) {
-			return authProvider.login(scopes);
-		} else {
+		try {
+			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id);
+			return await authProvider.login(scopes);
+		} catch (_) {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}

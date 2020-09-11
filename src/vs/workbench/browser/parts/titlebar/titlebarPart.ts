@@ -39,7 +39,7 @@ import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions'
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -290,7 +290,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const remoteName = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority);
+		const remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
 		const separator = this.configurationService.getValue<string>('window.titleSeparator');
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 

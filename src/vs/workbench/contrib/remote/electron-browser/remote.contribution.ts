@@ -14,36 +14,31 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { OpenLocalFileFolderCommand, OpenLocalFileCommand, OpenLocalFolderCommand, SaveLocalFileCommand, RemoteFileDialogContext } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 
 class RemoteChannelsContribution implements IWorkbenchContribution {
 
 	constructor(
 		@ILogService logService: ILogService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@IDialogService dialogService: IDialogService,
 		@IDownloadService downloadService: IDownloadService
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			connection.registerChannel('dialog', new DialogChannel(dialogService));
 			connection.registerChannel('download', new DownloadServiceChannel(downloadService));
 			connection.registerChannel('logger', new LoggerChannel(logService));
 		}
@@ -58,7 +53,7 @@ class RemoteAgentDiagnosticListener implements IWorkbenchContribution {
 		ipcRenderer.on('vscode:getDiagnosticInfo', (event: unknown, request: { replyChannel: string, args: IDiagnosticInfoOptions }): void => {
 			const connection = remoteAgentService.getConnection();
 			if (connection) {
-				const hostName = labelService.getHostLabel(REMOTE_HOST_SCHEME, connection.remoteAuthority);
+				const hostName = labelService.getHostLabel(Schemas.vscodeRemote, connection.remoteAuthority);
 				remoteAgentService.getDiagnosticInfo(request.args)
 					.then(info => {
 						if (info) {

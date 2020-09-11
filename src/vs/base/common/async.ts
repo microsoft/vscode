@@ -52,21 +52,21 @@ export function createCancelablePromise<T>(callback: (token: CancellationToken) 
 
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken): Promise<T | undefined>;
 export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue: T): Promise<T>;
-export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T> {
-	return Promise.race([promise, new Promise<T>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
+export function raceCancellation<T>(promise: Promise<T>, token: CancellationToken, defaultValue?: T): Promise<T | undefined> {
+	return Promise.race([promise, new Promise<T | undefined>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
 }
 
-export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T> {
-	let promiseResolve: (() => void) | undefined = undefined;
+export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
+	let promiseResolve: ((value: T | undefined) => void) | undefined = undefined;
 
 	const timer = setTimeout(() => {
-		promiseResolve?.();
+		promiseResolve?.(undefined);
 		onTimeout?.();
 	}, timeout);
 
 	return Promise.race([
 		promise.finally(() => clearTimeout(timer)),
-		new Promise<T>(resolve => promiseResolve = resolve)
+		new Promise<T | undefined>(resolve => promiseResolve = resolve)
 	]);
 }
 
@@ -167,6 +167,25 @@ export class Sequencer {
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
 		return this.current = this.current.then(() => promiseTask());
+	}
+}
+
+export class SequencerByKey<TKey> {
+
+	private promiseMap = new Map<TKey, Promise<any>>();
+
+	queue<T>(key: TKey, promiseTask: ITask<Promise<T>>): Promise<T> {
+		const runningPromise = this.promiseMap.get(key) ?? Promise.resolve();
+		const newPromise = runningPromise
+			.catch(() => { })
+			.then(promiseTask)
+			.finally(() => {
+				if (this.promiseMap.get(key) === newPromise) {
+					this.promiseMap.delete(key);
+				}
+			});
+		this.promiseMap.set(key, newPromise);
+		return newPromise;
 	}
 }
 
@@ -413,7 +432,7 @@ export function first<T>(promiseFactories: ITask<Promise<T>>[], shouldStop: (t: 
 
 interface ILimitedTaskFactory<T> {
 	factory: ITask<Promise<T>>;
-	c: (value?: T | Promise<T>) => void;
+	c: (value: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 

@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
@@ -14,10 +13,10 @@ import { IExtensionManagementServer, IExtensionManagementServerService, IExtensi
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { append, $, toggleClass, addClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer, IExtensionsViewState } from 'vs/workbench/contrib/extensions/browser/extensionsList';
-import { IExtension, IExtensionsWorkbenchService, ExtensionState } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -25,7 +24,7 @@ import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { ConfigureWorkspaceFolderRecommendedExtensionsAction, ManageExtensionAction, InstallLocalExtensionsInRemoteAction, getContextMenuActions, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { WorkbenchPagedList, ListResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -121,7 +120,7 @@ export class ExtensionsListView extends ViewPane {
 	}
 
 	protected renderHeader(container: HTMLElement): void {
-		addClass(container, 'extension-view-header');
+		container.classList.add('extension-view-header');
 		super.renderHeader(container);
 
 		this.badge = new CountBadge(append(container, $('.count-badge-wrapper')));
@@ -198,10 +197,10 @@ export class ExtensionsListView extends ViewPane {
 		};
 
 		switch (parsedQuery.sortBy) {
-			case 'installs': options = assign(options, { sortBy: SortBy.InstallCount }); break;
-			case 'rating': options = assign(options, { sortBy: SortBy.WeightedRating }); break;
-			case 'name': options = assign(options, { sortBy: SortBy.Title }); break;
-			case 'publishedDate': options = assign(options, { sortBy: SortBy.PublishedDate }); break;
+			case 'installs': options.sortBy = SortBy.InstallCount; break;
+			case 'rating': options.sortBy = SortBy.WeightedRating; break;
+			case 'name': options.sortBy = SortBy.Title; break;
+			case 'publishedDate': options.sortBy = SortBy.PublishedDate; break;
 		}
 
 		const successCallback = (model: IPagedModel<IExtension>) => {
@@ -472,13 +471,15 @@ export class ExtensionsListView extends ViewPane {
 		const text = query.value;
 
 		if (/\bext:([^\s]+)\b/g.test(text)) {
-			options = assign(options, { text, source: 'file-extension-tags' });
+			options.text = text;
+			options.source = 'file-extension-tags';
 			return this.extensionsWorkbenchService.queryGallery(options, token).then(pager => this.getPagedModel(pager));
 		}
 
 		let preferredResults: string[] = [];
 		if (text) {
-			options = assign(options, { text: text.substr(0, 350), source: 'searchText' });
+			options.text = text.substr(0, 350);
+			options.source = 'searchText';
 			if (!hasUserDefinedSortOrder) {
 				const searchExperiments = await this.getSearchExperiments();
 				for (const experiment of searchExperiments) {
@@ -544,7 +545,9 @@ export class ExtensionsListView extends ViewPane {
 		const names = await this.experimentService.getCuratedExtensionsList(value);
 		if (Array.isArray(names) && names.length) {
 			options.source = `curated:${value}`;
-			const pager = await this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }), token);
+			options.names = names;
+			options.pageSize = names.length;
+			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
 			this.sortFirstPage(pager, names);
 			return this.getPagedModel(pager || []);
 		}
@@ -589,7 +592,7 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel([]);
 	}
 
-	private async getInstallableRecommendations(recommendations: IExtensionRecommendation[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
+	protected async getInstallableRecommendations(recommendations: IExtensionRecommendation[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
 		const extensions: IExtension[] = [];
 		if (recommendations.length) {
 			const names = recommendations.map(({ extensionId }) => extensionId);
@@ -603,13 +606,25 @@ export class ExtensionsListView extends ViewPane {
 		return extensions;
 	}
 
+	protected async getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
+		const recommendations = await this.extensionRecommendationsService.getWorkspaceRecommendations();
+		const { important } = await this.extensionRecommendationsService.getConfigBasedRecommendations();
+		for (const configBasedRecommendation of important) {
+			if (!recommendations.find(r => r.extensionId === configBasedRecommendation.extensionId)) {
+				recommendations.push(configBasedRecommendation);
+			}
+		}
+		return recommendations;
+	}
+
 	private async getWorkspaceRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
 		const value = query.value.replace(/@recommended:workspace/g, '').trim().toLowerCase();
-		const recommendations = await this.extensionRecommendationsService.getWorkspaceRecommendations();
+		const recommendations = await this.getWorkspaceRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token))
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
 		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
-		return new PagedModel(installableRecommendations);
+		const result: IExtension[] = coalesce(recommendations.map(({ extensionId: id }) => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
+		return new PagedModel(result);
 	}
 
 	private async getKeymapRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
@@ -633,14 +648,13 @@ export class ExtensionsListView extends ViewPane {
 		const local = (await this.extensionsWorkbenchService.queryLocal(this.server))
 			.filter(e => e.type === ExtensionType.User)
 			.map(e => e.identifier.id.toLowerCase());
-		const workspaceRecommendations = (await this.extensionRecommendationsService.getWorkspaceRecommendations())
+		const workspaceRecommendations = (await this.getWorkspaceRecommendations())
 			.map(r => r.extensionId.toLowerCase());
 
 		const otherRecommendations = distinct(
 			flatten(await Promise.all([
 				// Order is important
 				this.extensionRecommendationsService.getImportantRecommendations(),
-				this.extensionRecommendationsService.getConfigBasedRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
 			])).filter(({ extensionId }) => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
@@ -662,9 +676,8 @@ export class ExtensionsListView extends ViewPane {
 		const allRecommendations = distinct(
 			flatten(await Promise.all([
 				// Order is important
-				this.extensionRecommendationsService.getWorkspaceRecommendations(),
+				this.getWorkspaceRecommendations(),
 				this.extensionRecommendationsService.getImportantRecommendations(),
-				this.extensionRecommendationsService.getConfigBasedRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
 			])).filter(({ extensionId }) => !local.includes(extensionId.toLowerCase())
@@ -691,8 +704,8 @@ export class ExtensionsListView extends ViewPane {
 
 			if (this.bodyTemplate && this.badge) {
 
-				toggleClass(this.bodyTemplate.extensionsList, 'hidden', count === 0);
-				toggleClass(this.bodyTemplate.messageContainer, 'hidden', count > 0);
+				this.bodyTemplate.extensionsList.classList.toggle('hidden', count === 0);
+				this.bodyTemplate.messageContainer.classList.toggle('hidden', count > 0);
 				this.badge.setCount(count);
 
 				if (count === 0 && this.isBodyVisible()) {
@@ -979,20 +992,18 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	private readonly recommendedExtensionsQuery = '@recommended:workspace';
-	private installAllAction: InstallWorkspaceRecommendedExtensionsAction | undefined;
+	private installAllAction: Action | undefined;
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.update()));
-		this._register(this.extensionsWorkbenchService.onChange(() => this.setRecommendationsToInstall()));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.update()));
+		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.show(this.recommendedExtensionsQuery)));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
 	}
 
 	getActions(): IAction[] {
 		if (!this.installAllAction) {
-			this.installAllAction = this._register(this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, []));
-			this.installAllAction.class = 'codicon codicon-cloud-download';
+			this.installAllAction = this._register(new Action('workbench.extensions.action.installWorkspaceRecommendedExtensions', localize('installWorkspaceRecommendedExtensions', "Install Workspace Recommended Extensions"), 'codicon codicon-cloud-download', false, () => this.installWorkspaceRecommendations()));
 		}
 
 		const configureWorkspaceFolderAction = this._register(this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL));
@@ -1004,33 +1015,28 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		let shouldShowEmptyView = query && query.trim() !== '@recommended' && query.trim() !== '@recommended:workspace';
 		let model = await (shouldShowEmptyView ? this.showEmptyModel() : super.show(this.recommendedExtensionsQuery));
 		this.setExpanded(model.length > 0);
+		await this.setRecommendationsToInstall();
 		return model;
 	}
 
-	private update(): void {
-		this.show(this.recommendedExtensionsQuery);
-		this.setRecommendationsToInstall();
-	}
-
 	private async setRecommendationsToInstall(): Promise<void> {
-		const recommendations = await this.getRecommendationsToInstall();
+		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
 		if (this.installAllAction) {
-			this.installAllAction.recommendations = recommendations.map(({ extensionId }) => extensionId);
+			this.installAllAction.enabled = installableRecommendations.length > 0;
 		}
 	}
 
-	private getRecommendationsToInstall(): Promise<IExtensionRecommendation[]> {
-		return this.extensionRecommendationsService.getWorkspaceRecommendations()
-			.then(recommendations => recommendations.filter(({ extensionId }) => {
-				const extension = this.extensionsWorkbenchService.local.filter(i => areSameExtensions({ id: extensionId }, i.identifier))[0];
-				if (!extension
-					|| !extension.local
-					|| extension.state !== ExtensionState.Installed
-					|| extension.enablementState === EnablementState.DisabledByExtensionKind
-				) {
-					return true;
-				}
-				return false;
-			}));
+	private async getInstallableWorkspaceRecommendations() {
+		const installed = (await this.extensionsWorkbenchService.queryLocal())
+			.filter(l => l.enablementState !== EnablementState.DisabledByExtensionKind); // Filter extensions disabled by kind
+		const recommendations = (await this.getWorkspaceRecommendations())
+			.filter(({ extensionId }) => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
+		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
 	}
+
+	private async installWorkspaceRecommendations(): Promise<void> {
+		const installableRecommendations = await this.getInstallableWorkspaceRecommendations();
+		await Promise.all(installableRecommendations.map(extension => this.extensionManagementService.installFromGallery(extension.gallery!)));
+	}
+
 }

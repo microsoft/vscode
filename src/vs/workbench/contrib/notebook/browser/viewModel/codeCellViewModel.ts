@@ -224,8 +224,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this.textModel = ref.object.textEditorModel;
 			this._register(ref);
 			this._register(this.textModel.onDidChangeContent(() => {
-				this.editState = CellEditState.Editing;
-				this._onDidChangeState.fire({ contentChanged: true });
+				if (this.editState !== CellEditState.Editing) {
+					this.editState = CellEditState.Editing;
+					this._onDidChangeState.fire({ contentChanged: true });
+				}
 			}));
 		}
 

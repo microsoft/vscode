@@ -13,7 +13,7 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { addDisposableListener, addClass, $ } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -281,13 +281,14 @@ class ProcessExplorer {
 		container.innerText = '';
 		this.listeners.clear();
 
-		const tableHead = document.createElement('thead');
-		tableHead.innerHTML = `<tr>
-			<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
-			<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
-			<th scope="col" class="pid">${localize('pid', "PID")}</th>
-			<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
-		</tr>`;
+		const tableHead = $('thead', undefined);
+		const row = $('tr');
+		tableHead.append(row);
+
+		row.append($('th.cpu', { scope: 'col' }, localize('cpu', "CPU %")));
+		row.append($('th.memory', { scope: 'col' }, localize('memory', "Memory (MB)")));
+		row.append($('th.pid', { scope: 'col' }, localize('pid', "PID")));
+		row.append($('th.nameLabel', { scope: 'col' }, localize('name', "Name")));
 
 		container.append(tableHead);
 

@@ -22,8 +22,8 @@ nsfwActionToRawChangeType[nsfw.actions.MODIFIED] = FileChangeType.UPDATED;
 nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
 interface IWatcherObjet {
-	start(): any;
-	stop(): any;
+	start(): void;
+	stop(): void;
 }
 
 interface IPathWatcher {
@@ -142,7 +142,7 @@ export class NsfwWatcherService implements IWatcherService {
 			}
 
 			// Delay and send buffer
-			fileEventDelayer.trigger(() => {
+			fileEventDelayer.trigger(async () => {
 				const events = undeliveredFileEvents;
 				undeliveredFileEvents = [];
 
@@ -169,8 +169,6 @@ export class NsfwWatcherService implements IWatcherService {
 						this.log(` >> normalized ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
 					});
 				}
-
-				return Promise.resolve(undefined);
 			});
 		}).then(watcher => {
 			this._pathWatchers[request.path].watcher = watcher;
@@ -180,8 +178,7 @@ export class NsfwWatcherService implements IWatcherService {
 		});
 	}
 
-	public setRoots(roots: IWatcherRequest[]): Promise<void> {
-		const promises: Promise<void>[] = [];
+	async setRoots(roots: IWatcherRequest[]): Promise<void> {
 		const normalizedRoots = this._normalizeRoots(roots);
 
 		// Gather roots that are not currently being watched
@@ -214,23 +211,19 @@ export class NsfwWatcherService implements IWatcherService {
 				this._pathWatchers[root.path].ignored = Array.isArray(root.excludes) ? root.excludes.map(ignored => glob.parse(ignored)) : [];
 			}
 		});
-
-		return Promise.all(promises).then(() => undefined);
 	}
 
-	public setVerboseLogging(enabled: boolean): Promise<void> {
+	async setVerboseLogging(enabled: boolean): Promise<void> {
 		this._verboseLogging = enabled;
-		return Promise.resolve(undefined);
 	}
 
-	public stop(): Promise<void> {
+	async stop(): Promise<void> {
 		for (let path in this._pathWatchers) {
 			let watcher = this._pathWatchers[path];
 			watcher.ready.then(watcher => watcher.stop());
 			delete this._pathWatchers[path];
 		}
 		this._pathWatchers = Object.create(null);
-		return Promise.resolve();
 	}
 
 	/**

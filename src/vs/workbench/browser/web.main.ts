@@ -34,9 +34,6 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { BACKUPS } from 'vs/platform/environment/common/environment';
-import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
@@ -208,10 +205,20 @@ class BrowserMain extends Disposable {
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
 		serviceCollection.set(IRequestService, requestService);
 
-		// initialize user data
+		// Userdata Initialize Service
 		const userDataInitializationService = new UserDataInitializationService(environmentService, fileService, storageService, productService, requestService, logService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
-		await userDataInitializationService.initializeRequiredResources();
+
+		if (await userDataInitializationService.requiresInitialization()) {
+			mark('willInitRequiredUserData');
+			// Initialize required resources - settings & global state
+			await userDataInitializationService.initializeRequiredResources();
+
+			// Important Reload only local user configuration after initializing
+			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
+			await configurationService.reloadLocalUserConfiguration();
+			mark('didInitRequiredUserData');
+		}
 
 		return { serviceCollection, logService, storageService };
 	}
@@ -243,17 +250,9 @@ class BrowserMain extends Disposable {
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-
 			// Remote file system
 			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
-
-			if (!this.configuration.userDataProvider) {
-				const remoteUserDataUri = this.getRemoteUserDataUri();
-				if (remoteUserDataUri) {
-					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService, logService));
-				}
-			}
 		}
 
 		// User data
@@ -322,18 +321,6 @@ class BrowserMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private getRemoteUserDataUri(): URI | undefined {
-		const element = document.getElementById('vscode-remote-user-data-uri');
-		if (element) {
-			const remoteUserDataPath = element.getAttribute('data-settings');
-			if (remoteUserDataPath) {
-				return joinPath(URI.revive(JSON.parse(remoteUserDataPath)), 'User');
-			}
-		}
-
-		return undefined;
 	}
 
 	private getCookieValue(name: string): string | undefined {

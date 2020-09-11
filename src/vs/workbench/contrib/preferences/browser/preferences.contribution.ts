@@ -12,14 +12,14 @@ import * as nls from 'vs/nls';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext, IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
@@ -40,7 +40,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { AbstractSideBySideEditorInputFactory } from 'vs/workbench/browser/parts/editor/editor.contribution';
-import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -51,8 +50,6 @@ const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocuse
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
-const SETTINGS_EDITOR_COMMAND_FOCUS_TOC2 = 'settings.action.focusTOC2';
-const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';
@@ -481,7 +478,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
 				const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-				const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority) || remoteAuthority;
+				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
 				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
 				registerAction2(class extends Action2 {
 					constructor() {
@@ -510,14 +507,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			}
 			return null;
 		}
-
-		function settingsEditorFocusSearch(accessor: ServicesAccessor) {
-			const preferencesEditor = getPreferencesEditor(accessor);
-			if (preferencesEditor) {
-				preferencesEditor.focusSearch();
-			}
-		}
-
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -532,24 +521,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				});
 			}
 
-			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
-					keybinding: {
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusSearch', "Focus settings search")
-				});
+			run(accessor: ServicesAccessor) {
+				const preferencesEditor = getPreferencesEditor(accessor);
+				if (preferencesEditor) {
+					preferencesEditor.focusSearch();
+				}
 			}
-
-			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
 		});
 
 		registerAction2(class extends Action2 {
@@ -714,76 +691,16 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
-					keybinding: [
-						{
-							primary: KeyCode.Escape,
-							weight: KeybindingWeight.WorkbenchContrib,
-							when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate()),
-						},
-						{
-							primary: KeyCode.LeftArrow,
-							weight: KeybindingWeight.WorkbenchContrib,
-							when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate(), InputFocusedContext.negate())
-						}],
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
 				});
 			}
 
 			run(accessor: ServicesAccessor): void {
 				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
-				}
-
-				if (document.activeElement?.classList.contains('monaco-list')) {
+				if (preferencesEditor instanceof SettingsEditor2) {
 					preferencesEditor.focusTOC();
-				} else {
-					preferencesEditor.focusSettings();
 				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate(), WorkbenchListFocusContextKey),
-					keybinding: {
-						primary: KeyCode.Enter,
-						weight: KeybindingWeight.WorkbenchContrib,
-					},
-					title: nls.localize('settings.focusSettingControl', "Focus setting control")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
-				}
-
-				if (document.activeElement?.classList.contains('monaco-list')) {
-					preferencesEditor.focusSettings(true);
-				}
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC2,
-
-					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
-				}
-
-				preferencesEditor.focusTOC();
 			}
 		});
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -67,6 +66,7 @@ suite('ExtensionsListView Tests', () => {
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
 	const configBasedRecommendationA = aGalleryExtension('configbased-recommendation-A');
+	const configBasedRecommendationB = aGalleryExtension('configbased-recommendation-B');
 	const fileBasedRecommendationA = aGalleryExtension('filebased-recommendation-A');
 	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
@@ -126,9 +126,10 @@ suite('ExtensionsListView Tests', () => {
 					{ extensionId: workspaceRecommendationB.identifier.id }]);
 			},
 			getConfigBasedRecommendations() {
-				return Promise.resolve([
-					{ extensionId: configBasedRecommendationA.identifier.id }
-				]);
+				return Promise.resolve({
+					important: [{ extensionId: configBasedRecommendationA.identifier.id }],
+					others: [{ extensionId: configBasedRecommendationB.identifier.id }],
+				});
 			},
 			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
 				return Promise.resolve([]);
@@ -141,6 +142,7 @@ suite('ExtensionsListView Tests', () => {
 			},
 			getOtherRecommendations() {
 				return Promise.resolve([
+					{ extensionId: configBasedRecommendationB.identifier.id },
 					{ extensionId: otherRecommendationA.identifier.id }
 				]);
 			},
@@ -336,7 +338,8 @@ suite('ExtensionsListView Tests', () => {
 	test('Test @recommended:workspace query', () => {
 		const workspaceRecommendedExtensions = [
 			workspaceRecommendationA,
-			workspaceRecommendationB
+			workspaceRecommendationB,
+			configBasedRecommendationA,
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...workspaceRecommendedExtensions));
 
@@ -354,9 +357,9 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test @recommended query', () => {
 		const allRecommendedExtensions = [
-			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
+			configBasedRecommendationB,
 			otherRecommendationA
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
@@ -382,7 +385,8 @@ suite('ExtensionsListView Tests', () => {
 			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
-			otherRecommendationA
+			configBasedRecommendationB,
+			otherRecommendationA,
 		];
 		const target = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...allRecommendedExtensions));
 
@@ -520,21 +524,21 @@ suite('ExtensionsListView Tests', () => {
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-		manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-		properties = assign({
+		manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
+		properties = {
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
-			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
-		}, properties);
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
+			...properties
+		};
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-		const galleryExtension = <IGalleryExtension>Object.create({});
-		assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
-		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
-		assign(galleryExtension.assets, assets);
+		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
+		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
+		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 		return <IGalleryExtension>galleryExtension;
 	}

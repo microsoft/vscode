@@ -130,12 +130,6 @@ export class EditorGroup extends Disposable {
 	private onConfigurationUpdated(): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
 		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
-
-		if (this.configurationService.getValue('workbench.editor.showTabs') === false) {
-			// Disabling tabs disables sticky editors until we support
-			// an indication of sticky editors when tabs are disabled
-			this.sticky = -1;
-		}
 	}
 
 	get count(): number {

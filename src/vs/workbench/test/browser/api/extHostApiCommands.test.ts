@@ -1011,6 +1011,29 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('What\'s the condition for DocumentLink target to be undefined? #106308', async function () {
+		disposables.push(extHost.registerDocumentLinkProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				return [new types.DocumentLink(new types.Range(0, 0, 0, 20), undefined)];
+			},
+			resolveDocumentLink(link) {
+				link.target = URI.parse('foo:bar');
+				return link;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const links1 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri);
+		assert.equal(links1.length, 1);
+		assert.equal(links1[0].target, undefined);
+
+		const links2 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri, 1000);
+		assert.equal(links2.length, 1);
+		assert.equal(links2[0].target!.toString(), URI.parse('foo:bar').toString());
+
+	});
+
 
 	test('Color provider', function () {
 

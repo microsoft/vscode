@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 function getUnixShellEnvironment(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {

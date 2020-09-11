@@ -206,8 +206,8 @@ export interface IActionProvider {
 
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 	contextMenuProvider: IContextMenuProvider;
-	actions?: IAction[];
-	actionProvider?: IActionProvider;
+	readonly actions?: IAction[];
+	readonly actionProvider?: IActionProvider;
 	menuClassName?: string;
 	menuAsChild?: boolean; // scope down for #99448
 }

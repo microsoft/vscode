@@ -529,7 +529,7 @@ export interface IEditorOptions {
 	 * Enable rendering of whitespace.
 	 * Defaults to none.
 	 */
-	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'all';
+	renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 	/**
 	 * Enable rendering of control characters.
 	 * Defaults to false.
@@ -852,15 +852,13 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
-	public static clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-		let r: number;
+	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
 		if (typeof value === 'undefined') {
-			r = defaultValue;
-		} else {
-			r = parseInt(value, 10);
-			if (isNaN(r)) {
-				r = defaultValue;
-			}
+			return defaultValue;
+		}
+		let r = parseInt(value, 10);
+		if (isNaN(r)) {
+			return defaultValue;
 		}
 		r = Math.max(minimum, r);
 		r = Math.min(maximum, r);
@@ -1344,7 +1342,7 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 						nls.localize('editor.find.autoFindInSelection.always', 'Always turn on Find in selection automatically'),
 						nls.localize('editor.find.autoFindInSelection.multiline', 'Turn on Find in selection automatically when multiple lines of content are selected.')
 					],
-					description: nls.localize('find.autoFindInSelection', "Controls whether the find operation is carried out on selected text or the entire file in the editor.")
+					description: nls.localize('find.autoFindInSelection', "Controls the condition for turning on find in selection automatically.")
 				},
 				'editor.find.globalFindClipboard': {
 					type: 'boolean',
@@ -1482,6 +1480,48 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 		// The final fontSize respects the editor zoom level.
 		// So take the result from env.fontInfo
 		return env.fontInfo.fontSize;
+	}
+}
+
+//#endregion
+
+//#region fontWeight
+
+class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string> {
+	private static SUGGESTION_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+	private static MINIMUM_VALUE = 1;
+	private static MAXIMUM_VALUE = 1000;
+
+	constructor() {
+		super(
+			EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
+			{
+				anyOf: [
+					{
+						type: 'number',
+						minimum: EditorFontWeight.MINIMUM_VALUE,
+						maximum: EditorFontWeight.MAXIMUM_VALUE,
+						errorMessage: nls.localize('fontWeightErrorMessage', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
+					},
+					{
+						type: 'string',
+						pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+					},
+					{
+						enum: EditorFontWeight.SUGGESTION_VALUES
+					}
+				],
+				default: EDITOR_FONT_DEFAULTS.fontWeight,
+				description: nls.localize('fontWeight', "Controls the font weight. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000.")
+			}
+		);
+	}
+
+	public validate(input: any): string {
+		if (input === 'normal' || input === 'bold') {
+			return input;
+		}
+		return String(EditorIntOption.clampedInt(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.MINIMUM_VALUE, EditorFontWeight.MAXIMUM_VALUE));
 	}
 }
 
@@ -1820,7 +1860,7 @@ export interface EditorLayoutInfoComputerEnv {
 	readonly memory: ComputeOptionsMemory | null;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
-	readonly isDominatedByLongLines: boolean
+	readonly isDominatedByLongLines: boolean;
 	readonly lineHeight: number;
 	readonly viewLineCount: number;
 	readonly lineNumbersDigitCount: number;
@@ -1835,7 +1875,7 @@ export interface EditorLayoutInfoComputerEnv {
 export interface IEditorLayoutComputerInput {
 	readonly outerWidth: number;
 	readonly outerHeight: number;
-	readonly isDominatedByLongLines: boolean
+	readonly isDominatedByLongLines: boolean;
 	readonly lineHeight: number;
 	readonly lineNumbersDigitCount: number;
 	readonly typicalHalfwidthCharacterWidth: number;
@@ -3098,7 +3138,7 @@ export interface ISuggestOptions {
 		 * Controls the visibility of the status bar at the bottom of the suggest widget.
 		 */
 		visible?: boolean;
-	}
+	};
 }
 
 export type InternalSuggestOptions = Readonly<Required<ISuggestOptions>>;
@@ -3863,13 +3903,7 @@ export const EditorOptions = {
 	fontInfo: register(new EditorFontInfo()),
 	fontLigatures2: register(new EditorFontLigatures()),
 	fontSize: register(new EditorFontSize()),
-	fontWeight: register(new EditorStringOption(
-		EditorOption.fontWeight, 'fontWeight', EDITOR_FONT_DEFAULTS.fontWeight,
-		{
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: nls.localize('fontWeight', "Controls the font weight.")
-		}
-	)),
+	fontWeight: register(new EditorFontWeight()),
 	formatOnPaste: register(new EditorBooleanOption(
 		EditorOption.formatOnPaste, 'formatOnPaste', false,
 		{ description: nls.localize('formatOnPaste', "Controls whether the editor should automatically format the pasted content. A formatter must be available and the formatter should be able to format a range in a document.") }
@@ -4048,13 +4082,14 @@ export const EditorOptions = {
 	)),
 	renderWhitespace: register(new EditorStringEnumOption(
 		EditorOption.renderWhitespace, 'renderWhitespace',
-		'selection' as 'selection' | 'none' | 'boundary' | 'all',
-		['none', 'boundary', 'selection', 'all'] as const,
+		'selection' as 'selection' | 'none' | 'boundary' | 'trailing' | 'all',
+		['none', 'boundary', 'selection', 'trailing', 'all'] as const,
 		{
 			enumDescriptions: [
 				'',
 				nls.localize('renderWhitespace.boundary', "Render whitespace characters except for single spaces between words."),
 				nls.localize('renderWhitespace.selection', "Render whitespace characters only on selected text."),
+				nls.localize('renderWhitespace.trailing', "Render only trailing whitespace characters"),
 				''
 			],
 			description: nls.localize('renderWhitespace', "Controls how the editor should render whitespace characters.")

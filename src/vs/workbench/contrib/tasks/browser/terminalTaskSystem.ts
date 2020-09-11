@@ -1080,7 +1080,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority);
+			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -1338,12 +1338,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private collectDefinitionVariables(variables: Set<string>, definition: any): void {
-		for (const key in definition) {
-			if (Types.isString(definition[key])) {
-				this.collectVariables(variables, definition[key]);
-			} else if (Types.isArray(definition[key])) {
-				definition[key].forEach((element: any) => this.collectDefinitionVariables(variables, element));
-			} else if (Types.isObject(definition[key])) {
+		if (Types.isString(definition)) {
+			this.collectVariables(variables, definition);
+		} else if (Types.isArray(definition)) {
+			definition.forEach((element: any) => this.collectDefinitionVariables(variables, element));
+		} else if (Types.isObject(definition)) {
+			for (const key in definition) {
 				this.collectDefinitionVariables(variables, definition[key]);
 			}
 		}
@@ -1563,7 +1563,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private async fileExists(path: string): Promise<boolean> {
-		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority);
+		const uri: URI = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: path }), this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme);
 		if (await this.fileService.exists(uri)) {
 			return !((await this.fileService.resolve(uri)).isDirectory);
 		}
