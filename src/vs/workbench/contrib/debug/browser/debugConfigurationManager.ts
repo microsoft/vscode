@@ -37,7 +37,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { first, flatten } from 'vs/base/common/arrays';
+import { flatten } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 
@@ -518,7 +518,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
 			launch = this.getLaunch(rootUri);
 			if (!launch || launch.getConfigurationNames().length === 0) {
-				launch = first(this.launches, l => !!(l && l.getConfigurationNames().length), launch) || this.launches[0];
+				launch = this.launches.find(l => !!(l && l.getConfigurationNames().length)) || launch || this.launches[0];
 			}
 		}
 

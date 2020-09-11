@@ -1456,8 +1456,8 @@ function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Ele
 
 	let element: HTMLElement | null = target;
 
-	while (element && !DOM.hasClass(element, 'monaco-list-row')) {
-		if (DOM.hasClass(element, 'label-name') && element.hasAttribute('data-icon-label-count')) {
+	while (element && !element.classList.contains('monaco-list-row')) {
+		if (element.classList.contains('label-name') && element.hasAttribute('data-icon-label-count')) {
 			const count = Number(element.getAttribute('data-icon-label-count'));
 			const index = Number(element.getAttribute('data-icon-label-index'));
 
