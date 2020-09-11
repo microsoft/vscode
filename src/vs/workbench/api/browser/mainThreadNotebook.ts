@@ -271,7 +271,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 
 		const notebookDocumentAddedHandler = (textModel: NotebookTextModel) => {
-			if (!this._editorEventListenersMapping.has(textModel.uri.toString())) {
+			if (!this._documentEventListenersMapping.has(textModel.uri)) {
 				const disposableStore = new DisposableStore();
 				disposableStore.add(textModel!.onDidChangeContent(event => {
 					const dto = event.rawEvents.map(e => {
@@ -316,7 +316,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 						this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
 					}
 				}));
-				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
+				this._documentEventListenersMapping.set(textModel!.uri, disposableStore);
 			}
 		};
 
