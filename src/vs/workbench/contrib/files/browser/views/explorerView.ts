@@ -588,6 +588,13 @@ export class ExplorerView extends ViewPane {
 		return this.tree.updateChildren(toRefresh, recursive);
 	}
 
+	focusNextIfItemFocused(item: ExplorerItem): void {
+		const focus = this.tree.getFocus();
+		if (focus.length === 1 && focus[0] === item) {
+			this.tree.focusNext();
+		}
+	}
+
 	getOptimalWidth(): number {
 		const parentNode = this.tree.getHTMLElement();
 		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
