@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, EventHelper, isWindowFullscreen } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
@@ -25,8 +25,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
+import { setFullscreen } from 'vs/base/browser/browser';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -58,6 +58,24 @@ class BrowserMain extends Disposable {
 		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
+
+		this.init();
+	}
+
+	private init(): void {
+
+		// Browser config
+		setFullscreen(isWindowFullscreen());
+
+		this.logFullscreen(true);
+	}
+
+	private logFullscreen(isInitial?: boolean, isResize?: boolean): void {
+		if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected browser fullscreen`);
+		} else if ((isMacintosh && window.outerHeight === screen.height) || (!isMacintosh && window.innerHeight === screen.height)) {
+			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected native fullscreen`);
+		}
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -98,9 +116,14 @@ class BrowserMain extends Disposable {
 
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
-		// Layout
-		const viewport = platform.isIOS && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
+		// Layout & Native Fullscreen
+		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
+			workbench.layout();
+
+			setFullscreen(isWindowFullscreen());
+			this.logFullscreen(false, true);
+		}));
 
 		// Prevent the back/forward gestures in macOS
 		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
@@ -123,15 +146,10 @@ class BrowserMain extends Disposable {
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
-		// Fullscreen
+		// Fullscreen (Browser)
 		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
-			this._register(addDisposableListener(document, event, () => {
-				if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-					browser.setFullscreen(true);
-				} else {
-					browser.setFullscreen(false);
-				}
-			}));
+			this._register(addDisposableListener(document, event, () => setFullscreen(isWindowFullscreen())));
+			this.logFullscreen(false, false);
 		});
 	}
 

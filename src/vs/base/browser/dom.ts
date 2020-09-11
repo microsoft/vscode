@@ -1277,3 +1277,26 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	// Ensure to remove the element from DOM eventually
 	setTimeout(() => document.body.removeChild(anchor));
 }
+
+export function isWindowFullscreen(): boolean {
+
+	// Browser fullscreen: use DOM APIs to detect
+	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+		return true;
+	}
+
+	// There is no standard way to figure out if the browser
+	// is using native fullscreen. Via checking on screen
+	// height and comparing that to window height, we can guess
+	// it though.
+
+	// macOS: somehow innerHeight does not give a proper value
+	// but outerHeight seems to work
+	if (platform.isMacintosh) {
+		return window.outerHeight === screen.height;
+	}
+
+	// Windows/Linux: assume we are in fullscreen when the window
+	// covery the entire screen
+	return window.innerHeight === screen.height;
+}
