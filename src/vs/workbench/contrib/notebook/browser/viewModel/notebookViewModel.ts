@@ -783,9 +783,28 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			const newLinesContents = this._computeCellLinesContents(cell, splitPoints);
 			if (newLinesContents) {
 				const editorSelections = cell.getSelections();
-				this._notebook.splitNotebookCell(index, newLinesContents, this.selectionHandles);
 				const language = cell.language;
 				const kind = cell.cellKind;
+				this._notebook.applyEdit(this._notebook.versionId, [
+					{
+						editType: CellEditType.CellContent,
+						index,
+						range: undefined,
+						text: newLinesContents[0]
+					},
+					{
+						editType: CellEditType.Replace,
+						index: index + 1,
+						count: 0,
+						cells: newLinesContents.slice(1).map(line => ({
+							cellKind: kind,
+							language,
+							source: line,
+							outputs: [],
+							metadata: {}
+						}))
+					}
+				], true, undefined, () => this.selectionHandles, false);
 
 				this._undoService.pushElement(new SplitCellEdit(
 					this.uri,

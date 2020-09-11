@@ -8,12 +8,13 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
-import { InsertCellEdit, MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
+import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class NotebookTextModelSnapshot implements ITextSnapshot {
 
@@ -353,6 +354,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.Move:
 					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, undefined, undefined);
 					break;
+				case CellEditType.CellContent:
+					// TODO@rebornix, _replaceCellContent is async and does not push undo element
+					this._replaceCellContent(this._cells[edit.index], edit.range, edit.text);
+					break;
 				case CellEditType.Unknown:
 					this._handleUnknownChange();
 					break;
@@ -600,62 +605,20 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return true;
 	}
 
+	async _replaceCellContent(cell: NotebookCellTextModel, range: IRange | undefined, text: string) {
+		const ref = await cell.resolveTextModelRef();
+		const textModel = ref.object.textEditorModel;
+
+		textModel.applyEdits([
+			{ range: range || textModel.getFullModelRange(), text: text }
+		], false);
+
+		ref.dispose();
+	}
+
 	private _assertIndex(index: number) {
 		if (index < 0 || index >= this._cells.length) {
 			throw new Error(`model index out of range ${index}`);
 		}
 	}
-
-	//#region Split Cell API, should be replaced with applyEdit later on.
-
-	private _insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean, pushUndoStop: boolean, beforeSelections: number[] | undefined, endSelections: number[] | undefined): void {
-		if (pushUndoStop) {
-			this._operationManager.pushEditOperation(new InsertCellEdit(this.uri, index, cell, {
-				insertCell: (index, cell, endSelections) => { this._insertNewCell(index, [cell], true, endSelections); },
-				deleteCell: (index, endSelections) => { this._removeCell(index, 1, true, endSelections); },
-			}, beforeSelections, endSelections), beforeSelections, endSelections);
-		}
-
-		this._insertNewCell(index, [cell], synchronous, endSelections);
-	}
-
-	private _createCellTextModel(
-		source: string,
-		language: string,
-		cellKind: CellKind,
-		outputs: IProcessedOutput[],
-		metadata: NotebookCellMetadata | undefined
-	) {
-		const cellHandle = this._cellhandlePool++;
-		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata || {}, this.transientOptions, this._modelService);
-	}
-
-
-	async splitNotebookCell(index: number, newLinesContents: string[], endSelections: number[]) {
-		const cell = this._cells[index];
-
-		const ref = await cell.resolveTextModelRef();
-		const textModel = ref.object.textEditorModel;
-
-		textModel.applyEdits([
-			{ range: textModel.getFullModelRange(), text: newLinesContents[0] }
-		], false);
-
-		ref.dispose();
-
-		// create new cells based on the new text models
-		const language = cell.language;
-		const kind = cell.cellKind;
-		let insertIndex = index + 1;
-		const newCells = [];
-		for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
-			const cell = this._createCellTextModel(newLinesContents[j], language, kind, [], undefined);
-			this._insertCell(insertIndex, cell, true, false, undefined, j === newLinesContents.length - 1 ? endSelections : undefined);
-			newCells.push(cell);
-		}
-	}
-	//#endregion
-
-
 }

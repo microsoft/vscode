@@ -23,6 +23,7 @@ import { IRevertOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { IRange } from 'vs/editor/common/core/range';
 
 export enum CellKind {
 	Markdown = 1,
@@ -424,7 +425,8 @@ export const enum CellEditType {
 	DocumentMetadata = 5,
 	OutputsSplice = 6,
 	Move = 7,
-	Unknown = 8
+	Unknown = 8,
+	CellContent = 9
 }
 
 export interface ICellDto2 {
@@ -479,11 +481,18 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
+export interface ICellContentEdit {
+	editType: CellEditType.CellContent;
+	index: number;
+	range: IRange | undefined;
+	text: string;
+}
+
 export interface IDocumentUnknownEdit {
 	editType: CellEditType.Unknown;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | ICellContentEdit | IDocumentUnknownEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;
