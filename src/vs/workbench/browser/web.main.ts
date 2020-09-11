@@ -75,6 +75,8 @@ class BrowserMain extends Disposable {
 			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected browser fullscreen`);
 		} else if ((isMacintosh && window.outerHeight === screen.height) || (!isMacintosh && window.innerHeight === screen.height)) {
 			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected native fullscreen`);
+		} else {
+			console.log(`Fullscreen (initial: ${isInitial}, resize: ${isResize}): detected NO fullscreen`);
 		}
 	}
 
