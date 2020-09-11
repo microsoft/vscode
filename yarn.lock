@@ -6243,10 +6243,10 @@ node-addon-api@1.6.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
   integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
-node-addon-api@2.0.0:
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-2.0.0.tgz#f9afb8d777a91525244b01775ea0ddbe1125483b"
-  integrity sha512-ASCL5U13as7HhOExbT6OlWJJUV/lLzL2voOSP1UVehpRD8FbSrSDjfScK/KwAvVTI5AS6r4VwbOMlIqtvRidnA==
+node-addon-api@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.0.0.tgz#812446a1001a54f71663bed188314bba07e09247"
+  integrity sha512-sSHCgWfJ+Lui/u+0msF3oyCgvdkhxDbkCS6Q8uiJquzOimkJBvX6hl5aSSA7DR1XbMpdM8r7phjcF63sF4rkKg==
 
 node-libs-browser@^2.2.1:
   version "2.2.1"
@@ -9737,12 +9737,12 @@ vscode-ripgrep@^1.9.0:
     https-proxy-agent "^4.0.0"
     proxy-from-env "^1.1.0"
 
-vscode-sqlite3@5.0.1:
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-5.0.1.tgz#b373c75ec79a6eb201f40b6832682cad58ea688c"
-  integrity sha512-UKuekHQkl7dj+EgXGUky+j2EmHacXoti5NDw174D52rBBUdl9aVWYEnPqbiYfPEYqSlWcRtp/KJwQpIwF/FDpQ==
+vscode-sqlite3@5.0.3:
+  version "5.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-sqlite3/-/vscode-sqlite3-5.0.3.tgz#9761a5a0e122637aeca1bca80f38d1884d4db488"
+  integrity sha512-JEhwOLIksKcPiVqz6X+eg5+8q/RZHi2F9pYXlpqZqpWSaNf53z6+75ob+pePhDMc7V7TbpcpxfiG6XwnVBNrpw==
   dependencies:
-    node-addon-api "2.0.0"
+    node-addon-api "^3.0.0"
 
 vscode-textmate@5.2.0:
   version "5.2.0"
