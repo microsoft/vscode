@@ -348,7 +348,6 @@ export class ExtHostNotebookDocument extends Disposable {
 	}
 
 	acceptModelChanged(event: NotebookCellsChangedEventDto, isDirty: boolean): void {
-		console.log(event);
 		this._versionId = event.versionId;
 		this._isDirty = isDirty;
 		event.rawEvents.forEach(e => {
