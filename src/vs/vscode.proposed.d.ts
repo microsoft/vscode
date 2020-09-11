@@ -2171,6 +2171,11 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 	}
 
+	/**
+	 * Additional information the webview view being resolved.
+	 *
+	 * @param T Type of the webview's state.
+	 */
 	interface WebviewViewResolveContext<T = unknown> {
 		/**
 		 * Persisted state from the webview content.
