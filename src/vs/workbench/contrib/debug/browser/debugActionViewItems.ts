@@ -84,10 +84,10 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
-			dom.removeClass(this.start, 'active');
+			this.start.classList.remove('active');
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_OUT, () => {
-			dom.removeClass(this.start, 'active');
+			this.start.classList.remove('active');
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
