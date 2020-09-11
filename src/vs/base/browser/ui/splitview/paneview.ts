@@ -10,7 +10,6 @@ import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { $, append, addClass, removeClass, toggleClass, trackFocus, EventHelper, clearNode } from 'vs/base/browser/dom';
-import { firstIndex } from 'vs/base/common/arrays';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
@@ -474,7 +473,7 @@ export class PaneView extends Disposable {
 	}
 
 	removePane(pane: Pane): void {
-		const index = firstIndex(this.paneItems, item => item.pane === pane);
+		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
 			return;
@@ -486,8 +485,8 @@ export class PaneView extends Disposable {
 	}
 
 	movePane(from: Pane, to: Pane): void {
-		const fromIndex = firstIndex(this.paneItems, item => item.pane === from);
-		const toIndex = firstIndex(this.paneItems, item => item.pane === to);
+		const fromIndex = this.paneItems.findIndex(item => item.pane === from);
+		const toIndex = this.paneItems.findIndex(item => item.pane === to);
 
 		if (fromIndex === -1 || toIndex === -1) {
 			return;
@@ -500,7 +499,7 @@ export class PaneView extends Disposable {
 	}
 
 	resizePane(pane: Pane, size: number): void {
-		const index = firstIndex(this.paneItems, item => item.pane === pane);
+		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
 			return;
@@ -510,7 +509,7 @@ export class PaneView extends Disposable {
 	}
 
 	getPaneSize(pane: Pane): number {
-		const index = firstIndex(this.paneItems, item => item.pane === pane);
+		const index = this.paneItems.findIndex(item => item.pane === pane);
 
 		if (index === -1) {
 			return -1;

@@ -53,6 +53,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -113,7 +114,8 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IPathService private readonly pathService: IPathService
 	) { }
 
 	canSerialize(editorInput: EditorInput): boolean {
@@ -129,7 +131,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
-			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
+			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
 		}
 
 		// Mode: only remember mode if it is either specific (not text)

@@ -19,7 +19,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { ILabelService } from 'vs/platform/label/common/label';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
@@ -478,7 +478,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
 				const remoteAuthority = this.environmentService.configuration.remoteAuthority;
-				const hostLabel = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority) || remoteAuthority;
+				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
 				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
 				registerAction2(class extends Action2 {
 					constructor() {

@@ -27,7 +27,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, CellUri, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -426,30 +426,24 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 					let topPastedCell: CellViewModel | undefined = undefined;
 					pasteCells.items.reverse().map(cell => {
-						const data = CellUri.parse(cell.uri);
-
-						if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
-							return viewModel.notebookDocument.createCellTextModel(
-								cell.getValue(),
-								cell.language,
-								cell.cellKind,
-								[],
-								{
-									editable: cell.metadata?.editable,
-									runnable: cell.metadata?.runnable,
-									breakpointMargin: cell.metadata?.breakpointMargin,
-									hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-									inputCollapsed: cell.metadata?.inputCollapsed,
-									outputCollapsed: cell.metadata?.outputCollapsed,
-									custom: cell.metadata?.custom
-								}
-							);
-						} else {
-							return cell;
-						}
+						return {
+							source: cell.getValue(),
+							language: cell.language,
+							cellKind: cell.cellKind,
+							outputs: cell.outputs,
+							metadata: {
+								editable: cell.metadata?.editable,
+								runnable: cell.metadata?.runnable,
+								breakpointMargin: cell.metadata?.breakpointMargin,
+								hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+								inputCollapsed: cell.metadata?.inputCollapsed,
+								outputCollapsed: cell.metadata?.outputCollapsed,
+								custom: cell.metadata?.custom
+							}
+						};
 					}).forEach(pasteCell => {
 						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-						topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+						topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
 					if (topPastedCell) {
@@ -462,21 +456,23 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 					let topPastedCell: CellViewModel | undefined = undefined;
 					pasteCells.items.reverse().map(cell => {
-						const data = CellUri.parse(cell.uri);
-
-						if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
-							return viewModel.notebookDocument.createCellTextModel(
-								cell.getValue(),
-								cell.language,
-								cell.cellKind,
-								[],
-								cell.metadata
-							);
-						} else {
-							return cell;
-						}
+						return {
+							source: cell.getValue(),
+							language: cell.language,
+							cellKind: cell.cellKind,
+							outputs: cell.outputs,
+							metadata: {
+								editable: cell.metadata?.editable,
+								runnable: cell.metadata?.runnable,
+								breakpointMargin: cell.metadata?.breakpointMargin,
+								hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+								inputCollapsed: cell.metadata?.inputCollapsed,
+								outputCollapsed: cell.metadata?.outputCollapsed,
+								custom: cell.metadata?.custom
+							}
+						};
 					}).forEach(pasteCell => {
-						topPastedCell = viewModel.insertCell(0, pasteCell, true);
+						topPastedCell = viewModel.createCell(0, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
 					if (topPastedCell) {

@@ -29,6 +29,14 @@ export interface IPathService {
 	readonly path: Promise<IPath>;
 
 	/**
+	 * Determines the best default URI scheme for the current workspace.
+	 * It uses information about whether we're running remote, in browser,
+	 * or native combined with information about the current workspace to
+	 * find the best default scheme.
+	 */
+	readonly defaultUriScheme: string;
+
+	/**
 	 * Converts the given path to a file URI to use for the target
 	 * environment. If the environment is connected to a remote, it
 	 * will use the path separators according to the remote file
@@ -59,6 +67,8 @@ export abstract class AbstractPathService implements IPathService {
 
 	private resolveUserHome: Promise<URI>;
 	private maybeUnresolvedUserHome: URI | undefined;
+
+	abstract readonly defaultUriScheme: string;
 
 	constructor(
 		private localUserHome: URI,

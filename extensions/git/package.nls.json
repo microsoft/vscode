@@ -84,7 +84,7 @@
 	"command.timelineCopyCommitId": "Copy Commit ID",
 	"command.timelineCopyCommitMessage": "Copy Commit Message",
 	"config.enabled": "Whether git is enabled.",
-	"config.path": "Path and filename of the git executable, e.g. `C:\\Program Files\\Git\\bin\\git.exe` (Windows).",
+	"config.path": "Path and filename of the git executable, e.g. `C:\\Program Files\\Git\\bin\\git.exe` (Windows). This can also be an array of string values containing multiple paths to look up.",
 	"config.autoRepositoryDetection": "Configures when repositories should be automatically detected.",
 	"config.autoRepositoryDetection.true": "Scan for both subfolders of the current opened folder and parent folders of open files.",
 	"config.autoRepositoryDetection.false": "Disable automatic repository scanning.",

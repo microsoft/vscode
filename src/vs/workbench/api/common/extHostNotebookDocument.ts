@@ -350,19 +350,21 @@ export class ExtHostNotebookDocument extends Disposable {
 	acceptModelChanged(event: NotebookCellsChangedEventDto, isDirty: boolean): void {
 		this._versionId = event.versionId;
 		this._isDirty = isDirty;
-		if (event.kind === NotebookCellsChangeType.Initialize) {
-			this._spliceNotebookCells(event.changes, true);
-		} if (event.kind === NotebookCellsChangeType.ModelChange) {
-			this._spliceNotebookCells(event.changes, false);
-		} else if (event.kind === NotebookCellsChangeType.Move) {
-			this._moveCell(event.index, event.newIdx);
-		} else if (event.kind === NotebookCellsChangeType.Output) {
-			this._setCellOutputs(event.index, event.outputs);
-		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
-			this._changeCellLanguage(event.index, event.language);
-		} else if (event.kind === NotebookCellsChangeType.ChangeCellMetadata) {
-			this._changeCellMetadata(event.index, event.metadata);
-		}
+		event.rawEvents.forEach(e => {
+			if (e.kind === NotebookCellsChangeType.Initialize) {
+				this._spliceNotebookCells(e.changes, true);
+			} if (e.kind === NotebookCellsChangeType.ModelChange) {
+				this._spliceNotebookCells(e.changes, false);
+			} else if (e.kind === NotebookCellsChangeType.Move) {
+				this._moveCell(e.index, e.newIdx);
+			} else if (e.kind === NotebookCellsChangeType.Output) {
+				this._setCellOutputs(e.index, e.outputs);
+			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+				this._changeCellLanguage(e.index, e.language);
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				this._changeCellMetadata(e.index, e.metadata);
+			}
+		});
 	}
 
 	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {

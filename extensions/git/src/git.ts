@@ -139,18 +139,28 @@ function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 		.then(undefined, () => findGitWin32InPath(onLookup));
 }
 
-export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
+export async function findGit(hint: string | string[] | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	const hints = Array.isArray(hint) ? hint : hint ? [hint] : [];
 
-	return first
-		.then(undefined, () => {
-			switch (process.platform) {
-				case 'darwin': return findGitDarwin(onLookup);
-				case 'win32': return findGitWin32(onLookup);
-				default: return findSpecificGit('git', onLookup);
-			}
-		})
-		.then(null, () => Promise.reject(new Error('Git installation not found.')));
+	for (const hint of hints) {
+		try {
+			return await findSpecificGit(hint, onLookup);
+		} catch {
+			// noop
+		}
+	}
+
+	try {
+		switch (process.platform) {
+			case 'darwin': return await findGitDarwin(onLookup);
+			case 'win32': return await findGitWin32(onLookup);
+			default: return await findSpecificGit('git', onLookup);
+		}
+	} catch {
+		// noop
+	}
+
+	throw new Error('Git installation not found.');
 }
 
 export interface IExecutionResult<T extends string | Buffer> {

@@ -1692,8 +1692,8 @@ export class QuickInputController extends Disposable {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 			const newStyles = content.join('\n');
-			if (newStyles !== this.ui.styleSheet.innerHTML) {
-				this.ui.styleSheet.innerHTML = newStyles;
+			if (newStyles !== this.ui.styleSheet.textContent) {
+				this.ui.styleSheet.textContent = newStyles;
 			}
 		}
 	}

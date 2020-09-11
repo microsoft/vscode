@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -73,7 +72,7 @@ export class SelectColorThemeAction extends Action {
 			return new Promise((s, _) => {
 				let isCompleted = false;
 
-				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+				const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 				quickpick.items = picks;
 				quickpick.placeholder = localize('themes.selectTheme', "Select Color Theme (Up/Down Keys to Preview)");
@@ -150,7 +149,7 @@ abstract class AbstractIconThemeAction extends Action {
 		return new Promise<void>((s, _) => {
 			let isCompleted = false;
 
-			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const autoFocusIndex = picks.findIndex(p => isItem(p) && p.id === currentTheme.id);
 			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
 			quickpick.items = picks;
 			quickpick.placeholder = this.placeholderMessage;

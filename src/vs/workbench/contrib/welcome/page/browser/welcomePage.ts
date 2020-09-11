@@ -78,7 +78,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								.then(folder => {
 									const files = folder.children ? folder.children.map(child => child.name) : [];
 
-									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									const file = files.sort().find(file => strings.startsWith(file.toLowerCase(), 'readme'));
 									if (file) {
 										return joinPath(folderUri, file);
 									}
@@ -328,7 +328,7 @@ class WelcomePage extends Disposable {
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
 		if (prodName) {
-			prodName.innerHTML = this.productService.nameLong;
+			prodName.textContent = this.productService.nameLong;
 		}
 
 		recentlyOpened.then(({ workspaces }) => {

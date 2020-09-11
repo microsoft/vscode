@@ -10,7 +10,7 @@ import { FileSystemError } from 'vs/workbench/api/common/extHostTypes';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 
 export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
@@ -18,9 +18,10 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
 	private readonly _proxy: MainThreadFileSystemShape;
 
-	private readonly _schemes = new Map<string, { readonly isReadonly?: boolean }>();
-
-	constructor(@IExtHostRpcService extHostRpc: IExtHostRpcService) {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService,
+		@IExtHostFileSystemInfo private readonly _fileSystemInfo: IExtHostFileSystemInfo,
+	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadFileSystem);
 	}
 
@@ -49,9 +50,9 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 		return this._proxy.$copy(source, destination, { ...{ overwrite: false }, ...options }).catch(ExtHostConsumerFileSystem._handleError);
 	}
 	isWritableFileSystem(scheme: string): boolean | undefined {
-		const entry = this._schemes.get(scheme);
-		if (entry) {
-			return !entry.isReadonly;
+		const capabilities = this._fileSystemInfo.getCapabilities(scheme);
+		if (typeof capabilities === 'number') {
+			return !(capabilities & files.FileSystemProviderCapabilities.Readonly);
 		}
 		return undefined;
 	}
@@ -78,14 +79,6 @@ export class ExtHostConsumerFileSystem implements vscode.FileSystem {
 
 			default: throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
 		}
-	}
-
-	/* internal */ _registerScheme(scheme: string, options: { readonly isReadonly?: boolean }): IDisposable {
-		this._schemes.set(scheme, options);
-
-		return toDisposable(() => {
-			return this._schemes.delete(scheme);
-		});
 	}
 }
 

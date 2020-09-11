@@ -1475,7 +1475,8 @@ declare module 'vscode' {
 	 * A function that represents an event to which you subscribe by calling it with
 	 * a listener function as argument.
 	 *
-	 * @sample `item.onDidChange(function(event) { console.log("Event happened: " + event); });`
+	 * @example
+	 * item.onDidChange(function(event) { console.log("Event happened: " + event); });
 	 */
 	export interface Event<T> {
 
@@ -1920,8 +1921,11 @@ declare module 'vscode' {
 	 * the [language](#TextDocument.languageId), the [scheme](#Uri.scheme) of
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
-	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', scheme: 'untitled', pattern: '**​/package.json' }`
+	 * @example <caption>A language filter that applies to typescript files on disk</caption>
+	 * { language: 'typescript', scheme: 'file' }
+	 *
+	 * @example <caption>A language filter that applies to all package.json paths</caption>
+	 * { language: 'json', scheme: 'untitled', pattern: '**​/package.json' }
 	 */
 	export interface DocumentFilter {
 
@@ -1951,7 +1955,8 @@ declare module 'vscode' {
 	 * a feature works without further context, e.g. without the need to resolve related
 	 * 'files'.
 	 *
-	 * @sample `let sel:DocumentSelector = { scheme: 'file', language: 'typescript' }`;
+	 * @example
+	 * let sel:DocumentSelector = { scheme: 'file', language: 'typescript' };
 	 */
 	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
 
@@ -9724,7 +9729,9 @@ declare module 'vscode' {
 		/**
 		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
-		 * @sample `findFiles('**​/*.js', '**​/node_modules/**', 10)`
+		 * @example
+		 * findFiles('**​/*.js', '**​/node_modules/**', 10)
+		 *
 		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
 		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).

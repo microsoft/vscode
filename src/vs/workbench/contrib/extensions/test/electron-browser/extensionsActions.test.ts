@@ -40,7 +40,6 @@ import { ILabelService, IFormatterChangeEvent } from 'vs/platform/label/common/l
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
@@ -2527,7 +2526,7 @@ function aSingleRemoteExtensionManagementServerService(instantiationService: Tes
 		remoteExtensionManagementServer,
 		webExtensionManagementServer: null,
 		getExtensionManagementServer: (extension: IExtension) => {
-			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === Schemas.vscodeRemote) {
 				return remoteExtensionManagementServer;
 			}
 			return null;
@@ -2555,7 +2554,7 @@ function aMultiExtensionManagementServerService(instantiationService: TestInstan
 			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === Schemas.vscodeRemote) {
 				return remoteExtensionManagementServer;
 			}
 			throw new Error('');

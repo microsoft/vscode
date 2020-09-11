@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
@@ -33,7 +32,7 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 }
 
 function stripAppPath(argv: string[]): string[] | undefined {
-	const index = firstIndex(argv, a => !/^-/.test(a));
+	const index = argv.findIndex(a => !/^-/.test(a));
 
 	if (index > -1) {
 		return [...argv.slice(0, index), ...argv.slice(index + 1)];
