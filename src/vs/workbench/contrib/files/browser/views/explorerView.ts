@@ -324,13 +324,13 @@ export class ExplorerView extends ViewPane {
 			}
 
 			this.horizontalScrolling = undefined;
-			DOM.removeClass(this.treeContainer, 'highlight');
+			this.treeContainer.classList.remove('highlight');
 		}
 
 		await this.refresh(false, stat.parent, false);
 
 		if (isEditing) {
-			DOM.addClass(this.treeContainer, 'highlight');
+			this.treeContainer.classList.add('highlight');
 			this.tree.reveal(stat);
 		} else {
 			this.tree.domFocus();
@@ -825,12 +825,12 @@ export class ExplorerView extends ViewPane {
 }
 
 function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
-	DOM.addClass(container, 'file-icon-themable-tree');
-	DOM.addClass(container, 'show-file-icons');
+	container.classList.add('file-icon-themable-tree');
+	container.classList.add('show-file-icons');
 
 	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
-		DOM.toggleClass(container, 'align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
-		DOM.toggleClass(container, 'hide-arrows', theme.hidesExplorerArrows === true);
+		container.classList.toggle('align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
+		container.classList.toggle('hide-arrows', theme.hidesExplorerArrows === true);
 	};
 
 	onDidChangeFileIconTheme(themeService.getFileIconTheme());

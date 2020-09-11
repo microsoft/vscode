@@ -171,7 +171,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		this.updateCollapsed(this.collapsed);
 
 		if (this._index < this.labels.length) {
-			DOM.addClass(this.labels[this._index], 'active');
+			this.labels[this._index].classList.add('active');
 		}
 	}
 
@@ -212,9 +212,9 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 			return;
 		}
 
-		DOM.removeClass(this.labels[this._index], 'active');
+		this.labels[this._index].classList.remove('active');
 		this._index = index;
-		DOM.addClass(this.labels[this._index], 'active');
+		this.labels[this._index].classList.add('active');
 
 		this._onDidChange.fire();
 	}
@@ -285,7 +285,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
-		DOM.removeClass(templateData.label.element, 'compressed');
+		templateData.label.element.classList.remove('compressed');
 
 		// File Label
 		if (!editableData) {
@@ -309,7 +309,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// File Label
 		if (!editableData) {
-			DOM.addClass(templateData.label.element, 'compressed');
+			templateData.label.element.classList.add('compressed');
 			templateData.label.element.style.display = 'flex';
 
 			const disposables = new DisposableStore();
@@ -340,7 +340,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// Input Box
 		else {
-			DOM.removeClass(templateData.label.element, 'compressed');
+			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
 			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
 		}
@@ -817,11 +817,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 							this.compressedDragOverElement = iconLabelName.element;
 							this.compressedDropTargetDisposable.dispose();
 							this.compressedDropTargetDisposable = toDisposable(() => {
-								DOM.removeClass(iconLabelName.element, 'drop-target');
+								iconLabelName.element.classList.remove('drop-target');
 								this.compressedDragOverElement = undefined;
 							});
 
-							DOM.addClass(iconLabelName.element, 'drop-target');
+							iconLabelName.element.classList.add('drop-target');
 						}
 
 						return typeof result === 'boolean' ? result : { ...result, feedback: [] };

@@ -119,7 +119,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'repl-panel-filter-container');
+		this.container.classList.add('repl-panel-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;

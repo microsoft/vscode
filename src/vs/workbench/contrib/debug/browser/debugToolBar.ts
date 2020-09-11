@@ -142,7 +142,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 
 		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
-			dom.addClass(this.dragArea, 'dragged');
+			this.dragArea.classList.add('dragged');
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
@@ -154,7 +154,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
-				dom.removeClass(this.dragArea, 'dragged');
+				this.dragArea.classList.remove('dragged');
 
 				mouseMoveListener.dispose();
 				mouseUpListener.dispose();

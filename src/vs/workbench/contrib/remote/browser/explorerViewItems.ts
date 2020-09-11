@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-
 import { IAction, Action } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
@@ -73,7 +71,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	render(container: HTMLElement) {
 		if (this.optionsItems.length > 1) {
 			super.render(container);
-			dom.addClass(container, 'switch-remote');
+			container.classList.add('switch-remote');
 		}
 	}
 

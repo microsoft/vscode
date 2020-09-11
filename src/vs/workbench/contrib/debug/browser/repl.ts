@@ -534,7 +534,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
-		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
+		treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
@@ -609,8 +609,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));
 		this._register(this.replInput.onDidBlurEditorText(() => this.updateInputDecoration()));
 
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => this.replInputContainer.classList.add('synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => this.replInputContainer.classList.remove('synthetic-focus')));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {

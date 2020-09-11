@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -441,9 +440,9 @@ export class LoadedScriptsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-loaded-scripts');
-		dom.addClass(container, 'show-file-icons');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-loaded-scripts');
+		container.classList.add('show-file-icons');
 
 		this.treeContainer = renderViewTree(container);
 
