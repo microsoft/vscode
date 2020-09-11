@@ -14,7 +14,7 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class DesktopLogService extends DelegatedLogService {
+export class NativeLogService extends DelegatedLogService {
 
 	private readonly bufferSpdLogService: BufferLogService | undefined;
 	private readonly windowId: number;
@@ -62,11 +62,11 @@ export class DesktopLogService extends DelegatedLogService {
 	}
 }
 
-class DesktopLogServiceInitContribution implements IWorkbenchContribution {
+class NativeLogServiceInitContribution implements IWorkbenchContribution {
 	constructor(@ILogService logService: ILogService) {
-		if (logService instanceof DesktopLogService) {
+		if (logService instanceof NativeLogService) {
 			logService.init();
 		}
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(DesktopLogServiceInitContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NativeLogServiceInitContribution, LifecyclePhase.Restored);

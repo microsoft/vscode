@@ -12,8 +12,7 @@ import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType } from 'vs/base/browser/touch';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { escape } from 'vs/base/common/strings';
+import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
 
 export interface IButtonOptions extends IButtonStyles {
 	readonly title?: boolean | string;
@@ -180,7 +179,7 @@ export class Button extends Disposable {
 			DOM.addClass(this._element, 'monaco-text-button');
 		}
 		if (this.options.supportCodicons) {
-			this._element.innerHTML = renderCodicons(escape(value));
+			DOM.reset(this._element, ...renderCodiconsAsElement(value));
 		} else {
 			this._element.textContent = value;
 		}

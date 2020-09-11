@@ -351,6 +351,7 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
+	padding-right: 22px;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {

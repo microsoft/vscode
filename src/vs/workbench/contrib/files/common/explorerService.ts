@@ -278,6 +278,7 @@ export class ExplorerService implements IExplorerService {
 					const parent = element.parent;
 					// Remove Element from Parent (Model)
 					parent.removeChild(element);
+					this.view?.focusNextIfItemFocused(element);
 					// Refresh Parent (View)
 					await this.view?.refresh(false, parent);
 				}

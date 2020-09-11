@@ -13,8 +13,7 @@ import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'el
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
@@ -200,6 +199,7 @@ export class IssueMainService implements ICommonIssueService {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
 							enableWebSQL: false,
 							enableRemoteModule: false,
+							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
 							...this.environmentService.sandbox ?
@@ -265,6 +265,7 @@ export class IssueMainService implements ICommonIssueService {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
 							enableWebSQL: false,
 							enableRemoteModule: false,
+							spellcheck: false,
 							nativeWindowOpen: true,
 							zoomFactor: zoomLevelToZoomFactor(data.zoomLevel),
 							...this.environmentService.sandbox ?

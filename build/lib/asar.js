@@ -53,7 +53,9 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
     const insertFile = (relativePath, stat, shouldUnpack) => {
         insertDirectoryForFile(relativePath);
         pendingInserts++;
-        filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}, onFileInserted);
+        // Do not pass `onFileInserted` directly because it gets overwritten below.
+        // Create a closure capturing `onFileInserted`.
+        filesystem.insertFile(relativePath, shouldUnpack, { stat: stat }, {}).then(() => onFileInserted(), () => onFileInserted());
     };
     return es.through(function (file) {
         if (file.stat.isDirectory()) {

@@ -11,7 +11,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -81,7 +81,7 @@ export function startup(configuration: ISharedProcessConfiguration) {
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
-	args: ParsedArgs;
+	args: NativeParsedArgs;
 	logLevel: LogLevel;
 }
 
@@ -116,7 +116,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	disposables.add(server);
 
-	const environmentService = new EnvironmentService(initData.args, process.execPath);
+	const environmentService = new EnvironmentService(initData.args);
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const loggerClient = new LoggerChannelClient(server.getChannel('logger', mainRouter));

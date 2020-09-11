@@ -11,7 +11,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { mock } from 'vs/base/test/common/mock';
 import { IModelAddedData, MainContext, MainThreadCommandsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostNotebookDocument, ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
@@ -56,7 +57,6 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
-				handle: 0,
 				uri: notebookUri,
 				viewType: 'test',
 				versionId: 0,
@@ -81,7 +81,8 @@ suite('NotebookCell#Document', function () {
 			addedEditors: [{
 				documentUri: notebookUri,
 				id: '_notebook_editor_0',
-				selections: [0]
+				selections: [0],
+				visibleRanges: []
 			}]
 		});
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
@@ -134,7 +135,7 @@ suite('NotebookCell#Document', function () {
 
 	test('cell document is vscode.TextDocument after changing it', async function () {
 
-		const p = new Promise((resolve, reject) => {
+		const p = new Promise<void>((resolve, reject) => {
 			extHostNotebooks.onDidChangeNotebookCells(e => {
 				try {
 					assert.strictEqual(e.changes.length, 1);
@@ -159,26 +160,30 @@ suite('NotebookCell#Document', function () {
 		});
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
-			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.notebookDocument.version + 1,
-			changes: [[0, 0, [{
-				handle: 2,
-				uri: CellUri.generate(notebookUri, 2),
-				source: ['Hello', 'World', 'Hello World!'],
-				eol: '\n',
-				language: 'test',
-				cellKind: CellKind.Code,
-				outputs: [],
-			}, {
-				handle: 3,
-				uri: CellUri.generate(notebookUri, 3),
-				source: ['Hallo', 'Welt', 'Hallo Welt!'],
-				eol: '\n',
-				language: 'test',
-				cellKind: CellKind.Code,
-				outputs: [],
-			}]]]
-		});
+			rawEvents: [
+				{
+					kind: NotebookCellsChangeType.ModelChange,
+					changes: [[0, 0, [{
+						handle: 2,
+						uri: CellUri.generate(notebookUri, 2),
+						source: ['Hello', 'World', 'Hello World!'],
+						eol: '\n',
+						language: 'test',
+						cellKind: CellKind.Code,
+						outputs: [],
+					}, {
+						handle: 3,
+						uri: CellUri.generate(notebookUri, 3),
+						source: ['Hallo', 'Welt', 'Hallo Welt!'],
+						eol: '\n',
+						language: 'test',
+						cellKind: CellKind.Code,
+						outputs: [],
+					}]]]
+				}
+			]
+		}, false);
 
 		await p;
 
@@ -231,10 +236,14 @@ suite('NotebookCell#Document', function () {
 		const [cell1, cell2] = notebook.notebookDocument.cells;
 
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
-			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 2,
-			changes: [[0, 1, []]]
-		});
+			rawEvents: [
+				{
+					kind: NotebookCellsChangeType.ModelChange,
+					changes: [[0, 1, []]]
+				}
+			]
+		}, false);
 
 		assert.equal(notebook.notebookDocument.cells.length, 1);
 		assert.equal(cell1.document.isClosed, true); // ref still alive!

@@ -12,7 +12,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
@@ -411,9 +410,9 @@ export function getClientArea(element: HTMLElement): Dimension {
 	}
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && (<any>window).visualViewport) {
-		const width = (<any>window).visualViewport.width;
-		const height = (<any>window).visualViewport.height - (
+	if (platform.isIOS && window.visualViewport) {
+		const width = window.visualViewport.width;
+		const height = window.visualViewport.height - (
 			browser.isStandalone
 				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
 				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
@@ -997,6 +996,11 @@ export function trackFocus(element: HTMLElement | Window): IFocusTracker {
 	return new FocusTracker(element);
 }
 
+export function after<T extends Node>(sibling: HTMLElement, child: T): T {
+	sibling.after(child);
+	return child;
+}
+
 export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T {
 	children.forEach(child => parent.appendChild(child));
 	return children[children.length - 1];
@@ -1005,6 +1009,21 @@ export function append<T extends Node>(parent: HTMLElement, ...children: T[]): T
 export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	parent.insertBefore(child, parent.firstChild);
 	return child;
+}
+
+
+/**
+ * Removes all children from `parent` and appends `children`
+ */
+export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
+	parent.innerText = '';
+	for (const child of children) {
+		if (child instanceof Node) {
+			parent.appendChild(child);
+		} else if (typeof child === 'string') {
+			parent.appendChild(document.createTextNode(child));
+		}
+	}
 }
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
@@ -1058,14 +1077,13 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	coalesce(children)
-		.forEach(child => {
-			if (child instanceof Node) {
-				result.appendChild(child);
-			} else {
-				result.appendChild(document.createTextNode(child as string));
-			}
-		});
+	for (const child of children) {
+		if (child instanceof Node) {
+			result.appendChild(child);
+		} else if (typeof child === 'string') {
+			result.appendChild(document.createTextNode(child));
+		}
+	}
 
 	return result as T;
 }

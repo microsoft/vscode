@@ -26,7 +26,6 @@ import { ExceptionWidget } from 'vs/workbench/contrib/debug/browser/exceptionWid
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { first } from 'vs/base/common/arrays';
 import { memoize, createMemoizer } from 'vs/base/common/decorators';
 import { IEditorHoverOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { DebugHoverWidget } from 'vs/workbench/contrib/debug/browser/debugHover';
@@ -373,7 +372,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		// First call stack frame that is available is the frame where exception has been thrown
-		const exceptionSf = first(callStack, sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
+		const exceptionSf = callStack.find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
 		if (!exceptionSf || exceptionSf !== focusedSf) {
 			this.closeExceptionWidget();
 			return;

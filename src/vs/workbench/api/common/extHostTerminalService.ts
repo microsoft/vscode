@@ -120,7 +120,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	) {
 		super(proxy, id);
 		this._creationOptions = Object.freeze(this._creationOptions);
-		this._pidPromise = new Promise<number>(c => this._pidPromiseComplete = c);
+		this._pidPromise = new Promise<number | undefined>(c => this._pidPromiseComplete = c);
 	}
 
 	public async create(
@@ -316,7 +316,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	protected _terminalProcesses: { [id: number]: ITerminalChildProcess } = {};
 	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
-	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal> } = {};
+	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal | undefined> } = {};
 	protected _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
 
 	private readonly _bufferer: TerminalDataBufferer;
@@ -339,6 +339,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 	public get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData && this._onDidWriteTerminalData.event; }
 
 	constructor(
+		supportsProcesses: boolean,
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
@@ -347,6 +348,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 			onFirstListenerAdd: () => this._proxy.$startSendingDataEvents(),
 			onLastListenerRemove: () => this._proxy.$stopSendingDataEvents()
 		});
+		this._proxy.$registerProcessSupport(supportsProcesses);
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
@@ -668,7 +670,7 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 		return this._getTerminalPromises[id];
 	}
 
-	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal> {
+	private _createGetTerminalPromise(id: number, retries: number = 5): Promise<ExtHostTerminal | undefined> {
 		return new Promise(c => {
 			if (retries === 0) {
 				c(undefined);
@@ -805,6 +807,12 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 }
 
 export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
+	constructor(
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
+	) {
+		super(false, extHostRpc);
+	}
+
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		throw new NotSupportedError();
 	}

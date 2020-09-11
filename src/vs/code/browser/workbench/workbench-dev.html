@@ -17,8 +17,8 @@
 		<!-- Builtin Extensions (running out of sources) -->
 		<meta id="vscode-workbench-builtin-extensions" data-settings="{{WORKBENCH_BUILTIN_EXTENSIONS}}">
 
-		<!-- Workarounds/Hacks (remote user data uri) -->
-		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
+		<!-- Workbench Credentials (running out of sources) -->
+		<meta id="vscode-workbench-credentials" data-settings="{{WORKBENCH_CREDENTIALS}}">
 
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
@@ -33,6 +33,7 @@
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
+			createTrustedScriptURL: value => value,
 			paths: {
 				'vscode-textmate': `${window.location.origin}/static/remote/web/node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `${window.location.origin}/static/remote/web/node_modules/vscode-oniguruma/release/main`,

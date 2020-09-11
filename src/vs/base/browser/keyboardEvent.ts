@@ -205,6 +205,40 @@ const altKeyMod = KeyMod.Alt;
 const shiftKeyMod = KeyMod.Shift;
 const metaKeyMod = (platform.isMacintosh ? KeyMod.CtrlCmd : KeyMod.WinCtrl);
 
+export function printKeyboardEvent(e: KeyboardEvent): string {
+	let modifiers: string[] = [];
+	if (e.ctrlKey) {
+		modifiers.push(`ctrl`);
+	}
+	if (e.shiftKey) {
+		modifiers.push(`shift`);
+	}
+	if (e.altKey) {
+		modifiers.push(`alt`);
+	}
+	if (e.metaKey) {
+		modifiers.push(`meta`);
+	}
+	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode}, key: ${e.key}`;
+}
+
+export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
+	let modifiers: string[] = [];
+	if (e.ctrlKey) {
+		modifiers.push(`ctrl`);
+	}
+	if (e.shiftKey) {
+		modifiers.push(`shift`);
+	}
+	if (e.altKey) {
+		modifiers.push(`alt`);
+	}
+	if (e.metaKey) {
+		modifiers.push(`meta`);
+	}
+	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode} ('${KeyCodeUtils.toString(e.keyCode)}')`;
+}
+
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	readonly _standardKeyboardEventBrand = true;

@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as keytar from 'keytar';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IdleValue } from 'vs/base/common/async';
 
-type KeytarModule = typeof import('keytar');
 export class KeytarCredentialsService implements ICredentialsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _keytar = new IdleValue<Promise<KeytarModule>>(() => import('keytar'));
+	private readonly _keytar = new IdleValue<Promise<typeof keytar>>(() => import('keytar'));
 
 	async getPassword(service: string, account: string): Promise<string | null> {
 		const keytar = await this._keytar.value;

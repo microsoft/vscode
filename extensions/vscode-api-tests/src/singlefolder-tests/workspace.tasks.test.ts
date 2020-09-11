@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -94,7 +94,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						};
 						return Promise.resolve(pty);
 					});
-					const task = new Task2(kind, TaskScope.Workspace, taskName, taskType, execution);
+					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
 					return result;
 				},
@@ -151,7 +151,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 						};
 						return Promise.resolve(pty);
 					});
-					const task = new Task2(kind, TaskScope.Workspace, taskName, taskType, execution);
+					const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
 					result.push(task);
 					return result;
 				},

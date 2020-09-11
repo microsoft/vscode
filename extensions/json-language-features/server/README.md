@@ -143,13 +143,35 @@ In addition to the settings, schemas associations can also be provided through a
 
 Notification:
 - method: 'json/schemaAssociations'
-- params: `ISchemaAssociations` defined as follows
+- params: `ISchemaAssociations` or `ISchemaAssociation[]` defined as follows
 
 ```ts
 interface ISchemaAssociations {
-	[pattern: string]: string[];
+  /**
+   * An object where:
+   *  - keys are file names or file paths (using `/` as path separator). `*` can be used as a wildcard.
+   *  - values are an arrays of schema URIs
+   */
+  [pattern: string]: string[];
 }
+
+interface ISchemaAssociation {
+  /**
+   * The URI of the schema, which is also the identifier of the schema.
+   */
+  uri: string;
+
+  /**
+   * A list of file path patterns that are associated to the schema. The '*' wildcard can be used. Exclusion patterns starting with '!'.
+   * For example '*.schema.json', 'package.json', '!foo*.schema.json'.
+   * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
+   */
+  fileMatch: string[];
+
+}
+
 ```
+`ISchemaAssociations`
   - keys: a file names or file path (separated by `/`). `*` can be used as a wildcard.
   - values: An array of schema URLs
 

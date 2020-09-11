@@ -274,18 +274,22 @@ class HelpItemValue {
 	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
 
 	get url(): Promise<string> {
-		return new Promise(async (resolve) => {
+		return new Promise<string>(async (resolve) => {
 			if (this._url === undefined) {
 				if (this.urlOrCommand) {
 					let url = URI.parse(this.urlOrCommand);
 					if (url.authority) {
 						this._url = this.urlOrCommand;
 					} else {
-						this._url = await this.commandService.executeCommand(this.urlOrCommand);
+						const urlCommand: Promise<string | undefined> = this.commandService.executeCommand(this.urlOrCommand);
+						// We must be defensive. The command may never return, meaning that no help at all is ever shown!
+						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
+						this._url = await Promise.race([urlCommand, emptyString]);
 					}
-				} else {
-					this._url = '';
 				}
+			}
+			if (this._url === undefined) {
+				this._url = '';
 			}
 			resolve(this._url);
 		});
@@ -326,13 +330,13 @@ abstract class HelpItemBase implements IHelpItem {
 		}
 
 		if (this.values.length > 1) {
-			let actions = await Promise.all(this.values.map(async (value) => {
+			let actions = (await Promise.all(this.values.map(async (value) => {
 				return {
 					label: value.extensionDescription.displayName || value.extensionDescription.identifier.value,
 					description: await value.url,
 					extensionDescription: value.extensionDescription
 				};
-			}));
+			}))).filter(item => item.description);
 
 			const action = await this.quickInputService.pick(actions, { placeHolder: nls.localize('pickRemoteExtension', "Select url to open") });
 

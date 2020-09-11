@@ -1416,7 +1416,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-		return new Promise<string>((resolve, reject) => {
+		return new Promise<string | undefined>((resolve) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -1692,8 +1692,8 @@ export class QuickInputController extends Disposable {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 			const newStyles = content.join('\n');
-			if (newStyles !== this.ui.styleSheet.innerHTML) {
-				this.ui.styleSheet.innerHTML = newStyles;
+			if (newStyles !== this.ui.styleSheet.textContent) {
+				this.ui.styleSheet.textContent = newStyles;
 			}
 		}
 	}

@@ -78,6 +78,12 @@
           "group": "inline@1"
         }
       ]
-    }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "vscode://vscode-notebook-cell-metadata/*",
+        "url": "vscode://schemas/notebook/cellmetadata"
+      }
+    ]
   }
 }

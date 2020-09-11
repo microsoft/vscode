@@ -8,9 +8,12 @@ import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/ce
 import { Event } from 'vs/base/common/event';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export interface INotebookTextDiffEditor {
+	readonly textModel?: NotebookTextModel;
 	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>;
+	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	layoutNotebookCell(cell: CellDiffViewModel, height: number): void;
 }

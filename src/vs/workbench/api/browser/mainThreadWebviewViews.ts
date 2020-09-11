@@ -6,34 +6,41 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import type { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebview';
+import { MainThreadWebviews } from 'vs/workbench/api/browser/mainThreadWebviews';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { IWebviewViewService, WebviewView } from 'vs/workbench/contrib/webviewView/browser/webviewViewService';
 
 
-export class MainThreadWebviewsViews extends Disposable {
+export class MainThreadWebviewsViews extends Disposable implements extHostProtocol.MainThreadWebviewViewsShape {
 
-	private readonly _proxyViews: extHostProtocol.ExtHostWebviewViewsShape;
+	private readonly _proxy: extHostProtocol.ExtHostWebviewViewsShape;
 
 	private readonly _webviewViews = new Map<string, WebviewView>();
 	private readonly _webviewViewProviders = new Map<string, IDisposable>();
 
 	constructor(
-		private readonly mainThreadWebviews: MainThreadWebviews,
 		context: extHostProtocol.IExtHostContext,
+		private readonly mainThreadWebviews: MainThreadWebviews,
 		@IWebviewViewService private readonly _webviewViewService: IWebviewViewService,
 	) {
 		super();
 
-		this._proxyViews = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
+		this._proxy = context.getProxy(extHostProtocol.ExtHostContext.ExtHostWebviewViews);
 	}
 
-	public $setWebviewViewTitle(handle: extHostProtocol.WebviewPanelHandle, value: string | undefined): void {
-		const webviewView = this._webviewViews.get(handle);
-		if (!webviewView) {
-			throw new Error('unknown webview view');
-		}
+	public $setWebviewViewTitle(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
+		const webviewView = this.getWebviewView(handle);
 		webviewView.title = value;
+	}
+
+	public $setWebviewViewDescription(handle: extHostProtocol.WebviewHandle, value: string | undefined): void {
+		const webviewView = this.getWebviewView(handle);
+		webviewView.description = value;
+	}
+
+	public $show(handle: extHostProtocol.WebviewHandle, preserveFocus: boolean): void {
+		const webviewView = this.getWebviewView(handle);
+		webviewView.show(preserveFocus);
 	}
 
 	public $registerWebviewViewProvider(viewType: string, options?: { retainContextWhenHidden?: boolean }): void {
@@ -43,9 +50,9 @@ export class MainThreadWebviewsViews extends Disposable {
 
 		this._webviewViewService.register(viewType, {
 			resolve: async (webviewView: WebviewView, cancellation: CancellationToken) => {
-				this._webviewViews.set(viewType, webviewView);
-
 				const handle = webviewView.webview.id;
+
+				this._webviewViews.set(handle, webviewView);
 				this.mainThreadWebviews.addWebview(handle, webviewView.webview);
 
 				let state = undefined;
@@ -62,15 +69,16 @@ export class MainThreadWebviewsViews extends Disposable {
 				}
 
 				webviewView.onDidChangeVisibility(visible => {
-					this._proxyViews.$onDidChangeWebviewViewVisibility(handle, visible);
+					this._proxy.$onDidChangeWebviewViewVisibility(handle, visible);
 				});
 
 				webviewView.onDispose(() => {
-					this._proxyViews.$disposeWebviewView(handle);
+					this._proxy.$disposeWebviewView(handle);
+					this._webviewViews.delete(handle);
 				});
 
 				try {
-					await this._proxyViews.$resolveWebviewView(handle, viewType, state, cancellation);
+					await this._proxy.$resolveWebviewView(handle, viewType, webviewView.title, state, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewView.webview.html = this.mainThreadWebviews.getWebviewResolvedFailedContent(viewType);
@@ -87,6 +95,14 @@ export class MainThreadWebviewsViews extends Disposable {
 
 		provider.dispose();
 		this._webviewViewProviders.delete(viewType);
+	}
+
+	private getWebviewView(handle: string): WebviewView {
+		const webviewView = this._webviewViews.get(handle);
+		if (!webviewView) {
+			throw new Error('unknown webview view');
+		}
+		return webviewView;
 	}
 }
 

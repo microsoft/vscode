@@ -5,6 +5,7 @@
 
 import * as randomBytes from 'randombytes';
 import * as querystring from 'querystring';
+import { Buffer } from 'buffer';
 import * as vscode from 'vscode';
 import { createServer, startServer } from './authServer';
 
@@ -528,7 +529,7 @@ export class AzureActiveDirectoryService {
 			}
 		} catch (e) {
 			Logger.error('Refreshing token failed');
-			throw e;
+			throw new Error(REFRESH_NETWORK_FAILURE);
 		}
 	}
 

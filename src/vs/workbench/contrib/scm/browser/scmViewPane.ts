@@ -6,7 +6,7 @@
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
-import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -74,6 +74,8 @@ import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -131,9 +133,11 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	private inputWidgets = new Map<ISCMInput, SCMInputWidget>();
 	private contentHeights = new WeakMap<ISCMInput, number>();
+	private editorPositions = new WeakMap<ISCMInput, IPosition>();
 
 	constructor(
 		private outerLayout: ISCMLayout,
+		private overflowWidgetsDomNode: HTMLElement,
 		private updateHeight: (input: ISCMInput, height: number) => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
@@ -144,7 +148,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
-		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement);
+		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		disposables.add(inputWidget);
 
 		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
@@ -160,6 +164,21 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		// Remember widget
 		this.inputWidgets.set(input, templateData.inputWidget);
 		disposables.add({ dispose: () => this.inputWidgets.delete(input) });
+
+		// Widget position
+		const position = this.editorPositions.get(input);
+
+		if (position) {
+			templateData.inputWidget.position = position;
+		}
+
+		disposables.add(toDisposable(() => {
+			const position = templateData.inputWidget.position;
+
+			if (position) {
+				this.editorPositions.set(input, position);
+			}
+		}));
 
 		// Rerender the element whenever the editor content height changes
 		const onDidChangeContentHeight = () => {
@@ -389,7 +408,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const render = () => {
 			const theme = this.themeService.getColorTheme();
-			const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
+			const icon = iconResource && (theme.type === ColorScheme.LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
 			template.fileLabel.setFile(uri, {
 				fileDecorations: { colors: false, badges: !icon },
@@ -1343,8 +1362,19 @@ class SCMInputWidget extends Disposable {
 		this.model = { input, textModel };
 	}
 
+	get position(): IPosition | null {
+		return this.inputEditor.getPosition();
+	}
+
+	set position(position: IPosition | null) {
+		if (position) {
+			this.inputEditor.setPosition(position);
+		}
+	}
+
 	constructor(
 		container: HTMLElement,
+		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
@@ -1374,7 +1404,8 @@ class SCMInputWidget extends Disposable {
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false }
+			scrollbar: { alwaysConsumeMouseWheel: false },
+			overflowWidgetsDomNode
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1434,7 +1465,7 @@ class SCMInputWidget extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		return this.inputEditor.hasWidgetFocus();
+		return this.inputEditor.hasTextFocus();
 	}
 
 	private renderValidation(): void {
@@ -1512,7 +1543,7 @@ class SCMCollapseAction extends Action {
 
 		this.enabled = isAnyProviderCollapsible;
 		this.allCollapsed = isAnyProviderCollapsible && this.viewModel.areAllProvidersCollapsed();
-		this.label = this.allCollapsed ? localize('expand all', "Expand All Providers") : localize('collapse all', "Collapse All Providers");
+		this.label = this.allCollapsed ? localize('expand all', "Expand All Repositories") : localize('collapse all', "Collapse All Repositories");
 		this.class = this.allCollapsed ? Codicon.expandAll.classNames : Codicon.collapseAll.classNames;
 	}
 }
@@ -1564,6 +1595,8 @@ export class SCMViewPane extends ViewPane {
 		// List
 		this.listContainer = append(container, $('.scm-view.show-file-icons'));
 
+		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
+
 		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
 		updateActionsVisibility();
@@ -1578,7 +1611,7 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(() => this.updateActions()));
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
@@ -1615,7 +1648,6 @@ export class SCMViewPane extends ViewPane {
 				filter,
 				sorter,
 				keyboardNavigationLabelProvider,
-				transformOptimization: false,
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 				},
@@ -1627,6 +1659,8 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
 		this._register(this.tree);
+
+		append(this.listContainer, overflowWidgetsDomNode);
 
 		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;

@@ -10,7 +10,6 @@ import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugMode
 import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { endsWith } from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Emitter } from 'vs/base/common/event';
 
@@ -27,7 +26,8 @@ export class SimpleReplElement implements IReplElement {
 	) { }
 
 	toString(): string {
-		return this.value;
+		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
+		return this.value + sourceStr;
 	}
 
 	getId(): string {
@@ -144,7 +144,8 @@ export class ReplGroup implements IReplElement {
 	}
 
 	toString(): string {
-		return this.name;
+		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
+		return this.name + sourceStr;
 	}
 
 	addChild(child: IReplElement): void {
@@ -174,18 +175,13 @@ export class ReplGroup implements IReplElement {
 	}
 }
 
-type FilterFunc = ((element: IReplElement) => void);
-
 export class ReplModel {
 	private replElements: IReplElement[] = [];
 	private readonly _onDidChangeElements = new Emitter<void>();
 	readonly onDidChangeElements = this._onDidChangeElements.event;
-	private filterFunc: FilterFunc | undefined;
 
 	getReplElements(): IReplElement[] {
-		return this.replElements.filter(element =>
-			this.filterFunc ? this.filterFunc(element) : true
-		);
+		return this.replElements;
 	}
 
 	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
@@ -206,7 +202,7 @@ export class ReplModel {
 
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
+			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n')) {
 				previousElement.value += data;
 				this._onDidChangeElements.fire();
 			} else {
@@ -318,10 +314,6 @@ export class ReplModel {
 		if (simpleVals.length) {
 			this.appendToRepl(session, simpleVals.join(' ') + '\n', sev, source);
 		}
-	}
-
-	setFilter(filterFunc: FilterFunc): void {
-		this.filterFunc = filterFunc;
 	}
 
 	removeReplExpressions(): void {

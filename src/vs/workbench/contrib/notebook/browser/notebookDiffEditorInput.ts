@@ -39,10 +39,13 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 		await this.original.load({ forceReadFromDisk: true });
 	}
 
-	dispose(): void {
-
+	async resolveModifiedFromDisk() {
+		await this.modified.load({ forceReadFromDisk: true });
 	}
 
+	dispose(): void {
+		super.dispose();
+	}
 }
 
 export class NotebookDiffEditorInput extends EditorInput {
@@ -190,22 +193,14 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookDiffEditorModel | null> {
+	async resolve(): Promise<INotebookDiffEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
-			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!, editorId);
-
-			// this._register(this._textModel.object.onDidChangeDirty(() => {
-			// 	this._onDidChangeDirty.fire();
-			// }));
-
-			// if (this._textModel.object.isDirty()) {
-			// 	this._onDidChangeDirty.fire();
-			// }
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
+			this._originalTextModel = await this._notebookModelResolverService.resolve(this.originalResource, this.viewType!);
 		}
 
 		return new NotebookDiffEditorModel(this._originalTextModel!.object as NotebookEditorModel, this._textModel.object as NotebookEditorModel);

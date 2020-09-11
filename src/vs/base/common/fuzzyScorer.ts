@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, isUpper, fuzzyScore, createMatches as createFuzzyMatches, matchesStrictPrefix } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, isUpper, fuzzyScore, createMatches as createFuzzyMatches } from 'vs/base/common/filters';
 import { sep } from 'vs/base/common/path';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { stripWildcards, equalsIgnoreCase } from 'vs/base/common/strings';
@@ -369,9 +369,8 @@ export interface IItemAccessor<T> {
 }
 
 const PATH_IDENTITY_SCORE = 1 << 18;
-const LABEL_PREFIX_SCORE_MATCHCASE = 1 << 17;
-const LABEL_PREFIX_SCORE_IGNORECASE = 1 << 16;
-const LABEL_SCORE_THRESHOLD = 1 << 15;
+const LABEL_PREFIX_SCORE_THRESHOLD = 1 << 17;
+const LABEL_SCORE_THRESHOLD = 1 << 16;
 
 export function scoreItemFuzzy<T>(item: T, query: IPreparedQuery, fuzzy: boolean, accessor: IItemAccessor<T>, cache: FuzzyScorerCache): IItemScore {
 	if (!item || !query.normalized) {
@@ -460,20 +459,33 @@ function doScoreItemFuzzyMultiple(label: string, description: string | undefined
 
 function doScoreItemFuzzySingle(label: string, description: string | undefined, path: string | undefined, query: IPreparedQueryPiece, preferLabelMatches: boolean, fuzzy: boolean): IItemScore {
 
-	// Prefer label matches if told so
-	if (preferLabelMatches) {
-
-		// Treat prefix matches on the label highest
-		const prefixLabelMatchIgnoreCase = matchesPrefix(query.normalized, label);
-		if (prefixLabelMatchIgnoreCase) {
-			const prefixLabelMatchStrictCase = matchesStrictPrefix(query.normalized, label);
-			return { score: prefixLabelMatchStrictCase ? LABEL_PREFIX_SCORE_MATCHCASE : LABEL_PREFIX_SCORE_IGNORECASE, labelMatch: prefixLabelMatchStrictCase || prefixLabelMatchIgnoreCase };
-		}
-
-		// Second, score fuzzy
+	// Prefer label matches if told so or we have no description
+	if (preferLabelMatches || !description) {
 		const [labelScore, labelPositions] = scoreFuzzy(label, query.normalized, query.normalizedLowercase, fuzzy);
 		if (labelScore) {
-			return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
+
+			// If we have a prefix match on the label, we give a much
+			// higher baseScore to elevate these matches over others
+			// This ensures that typing a file name wins over results
+			// that are present somewhere in the label, but not the
+			// beginning.
+			const labelPrefixMatch = matchesPrefix(query.normalized, label);
+			let baseScore: number;
+			if (labelPrefixMatch) {
+				baseScore = LABEL_PREFIX_SCORE_THRESHOLD;
+
+				// We give another boost to labels that are short, e.g. given
+				// files "window.ts" and "windowActions.ts" and a query of
+				// "window", we want "window.ts" to receive a higher score.
+				// As such we compute the percentage the query has within the
+				// label and add that to the baseScore.
+				const prefixLengthBoost = Math.round((query.normalized.length / label.length) * 100);
+				baseScore += prefixLengthBoost;
+			} else {
+				baseScore = LABEL_SCORE_THRESHOLD;
+			}
+
+			return { score: baseScore + labelScore, labelMatch: labelPrefixMatch || createMatches(labelPositions) };
 		}
 	}
 
@@ -600,46 +612,19 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 		}
 	}
 
-	// 2.) prefer label prefix matches (match case)
-	if (scoreA === LABEL_PREFIX_SCORE_MATCHCASE || scoreB === LABEL_PREFIX_SCORE_MATCHCASE) {
-		if (scoreA !== scoreB) {
-			return scoreA === LABEL_PREFIX_SCORE_MATCHCASE ? -1 : 1;
-		}
-
-		const labelA = accessor.getItemLabel(itemA) || '';
-		const labelB = accessor.getItemLabel(itemB) || '';
-
-		// prefer shorter names when both match on label prefix
-		if (labelA.length !== labelB.length) {
-			return labelA.length - labelB.length;
-		}
-	}
-
-	// 3.) prefer label prefix matches (ignore case)
-	if (scoreA === LABEL_PREFIX_SCORE_IGNORECASE || scoreB === LABEL_PREFIX_SCORE_IGNORECASE) {
-		if (scoreA !== scoreB) {
-			return scoreA === LABEL_PREFIX_SCORE_IGNORECASE ? -1 : 1;
-		}
-
-		const labelA = accessor.getItemLabel(itemA) || '';
-		const labelB = accessor.getItemLabel(itemB) || '';
-
-		// prefer shorter names when both match on label prefix
-		if (labelA.length !== labelB.length) {
-			return labelA.length - labelB.length;
-		}
-	}
-
-	// 4.) matches on label are considered higher compared to label+description matches
+	// 2.) matches on label are considered higher compared to label+description matches
 	if (scoreA > LABEL_SCORE_THRESHOLD || scoreB > LABEL_SCORE_THRESHOLD) {
 		if (scoreA !== scoreB) {
 			return scoreA > scoreB ? -1 : 1;
 		}
 
-		// prefer more compact matches over longer in label
-		const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
-		if (comparedByMatchLength !== 0) {
-			return comparedByMatchLength;
+		// prefer more compact matches over longer in label (unless this is a prefix match where
+		// longer prefix matches are actually preferred)
+		if (scoreA < LABEL_PREFIX_SCORE_THRESHOLD && scoreB < LABEL_PREFIX_SCORE_THRESHOLD) {
+			const comparedByMatchLength = compareByMatchLength(itemScoreA.labelMatch, itemScoreB.labelMatch);
+			if (comparedByMatchLength !== 0) {
+				return comparedByMatchLength;
+			}
 		}
 
 		// prefer shorter labels over longer labels
@@ -650,12 +635,12 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 		}
 	}
 
-	// 5.) compare by score in label+description
+	// 3.) compare by score in label+description
 	if (scoreA !== scoreB) {
 		return scoreA > scoreB ? -1 : 1;
 	}
 
-	// 6.) scores are identical: prefer matches in label over non-label matches
+	// 4.) scores are identical: prefer matches in label over non-label matches
 	const itemAHasLabelMatches = Array.isArray(itemScoreA.labelMatch) && itemScoreA.labelMatch.length > 0;
 	const itemBHasLabelMatches = Array.isArray(itemScoreB.labelMatch) && itemScoreB.labelMatch.length > 0;
 	if (itemAHasLabelMatches && !itemBHasLabelMatches) {
@@ -664,14 +649,14 @@ export function compareItemsByFuzzyScore<T>(itemA: T, itemB: T, query: IPrepared
 		return 1;
 	}
 
-	// 7.) scores are identical: prefer more compact matches (label and description)
+	// 5.) scores are identical: prefer more compact matches (label and description)
 	const itemAMatchDistance = computeLabelAndDescriptionMatchDistance(itemA, itemScoreA, accessor);
 	const itemBMatchDistance = computeLabelAndDescriptionMatchDistance(itemB, itemScoreB, accessor);
 	if (itemAMatchDistance && itemBMatchDistance && itemAMatchDistance !== itemBMatchDistance) {
 		return itemBMatchDistance > itemAMatchDistance ? -1 : 1;
 	}
 
-	// 8.) scores are identical: start to use the fallback compare
+	// 6.) scores are identical: start to use the fallback compare
 	return fallbackCompare(itemA, itemB, query, accessor);
 }
 

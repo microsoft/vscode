@@ -32,7 +32,7 @@ import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, T
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,6 +41,7 @@ import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntr
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const ItemHeight = 22;
 
@@ -219,7 +220,6 @@ export class TimelinePane extends ViewPane {
 
 	private $container!: HTMLElement;
 	private $message!: HTMLDivElement;
-	private $titleDescription!: HTMLSpanElement;
 	private $tree!: HTMLDivElement;
 	private tree!: WorkbenchObjectTree<TreeElement, FuzzyScore>;
 	private treeRenderer: TimelineTreeRenderer | undefined;
@@ -276,7 +276,7 @@ export class TimelinePane extends ViewPane {
 		this._followActiveEditor = value;
 		this.followActiveEditorContext.set(value);
 
-		this.titleDescription = this.titleDescription;
+		this.updateFilename(this._filename);
 
 		if (value) {
 			this.onActiveEditorChanged();
@@ -315,7 +315,7 @@ export class TimelinePane extends ViewPane {
 		}
 
 		this.uri = uri;
-		this.titleDescription = uri ? basename(uri.fsPath) : '';
+		this.updateFilename(uri ? basename(uri.fsPath) : undefined);
 		this.treeRenderer?.setUri(uri);
 		this.loadTimeline(true);
 	}
@@ -407,17 +407,13 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private _titleDescription: string | undefined;
-	get titleDescription(): string | undefined {
-		return this._titleDescription;
-	}
-
-	set titleDescription(description: string | undefined) {
-		this._titleDescription = description;
-		if (this.followActiveEditor || !description) {
-			this.$titleDescription.textContent = description ?? '';
+	private _filename: string | undefined;
+	updateFilename(filename: string | undefined) {
+		this._filename = filename;
+		if (this.followActiveEditor || !filename) {
+			this.updateTitleDescription(filename);
 		} else {
-			this.$titleDescription.textContent = `${description} (pinned)`;
+			this.updateTitleDescription(`${filename} (pinned)`);
 		}
 	}
 
@@ -781,17 +777,17 @@ export class TimelinePane extends ViewPane {
 		this._isEmpty = !this.hasVisibleItems;
 
 		if (this.uri === undefined) {
-			this.titleDescription = undefined;
+			this.updateFilename(undefined);
 			this.message = localize('timeline.editorCannotProvideTimeline', "The active editor cannot provide timeline information.");
 		} else if (this._isEmpty) {
 			if (this.pendingRequests.size !== 0) {
 				this.setLoadingUriMessage();
 			} else {
-				this.titleDescription = basename(this.uri.fsPath);
+				this.updateFilename(basename(this.uri.fsPath));
 				this.message = localize('timeline.noTimelineInfo', "No timeline information was provided.");
 			}
 		} else {
-			this.titleDescription = basename(this.uri.fsPath);
+			this.updateFilename(basename(this.uri.fsPath));
 			this.message = undefined;
 		}
 
@@ -849,7 +845,6 @@ export class TimelinePane extends ViewPane {
 		super.renderHeaderTitle(container, this.title);
 
 		DOM.addClass(container, 'timeline-view');
-		this.$titleDescription = DOM.append(container, DOM.$('span.description', undefined, this.titleDescription ?? ''));
 	}
 
 	protected renderBody(container: HTMLElement): void {
@@ -956,7 +951,7 @@ export class TimelinePane extends ViewPane {
 
 	setLoadingUriMessage() {
 		const file = this.uri && basename(this.uri.fsPath);
-		this.titleDescription = file ?? '';
+		this.updateFilename(file);
 		this.message = file ? localize('timeline.loading', "Loading timeline for {0}...", file) : '';
 	}
 
@@ -1123,7 +1118,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === LIGHT ? item.icon : item.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {

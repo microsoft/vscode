@@ -55,7 +55,7 @@ export interface ISerializedEditorGroup {
 export function isSerializedEditorGroup(obj?: unknown): obj is ISerializedEditorGroup {
 	const group = obj as ISerializedEditorGroup;
 
-	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
+	return !!(obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru));
 }
 
 export class EditorGroup extends Disposable {
@@ -130,12 +130,6 @@ export class EditorGroup extends Disposable {
 	private onConfigurationUpdated(): void {
 		this.editorOpenPositioning = this.configurationService.getValue('workbench.editor.openPositioning');
 		this.focusRecentEditorAfterClose = this.configurationService.getValue('workbench.editor.focusRecentEditorAfterClose');
-
-		if (this.configurationService.getValue('workbench.editor.showTabs') === false) {
-			// Disabling tabs disables sticky editors until we support
-			// an indication of sticky editors when tabs are disabled
-			this.sticky = -1;
-		}
 	}
 
 	get count(): number {

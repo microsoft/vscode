@@ -17,8 +17,8 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CellDiffViewModel } from 'vs/workbench/contrib/notebook/browser/diff/celllDiffViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { diffDiagonalFill, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -27,14 +27,22 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DIFF_CELL_MARGIN, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/common';
 import { Emitter } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { NotebookDiffEditorEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { INotebookDiffEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+
+export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
 	static readonly ID: string = 'workbench.editor.notebookTextDiffEditor';
 
 	private _rootElement!: HTMLElement;
+	private _overflowContainer!: HTMLElement;
 	private _dimension: DOM.Dimension | null = null;
 	private _list!: WorkbenchList<CellDiffViewModel>;
 	private _fontInfo: BareFontInfo | undefined;
@@ -42,6 +50,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private readonly _onMouseUp = this._register(new Emitter<{ readonly event: MouseEvent; readonly target: CellDiffViewModel; }>());
 	public readonly onMouseUp = this._onMouseUp.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
+	protected _scopeContextKeyService!: IContextKeyService;
+	private _model: INotebookDiffEditorModel | null = null;
+	private _modifiedResourceDisposableStore = new DisposableStore();
+
+	get textModel() {
+		return this._model?.modified.notebook;
+	}
 
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService,
@@ -49,6 +64,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@INotebookEditorWorkerService readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: FileService,
 
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
@@ -56,10 +72,16 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this._fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel());
+
+		this._register(this._modifiedResourceDisposableStore);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
+		this._overflowContainer = document.createElement('div');
+		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
+		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		DOM.append(parent, this._overflowContainer);
 
 		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
 
@@ -124,19 +146,79 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
-		const model = await input.resolve();
-		if (model === null) {
+		this._model = await input.resolve();
+		if (this._model === null) {
 			return;
 		}
 
-		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		this._modifiedResourceDisposableStore.add(this._fileService.watch(this._model.modified.resource));
+		this._modifiedResourceDisposableStore.add(this._fileService.onDidFilesChange(async e => {
+			if (this._model === null) {
+				return;
+			}
 
-		const diffResult = await this.notebookEditorWorkerService.computeDiff(model.original.resource, model.modified.resource);
+			if (e.contains(this._model!.modified.resource)) {
+				if (this._model.modified.isDirty()) {
+					return;
+				}
+
+				const modified = this._model.modified;
+				const lastResolvedFileStat = modified.lastResolvedFileStat;
+				const currFileStat = await this._resolveStats(modified.resource);
+
+				if (lastResolvedFileStat && currFileStat && currFileStat.mtime > lastResolvedFileStat.mtime) {
+					await this._model.resolveModifiedFromDisk();
+					await this.updateLayout();
+					return;
+				}
+			}
+
+			if (e.contains(this._model!.original.resource)) {
+				if (this._model.original.isDirty()) {
+					return;
+				}
+
+				const original = this._model.original;
+				const lastResolvedFileStat = original.lastResolvedFileStat;
+				const currFileStat = await this._resolveStats(original.resource);
+
+				if (lastResolvedFileStat && currFileStat && currFileStat.mtime > lastResolvedFileStat.mtime) {
+					await this._model.resolveOriginalFromDisk();
+					await this.updateLayout();
+					return;
+				}
+			}
+		}));
+
+
+		this._eventDispatcher = new NotebookDiffEditorEventDispatcher();
+		await this.updateLayout();
+	}
+
+	private async _resolveStats(resource: URI) {
+		if (resource.scheme === Schemas.untitled) {
+			return undefined;
+		}
+
+		try {
+			const newStats = await this._fileService.resolve(resource, { resolveMetadata: true });
+			return newStats;
+		} catch (e) {
+			return undefined;
+		}
+	}
+
+	async updateLayout() {
+		if (!this._model) {
+			return;
+		}
+
+		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
 
 		const cellDiffViewModels: CellDiffViewModel[] = [];
-		const originalModel = model.original.notebook;
-		const modifiedModel = model.modified.notebook;
+		const originalModel = this._model.original.notebook;
+		const modifiedModel = this._model.modified.notebook;
 		let originalCellIndex = 0;
 		let modifiedCellIndex = 0;
 
@@ -150,7 +232,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				if (originalCell.getHashValue() === modifiedCell.getHashValue()) {
 					cellDiffViewModels.push(new CellDiffViewModel(
 						originalCell,
-						undefined,
+						modifiedCell,
 						'unchanged',
 						this._eventDispatcher!
 					));
@@ -203,17 +285,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		for (let i = originalCellIndex; i < originalModel.cells.length; i++) {
 			cellDiffViewModels.push(new CellDiffViewModel(
 				originalModel.cells[i],
-				undefined,
-				'delete',
-				this._eventDispatcher!
-			));
-		}
-
-		for (let i = modifiedCellIndex; i < modifiedModel.cells.length; i++) {
-			cellDiffViewModels.push(new CellDiffViewModel(
-				undefined,
-				modifiedModel.cells[i],
-				'insert',
+				modifiedModel.cells[i - originalCellIndex + modifiedCellIndex],
+				'unchanged',
 				this._eventDispatcher!
 			));
 		}
@@ -248,11 +321,15 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			r();
 		}));
 
-		return new Promise(resolve => { r = resolve; });
+		return new Promise<void>(resolve => { r = resolve; });
 	}
 
 	getDomNode() {
 		return this._rootElement;
+	}
+
+	getOverflowContainerDomNode(): HTMLElement {
+		return this._overflowContainer;
 	}
 
 	getControl(): NotebookEditorWidget | undefined {
@@ -269,6 +346,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	clearInput(): void {
 		super.clearInput();
+
+		this._modifiedResourceDisposableStore.clear();
+		this._list?.splice(0, this._list?.length || 0);
 	}
 
 	getLayoutInfo(): NotebookLayoutInfo {
@@ -317,6 +397,81 @@ registerThemingParticipant((theme, collector) => {
 		background-size: 8px 8px;
 	}
 	`);
+
+	const added = theme.getColor(diffInserted);
+	if (added) {
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container { background-color: ${added}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .margin,
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .source-container .monaco-editor .monaco-editor-background {
+					background-color: ${added};
+			}
+		`
+		);
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container { background-color: ${added}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .margin,
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-editor-container .monaco-editor .monaco-editor-background {
+					background-color: ${added};
+			}
+		`
+		);
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container { background-color: ${added}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .margin,
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-editor-container .monaco-editor .monaco-editor-background {
+					background-color: ${added};
+			}
+		`
+		);
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .metadata-header-container { background-color: ${added}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.inserted .output-header-container { background-color: ${added}; }
+		`
+		);
+	}
+	const removed = theme.getColor(diffRemoved);
+	if (added) {
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container { background-color: ${removed}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .margin,
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .source-container .monaco-editor .monaco-editor-background {
+					background-color: ${removed};
+			}
+		`
+		);
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container { background-color: ${removed}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .margin,
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-editor-container .monaco-editor .monaco-editor-background {
+					background-color: ${removed};
+			}
+		`
+		);
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container { background-color: ${removed}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container .monaco-editor .margin,
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-editor-container .monaco-editor .monaco-editor-background {
+					background-color: ${removed};
+			}
+		`
+		);
+		collector.addRule(`
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .metadata-header-container { background-color: ${removed}; }
+			.notebook-text-diff-editor .cell-body .cell-diff-editor-container.removed .output-header-container { background-color: ${removed}; }
+		`
+		);
+	}
+
+	// const changed = theme.getColor(editorGutterModifiedBackground);
+
+	// if (changed) {
+	// 	collector.addRule(`
+	// 		.notebook-text-diff-editor .cell-diff-editor-container .metadata-header-container.modified {
+	// 			background-color: ${changed};
+	// 		}
+	// 	`);
+	// }
 
 	collector.addRule(`.notebook-text-diff-editor .cell-body { margin: ${DIFF_CELL_MARGIN}px; }`);
 });

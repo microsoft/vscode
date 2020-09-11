@@ -193,6 +193,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							processInfo.load = parseFloat(cpuUsage[i]);
 						}
 
+						if (!rootItem) {
+							reject(new Error(`Root process ${rootPid} not found`));
+							return;
+						}
+
 						resolve(rootItem);
 					}
 				});
@@ -228,7 +233,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							if (process.platform === 'linux') {
 								calculateLinuxCpuUsage();
 							} else {
-								resolve(rootItem);
+								if (!rootItem) {
+									reject(new Error(`Root process ${rootPid} not found`));
+								} else {
+									resolve(rootItem);
+								}
 							}
 						}
 					});
