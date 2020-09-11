@@ -65,7 +65,7 @@ update-mime-database /usr/share/mime &> /dev/null || :
 /usr/share/@@NAME@@/
 /usr/share/applications/@@NAME@@.desktop
 /usr/share/applications/@@NAME@@-url-handler.desktop
-/usr/share/mime/packages/@@NAME-workspace.xml
+/usr/share/mime/packages/@@NAME@@-workspace.xml
 /usr/share/pixmaps/@@ICON@@.png
 /usr/share/bash-completion/completions/@@NAME@@
 /usr/share/zsh/site-functions/_@@NAME@@
