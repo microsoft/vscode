@@ -17,6 +17,24 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 
+function doCreateUri(path: string, queryValues: Map<string, string>): URI {
+	let query: string | undefined = undefined;
+
+	if (queryValues) {
+		let index = 0;
+		queryValues.forEach((value, key) => {
+			if (!query) {
+				query = '';
+			}
+
+			const prefix = (index++ === 0) ? '' : '&';
+			query += `${prefix}${key}=${encodeURIComponent(value)}`;
+		});
+	}
+
+	return URI.parse(window.location.href).with({ path, query });
+}
+
 interface ICredential {
 	service: string;
 	account: string;
@@ -68,7 +86,7 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.deletePassword(service, account);
+		this.doDeletePassword(service, account);
 
 		this.credentials.push({ service, account, password });
 
@@ -76,6 +94,22 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
+		const result = await this.doDeletePassword(service, account);
+
+		if (result) {
+			const queryValues: Map<string, string> = new Map();
+			queryValues.set('logout', String(true));
+			queryValues.set('service', service);
+
+			await request({
+				url: doCreateUri('/auth/logout', queryValues).toString(true)
+			}, CancellationToken.None);
+		}
+
+		return result;
+	}
+
+	async doDeletePassword(service: string, account: string): Promise<boolean> {
 		let found = false;
 
 		this._credentials = this.credentials.filter(credential => {
@@ -154,7 +188,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		// Start to poll on the callback being fired
 		this.periodicFetchCallback(requestId, Date.now());
 
-		return this.doCreateUri('/callback', queryValues);
+		return doCreateUri('/callback', queryValues);
 	}
 
 	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
@@ -164,7 +198,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
 
 		const result = await request({
-			url: this.doCreateUri('/fetch-callback', queryValues).toString(true)
+			url: doCreateUri('/fetch-callback', queryValues).toString(true)
 		}, CancellationToken.None);
 
 		// Check for callback results
@@ -185,23 +219,6 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		}
 	}
 
-	private doCreateUri(path: string, queryValues: Map<string, string>): URI {
-		let query: string | undefined = undefined;
-
-		if (queryValues) {
-			let index = 0;
-			queryValues.forEach((value, key) => {
-				if (!query) {
-					query = '';
-				}
-
-				const prefix = (index++ === 0) ? '' : '&';
-				query += `${prefix}${key}=${encodeURIComponent(value)}`;
-			});
-		}
-
-		return URI.parse(window.location.href).with({ path, query });
-	}
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
