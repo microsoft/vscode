@@ -1026,11 +1026,6 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString | /* for compilation */ any;
 
 		/**
-		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
-		 */
-		iconColor?: ThemeColor;
-
-		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
