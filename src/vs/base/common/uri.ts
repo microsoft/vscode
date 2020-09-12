@@ -663,9 +663,6 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			}
 		}
 		// exclude %2F from encoding
-		if (scheme.includes('http')) {
-			console.log('');
-		}
 		let idx = 0;
 		while (idx < path.length) {
 			const lastIdx = path.lastIndexOf(encodeTable[CharCode.Slash]);
