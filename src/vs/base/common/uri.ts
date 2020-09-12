@@ -662,8 +662,22 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
 			}
 		}
-		// encode the rest of the path
-		res += encoder(path, true);
+		// exclude %2F from encoding
+		if (scheme.includes('http')) {
+			console.log('');
+		}
+		let idx = 0;
+		while (idx < path.length) {
+			const lastIdx = path.lastIndexOf(encodeTable[CharCode.Slash]);
+			if (lastIdx === -1) {
+				res += encoder(path.substr(idx), true);
+				idx = path.length;
+			}
+			else {
+				res += encoder(path.substring(idx, lastIdx), true);
+				idx += lastIdx + encodeTable[CharCode.Slash].length;
+			}
+		}
 	}
 	if (query) {
 		res += '?';
