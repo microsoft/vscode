@@ -16,6 +16,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
+import product from 'vs/platform/product/common/product';
 
 function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	let query: string | undefined = undefined;
@@ -44,6 +45,32 @@ interface ICredential {
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	private readonly authService: string | undefined;
+
+	constructor() {
+		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
+		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
+		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
+		if (authSessionElementAttribute) {
+			try {
+				authSessionInfo = JSON.parse(authSessionElementAttribute);
+			} catch (error) { /* Invalid session is passed. Ignore. */ }
+		}
+
+		if (authSessionInfo) {
+			// Settings Sync Entry
+			this.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(authSessionInfo));
+
+			// Auth extension Entry
+			this.authService = `${product.urlProtocol}-${authSessionInfo.providerId}.login`;
+			this.setPassword(this.authService, 'account', JSON.stringify(authSessionInfo.scopes.map(scopes => ({
+				id: authSessionInfo!.id,
+				scopes,
+				accessToken: authSessionInfo!.accessToken
+			}))));
+		}
+	}
 
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
@@ -91,25 +118,34 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		this.credentials.push({ service, account, password });
 
 		this.save();
+
+		try {
+			if (password && service === this.authService) {
+				const value = JSON.parse(password);
+				if (Array.isArray(value) && value.length === 0) {
+					await this.logout(service);
+				}
+			}
+		} catch (error) {
+			console.log(error);
+		}
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
 		const result = await this.doDeletePassword(service, account);
 
-		if (result) {
-			const queryValues: Map<string, string> = new Map();
-			queryValues.set('logout', String(true));
-			queryValues.set('service', service);
-
-			await request({
-				url: doCreateUri('/auth/logout', queryValues).toString(true)
-			}, CancellationToken.None);
+		if (result && service === this.authService) {
+			try {
+				await this.logout(service);
+			} catch (error) {
+				console.log(error);
+			}
 		}
 
 		return result;
 	}
 
-	async doDeletePassword(service: string, account: string): Promise<boolean> {
+	private async doDeletePassword(service: string, account: string): Promise<boolean> {
 		let found = false;
 
 		this._credentials = this.credentials.filter(credential => {
@@ -137,6 +173,16 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));
+	}
+
+	private async logout(service: string): Promise<void> {
+		const queryValues: Map<string, string> = new Map();
+		queryValues.set('logout', String(true));
+		queryValues.set('service', service);
+
+		await request({
+			url: doCreateUri('/auth/logout', queryValues).toString(true)
+		}, CancellationToken.None);
 	}
 }
 
@@ -447,21 +493,6 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
-	// Credentials (with support of predefined ones via meta element)
-	const credentialsProvider = new LocalStorageCredentialsProvider();
-
-	const credentialsElement = document.getElementById('vscode-workbench-credentials');
-	const credentialsElementAttribute = credentialsElement ? credentialsElement.getAttribute('data-settings') : undefined;
-	let credentials = undefined;
-	if (credentialsElementAttribute) {
-		try {
-			credentials = JSON.parse(credentialsElementAttribute);
-			for (const { service, account, password } of credentials) {
-				credentialsProvider.setPassword(service, account, password);
-			}
-		} catch (error) { /* Invalid credentials are passed. Ignore. */ }
-	}
-
 	// Finally create workbench
 	create(document.body, {
 		...config,
@@ -470,6 +501,6 @@ class WindowIndicator implements IWindowIndicator {
 		productQualityChangeHandler,
 		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider
+		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 })();
