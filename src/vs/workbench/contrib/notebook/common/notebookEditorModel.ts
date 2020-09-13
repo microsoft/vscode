@@ -156,11 +156,15 @@ export class NotebookEditorModel extends EditorModel implements INotebookEditorM
 		this._register(this._notebook);
 
 		this._register(this._notebook.onDidChangeContent(e => {
-			if (e.kind !== NotebookCellsChangeType.Initialize) {
-				this._onDidChangeContent.fire();
+			let triggerDirty = false;
+			for (let i = 0; i < e.rawEvents.length; i++) {
+				if (e.rawEvents[i].kind !== NotebookCellsChangeType.Initialize) {
+					this._onDidChangeContent.fire();
+					triggerDirty = triggerDirty || !e.rawEvents[i].transient;
+				}
 			}
 
-			if (!e.transient) {
+			if (triggerDirty) {
 				this.setDirty(true);
 			}
 		}));

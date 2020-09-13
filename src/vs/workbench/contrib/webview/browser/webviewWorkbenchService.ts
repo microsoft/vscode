@@ -13,7 +13,6 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
@@ -312,5 +311,3 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 		}, options, extension);
 	}
 }
-
-registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);

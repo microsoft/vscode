@@ -37,7 +37,6 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
-import { first } from 'vs/base/common/arrays';
 import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
@@ -263,11 +262,15 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	showPreviousValue(): void {
-		this.navigateHistory(true);
+		if (!this.isReadonly) {
+			this.navigateHistory(true);
+		}
 	}
 
 	showNextValue(): void {
-		this.navigateHistory(false);
+		if (!this.isReadonly) {
+			this.navigateHistory(false);
+		}
 	}
 
 	focusFilter(): void {
@@ -306,7 +309,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
 
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
-			this.styleElement.innerHTML = `
+			this.styleElement.textContent = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
 					font-family: ${fontFamily};
@@ -356,7 +359,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (focusedSession) {
 				session = focusedSession;
 			} else if (!treeInput || sessionsToIgnore.has(treeInput)) {
-				session = first(this.debugService.getModel().getSessions(true), s => !sessionsToIgnore.has(s)) || undefined;
+				session = this.debugService.getModel().getSessions(true).find(s => !sessionsToIgnore.has(s));
 			}
 		}
 		if (session) {
@@ -393,7 +396,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	acceptReplInput(): void {
 		const session = this.tree.getInput();
-		if (session) {
+		if (session && !this.isReadonly) {
 			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, this.replInput.getValue());
 			revealLastElement(this.tree);
 			this.history.add(this.replInput.getValue());
@@ -531,7 +534,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this.replDelegate = new ReplDelegate(this.configurationService);
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
-		dom.toggleClass(treeContainer, 'word-wrap', wordWrap);
+		treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
@@ -606,8 +609,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this._register(this.replInput.onDidFocusEditorText(() => this.updateInputDecoration()));
 		this._register(this.replInput.onDidBlurEditorText(() => this.updateInputDecoration()));
 
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => this.replInputContainer.classList.add('synthetic-focus')));
+		this._register(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => this.replInputContainer.classList.remove('synthetic-focus')));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<IReplElement>): void {

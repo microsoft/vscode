@@ -8,7 +8,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -47,7 +46,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
-				get label() { return labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
+				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
 			};
 		}
 	}
@@ -56,7 +55,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		if (extension.location.scheme === Schemas.file) {
 			return this.localExtensionManagementServer;
 		}
-		if (this.remoteExtensionManagementServer && extension.location.scheme === REMOTE_HOST_SCHEME) {
+		if (this.remoteExtensionManagementServer && extension.location.scheme === Schemas.vscodeRemote) {
 			return this.remoteExtensionManagementServer;
 		}
 		throw new Error(`Invalid Extension ${extension.location}`);

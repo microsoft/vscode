@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
@@ -26,7 +27,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellOutputKind, CellUri, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -425,30 +426,24 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 					let topPastedCell: CellViewModel | undefined = undefined;
 					pasteCells.items.reverse().map(cell => {
-						const data = CellUri.parse(cell.uri);
-
-						if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
-							return viewModel.notebookDocument.createCellTextModel(
-								cell.getValue(),
-								cell.language,
-								cell.cellKind,
-								[],
-								{
-									editable: cell.metadata?.editable,
-									runnable: cell.metadata?.runnable,
-									breakpointMargin: cell.metadata?.breakpointMargin,
-									hasExecutionOrder: cell.metadata?.hasExecutionOrder,
-									inputCollapsed: cell.metadata?.inputCollapsed,
-									outputCollapsed: cell.metadata?.outputCollapsed,
-									custom: cell.metadata?.custom
-								}
-							);
-						} else {
-							return cell;
-						}
+						return {
+							source: cell.getValue(),
+							language: cell.language,
+							cellKind: cell.cellKind,
+							outputs: cell.outputs,
+							metadata: {
+								editable: cell.metadata?.editable,
+								runnable: cell.metadata?.runnable,
+								breakpointMargin: cell.metadata?.breakpointMargin,
+								hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+								inputCollapsed: cell.metadata?.inputCollapsed,
+								outputCollapsed: cell.metadata?.outputCollapsed,
+								custom: cell.metadata?.custom
+							}
+						};
 					}).forEach(pasteCell => {
 						const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-						topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+						topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
 					if (topPastedCell) {
@@ -461,21 +456,23 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 					let topPastedCell: CellViewModel | undefined = undefined;
 					pasteCells.items.reverse().map(cell => {
-						const data = CellUri.parse(cell.uri);
-
-						if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
-							return viewModel.notebookDocument.createCellTextModel(
-								cell.getValue(),
-								cell.language,
-								cell.cellKind,
-								[],
-								cell.metadata
-							);
-						} else {
-							return cell;
-						}
+						return {
+							source: cell.getValue(),
+							language: cell.language,
+							cellKind: cell.cellKind,
+							outputs: cell.outputs,
+							metadata: {
+								editable: cell.metadata?.editable,
+								runnable: cell.metadata?.runnable,
+								breakpointMargin: cell.metadata?.breakpointMargin,
+								hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+								inputCollapsed: cell.metadata?.inputCollapsed,
+								outputCollapsed: cell.metadata?.outputCollapsed,
+								custom: cell.metadata?.custom
+							}
+						};
 					}).forEach(pasteCell => {
-						topPastedCell = viewModel.insertCell(0, pasteCell, true);
+						topPastedCell = viewModel.createCell(0, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 					});
 
 					if (topPastedCell) {
@@ -622,8 +619,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return notebookModel;
 
 		} else {
-			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri);
-			await provider.controller.createNotebook(notebookModel, backupId);
+			const dataDto = await provider.controller.resolveNotebookDocument(viewType, uri, backupId);
+			let cells = dataDto.data.cells.length ? dataDto.data.cells : (uri.scheme === Schemas.untitled ? [{
+				cellKind: CellKind.Code,
+				language: dataDto.data.languages.length ? dataDto.data.languages[0] : '',
+				outputs: [],
+				metadata: undefined,
+				source: ''
+			}] : []);
+
+			notebookModel = this._instantiationService.createInstance(NotebookTextModel, viewType, provider.controller.supportBackup, uri, cells, dataDto.data.languages, dataDto.data.metadata, dataDto.transientOptions);
 		}
 
 		// new notebook model created

@@ -20,7 +20,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { BaseCellRenderTemplate, CellEditState, CellFocusMode, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_OUTPUT_FOCUSED, EXPAND_CELL_CONTENT_COMMAND_ID, NOTEBOOK_CELL_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellEditType, CellKind, CellUri, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookCellMetadata, NotebookCellRunState, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -962,22 +962,24 @@ registerAction2(class extends NotebookAction {
 
 		let topPastedCell: CellViewModel | undefined = undefined;
 		pasteCells.items.reverse().map(cell => {
-			const data = CellUri.parse(cell.uri);
-
-			if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
-				return viewModel.notebookDocument.createCellTextModel(
-					cell.getValue(),
-					cell.language,
-					cell.cellKind,
-					[],
-					cell.metadata
-				);
-			} else {
-				return cell;
-			}
+			return {
+				source: cell.getValue(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: {
+					editable: cell.metadata?.editable,
+					runnable: cell.metadata?.runnable,
+					breakpointMargin: cell.metadata?.breakpointMargin,
+					hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+					inputCollapsed: cell.metadata?.inputCollapsed,
+					outputCollapsed: cell.metadata?.outputCollapsed,
+					custom: cell.metadata?.custom
+				}
+			};
 		}).forEach(pasteCell => {
 			const newIdx = typeof currCellIndex === 'number' ? currCellIndex + 1 : 0;
-			topPastedCell = viewModel.insertCell(newIdx, pasteCell, true);
+			topPastedCell = viewModel.createCell(newIdx, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 		});
 
 		if (topPastedCell) {
@@ -1018,21 +1020,23 @@ registerAction2(class extends NotebookCellAction {
 
 		let topPastedCell: CellViewModel | undefined = undefined;
 		pasteCells.items.reverse().map(cell => {
-			const data = CellUri.parse(cell.uri);
-
-			if (pasteCells.isCopy || data?.notebook.toString() !== viewModel.uri.toString()) {
-				return viewModel.notebookDocument.createCellTextModel(
-					cell.getValue(),
-					cell.language,
-					cell.cellKind,
-					[],
-					cell.metadata
-				);
-			} else {
-				return cell;
-			}
+			return {
+				source: cell.getValue(),
+				language: cell.language,
+				cellKind: cell.cellKind,
+				outputs: cell.outputs,
+				metadata: {
+					editable: cell.metadata?.editable,
+					runnable: cell.metadata?.runnable,
+					breakpointMargin: cell.metadata?.breakpointMargin,
+					hasExecutionOrder: cell.metadata?.hasExecutionOrder,
+					inputCollapsed: cell.metadata?.inputCollapsed,
+					outputCollapsed: cell.metadata?.outputCollapsed,
+					custom: cell.metadata?.custom
+				}
+			};
 		}).forEach(pasteCell => {
-			topPastedCell = viewModel.insertCell(currCellIndex, pasteCell, true);
+			topPastedCell = viewModel.createCell(currCellIndex, pasteCell.source, pasteCell.language, pasteCell.cellKind, pasteCell.metadata, pasteCell.outputs, true);
 			return;
 		});
 
@@ -1297,7 +1301,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId, [{ editType: CellEditType.Output, index, outputs: [] }], true);
+		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId, [{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined);
 
 		if (context.cell.metadata && context.cell.metadata?.runState !== NotebookCellRunState.Running) {
 			context.notebookEditor.viewModel!.notebookDocument.applyEdit(context.notebookEditor.viewModel!.notebookDocument.versionId, [{
@@ -1308,7 +1312,7 @@ registerAction2(class extends NotebookCellAction {
 					lastRunDuration: undefined,
 					statusMessage: undefined
 				}
-			}], true);
+			}], true, undefined, () => undefined);
 		}
 	}
 });
@@ -1391,7 +1395,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 				context.notebookEditor.viewModel!.notebookDocument.applyEdit(
 					context.notebookEditor.viewModel!.notebookDocument.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: selection.languageId }],
-					true
+					true, undefined, () => undefined
 				);
 			}
 		}
@@ -1442,7 +1446,7 @@ registerAction2(class extends NotebookAction {
 		editor.viewModel.notebookDocument.applyEdit(editor.viewModel.notebookDocument.versionId,
 			editor.viewModel.notebookDocument.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
-			})), true);
+			})), true, undefined, () => undefined);
 	}
 });
 
@@ -1576,7 +1580,7 @@ abstract class ChangeNotebookCellMetadataAction extends NotebookCellAction {
 			return;
 		}
 
-		textModel.applyEdit(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true);
+		textModel.applyEdit(textModel.versionId, [{ editType: CellEditType.Metadata, index, metadata: { ...context.cell.metadata, ...this.getMetadataDelta() } }], true, undefined, () => undefined);
 	}
 
 	abstract getMetadataDelta(): NotebookCellMetadata;

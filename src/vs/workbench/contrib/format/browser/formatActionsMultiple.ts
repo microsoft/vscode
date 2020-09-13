@@ -84,7 +84,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 		if (defaultFormatterId) {
 			// good -> formatter configured
-			const [defaultFormatter] = formatter.filter(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
+			const defaultFormatter = formatter.find(formatter => ExtensionIdentifier.equals(formatter.extensionId, defaultFormatterId));
 			if (defaultFormatter) {
 				// formatter available
 				return defaultFormatter;
@@ -115,7 +115,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 				Severity.Info,
 				message,
 				[{ label: nls.localize('do.config', "Configure..."), run: () => this._pickAndPersistDefaultFormatter(formatter, document).then(resolve, reject) }],
-				{ silent, onCancel: resolve }
+				{ silent, onCancel: () => resolve(undefined) }
 			);
 
 			if (silent) {

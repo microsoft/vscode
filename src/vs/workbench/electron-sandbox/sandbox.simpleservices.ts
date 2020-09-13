@@ -599,6 +599,8 @@ registerSingleton(IKeymapService, SimpleKeymapService);
 class SimpleWebviewService implements IWebviewService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly activeWebview = undefined;
+
 	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }
 	createWebviewOverlay(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewOverlay { throw new Error('Method not implemented.'); }
 	setIcons(id: string, value: WebviewIcons | undefined): void { }

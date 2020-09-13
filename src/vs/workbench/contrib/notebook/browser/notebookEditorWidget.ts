@@ -1280,7 +1280,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const focused = this._list?.getFocusedElements();
-		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText, language, type, undefined, true, undefined, focused);
+		const newCell = this._notebookViewModel!.createCell(insertIndex, initialText, language, type, undefined, [], true, undefined, focused);
 		return newCell as CellViewModel;
 	}
 

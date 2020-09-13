@@ -661,7 +661,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (isAbsolutePathQuery) {
 			const resource = toLocalResource(
 				await this.pathService.fileURI(detildifiedQuery),
-				this.environmentService.configuration.remoteAuthority
+				this.environmentService.configuration.remoteAuthority,
+				this.pathService.defaultUriScheme
 			);
 
 			if (token.isCancellationRequested) {
@@ -697,7 +698,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				const resource = toLocalResource(
 					folder.toResource(query.original),
-					this.environmentService.configuration.remoteAuthority
+					this.environmentService.configuration.remoteAuthority,
+					this.pathService.defaultUriScheme
 				);
 
 				try {

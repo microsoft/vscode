@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorStickyContext, EditorPinnedContext, Deprecated_EditorPinnedContext, Deprecated_EditorDirtyContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, Deprecated_EditorPinnedContext, Deprecated_EditorDirtyContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -217,11 +217,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
-		const groupActiveEditorDirtyContext = EditorDirtyContext.bindTo(contextKeyService);
+		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(contextKeyService);
 		const deprecatedGroupActiveEditorDirtyContext = Deprecated_EditorDirtyContext.bindTo(contextKeyService);
-		const groupActiveEditorPinnedContext = EditorPinnedContext.bindTo(contextKeyService);
+		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
 		const deprecatedGroupActiveEditorPinnedContext = Deprecated_EditorPinnedContext.bindTo(contextKeyService);
-		const groupActiveEditorStickyContext = EditorStickyContext.bindTo(contextKeyService);
+		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyService);
 
 		const activeEditorListener = new MutableDisposable();
@@ -302,7 +302,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Toolbar
 		const groupId = this._group.id;
 		const containerToolbar = this._register(new ActionBar(toolbarContainer, {
-			ariaLabel: localize('araLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
+			ariaLabel: localize('ariaLabelGroupActions', "Editor group actions"), actionRunner: this._register(new class extends ActionRunner {
 				run(action: IAction) {
 					return action.run(groupId);
 				}

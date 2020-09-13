@@ -16,7 +16,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput, Verbosity, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
-import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/layoutActions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -144,6 +144,7 @@ export class OpenEditorsView extends ViewPane {
 					}
 					case GroupChangeKind.EDITOR_DIRTY:
 					case GroupChangeKind.EDITOR_LABEL:
+					case GroupChangeKind.EDITOR_STICKY:
 					case GroupChangeKind.EDITOR_PIN: {
 						this.list.splice(index, 1, [new OpenEditor(e.editor!, group)]);
 						break;
@@ -205,8 +206,8 @@ export class OpenEditorsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'open-editors');
-		dom.addClass(container, 'show-file-icons');
+		container.classList.add('open-editors');
+		container.classList.add('show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
 
@@ -430,10 +431,10 @@ export class OpenEditorsView extends ViewPane {
 
 		let dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
-			dom.addClass(this.dirtyCountElement, 'hidden');
+			this.dirtyCountElement.classList.add('hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
-			dom.removeClass(this.dirtyCountElement, 'hidden');
+			this.dirtyCountElement.classList.remove('hidden');
 		}
 	}
 
@@ -565,6 +566,9 @@ class EditorGroupRenderer implements IListRenderer<IEditorGroup, IEditorGroupTem
 class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static readonly ID = 'openeditor';
 
+	private readonly closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
+	private readonly unpinEditorAction = this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL);
+
 	constructor(
 		private labels: ResourceLabels,
 		private instantiationService: IInstantiationService,
@@ -583,11 +587,6 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		editorTemplate.container = container;
 		editorTemplate.actionRunner = new OpenEditorActionRunner();
 		editorTemplate.actionBar = new ActionBar(container, { actionRunner: editorTemplate.actionRunner });
-
-		const closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
-		const key = this.keybindingService.lookupKeybinding(closeEditorAction.id);
-		editorTemplate.actionBar.push(closeEditorAction, { icon: true, label: false, keybinding: key ? key.getLabel() : undefined });
-
 		editorTemplate.root = this.labels.create(container);
 
 		return editorTemplate;
@@ -596,7 +595,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		const editor = openedEditor.editor;
 		templateData.actionRunner.editor = openedEditor;
-		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
+		editor.isDirty() && !editor.isSaving() ? templateData.container.classList.add('dirty') : templateData.container.classList.remove('dirty');
 		templateData.root.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
@@ -607,6 +606,13 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
 			title: editor.getTitle(Verbosity.LONG)
 		});
+		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
+		if (!templateData.actionBar.hasAction(editorAction)) {
+			if (!templateData.actionBar.isEmpty()) {
+				templateData.actionBar.clear();
+			}
+			templateData.actionBar.push(editorAction, { icon: true, label: false, keybinding: this.keybindingService.lookupKeybinding(editorAction.id)?.getLabel() });
+		}
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {

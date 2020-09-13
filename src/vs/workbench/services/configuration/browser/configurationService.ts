@@ -403,7 +403,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 
 			if (!this.localUserConfiguration.hasTasksLoaded) {
 				// Reload local user configuration again to load user tasks
-				runWhenIdle(() => this.reloadLocalUserConfiguration().then(configurationModel => this.onLocalUserConfigurationChanged(configurationModel)), 5000);
+				runWhenIdle(() => this.reloadLocalUserConfiguration(), 5000);
 			}
 		});
 	}
@@ -436,16 +436,27 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			.then(([local, remote]) => ({ local, remote }));
 	}
 
-	private reloadUserConfiguration(key?: string): Promise<{ local: ConfigurationModel, remote: ConfigurationModel }> {
-		return Promise.all([this.reloadLocalUserConfiguration(), this.reloadRemoeUserConfiguration()]).then(([local, remote]) => ({ local, remote }));
+	private reloadUserConfiguration(): Promise<{ local: ConfigurationModel, remote: ConfigurationModel }> {
+		return Promise.all([this.reloadLocalUserConfiguration(true), this.reloadRemoteUserConfiguration(true)]).then(([local, remote]) => ({ local, remote }));
 	}
 
-	private reloadLocalUserConfiguration(key?: string): Promise<ConfigurationModel> {
-		return this.localUserConfiguration.reload();
+	async reloadLocalUserConfiguration(donotTrigger?: boolean): Promise<ConfigurationModel> {
+		const model = await this.localUserConfiguration.reload();
+		if (!donotTrigger) {
+			this.onLocalUserConfigurationChanged(model);
+		}
+		return model;
 	}
 
-	private reloadRemoeUserConfiguration(key?: string): Promise<ConfigurationModel> {
-		return this.remoteUserConfiguration ? this.remoteUserConfiguration.reload() : Promise.resolve(new ConfigurationModel());
+	private async reloadRemoteUserConfiguration(donotTrigger?: boolean): Promise<ConfigurationModel> {
+		if (this.remoteUserConfiguration) {
+			const model = await this.remoteUserConfiguration.reload();
+			if (!donotTrigger) {
+				this.onRemoteUserConfigurationChanged(model);
+			}
+			return model;
+		}
+		return new ConfigurationModel();
 	}
 
 	private reloadWorkspaceConfiguration(key?: string): Promise<void> {
@@ -667,9 +678,9 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 			.then(() => {
 				switch (editableConfigurationTarget) {
 					case EditableConfigurationTarget.USER_LOCAL:
-						return this.reloadLocalUserConfiguration().then(local => this.onLocalUserConfigurationChanged(local));
+						return this.reloadLocalUserConfiguration().then(() => undefined);
 					case EditableConfigurationTarget.USER_REMOTE:
-						return this.reloadRemoeUserConfiguration().then(remote => this.onRemoteUserConfigurationChanged(remote));
+						return this.reloadRemoteUserConfiguration().then(() => undefined);
 					case EditableConfigurationTarget.WORKSPACE:
 						return this.reloadWorkspaceConfiguration();
 					case EditableConfigurationTarget.WORKSPACE_FOLDER:

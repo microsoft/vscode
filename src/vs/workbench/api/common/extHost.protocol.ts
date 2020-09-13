@@ -686,7 +686,7 @@ export interface ExtHostCustomEditorsShape {
 }
 
 export interface ExtHostWebviewViewsShape {
-	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, state: any, cancellation: CancellationToken): Promise<void>;
+	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, title: string | undefined, state: any, cancellation: CancellationToken): Promise<void>;
 
 	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewHandle, visible: boolean): void;
 
@@ -736,20 +736,17 @@ export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;
 
 export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void>;
-	$onNotebookChange(viewType: string, resource: UriComponents): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
 	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
 	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
-	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], metadata: NotebookDocumentMetadata | undefined): Promise<boolean>;
+	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
-	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
-	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
+	$onUndoableContentChange(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
 }
 
@@ -1038,6 +1035,10 @@ export interface ExtHostWorkspaceShape {
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 }
 
+export interface ExtHostFileSystemInfoShape {
+	$acceptProviderInfos(scheme: string, capabilities: number | null): void;
+}
+
 export interface ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat>;
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]>;
@@ -1277,8 +1278,7 @@ export interface IWorkspaceTextEditDto {
 export interface IWorkspaceCellEditDto {
 	_type: WorkspaceEditType.Cell;
 	resource: UriComponents;
-	edit?: ICellEditOperation;
-	notebookMetadata?: NotebookDocumentMetadata;
+	edit: ICellEditOperation;
 	notebookVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }
@@ -1790,6 +1790,7 @@ export const ExtHostContext = {
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
+	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),

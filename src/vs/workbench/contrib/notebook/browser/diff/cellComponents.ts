@@ -316,6 +316,13 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._register(this._metadataHeader);
 		this._metadataHeader.buildHeader();
 
+		if (this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+			this._layoutInfo.outputHeight = 0;
+			this._layoutInfo.outputStatusHeight = 0;
+			this.layout({});
+			return;
+		}
+
 		this._outputHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-header-container'));
 		this._outputInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-info-container'));
 
@@ -469,7 +476,9 @@ abstract class AbstractCellRenderer extends Disposable {
 				this.notebookEditor.textModel!.applyEdit(
 					this.notebookEditor.textModel!.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
-					true
+					true,
+					undefined,
+					() => undefined
 				);
 			}
 
@@ -481,7 +490,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 			this.notebookEditor.textModel!.applyEdit(this.notebookEditor.textModel!.versionId, [
 				{ editType: CellEditType.Metadata, index, metadata: result }
-			], true);
+			], true, undefined, () => undefined);
 		} catch {
 		}
 	}

@@ -73,7 +73,7 @@ registerSingleton(IAccessibilityService, NativeAccessibilityService, true);
 class LinuxAccessibilityContribution implements IWorkbenchContribution {
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@IAccessibilityService accessibilityService: AccessibilityService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
 		const forceRendererAccessibility = () => {

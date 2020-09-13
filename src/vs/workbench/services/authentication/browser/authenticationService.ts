@@ -444,7 +444,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const didRegister: Promise<MainThreadAuthenticationProvider> = new Promise((resolve, _) => {
 			this.onDidRegisterAuthenticationProvider(e => {
 				if (e.id === providerId) {
-					resolve(this._authenticationProviders.get(providerId));
+					provider = this._authenticationProviders.get(providerId);
+					if (provider) {
+						resolve(provider);
+					} else {
+						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+					}
 				}
 			});
 		});

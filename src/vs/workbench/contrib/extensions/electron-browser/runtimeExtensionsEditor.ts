@@ -39,7 +39,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -427,7 +427,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 					const el = $('span', undefined, ...renderCodiconsAsElement(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
-					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._environmentService.configuration.remoteAuthority);
+					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
 						reset(el, ...renderCodiconsAsElement(`$(remote) ${hostLabel}`));
 					}

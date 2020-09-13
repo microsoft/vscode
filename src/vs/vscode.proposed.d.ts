@@ -717,16 +717,69 @@ declare module 'vscode' {
 
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
+	// TODO@jrieken FileDecoration, FileDecorationProvider etc.
+	// TODO@jrieken Add selector notion to limit decorations to a view.
+	// TODO@jrieken Rename `Decoration.letter` to `short` so that it could be used for coverage et al.
+
 	export class Decoration {
+
+		/**
+		 * A letter that represents this decoration.
+		 */
 		letter?: string;
+
+		/**
+		 * The human-readable title for this decoration.
+		 */
 		title?: string;
+
+		/**
+		 * The color of this decoration.
+		 */
 		color?: ThemeColor;
+
+		/**
+		 * The priority of this decoration.
+		 */
 		priority?: number;
+
+		/**
+		 * A flag expressing that this decoration should be
+		 * propagted to its parents.
+		 */
 		bubble?: boolean;
+
+		/**
+		 * Creates a new decoration.
+		 *
+		 * @param letter A letter that represents the decoration.
+		 * @param title The title of the decoration.
+		 * @param color The color of the decoration.
+		 */
+		constructor(letter?: string, title?: string, color?: ThemeColor);
 	}
 
+	/**
+	 * The decoration provider interfaces defines the contract between extensions and
+	 * file decorations.
+	 */
 	export interface DecorationProvider {
+
+		/**
+		 * An event to signal decorations for one or many files have changed.
+		 *
+		 * @see [EventEmitter](#EventEmitter
+		 */
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+
+		/**
+		 * Provide decorations for a given uri.
+		 *
+		 *
+		 * @param uri The uri of the file to provide a decoration for.
+		 * @param token A cancellation token.
+		 * @returns A decoration or a thenable that resolves to such.
+		 */
 		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 
@@ -971,11 +1024,6 @@ declare module 'vscode' {
 		 * Content to be shown when you hover over the tree item.
 		 */
 		tooltip?: string | MarkdownString | /* for compilation */ any;
-
-		/**
-		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
-		 */
-		iconColor?: ThemeColor;
 
 		/**
 		 * @param label Label describing this item
@@ -1470,6 +1518,10 @@ declare module 'vscode' {
 		outputId: string;
 	}
 
+	export interface NotebookDocumentMetadataChangeEvent {
+		readonly document: NotebookDocument;
+	}
+
 	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
@@ -1747,6 +1799,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
@@ -2113,6 +2166,11 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 	}
 
+	/**
+	 * Additional information the webview view being resolved.
+	 *
+	 * @param T Type of the webview's state.
+	 */
 	interface WebviewViewResolveContext<T = unknown> {
 		/**
 		 * Persisted state from the webview content.
@@ -2201,5 +2259,27 @@ declare module 'vscode' {
 			};
 		}): Disposable;
 	}
+	//#endregion
+
+	//#region
+
+	export interface FileSystem {
+		/**
+		 * Check if a given file system supports writing files.
+		 *
+		 * Keep in mind that just because a file system supports writing, that does
+		 * not mean that writes will always succeed. There may be permissions issues
+		 * or other errors that prevent writing a file.
+		 *
+		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
+		 *
+		 * @return `true` if the file system supports writing, `false` if it does not
+		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
+		 * know about the filesystem.
+		 */
+		isWritableFileSystem(scheme: string): boolean | undefined;
+	}
+
+
 	//#endregion
 }

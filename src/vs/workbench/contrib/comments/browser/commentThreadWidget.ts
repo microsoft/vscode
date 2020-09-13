@@ -663,7 +663,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._disposables.add(newCommentNode);
 		this._disposables.add(newCommentNode.onDidClick(clickedNode =>
-			this.setFocusedComment(arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
+			this.setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
 
 		return newCommentNode;
@@ -692,7 +692,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (label) {
-			this._headingLabel.innerHTML = strings.escape(label);
+			this._headingLabel.textContent = strings.escape(label);
 			this._headingLabel.setAttribute('aria-label', label);
 		}
 	}
@@ -916,7 +916,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			font-weight: ${fontInfo.fontWeight};
 		}`);
 
-		this._styleElement.innerHTML = content.join('\n');
+		this._styleElement.textContent = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
 		this.setCommentEditorDecorations();
