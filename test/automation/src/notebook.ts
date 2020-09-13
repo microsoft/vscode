@@ -51,9 +51,9 @@ export class Notebook {
 		// preview-mode or collapsed markdown
 		const markdownSelector = `#${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), #${notebookId} .monaco-list-row .collapsed .markdown`;
 		const [cells, cellEditorsOrMarkdowns, languagePickersOrMarkdowns] = await Promise.all([
-			this.code.waitForElements(`#${notebookId} .monaco-list-row`, false),
-			this.code.waitForElements(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-editor-container > .monaco-editor, ${markdownSelector}`, false),
-			this.code.waitForElements(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-language-picker, #${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), ${markdownSelector}`, false)
+			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row`),
+			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-editor-container > .monaco-editor, ${markdownSelector}`),
+			this.getElementsWithoutWaiting(`#${notebookId} .monaco-list-row .cell-editor-part:not([aria-hidden=true]) .cell-language-picker, #${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), ${markdownSelector}`)
 		]);
 
 		if (cells.length !== cellEditorsOrMarkdowns.length) {
@@ -172,8 +172,12 @@ export class Notebook {
 		await this.code.waitForTextContent(selector, text);
 	}
 
+	private async getElementsWithoutWaiting(selector: string): Promise<IElement[]> {
+		return await this.code.waitForElements(selector, false, () => true);
+	}
+
 	async getRowCount(): Promise<number> {
-		return (await this.code.waitForElements(activeRowSelector, false, () => true)).length;
+		return (await this.getElementsWithoutWaiting(activeRowSelector)).length;
 	}
 
 	async getFocusedRow(): Promise<IElement> {
