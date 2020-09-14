@@ -279,6 +279,7 @@ function getActions(app: Application): INotebookActions {
 				return;
 			}
 
+			await qa.runCommand('notebook.cell.expandCellContent');
 			await n.editCell();
 			await n.waitForTypeInEditor('more text\n\n');
 		},
