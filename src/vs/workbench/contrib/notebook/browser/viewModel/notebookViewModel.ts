@@ -625,7 +625,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[], synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []): CellViewModel {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
-		this._notebook.applyEdit(this._notebook.versionId, [
+		this._notebook.applyEdits(this._notebook.versionId, [
 			{
 				editType: CellEditType.Replace,
 				index,
@@ -663,7 +663,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}
 
-		this._notebook.applyEdit(this._notebook.versionId, [
+		this._notebook.applyEdits(this._notebook.versionId, [
 			{
 				editType: CellEditType.Replace,
 				index: index,
@@ -691,7 +691,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return false;
 		}
 
-		this._notebook.applyEdit(this._notebook.versionId, [
+		this._notebook.applyEdits(this._notebook.versionId, [
 			{
 				editType: CellEditType.Move,
 				index,
@@ -785,7 +785,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				const editorSelections = cell.getSelections();
 				const language = cell.language;
 				const kind = cell.cellKind;
-				this._notebook.applyEdit(this._notebook.versionId, [
+				this._notebook.applyEdits(this._notebook.versionId, [
 					{
 						editType: CellEditType.CellContent,
 						index,

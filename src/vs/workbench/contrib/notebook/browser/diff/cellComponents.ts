@@ -473,7 +473,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
 				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
-				this.notebookEditor.textModel!.applyEdit(
+				this.notebookEditor.textModel!.applyEdits(
 					this.notebookEditor.textModel!.versionId,
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
 					true,
@@ -488,7 +488,7 @@ abstract class AbstractCellRenderer extends Disposable {
 				return;
 			}
 
-			this.notebookEditor.textModel!.applyEdit(this.notebookEditor.textModel!.versionId, [
+			this.notebookEditor.textModel!.applyEdits(this.notebookEditor.textModel!.versionId, [
 				{ editType: CellEditType.Metadata, index, metadata: result }
 			], true, undefined, () => undefined);
 		} catch {
