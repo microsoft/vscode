@@ -161,7 +161,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 				// update moving average
 				const newDelay = this._getCodeLensModelDelays.update(model, Date.now() - t1);
-				scheduler.timeout = newDelay;
+				scheduler.delay = newDelay;
 
 				// render lenses
 				this._renderCodeLensSymbols(result);
@@ -393,7 +393,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 			// update moving average
 			const newDelay = this._resolveCodeLensesDelays.update(model, Date.now() - t1);
-			this._resolveCodeLensesScheduler.timeout = newDelay;
+			this._resolveCodeLensesScheduler.delay = newDelay;
 
 			if (this._currentCodeLensModel) { // update the cached state with new resolved items
 				this._codeLensCache.put(model, this._currentCodeLensModel);

@@ -614,15 +614,15 @@ export class RunOnceScheduler {
 
 	protected runner: ((...args: any[]) => void) | null;
 
-	private _timeoutToken: any;
-	private _timeout: number;
-	private _timeoutHandler: () => void;
+	private timeoutToken: any;
+	private timeout: number;
+	private timeoutHandler: () => void;
 
-	constructor(runner: (...args: any[]) => void, timeout: number) {
-		this._timeoutToken = -1;
+	constructor(runner: (...args: any[]) => void, delay: number) {
+		this.timeoutToken = -1;
 		this.runner = runner;
-		this._timeout = timeout;
-		this._timeoutHandler = this.onTimeout.bind(this);
+		this.timeout = delay;
+		this.timeoutHandler = this.onTimeout.bind(this);
 	}
 
 	/**
@@ -638,36 +638,36 @@ export class RunOnceScheduler {
 	 */
 	cancel(): void {
 		if (this.isScheduled()) {
-			clearTimeout(this._timeoutToken);
-			this._timeoutToken = -1;
+			clearTimeout(this.timeoutToken);
+			this.timeoutToken = -1;
 		}
 	}
 
 	/**
 	 * Cancel previous runner (if any) & schedule a new runner.
 	 */
-	schedule(delay = this._timeout): void {
+	schedule(delay = this.timeout): void {
 		this.cancel();
-		this._timeoutToken = setTimeout(this._timeoutHandler, delay);
+		this.timeoutToken = setTimeout(this.timeoutHandler, delay);
 	}
 
-	get timeout(): number {
-		return this._timeout;
+	get delay(): number {
+		return this.timeout;
 	}
 
-	set timeout(value: number) {
-		this._timeout = value;
+	set delay(value: number) {
+		this.timeout = value;
 	}
 
 	/**
 	 * Returns true if scheduled.
 	 */
 	isScheduled(): boolean {
-		return this._timeoutToken !== -1;
+		return this.timeoutToken !== -1;
 	}
 
 	private onTimeout() {
-		this._timeoutToken = -1;
+		this.timeoutToken = -1;
 		if (this.runner) {
 			this.doRun();
 		}
