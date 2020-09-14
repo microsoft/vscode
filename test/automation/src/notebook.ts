@@ -7,7 +7,7 @@ import { Code } from './code';
 import { QuickAccess } from './quickaccess';
 import { IElement } from './driver';
 
-const notebookEditorSelector = `.notebook-editor`;
+const notebookEditorSelector = `.notebookOverlay`;
 const activeRowSelector = `${notebookEditorSelector}:focus-within .monaco-list-row.focused`;
 
 export interface ICellData {
@@ -26,10 +26,6 @@ export class Notebook {
 	}
 
 	async getCellDatas(): Promise<ICellData[][]> {
-		if (await this.notebookIsEmpty()) {
-			return [];
-		}
-
 		const notebooks = await this.code.waitForElements('.notebookOverlay', false);
 		const ids = notebooks.map(n => n.id);
 
@@ -48,6 +44,10 @@ export class Notebook {
 	}
 
 	private async getCellDatasForNotebook(notebookId: string): Promise<ICellData[]> {
+		if (await this.notebookIsEmpty(notebookId)) {
+			return [];
+		}
+
 		// preview-mode or collapsed markdown
 		const markdownSelector = `#${notebookId} .monaco-list-row .markdown:not([aria-hidden=true]), #${notebookId} .monaco-list-row .collapsed .markdown`;
 		const [cells, cellEditorsOrMarkdowns, languagePickersOrMarkdowns] = await Promise.all([
@@ -57,8 +57,7 @@ export class Notebook {
 		]);
 
 		if (cells.length !== cellEditorsOrMarkdowns.length) {
-			console.log(notebookId);
-			throw new Error(`Number of cells does not match number of editors/rendered markdowns. ${cells.length} cells, ${cellEditorsOrMarkdowns.length} editors/markdowns`);
+			throw new Error(`Number of cells does not match number of editors/rendered markdowns. ${cells.length} cells, ${cellEditorsOrMarkdowns.length} editors/markdowns. Notebook ${notebookId}`);
 		}
 
 		if (cells.length !== languagePickersOrMarkdowns.length) {
@@ -87,8 +86,13 @@ export class Notebook {
 		});
 	}
 
-	async notebookIsEmpty(): Promise<boolean> {
-		const empty = await this.code.waitForElement(`.notebookOverlay .emptyNotebook`, () => true, 2);
+	async focusedNotebookIsEmpty(): Promise<boolean> {
+		const empty = await this.code.waitForElement(`.notebookOverlay:focus-within .emptyNotebook`, () => true, 2);
+		return !!empty;
+	}
+
+	async notebookIsEmpty(notebookId: string): Promise<boolean> {
+		const empty = await this.code.waitForElement(`#${notebookId} .emptyNotebook`, () => true, 2);
 		return !!empty;
 	}
 
@@ -117,7 +121,7 @@ export class Notebook {
 
 	async reopenNotebook() {
 		await this.quickAccess.openFile('random_smoketest.random-nb', false);
-		await this.code.waitForElement(activeRowSelector);
+		await this.code.waitForElement(notebookEditorSelector);
 	}
 
 	async focusNextCell() {

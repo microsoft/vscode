@@ -151,12 +151,12 @@ class NotebookActionRunner {
 			await wait(1000); // Wait for outputs to finish rendering
 			const newCells = await this.app.workbench.notebook.getCellDatas();
 
-			if (originalCells[0].length === 0) {
-				assert.equal(newCells[0].length, 1);
-				return;
-			}
+			// if (originalCells[0].length === 0) {
+			// 	assert.equal(newCells[0].length, 1, 'Original was empty, new notebook should have default');
+			// 	return;
+			// }
 
-			assert.deepEqual(originalCells[0], newCells[0]);
+			assert.deepEqual(originalCells[0], newCells[0], 'Cells in group 0 before/after should match');
 		} catch (e) {
 			throw e;
 		} finally {
@@ -165,7 +165,7 @@ class NotebookActionRunner {
 	}
 
 	private async assertFocusInvariant() {
-		if (await this.app.workbench.notebook.notebookIsEmpty()) {
+		if (await this.app.workbench.notebook.focusedNotebookIsEmpty()) {
 			return;
 		}
 
@@ -275,7 +275,7 @@ function getActions(app: Application): INotebookActions {
 			await n.waitForTypeInEditor('![msft](https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png)');
 		},
 		editCell: async () => {
-			if (await n.notebookIsEmpty()) {
+			if (await n.focusedNotebookIsEmpty()) {
 				return;
 			}
 
