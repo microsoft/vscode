@@ -160,7 +160,8 @@ export class CodeLensContribution implements IEditorContribution {
 				this._codeLensCache.put(model, result);
 
 				// update moving average
-				this._getCodeLensModelDelays.update(model, Date.now() - t1);
+				const newDelay = this._getCodeLensModelDelays.update(model, Date.now() - t1);
+				scheduler.timeout = newDelay;
 
 				// render lenses
 				this._renderCodeLensSymbols(result);
@@ -331,7 +332,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private _resolveCodeLensesInViewportSoon(): void {
 		const model = this._editor.getModel();
 		if (model) {
-			this._resolveCodeLensesScheduler.schedule(this._resolveCodeLensesDelays.get(model));
+			this._resolveCodeLensesScheduler.schedule();
 		}
 	}
 
@@ -391,7 +392,8 @@ export class CodeLensContribution implements IEditorContribution {
 		this._resolveCodeLensesPromise.then(() => {
 
 			// update moving average
-			this._resolveCodeLensesDelays.update(model, Date.now() - t1);
+			const newDelay = this._resolveCodeLensesDelays.update(model, Date.now() - t1);
+			this._resolveCodeLensesScheduler.timeout = newDelay;
 
 			if (this._currentCodeLensModel) { // update the cached state with new resolved items
 				this._codeLensCache.put(model, this._currentCodeLensModel);
