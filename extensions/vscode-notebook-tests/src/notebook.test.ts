@@ -1228,6 +1228,24 @@ suite('regression', () => {
 	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	// });
 
+	test('#106657. Opening a notebook from markers view is broken ', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const document = vscode.notebook.activeNotebookEditor?.document!;
+		const [cell] = document.cells;
+
+		await saveAllFilesAndCloseAll(document.uri);
+		assert.strictEqual(vscode.notebook.activeNotebookEditor, undefined);
+
+		// opening a cell-uri opens a notebook editor
+		await vscode.commands.executeCommand('vscode.open', cell.uri);
+
+		assert.strictEqual(!!vscode.notebook.activeNotebookEditor, true);
+		// assert.strictEqual(vscode.notebook.activeNotebookEditor?.document.uri.toString(), resource.toString());
+	});
+
 	test('#97830, #97764. Support switch to other editor types', async function () {
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'empty', '.vsctestnb');
