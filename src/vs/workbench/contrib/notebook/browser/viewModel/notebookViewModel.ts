@@ -957,11 +957,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean } = {};
-		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => editingCells[cell.model.handle] = true);
+		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach((cell, i) => editingCells[i] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
-		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
+		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
 			if (viewState.state) {
-				editorViewStates[viewState.handle] = viewState.state;
+				editorViewStates[i] = viewState.state;
 			}
 		});
 
@@ -977,8 +977,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this._viewCells.forEach((cell, index) => {
-			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
-			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
+			const isEditing = viewState.editingCells && viewState.editingCells[index];
+			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[index];
 
 			cell.editState = isEditing ? CellEditState.Editing : CellEditState.Preview;
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
