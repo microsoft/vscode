@@ -18,6 +18,9 @@ const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
 export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
+// To be a periodic check if db has been externally modified (other tab)
+const CACHE_TTL = 60 * 1000;
+
 export class IndexedDB {
 
 	private indexedDBPromise: Promise<IDBDatabase | null>;
@@ -76,11 +79,15 @@ type DirEntry = [string, FileType];
 class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 	private initRoot: Promise<void>;
 	private writeManyThrottler: Throttler;
-	private readManyThrottler: Throttler;
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super();
 		this.writeManyThrottler = new Throttler();
-		this.readManyThrottler = new Throttler();
+		setInterval(() => {
+			const findTop = (rec: Record<string, number>) =>
+				Object.entries(rec).sort((a, b) => b[1] - a[1]).slice(0, 15);
+
+			console.log({ stat: findTop(this.statMap), readDir: findTop(this.readDirMap) });
+		}, 1000);
 
 		this.initRoot = (async () => {
 			try {
@@ -109,6 +116,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		await this.initRoot;
 		const parent = dirname(resource);
 		const parentContents = await this.readdir(parent);
+		this.readDirCache.delete(parent.toString());
 
 		const existing = parentContents.find(([path]) => path === resource.path);
 		if (!existing) {
@@ -122,32 +130,61 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		await this.writeManyThrottler.queue(() => this.writeMany());
 	}
 
-	private readRequests: { resource: URI, type?: 'file' | 'dir' }[] = [];
+	private statMap: Record<string, number> = {};
+	private statCache: Map<string, { value: IStat, expiry: number }> = new Map();
 	async stat(resource: URI): Promise<IStat> {
+		const key = resource.toString();
+		this.statMap[key] = (this.statMap[key] ?? 0) + 1;
+
 		await this.initRoot;
-		const content = await this.getValue(resource.path);
-		if (!content) {
-			throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-		} else if (content instanceof Uint8Array) {
-			return {
-				type: FileType.File,
-				ctime: 0,
-				mtime: this.versions.get(resource.toString()) || 0,
-				size: content.byteLength
-			};
-		} else if (Array.isArray(content)) {
-			return {
-				type: FileType.Directory,
-				ctime: 0,
-				mtime: 0,
-				size: 0
-			};
+		if (!this.statCache.has(key) || this.statCache.get(key)!.expiry < Date.now()) {
+
+			const content = await this.getValue(resource.path);
+			if (!content) {
+				this.statCache.delete(key);
+				throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+			} else if (content instanceof Uint8Array) {
+				this.statCache.set(key, {
+					expiry: Date.now() + CACHE_TTL,
+					value: {
+						type: FileType.File,
+						ctime: 0,
+						mtime: this.versions.get(key) || 0,
+						size: content.byteLength
+					}
+				});
+			} else if (Array.isArray(content)) {
+				this.statCache.set(key, {
+					expiry: Date.now() + CACHE_TTL,
+					value: {
+						type: FileType.Directory,
+						ctime: 0,
+						mtime: 0,
+						size: 0
+					}
+				});
+			} else {
+				this.statCache.delete(key);
+				throw createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown);
+			}
 		}
-		throw createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown);
+		return this.statCache.get(key)!.value;
 	}
 
+	private readDirMap: Record<string, number> = {};
+	private readDirCache: Map<string, { value: DirEntry[], expiry: number }> = new Map();
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		return this.getValue(resource.path, 'dir');
+		this.readDirMap[resource.toString()] = (this.readDirMap[resource.toString()] ?? 0) + 1;
+		const key = resource.toString();
+		if (!this.readDirCache.has(key) || this.readDirCache.get(key)!.expiry < Date.now()) {
+			try {
+				this.readDirCache.set(key, { expiry: Date.now() + CACHE_TTL, value: await this.getValue(resource.path, 'dir') });
+			} catch (e) {
+				this.readDirCache.delete(key);
+				throw e;
+			}
+		}
+		return this.readDirCache.get(key)!.value;
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
@@ -158,6 +195,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		await this.initRoot;
 		const parent = dirname(resource);
 		const parentContents = await this.readdir(parent);
+		this.readDirCache.delete(parent.toString());
 
 		const existing = parentContents.find(([path]) => path === resource.path);
 		if (existing?.[1] === FileType.Directory) {
@@ -187,6 +225,8 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 			}
 
 			await this.deleteKey(resource.path);
+			this.statCache.delete(resource.toString());
+			this.readDirCache.delete(resource.toString());
 			this.versions.delete(resource.path);
 			this._onDidChangeFile.fire([{ resource, type: FileChangeType.DELETED }]);
 			return;
@@ -245,57 +285,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 					c(request.result);
 				}
 			};
-		});
-	}
-
-	private async readMany(): Promise<(Uint8Array | DirEntry[] | Error)[]> {
-		return new Promise<(Uint8Array | DirEntry[] | Error)[]>((c, e) => {
-			const readRequests = this.readRequests;
-			this.readRequests = [];
-
-			const transaction = this.database.transaction([this.store]);
-			transaction.onerror = () => e(transaction.error);
-			// transaction.oncomplete = () => c(responses);
-			const objectStore = transaction.objectStore(this.store);
-
-			const responses: (Uint8Array | DirEntry[] | Error)[] = [];
-			let request!: IDBRequest;
-			for (let i = 0; i < readRequests.length; i++) {
-				const thisRequest = objectStore.get(readRequests[i].resource.path);
-				request = thisRequest;
-				thisRequest.onerror = () => e(thisRequest.error);
-				thisRequest.onsuccess = () => {
-					if (readRequests[i].type === 'file') {
-						if (thisRequest.result instanceof Uint8Array) {
-							responses[i] = thisRequest.result;
-						} else if (typeof thisRequest.result === 'string') {
-							responses[i] = VSBuffer.fromString(thisRequest.result).buffer;
-						}
-						else {
-							if (thisRequest.result === undefined) {
-								responses[i] = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-							} else {
-								responses[i] = createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
-							}
-						}
-					} else if (readRequests[i].type === 'dir') {
-						if (Array.isArray(thisRequest.result)) {
-							responses[i] = thisRequest.result as DirEntry[];
-						} else {
-							if (thisRequest.result === undefined) {
-								responses[i] = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-							} else {
-								responses[i] = createFileSystemProviderError(localize('fileNotDir', "File is not a Directory"), FileSystemProviderErrorCode.FileNotADirectory);
-							}
-						}
-					} else {
-						responses[i] = thisRequest.result;
-					}
-					console.log('setting', i, readRequests[i], responses[i]);
-				};
-			}
-
-			request.onsuccess = () => c(responses);
 		});
 	}
 
