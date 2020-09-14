@@ -37,7 +37,7 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
 import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
@@ -408,28 +408,28 @@ export class RuntimeExtensionsEditor extends EditorPane {
 				clearNode(data.msgContainer);
 
 				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
-					const el = $('span', undefined, ...renderCodiconsAsElement(` $(alert) Unresponsive`));
+					const el = $('span', undefined, ...renderCodicons(` $(alert) Unresponsive`));
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
 					data.msgContainer.appendChild(el);
 				}
 
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					const el = $('span', undefined, ...renderCodiconsAsElement(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
+					const el = $('span', undefined, ...renderCodicons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
-					const el = $('span', undefined, ...renderCodiconsAsElement(`$(alert) ${element.status.messages[0].message}`));
+					const el = $('span', undefined, ...renderCodicons(`$(alert) ${element.status.messages[0].message}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.description.extensionLocation.scheme !== 'file') {
-					const el = $('span', undefined, ...renderCodiconsAsElement(`$(remote) ${element.description.extensionLocation.authority}`));
+					const el = $('span', undefined, ...renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
 					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
-						reset(el, ...renderCodiconsAsElement(`$(remote) ${hostLabel}`));
+						reset(el, ...renderCodicons(`$(remote) ${hostLabel}`));
 					}
 				}
 

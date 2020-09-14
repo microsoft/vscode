@@ -139,7 +139,7 @@ export class ContextView extends Disposable {
 			if (this.shadowRoot) {
 				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
-				DOM.removeNode(this.shadowRootHostElement!);
+				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
 			} else {
 				this.container.removeChild(this.view);

@@ -618,10 +618,10 @@ export class RunOnceScheduler {
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: (...args: any[]) => void, timeout: number) {
+	constructor(runner: (...args: any[]) => void, delay: number) {
 		this.timeoutToken = -1;
 		this.runner = runner;
-		this.timeout = timeout;
+		this.timeout = delay;
 		this.timeoutHandler = this.onTimeout.bind(this);
 	}
 
@@ -649,6 +649,14 @@ export class RunOnceScheduler {
 	schedule(delay = this.timeout): void {
 		this.cancel();
 		this.timeoutToken = setTimeout(this.timeoutHandler, delay);
+	}
+
+	get delay(): number {
+		return this.timeout;
+	}
+
+	set delay(value: number) {
+		this.timeout = value;
 	}
 
 	/**

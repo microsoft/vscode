@@ -12,7 +12,7 @@ import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, DIFF_CELL_M
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { format } from 'vs/base/common/jsonFormatter';
@@ -194,9 +194,9 @@ class PropertyHeader extends Disposable {
 
 	private _updateFoldingIcon() {
 		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
-			DOM.reset(this._foldingIndicator, ...renderCodiconsAsElement('$(chevron-right)'));
+			DOM.reset(this._foldingIndicator, ...renderCodicons('$(chevron-right)'));
 		} else {
-			DOM.reset(this._foldingIndicator, ...renderCodiconsAsElement('$(chevron-down)'));
+			DOM.reset(this._foldingIndicator, ...renderCodicons('$(chevron-down)'));
 		}
 	}
 }
