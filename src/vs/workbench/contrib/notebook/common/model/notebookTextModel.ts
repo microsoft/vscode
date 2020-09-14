@@ -291,7 +291,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._operationManager.pushStackElement(label, selectionState);
 	}
 
-	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: number[] | undefined, endSelectionsComputer: () => number[] | undefined, computeUndoRedo: boolean = true): boolean {
+	applyEdits(modelVersionId: number, rawEdits: ICellEditOperation[], synchronous: boolean, beginSelectionState: number[] | undefined, endSelectionsComputer: () => number[] | undefined, computeUndoRedo: boolean = true): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}

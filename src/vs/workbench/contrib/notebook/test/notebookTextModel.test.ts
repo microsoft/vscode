@@ -29,7 +29,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined);
@@ -54,7 +54,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined);
@@ -79,7 +79,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
 				], true, undefined, () => undefined);
@@ -102,7 +102,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined);
@@ -127,7 +127,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined);
@@ -152,7 +152,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], { editable: false }]
 			],
 			(editor, viewModel, textModel) => {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => undefined);
 
@@ -176,7 +176,7 @@ suite('NotebookTextModel', () => {
 
 				// invalid index 1
 				assert.throws(() => {
-					textModel.applyEdit(textModel.versionId, [{
+					textModel.applyEdits(textModel.versionId, [{
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Output,
 						outputs: []
@@ -185,14 +185,14 @@ suite('NotebookTextModel', () => {
 
 				// invalid index 2
 				assert.throws(() => {
-					textModel.applyEdit(textModel.versionId, [{
+					textModel.applyEdits(textModel.versionId, [{
 						index: -1,
 						editType: CellEditType.Output,
 						outputs: []
 					}], true, undefined, () => undefined);
 				});
 
-				textModel.applyEdit(textModel.versionId, [{
+				textModel.applyEdits(textModel.versionId, [{
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [{
@@ -221,7 +221,7 @@ suite('NotebookTextModel', () => {
 
 				// invalid index 1
 				assert.throws(() => {
-					textModel.applyEdit(textModel.versionId, [{
+					textModel.applyEdits(textModel.versionId, [{
 						index: Number.MAX_VALUE,
 						editType: CellEditType.Metadata,
 						metadata: { editable: false }
@@ -230,14 +230,14 @@ suite('NotebookTextModel', () => {
 
 				// invalid index 2
 				assert.throws(() => {
-					textModel.applyEdit(textModel.versionId, [{
+					textModel.applyEdits(textModel.versionId, [{
 						index: -1,
 						editType: CellEditType.Metadata,
 						metadata: { editable: false }
 					}], true, undefined, () => undefined);
 				});
 
-				textModel.applyEdit(textModel.versionId, [{
+				textModel.applyEdits(textModel.versionId, [{
 					index: 0,
 					editType: CellEditType.Metadata,
 					metadata: { editable: false },
@@ -267,7 +267,7 @@ suite('NotebookTextModel', () => {
 				});
 				const version = textModel.versionId;
 
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], textModelService)] },
 				], true, undefined, () => [0]);
@@ -304,7 +304,7 @@ suite('NotebookTextModel', () => {
 				});
 				const version = textModel.versionId;
 
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{
 						index: 0,
