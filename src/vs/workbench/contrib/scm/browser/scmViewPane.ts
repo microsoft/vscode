@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
+import { append, $, Dimension } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -144,7 +144,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-no-twistie');
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
@@ -268,7 +268,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
 		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
@@ -391,19 +391,19 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
-				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
-				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
+				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
+				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-				removeClass(template.name, 'strike-through');
-				removeClass(template.element, 'faded');
+				template.name.classList.remove('strike-through');
+				template.element.classList.remove('faded');
 			}
 		} else {
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
-			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
-			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
+			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
+			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
 		}
 
 		const render = () => {
@@ -464,8 +464,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
 		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
 
-		removeClass(template.name, 'strike-through');
-		removeClass(template.element, 'faded');
+		template.name.classList.remove('strike-through');
+		template.element.classList.remove('faded');
 		template.decorationIcon.style.display = 'none';
 		template.decorationIcon.style.backgroundImage = '';
 
@@ -1254,7 +1254,7 @@ class SCMInputWidget extends Disposable {
 		}
 
 		this.validationDisposable.dispose();
-		removeClass(this.editorContainer, 'synthetic-focus');
+		this.editorContainer.classList.remove('synthetic-focus');
 
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
@@ -1316,7 +1316,7 @@ class SCMInputWidget extends Disposable {
 		}));
 
 		// Keep API in sync with model, update placeholder visibility and validate
-		const updatePlaceholderVisibility = () => toggleClass(this.placeholderTextContainer, 'hidden', textModel.getValueLength() > 0);
+		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
 			input.value = textModel.getValue();
 			updatePlaceholderVisibility();
@@ -1429,11 +1429,11 @@ class SCMInputWidget extends Disposable {
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => {
 			this.input?.repository.setSelected(true); // TODO@joao: remove
-			addClass(this.editorContainer, 'synthetic-focus');
+			this.editorContainer.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
 		this._register(this.inputEditor.onDidBlurEditorText(() => {
-			removeClass(this.editorContainer, 'synthetic-focus');
+			this.editorContainer.classList.remove('synthetic-focus');
 			this.validationDisposable.dispose();
 		}));
 
@@ -1461,7 +1461,7 @@ class SCMInputWidget extends Disposable {
 
 	focus(): void {
 		this.inputEditor.focus();
-		addClass(this.editorContainer, 'synthetic-focus');
+		this.editorContainer.classList.add('synthetic-focus');
 	}
 
 	hasFocus(): boolean {
@@ -1471,9 +1471,9 @@ class SCMInputWidget extends Disposable {
 	private renderValidation(): void {
 		this.validationDisposable.dispose();
 
-		toggleClass(this.editorContainer, 'validation-info', this.validation?.type === InputValidationType.Information);
-		toggleClass(this.editorContainer, 'validation-warning', this.validation?.type === InputValidationType.Warning);
-		toggleClass(this.editorContainer, 'validation-error', this.validation?.type === InputValidationType.Error);
+		this.editorContainer.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
+		this.editorContainer.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
+		this.editorContainer.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
 
 		if (!this.validation || !this.inputEditor.hasTextFocus()) {
 			return;
@@ -1483,9 +1483,9 @@ class SCMInputWidget extends Disposable {
 			getAnchor: () => this.editorContainer,
 			render: container => {
 				const element = append(container, $('.scm-editor-validation'));
-				toggleClass(element, 'validation-info', this.validation!.type === InputValidationType.Information);
-				toggleClass(element, 'validation-warning', this.validation!.type === InputValidationType.Warning);
-				toggleClass(element, 'validation-error', this.validation!.type === InputValidationType.Error);
+				element.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
+				element.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
+				element.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
 				element.style.width = `${this.editorContainer.clientWidth}px`;
 				element.textContent = this.validation!.message;
 				return Disposable.None;
@@ -1597,14 +1597,14 @@ export class SCMViewPane extends ViewPane {
 
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
-		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
+		const updateActionsVisibility = () => this.listContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
 		updateActionsVisibility();
 
 		const updateProviderCountVisibility = () => {
 			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
-			toggleClass(this.listContainer, 'hide-provider-counts', value === 'hidden');
-			toggleClass(this.listContainer, 'auto-provider-counts', value === 'auto');
+			this.listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			this.listContainer.classList.toggle('auto-provider-counts', value === 'auto');
 		};
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility));
 		updateProviderCountVisibility();
@@ -1672,8 +1672,8 @@ export class SCMViewPane extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path);
 		this._register(this.viewModel);
 
-		addClass(this.listContainer, 'file-icon-themable-tree');
-		addClass(this.listContainer, 'show-file-icons');
+		this.listContainer.classList.add('file-icon-themable-tree');
+		this.listContainer.classList.add('show-file-icons');
 
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
@@ -1689,10 +1689,10 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
-		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
-		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
-		toggleClass(this.listContainer, 'align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+		this.listContainer.classList.toggle('list-view-mode', this.viewModel.mode === ViewModelMode.List);
+		this.listContainer.classList.toggle('tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
+		this.listContainer.classList.toggle('align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.listContainer.classList.toggle('hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
 	private onDidChangeMode(): void {
