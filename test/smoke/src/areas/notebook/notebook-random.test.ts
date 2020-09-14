@@ -217,6 +217,7 @@ class NotebookActionRunner {
 
 	async doRandomActions(n: number) {
 		console.log(`Starting random action run: ${this.id}`);
+		await this.app.captureScreenshot(`${this.id}/z_initial`);
 		for (let i = 0; i < n; i++) {
 			await this.doRandomAction(i);
 		}
