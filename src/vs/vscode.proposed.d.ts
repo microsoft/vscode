@@ -1313,6 +1313,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCell {
+		readonly index: number;
 		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
