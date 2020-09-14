@@ -2040,32 +2040,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Support `scmResourceState` in `when` clauses #86180 https://github.com/microsoft/vscode/issues/86180
-
-	export interface SourceControlResourceState {
-		/**
-		 * Context value of the resource state. This can be used to contribute resource specific actions.
-		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
-		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"scm/resourceState/context": [
-		 *				{
-		 *					"command": "extension.diff",
-		 *					"when": "scmResourceState == diffable"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
-		 * ```
-		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
-		 */
-		readonly contextValue?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/104436
 
 	export enum ExtensionRuntime {
