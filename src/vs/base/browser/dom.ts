@@ -83,17 +83,17 @@ const _classList: IDomClassList = new class implements IDomClassList {
 };
 
 /** @deprecated ES6 - use classList*/
-export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
-export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
-export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
 
 class DomListener implements IDisposable {
 
