@@ -312,12 +312,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				if (change.kind === NotebookCellsChangeType.ModelChange || change.kind === NotebookCellsChangeType.Initialize) {
 					changes = change.changes;
 					compute(changes, e.synchronous);
-					return;
+					continue;
 				} else if (change.kind === NotebookCellsChangeType.Move) {
 					compute([[change.index, change.length, []]], e.synchronous);
 					compute([[change.newIdx, 0, change.cells]], e.synchronous);
 				} else {
-					return;
+					continue;
 				}
 			}
 		}));

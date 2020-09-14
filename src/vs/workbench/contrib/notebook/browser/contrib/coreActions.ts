@@ -511,27 +511,33 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		return null;
 	}
 
+	if (!notebookEditor.viewModel) {
+		return null;
+	}
+
 	const text = cell.getText();
-	if (!notebookEditor.insertNotebookCell(cell, kind, 'below', text)) {
-		return null;
-	}
+	const idx = notebookEditor.viewModel.getCellIndex(cell);
+	notebookEditor.viewModel.notebookDocument.applyEdits(notebookEditor.viewModel.notebookDocument.versionId, [
+		{
+			editType: CellEditType.Replace,
+			index: idx,
+			count: 1,
+			cells: [{
+				cellKind: kind,
+				source: text,
+				language: language!,
+				outputs: cell.model.outputs,
+				metadata: cell.metadata,
+			}]
+		}
+	], true, undefined, () => undefined, true);
+	const newCell = notebookEditor.viewModel.viewCells[idx];
 
-	const idx = notebookEditor.viewModel?.getCellIndex(cell);
-	if (typeof idx !== 'number') {
-		return null;
-	}
-
-	const newCell = notebookEditor.viewModel?.viewCells[idx + 1];
 	if (!newCell) {
 		return null;
 	}
 
-	if (language) {
-		newCell.model.language = language;
-	}
-
 	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing ? 'editor' : 'container');
-	notebookEditor.deleteNotebookCell(cell);
 
 	return newCell;
 }
@@ -1388,7 +1394,7 @@ export class ChangeCellLanguageAction extends NotebookCellAction {
 				if (newCell) {
 					context.notebookEditor.focusNotebookCell(newCell, 'editor');
 				}
-			} else if (selection.languageId !== 'markdown' && context.cell?.language === 'markdown') {
+			} else if (selection.languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markdown) {
 				await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, selection.languageId);
 			} else {
 				const index = context.notebookEditor.viewModel!.notebookDocument.cells.indexOf(context.cell.model);
