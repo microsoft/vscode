@@ -18,7 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
 import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -145,7 +145,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 	renderer.paragraph = (text): string => {
 		if (markdown.supportThemeIcons) {
-			const elements = renderCodiconsAsElement(text);
+			const elements = renderCodicons(text);
 			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
 		}
 		return `<p>${text}</p>`;
