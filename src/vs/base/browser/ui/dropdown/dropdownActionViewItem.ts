@@ -13,7 +13,6 @@ import { Emitter } from 'vs/base/common/event';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { asArray } from 'vs/base/common/arrays';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
