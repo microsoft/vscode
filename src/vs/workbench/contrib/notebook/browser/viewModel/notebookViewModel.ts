@@ -957,7 +957,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean } = {};
-		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach((cell, i) => editingCells[i] = true);
+		this._viewCells.forEach((cell, i) => {
+			if (cell.editState === CellEditState.Editing) {
+				editingCells[i] = true;
+			}
+		});
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
 			if (viewState.state) {
