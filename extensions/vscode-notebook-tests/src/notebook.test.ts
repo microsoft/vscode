@@ -507,7 +507,7 @@ suite('Notebook API tests', () => {
 		// inserting two new cells
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceCells(document.uri, 0, 0, [{
+			edit.replaceNotebookCells(document.uri, 0, 0, [{
 				cellKind: vscode.CellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
@@ -532,8 +532,8 @@ suite('Notebook API tests', () => {
 		// deleting cell 1 and 3
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceCells(document.uri, 0, 1, []);
-			edit.replaceCells(document.uri, 2, 3, []);
+			edit.replaceNotebookCells(document.uri, 0, 1, []);
+			edit.replaceNotebookCells(document.uri, 2, 3, []);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
 		}
@@ -544,7 +544,7 @@ suite('Notebook API tests', () => {
 		// replacing all cells
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceCells(document.uri, 0, 1, [{
+			edit.replaceNotebookCells(document.uri, 0, 1, [{
 				cellKind: vscode.CellKind.Markdown,
 				language: 'markdown',
 				metadata: undefined,
@@ -567,7 +567,7 @@ suite('Notebook API tests', () => {
 		// remove all cells
 		{
 			const edit = new vscode.WorkspaceEdit();
-			edit.replaceCells(document.uri, 0, document.cells.length, []);
+			edit.replaceNotebookCells(document.uri, 0, document.cells.length, []);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
 		}
@@ -586,7 +586,7 @@ suite('Notebook API tests', () => {
 		assert.strictEqual(document.cells.length, 1);
 
 		const edit = new vscode.WorkspaceEdit();
-		edit.replaceCells(document.uri, 0, 0, [{
+		edit.replaceNotebookCells(document.uri, 0, 0, [{
 			cellKind: vscode.CellKind.Markdown,
 			language: 'markdown',
 			metadata: undefined,
