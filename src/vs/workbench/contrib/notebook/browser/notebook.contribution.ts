@@ -290,7 +290,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
 		let id = typeof options?.override === 'string' ? options.override : undefined;
-		if (id === undefined && originalInput.isUntitled()) {
+		if (id === undefined && originalInput.resource?.scheme === Schemas.untitled) {
 			return undefined;
 		}
 
