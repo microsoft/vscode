@@ -5,14 +5,30 @@
 
 // keytar depends on a native module shipped in vscode, so this is
 // how we load it
+import type * as keytarType from 'keytar';
 import * as vscode from 'vscode';
 import Logger from './logger';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
+function getKeytar(): Keytar | undefined {
+	try {
+		return require('keytar');
+	} catch (err) {
+		console.log(err);
+	}
 
-const SERVICE_ID = `${vscode.env.uriScheme}-github.auth`;
+	return undefined;
+}
+
+export type Keytar = {
+	getPassword: typeof keytarType['getPassword'];
+	setPassword: typeof keytarType['setPassword'];
+	deletePassword: typeof keytarType['deletePassword'];
+};
+
+const SERVICE_ID = `github.auth`;
 
 export class Keychain {
 	async setToken(token: string): Promise<void> {
@@ -45,6 +61,25 @@ export class Keychain {
 		} catch (e) {
 			// Ignore
 			Logger.error(`Deleting token failed: ${e}`);
+			return Promise.resolve(undefined);
+		}
+	}
+
+	async tryMigrate(): Promise<string | null | undefined> {
+		try {
+			const keytar = getKeytar();
+			if (!keytar) {
+				throw new Error('keytar unavailable');
+			}
+
+			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
+			if (oldValue) {
+				await this.setToken(oldValue);
+			}
+
+			return oldValue;
+		} catch (_) {
+			// Ignore
 			return Promise.resolve(undefined);
 		}
 	}

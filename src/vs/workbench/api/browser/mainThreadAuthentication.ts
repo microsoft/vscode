@@ -21,6 +21,7 @@ import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensi
 import { Platform, platform } from 'vs/base/common/platform';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser'];
 
@@ -224,7 +225,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICredentialsService private readonly credentialsService: ICredentialsService,
-		@IEncryptionService private readonly encryptionService: IEncryptionService
+		@IEncryptionService private readonly encryptionService: IEncryptionService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -458,18 +460,46 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
 	}
 
-	async $getPassword(key: string): Promise<string | undefined> {
-		const password = await this.credentialsService.getPassword(key, 'account');
+	private getFullKey(extensionId: string, key: string): string {
+		return `${this.productService.urlProtocol}${extensionId}${key}`;
+	}
+
+	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
+		const fullKey = this.getFullKey(extensionId, key);
+		const password = await this.credentialsService.getPassword(fullKey, 'account');
 		const decrypted = password && await this.encryptionService.decrypt(password);
-		return decrypted ?? undefined;
+
+		if (decrypted) {
+			try {
+				const value = JSON.parse(decrypted);
+				if (value.extensionId === extensionId) {
+					return value.content;
+				}
+			} catch (_) {
+				throw new Error('Cannot get password');
+			}
+		}
+
+		return undefined;
 	}
 
-	async $setPassword(key: string, value: string): Promise<void> {
-		const encrypted = await this.encryptionService.encrypt(value);
-		return this.credentialsService.setPassword(key, 'account', encrypted);
+	async $setPassword(extensionId: string, key: string, value: string): Promise<void> {
+		const fullKey = this.getFullKey(extensionId, key);
+		const toEncrypt = JSON.stringify({
+			extensionId,
+			content: value
+		});
+		const encrypted = await this.encryptionService.encrypt(toEncrypt);
+		return this.credentialsService.setPassword(fullKey, 'account', encrypted);
 	}
 
-	async $deletePassword(key: string): Promise<void> {
-		await this.credentialsService.deletePassword(key, 'account');
+	async $deletePassword(extensionId: string, key: string): Promise<void> {
+		try {
+			await this.$getPassword(extensionId, key);
+			const fullKey = this.getFullKey(extensionId, key);
+			await this.credentialsService.deletePassword(fullKey, 'account');
+		} catch (_) {
+			throw new Error('Cannot delete password');
+		}
 	}
 }

@@ -204,15 +204,18 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return Promise.resolve();
 	}
 
-	getPassword(key: string): Promise<string | undefined> {
-		return this._proxy.$getPassword(key);
+	getPassword(requestingExtension: IExtensionDescription, key: string): Promise<string | undefined> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		return this._proxy.$getPassword(extensionId, key);
 	}
 
-	setPassword(key: string, value: string): Promise<void> {
-		return this._proxy.$setPassword(key, value);
+	setPassword(requestingExtension: IExtensionDescription, key: string, value: string): Promise<void> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		return this._proxy.$setPassword(extensionId, key, value);
 	}
 
-	deletePassword(key: string): Promise<void> {
-		return this._proxy.$deletePassword(key);
+	deletePassword(requestingExtension: IExtensionDescription, key: string): Promise<void> {
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		return this._proxy.$deletePassword(extensionId, key);
 	}
 }

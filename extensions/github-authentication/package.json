@@ -58,6 +58,7 @@
     "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
+    "@types/keytar": "^4.4.2",
     "@types/node": "^10.12.21",
     "@types/node-fetch": "2.5.7",
     "@types/uuid": "8.0.0",

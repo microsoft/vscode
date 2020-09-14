@@ -226,13 +226,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostAuthentication.onDidChangeSessions;
 			},
 			getPassword(key: string): Thenable<string | undefined> {
-				return extHostAuthentication.getPassword(key);
+				return extHostAuthentication.getPassword(extension, key);
 			},
 			setPassword(key: string, value: string): Thenable<void> {
-				return extHostAuthentication.setPassword(key, value);
+				return extHostAuthentication.setPassword(extension, key, value);
 			},
 			deletePassword(key: string): Thenable<void> {
-				return extHostAuthentication.deletePassword(key);
+				return extHostAuthentication.deletePassword(extension, key);
 			}
 		};
 
