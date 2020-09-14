@@ -30,18 +30,9 @@ export class NotebookModelReferenceCollection extends ReferenceCollection<Promis
 		super();
 	}
 
-	protected createReferencedObject(key: string, ...args: any[]): Promise<INotebookEditorModel> {
-		const resource = URI.parse(key);
-
-		let [viewType] = args as [string | undefined];
-		if (!viewType) {
-			viewType = this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
-		}
-		if (!viewType) {
-			throw new Error('Missing viewType');
-		}
-
-		const model = this._instantiationService.createInstance(NotebookEditorModel, resource, viewType);
+	protected createReferencedObject(key: string, viewType: string): Promise<INotebookEditorModel> {
+		const uri = URI.parse(key);
+		const model = this._instantiationService.createInstance(NotebookEditorModel, uri, viewType);
 		const promise = model.load();
 		return promise;
 	}
@@ -63,12 +54,26 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 	private readonly _data: NotebookModelReferenceCollection;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@INotebookService private readonly _notebookService: INotebookService
 	) {
 		this._data = instantiationService.createInstance(NotebookModelReferenceCollection);
 	}
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<INotebookEditorModel>> {
+
+		if (!viewType) {
+			viewType = this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
+		}
+		if (!viewType) {
+			throw new Error(`Missing viewType for '${resource}'`);
+		}
+
+		const existing = this._notebookService.getNotebookTextModel(resource);
+		if (existing && existing.viewType !== viewType) {
+			throw new Error(`A notebook with view type '${existing.viewType}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
+		}
+
 		const reference = this._data.acquire(resource.toString(), viewType);
 		const model = await reference.object;
 		NotebookModelResolverService._autoReferenceDirtyModel(model, () => this._data.acquire(resource.toString(), viewType));

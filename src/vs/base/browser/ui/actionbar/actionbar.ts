@@ -475,7 +475,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 		this._actionIds = [];
 
-		DOM.removeNode(this.getContainer());
+		this.getContainer().remove();
 
 		super.dispose();
 	}

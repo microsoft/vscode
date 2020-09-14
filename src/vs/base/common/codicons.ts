@@ -501,20 +501,6 @@ export function markdownUnescapeCodicons(text: string): string {
 	return text.replace(markdownUnescapeCodiconsRegex, (match, escaped, codicon) => escaped ? match : `$(${codicon})`);
 }
 
-export const renderCodiconsRegex = /(\\)?\$\((([a-z0-9\-]+?)(?:~([a-z0-9\-]*?))?)\)/gi;
-
-/**
- * @deprecated Use `renderCodiconsAsElement` instead
- */
-export function renderCodicons(text: string): string {
-	return text.replace(renderCodiconsRegex, (_, escaped, codicon, name, animation) => {
-		// If the class for codicons is changed, it should also be updated in src\vs\base\browser\markdownRenderer.ts
-		return escaped
-			? `$(${codicon})`
-			: `<span class="codicon codicon-${name}${animation ? ` codicon-animation-${animation}` : ''}"></span>`;
-	});
-}
-
 const stripCodiconsRegex = /(\s)?(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)(\s)?/gi;
 export function stripCodicons(text: string): string {
 	if (text.indexOf(codiconStartMarker) === -1) {

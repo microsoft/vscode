@@ -6,7 +6,7 @@
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellKind, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
@@ -37,7 +37,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		}
 	}
 
-	replaceNotebookMetadata(value: vscode.NotebookDocumentMetadata): void {
+	replaceMetadata(value: vscode.NotebookDocumentMetadata): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.DocumentMetadata,
@@ -54,12 +54,6 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
-		console.warn('DEPRECATED use "replaceCellMetadata" instead');
-		this.replaceCellMetadata(index, metadata);
-	}
-
-
 	replaceCellOutput(index: number, outputs: vscode.CellOutput[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
@@ -69,14 +63,8 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceOutput(index: number, outputs: vscode.CellOutput[]): void {
-		console.warn('DEPRECATED use "replaceCellOutput" instead');
-		this.replaceCellOutput(index, outputs);
-	}
-
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
-
 		this._collectedEdits.push({
 			editType: CellEditType.Replace,
 			index: from,
@@ -88,22 +76,6 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 				};
 			})
 		});
-	}
-
-	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
-		this._throwIfFinalized();
-		this.replaceCells(index, index, [{
-			language,
-			outputs,
-			metadata,
-			cellKind: type,
-			source: Array.isArray(content) ? content.join('\n') : content,
-		}]);
-	}
-
-	delete(index: number): void {
-		this._throwIfFinalized();
-		this.replaceCells(index, 1, []);
 	}
 }
 

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderCodiconsRegex } from 'vs/base/common/codicons';
 
-export function renderCodiconsAsElement(text: string): Array<HTMLSpanElement | string> {
+const renderCodiconsRegex = /(\\)?\$\((([a-z0-9\-]+?)(?:~([a-z0-9\-]*?))?)\)/gi;
+
+export function renderCodicons(text: string): Array<HTMLSpanElement | string> {
 	const elements = new Array<HTMLSpanElement | string>();
 	let match: RegExpMatchArray | null;
 
