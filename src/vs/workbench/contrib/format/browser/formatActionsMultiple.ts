@@ -121,7 +121,7 @@ class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 			if (silent) {
 				// don't wait when formatting happens without interaction
 				// but pick some formatter...
-				resolve(formatter[0]);
+				resolve(undefined);
 			}
 		});
 	}
