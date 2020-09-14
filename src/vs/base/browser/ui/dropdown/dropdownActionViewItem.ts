@@ -60,7 +60,13 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
 
-			const classNames = this.options.classNames ? asArray(this.options.classNames) : [];
+			let classNames: string[] = [];
+
+			if (typeof this.options.classNames === 'string') {
+				classNames = this.options.classNames.split(/\W+/g).filter(s => !!s);
+			} else if (this.options.classNames) {
+				classNames = this.options.classNames;
+			}
 
 			// todo@aeschli: remove codicon, should come through `this.options.classNames`
 			if (!classNames.find(c => c === 'icon')) {
