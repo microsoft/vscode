@@ -101,13 +101,13 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			set title(title: string) {
 				treeView.title = title;
 			},
-			get titleDescription() {
+			get description() {
 				checkProposedApiEnabled(extension);
-				return treeView.titleDescription;
+				return treeView.description;
 			},
-			set titleDescription(titleDescription: string | undefined) {
+			set description(description: string | undefined) {
 				checkProposedApiEnabled(extension);
-				treeView.titleDescription = titleDescription;
+				treeView.description = description;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
@@ -326,17 +326,17 @@ class ExtHostTreeView<T> extends Disposable {
 
 	set title(title: string) {
 		this._title = title;
-		this.proxy.$setTitle(this.viewId, title, this._titleDescription);
+		this.proxy.$setTitle(this.viewId, title, this._description);
 	}
 
-	private _titleDescription: string | undefined;
-	get titleDescription(): string | undefined {
-		return this._titleDescription;
+	private _description: string | undefined;
+	get description(): string | undefined {
+		return this._description;
 	}
 
-	set titleDescription(titleDescription: string | undefined) {
-		this._titleDescription = titleDescription;
-		this.proxy.$setTitle(this.viewId, this._title, titleDescription);
+	set description(description: string | undefined) {
+		this._description = description;
+		this.proxy.$setTitle(this.viewId, this._title, description);
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
