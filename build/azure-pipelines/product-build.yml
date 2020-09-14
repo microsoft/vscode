@@ -14,10 +14,10 @@ resources:
     image: vscodehub.azurecr.io/vscode-linux-build-agent:x64
     endpoint: VSCodeHub
   - container: vscode-arm64
-    image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-arm64
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-arm64
     endpoint: VSCodeHub
   - container: vscode-armhf
-    image: vscodehub.azurecr.io/vscode-linux-build-agent:buster-armhf
+    image: vscodehub.azurecr.io/vscode-linux-build-agent:stretch-armhf
     endpoint: VSCodeHub
   - container: snapcraft
     image: snapcore/snapcraft:stable
