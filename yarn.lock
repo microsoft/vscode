@@ -9751,10 +9751,10 @@ vscode-windows-ca-certs@0.2.0:
   dependencies:
     node-addon-api "1.6.2"
 
-vscode-windows-registry@1.0.2:
-  version "1.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.2.tgz#b863e704a6a69c50b3098a55fbddbe595b0c124a"
-  integrity sha512-/CLLvuOSM2Vme2z6aNyB+4Omd7hDxpf4Thrt8ImxnXeQtxzel2bClJpFQvQqK/s4oaXlkBKS7LqVLeZM+uSVIA==
+vscode-windows-registry@1.0.3:
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/vscode-windows-registry/-/vscode-windows-registry-1.0.3.tgz#377e9a8bf75c0acac81a188282a4f16f748ecd47"
+  integrity sha512-IXCwNAm+H5yPCn6JBz89T9AAMgy5xEN2LxbxrvHPlErmyQqCYtpCCjvisfgT2dCuaJ2T9FfiqIeIrOpDm2Jc4Q==
 
 vso-node-api@6.1.2-preview:
   version "6.1.2-preview"
