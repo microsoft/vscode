@@ -6,7 +6,6 @@
 import { localize } from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/product/common/product';
-import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
@@ -442,7 +441,7 @@ export class IssueMainService implements ICommonIssueService {
 
 function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 	const environment = parseArgs(process.argv, OPTIONS);
-	const config = objects.assign(environment, windowConfiguration);
+	const config = Object.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
 		const key = keyValue as keyof typeof config;
 		if (config[key] === undefined || config[key] === null || config[key] === '') {
