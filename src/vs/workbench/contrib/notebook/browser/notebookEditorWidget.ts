@@ -28,7 +28,7 @@ import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
@@ -282,10 +282,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	getSelectionHandles(): number[] {
 		return this.viewModel?.selectionHandles || [];
-	}
-
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		return this.instantiationService.invokeFunction(fn);
 	}
 
 	hasModel() {
