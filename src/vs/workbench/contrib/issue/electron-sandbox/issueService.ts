@@ -11,11 +11,11 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { platform } from 'process';
+import { platform, PlatformToString } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
@@ -71,7 +71,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				hoverForeground: getColor(theme, listHoverForeground),
 				highlightForeground: getColor(theme, listHighlightForeground),
 			},
-			platform,
+			platform: PlatformToString(platform),
 			applicationName: this.productService.applicationName
 		};
 		return this.issueService.openProcessExplorer(data);
