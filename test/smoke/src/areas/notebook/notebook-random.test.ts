@@ -37,6 +37,7 @@ export function setup() {
 			await app.workbench.notebook.createRealNotebook();
 			await app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
 			await app.workbench.quickaccess.runCommand('notifications.clearAll');
+			await app.workbench.quickaccess.runCommand('notebook.renderAllMarkdownCells'); // For a cell at an index persisted as edit-mode
 		});
 
 		afterEach(async function () {
@@ -237,6 +238,7 @@ class NotebookActionRunner {
 
 	async runActionList(actionList: string[]) {
 		console.log(`Starting action list run: ${this.id}`);
+		await this.app.captureScreenshot(`${this.id}/z_initial`);
 		for (let i = 0; i < actionList.length; i++) {
 			const actionKey = actionList[i];
 			await this.doAction(actionKey, i);
@@ -321,7 +323,6 @@ function getActions(app: Application): INotebookActions {
 		expandInput: () => qa.runCommand('notebook.cell.expandCellContent'),
 		collapseOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
 		expandOutput: () => qa.runCommand('notebook.cell.expandCellOutput'),
-		focusNextEditorGroup: () => qa.runCommand('workbench.action.focusNextGroup'),
-		renderAllMarkdownCells: () => qa.runCommand('notebook.renderAllMarkdownCells'),
+		focusNextEditorGroup: () => qa.runCommand('workbench.action.focusNextGroup')
 	};
 }
