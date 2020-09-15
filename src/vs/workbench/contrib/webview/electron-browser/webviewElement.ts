@@ -221,7 +221,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		};
 
 		element.setAttribute('partition', webviewPartitionId);
-		element.setAttribute('webpreferences', 'contextIsolation=yes');
+		element.setAttribute('webpreferences', 'contextIsolation=no');
 		element.className = `webview ${options.customClasses || ''}`;
 
 		element.style.flex = '0 1';

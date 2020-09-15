@@ -374,6 +374,39 @@
 		function toContentHtml(data) {
 			const options = data.options;
 			const text = data.contents;
+						//   const text = `<!DOCTYPE html>
+			//   <html lang="en">
+			//     <head>
+			//       <meta charset="utf-8">
+			//       <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no">
+			//       <meta name="theme-color" content="#000000">
+			//       <link rel="stylesheet" type="text/css" href="vscode-webview-resource://cfbc7cce-db87-4bc6-9e61-75c1183242e4/file///c%3A/Users/chandra/.vscode-oss-dev/extensions/googlecloudtools.cloudcode-1.5.2/dist/webview/styles.css">
+			//       <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+			//       <meta http-equiv="Content-Security-Policy"
+			//             content="default-src none;
+			//             img-src vscode-webview-resource: https: data:;
+			//             script-src vscode-webview-resource: 'nonce-SGAqqEPgUOrYqrRqlS21638NzB7hRelG' 'unsafe-inline' 'unsafe-eval';
+			//             font-src http: https:;
+			//             style-src vscode-webview-resource: 'unsafe-inline' http: https: data:;">
+			//     </head>
+
+			//     <body>
+			//       <app-root></app-root>
+
+			//       <script nonce="SGAqqEPgUOrYqrRqlS21638NzB7hRelG" src="vscode-webview-resource://cfbc7cce-db87-4bc6-9e61-75c1183242e4/file///c%3A/Users/chandra/.vscode-oss-dev/extensions/googlecloudtools.cloudcode-1.5.2/dist/webview/runtime.js"></script>
+			//       <script nonce="SGAqqEPgUOrYqrRqlS21638NzB7hRelG" src="vscode-webview-resource://cfbc7cce-db87-4bc6-9e61-75c1183242e4/file///c%3A/Users/chandra/.vscode-oss-dev/extensions/googlecloudtools.cloudcode-1.5.2/dist/webview/polyfills.js"></script>
+			//       <script nonce="SGAqqEPgUOrYqrRqlS21638NzB7hRelG" src="vscode-webview-resource://cfbc7cce-db87-4bc6-9e61-75c1183242e4/file///c%3A/Users/chandra/.vscode-oss-dev/extensions/googlecloudtools.cloudcode-1.5.2/dist/webview/main.js"></script>
+			//       <script nonce="SGAqqEPgUOrYqrRqlS21638NzB7hRelG" src="vscode-webview-resource://cfbc7cce-db87-4bc6-9e61-75c1183242e4/file///c%3A/Users/chandra/.vscode-oss-dev/extensions/googlecloudtools.cloudcode-1.5.2/dist/webview/vendor.js"></script>
+			//       <script nonce="SGAqqEPgUOrYqrRqlS21638NzB7hRelG">
+			//         window.onload = function (event) {
+			//           window.location.hash = "#help";
+			//           window.operationId = "85030a3f-874f-4bff-933a-36836222527f";
+			//           window.parametersJSON = "%7B%7D";
+			//         };
+			//       </script>
+			//     </body>
+			//   </html>`;
+			console.log('$$$$$$$$$$' + text);
 			const newDocument = new DOMParser().parseFromString(text, 'text/html');
 
 			newDocument.querySelectorAll('a').forEach(a => {

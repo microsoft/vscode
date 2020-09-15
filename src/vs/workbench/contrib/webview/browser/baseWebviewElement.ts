@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable */
 import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
@@ -17,6 +18,7 @@ import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/t
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import * as http from 'http';
 
 export const enum WebviewMessageChannels {
 	onmessage = 'onmessage',
@@ -306,11 +308,21 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 		this.content = newContent;
 
-		this._send('content', {
-			contents: this.content.html,
-			options: this.content.options,
-			state: this.content.state,
-			...this.extraContentOptions
+		http.get('http://localhost:4200', (response) => {
+			let str = '';
+			response.on('data', (chunk) => {
+				str += chunk;
+			});
+
+			response.on('end', () => {
+				this._send('content', {
+					// contents: this.content.html,
+					contents: str,
+					options: this.content.options,
+					state: this.content.state,
+					...this.extraContentOptions
+				});
+			});
 		});
 	}
 
