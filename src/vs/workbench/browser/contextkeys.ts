@@ -20,9 +20,11 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { PanelPositionContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { isNative } from 'vs/base/common/platform';
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0);
+export const EmptyWorkspaceSupportContext = new RawContextKey<boolean>('emptyWorkspaceSupport', true);
 
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 
@@ -51,6 +53,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private workbenchStateContext: IContextKey<string>;
 	private workspaceFolderCountContext: IContextKey<number>;
+	private emptyWorkspaceSupportContext: IContextKey<boolean>;
 
 	private inZenModeContext: IContextKey<boolean>;
 	private isFullscreenContext: IContextKey<boolean>;
@@ -111,6 +114,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Workspace Folder Count
 		this.workspaceFolderCountContext = WorkspaceFolderCountContext.bindTo(this.contextKeyService);
 		this.updateWorkspaceFolderCountContextKey();
+
+		// Empty workspace support: empty workspaces require a default "local" file
+		// system to operate with. We always have one when running natively or when
+		// we have a remote connection.
+		this.emptyWorkspaceSupportContext = EmptyWorkspaceSupportContext.bindTo(this.contextKeyService);
+		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.configuration.remoteAuthority === 'string');
 
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
