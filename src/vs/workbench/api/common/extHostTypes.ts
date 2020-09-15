@@ -637,7 +637,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+		if (start !== end || cells.length > 0) {
+			this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+		}
 	}
 
 	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {

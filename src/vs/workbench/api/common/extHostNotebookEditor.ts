@@ -65,6 +65,9 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
+		if (from === to && cells.length === 0) {
+			return;
+		}
 		this._collectedEdits.push({
 			editType: CellEditType.Replace,
 			index: from,
