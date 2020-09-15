@@ -74,4 +74,7 @@ import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryO
 // Issues
 import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
 
+// Remote
+import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
+
 //#endregion

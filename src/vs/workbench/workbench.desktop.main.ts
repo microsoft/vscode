@@ -96,9 +96,6 @@ import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 
-// Remote
-import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
-
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
