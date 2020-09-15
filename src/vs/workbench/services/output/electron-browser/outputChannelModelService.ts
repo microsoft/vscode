@@ -168,7 +168,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 			const file = resources.joinPath(outputDir, `${id}.log`);
 			outputChannelModel = this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file);
 		} catch (e) {
-			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
+			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/microsoft/vscode/issues/47883)
 			this.logService.error(e);
 			this.telemetryService.publicLog2('output.channel.creation.error');
 			outputChannelModel = this.instantiationService.createInstance(BufferredOutputChannel, modelUri, mimeType);

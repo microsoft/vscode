@@ -14,7 +14,7 @@ import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
 import { normalizeNFC } from 'vs/base/common/normalization';
 
-// See https://github.com/Microsoft/vscode/issues/30180
+// See https://github.com/microsoft/vscode/issues/30180
 const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
 const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
 

@@ -106,7 +106,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			if (shouldBeSelected) {
 				this.selected = e.index;
 			} else {
-				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
 				this.selectBox.select(this.selected);
 			}
 		}));

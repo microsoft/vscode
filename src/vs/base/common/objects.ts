@@ -10,7 +10,7 @@ export function deepClone<T>(obj: T): T {
 		return obj;
 	}
 	if (obj instanceof RegExp) {
-		// See https://github.com/Microsoft/TypeScript/issues/10990
+		// See https://github.com/microsoft/TypeScript/issues/10990
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};

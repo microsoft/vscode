@@ -65,7 +65,7 @@ export class NsfwWatcherService implements IWatcherService {
 			// the watcher consumes so many file descriptors that
 			// we are running into a limit. We only want to warn
 			// once in this case to avoid log spam.
-			// See https://github.com/Microsoft/vscode/issues/7950
+			// See https://github.com/microsoft/vscode/issues/7950
 			if (e === 'Inotify limit reached' && !this.enospcErrorLogged) {
 				this.enospcErrorLogged = true;
 				this.error('Inotify limit reached (ENOSPC)');

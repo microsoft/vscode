@@ -1196,7 +1196,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 }
 
 /**
- * See https://github.com/Microsoft/monaco-editor/issues/601
+ * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
  * to change the location of the current page.
@@ -1205,7 +1205,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 export function windowOpenNoOpener(url: string): void {
 	if (platform.isNative || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
+		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
 		window.open(url);
 	} else {
 		let newTab = window.open();

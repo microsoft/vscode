@@ -2190,7 +2190,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let wrappingColumn = -1;
 
 		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
-			// See https://github.com/Microsoft/vscode/issues/27766
+			// See https://github.com/microsoft/vscode/issues/27766
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
