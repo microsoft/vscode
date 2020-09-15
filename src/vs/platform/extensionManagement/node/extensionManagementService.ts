@@ -34,7 +34,7 @@ import { ExtensionsManifestCache } from 'vs/platform/extensionManagement/node/ex
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
-import { tmpdir } from 'os';
+import { joinPath } from 'vs/base/common/resources';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { optional, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -83,7 +83,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 		@optional(IDownloadService) private downloadService: IDownloadService,
@@ -107,7 +107,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	async zip(extension: ILocalExtension): Promise<URI> {
 		this.logService.trace('ExtensionManagementService#zip', extension.identifier.id);
 		const files = await this.collectFiles(extension);
-		const location = await zip(path.join(tmpdir(), generateUuid()), files);
+		const location = await zip(joinPath(this.environmentService.tmpDir, generateUuid()).fsPath, files);
 		return URI.file(location);
 	}
 
@@ -217,7 +217,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			throw new Error('Download service is not available');
 		}
 
-		const downloadedLocation = URI.file(path.join(tmpdir(), generateUuid()));
+		const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 		await this.downloadService.download(vsix, downloadedLocation);
 		return downloadedLocation;
 	}

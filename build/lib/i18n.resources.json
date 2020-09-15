@@ -207,6 +207,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/webviewPanel",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/customEditor",
 			"project": "vscode-workbench"
 		},

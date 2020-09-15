@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -315,10 +315,10 @@ export class StatefulMarkdownCell extends Disposable {
 				this.templateData.foldingIndicator.innerText = '';
 				break;
 			case CellFoldingState.Collapsed:
-				DOM.reset(this.templateData.foldingIndicator, ...renderCodiconsAsElement('$(chevron-right)'));
+				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons('$(chevron-right)'));
 				break;
 			case CellFoldingState.Expanded:
-				DOM.reset(this.templateData.foldingIndicator, ...renderCodiconsAsElement('$(chevron-down)'));
+				DOM.reset(this.templateData.foldingIndicator, ...renderCodicons('$(chevron-down)'));
 				break;
 
 			default:

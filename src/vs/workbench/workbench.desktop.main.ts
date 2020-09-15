@@ -45,7 +45,6 @@ import 'vs/workbench/services/extensionManagement/electron-browser/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
-import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
@@ -97,9 +96,6 @@ import 'vs/workbench/contrib/extensions/electron-browser/extensions.contribution
 // Terminal
 import 'vs/workbench/contrib/terminal/electron-browser/terminal.contribution';
 
-// Remote
-import 'vs/workbench/contrib/remote/electron-browser/remote.contribution';
-
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-browser/codeEditor.contribution';
 
@@ -114,9 +110,6 @@ import 'vs/workbench/contrib/cli/node/cli.contribution';
 
 // Themes Support
 import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
-
-// Issues
-import 'vs/workbench/contrib/issue/electron-browser/issue.contribution';
 
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/taskService';

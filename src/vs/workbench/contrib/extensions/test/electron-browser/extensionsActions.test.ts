@@ -50,6 +50,7 @@ import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/exten
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -99,7 +100,7 @@ async function setupTest() {
 	instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 		#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 		constructor() {
-			super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService));
+			super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(IWorkbenchEnvironmentService) as INativeWorkbenchEnvironmentService);
 		}
 		get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 		set localExtensionManagementServer(server: IExtensionManagementServer) { }

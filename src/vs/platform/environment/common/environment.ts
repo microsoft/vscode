@@ -95,6 +95,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
+	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
 	backupHome: string;

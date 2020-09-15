@@ -29,8 +29,8 @@ import { CustomDocumentBackupData } from 'vs/workbench/contrib/customEditor/brow
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomTextEditorModel } from 'vs/workbench/contrib/customEditor/common/customTextEditorModel';
 import { WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
+import { IWebviewWorkbenchService } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';

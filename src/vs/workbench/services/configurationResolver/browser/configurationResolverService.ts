@@ -5,7 +5,6 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { toResource } from 'vs/workbench/common/editor';
@@ -22,6 +21,7 @@ import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -34,7 +34,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
 		private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly quickInputService: IQuickInputService
+		private readonly quickInputService: IQuickInputService,
+		private readonly labelService: ILabelService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -55,11 +56,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (activeEditor instanceof DiffEditorInput) {
 					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
+				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote] });
 				if (!fileResource) {
 					return undefined;
 				}
-				return path.normalize(fileResource.fsPath);
+				return this.labelService.getUriLabel(fileResource);
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;
@@ -83,7 +84,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, envVariables);
+		}, labelService, envVariables);
 	}
 
 	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
@@ -347,9 +348,10 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILabelService labelService: ILabelService
 	) {
-		super({ getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService);
+		super({ getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
 

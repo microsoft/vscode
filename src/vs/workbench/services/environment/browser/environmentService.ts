@@ -71,12 +71,7 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 		return undefined;
 	}
 
-	// TODO@martin TODO@ben this currently does not support high-contrast theme preference (no browser support yet)
 	get colorScheme() {
-		if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
-			return ColorScheme.DARK;
-		}
-
 		return ColorScheme.LIGHT;
 	}
 }

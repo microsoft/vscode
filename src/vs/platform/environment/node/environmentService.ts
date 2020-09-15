@@ -45,6 +45,9 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
+	get tmpDir(): URI { return URI.file(os.tmpdir()); }
+
+	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize

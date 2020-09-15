@@ -199,6 +199,7 @@ import 'vs/workbench/contrib/url/browser/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';
+import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
 import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
 import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 

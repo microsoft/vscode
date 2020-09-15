@@ -116,7 +116,7 @@ export abstract class FormattingConflicts {
 		if (selector) {
 			return await selector(formatter, document, mode);
 		}
-		return formatter[0];
+		return undefined;
 	}
 }
 

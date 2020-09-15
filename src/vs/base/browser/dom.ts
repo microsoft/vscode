@@ -83,17 +83,17 @@ const _classList: IDomClassList = new class implements IDomClassList {
 };
 
 /** @deprecated ES6 - use classList*/
-export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
-export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
-export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
 
 class DomListener implements IDisposable {
 
@@ -1276,4 +1276,67 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 
 	// Ensure to remove the element from DOM eventually
 	setTimeout(() => document.body.removeChild(anchor));
+}
+
+export enum DetectedFullscreenMode {
+
+	/**
+	 * The document is fullscreen, e.g. because an element
+	 * in the document requested to be fullscreen.
+	 */
+	DOCUMENT = 1,
+
+	/**
+	 * The browser is fullsreen, e.g. because the user enabled
+	 * native window fullscreen for it.
+	 */
+	BROWSER
+}
+
+export interface IDetectedFullscreen {
+
+	/**
+	 * Figure out if the document is fullscreen or the browser.
+	 */
+	mode: DetectedFullscreenMode;
+
+	/**
+	 * Wether we know for sure that we are in fullscreen mode or
+	 * it is a guess.
+	 */
+	guess: boolean;
+}
+
+export function detectFullscreen(): IDetectedFullscreen | null {
+
+	// Browser fullscreen: use DOM APIs to detect
+	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
+	}
+
+	// There is no standard way to figure out if the browser
+	// is using native fullscreen. Via checking on screen
+	// height and comparing that to window height, we can guess
+	// it though.
+
+	if (window.innerHeight === screen.height) {
+		// if the height of the window matches the screen height, we can
+		// safely assume that the browser is fullscreen because no browser
+		// chrome is taking height away (e.g. like toolbars).
+		return { mode: DetectedFullscreenMode.BROWSER, guess: false };
+	}
+
+	if (platform.isMacintosh || platform.isLinux) {
+		// macOS and Linux do not properly report `innerHeight`, only Windows does
+		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
+			// if the height of the browser matches the screen height, we can
+			// only guess that we are in fullscreen. It is also possible that
+			// the user has turned off taskbars in the OS and the browser is
+			// simply able to span the entire size of the screen.
+			return { mode: DetectedFullscreenMode.BROWSER, guess: true };
+		}
+	}
+
+	// Not in fullscreen
+	return null;
 }

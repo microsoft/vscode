@@ -39,6 +39,7 @@ import 'vs/workbench/services/configurationResolver/electron-sandbox/configurati
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
+import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
 
 //#endregion
 
@@ -69,5 +70,11 @@ import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 
 // Telemetry Opt Out
 import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
+
+// Issues
+import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
+
+// Remote
+import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
 
 //#endregion

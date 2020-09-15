@@ -15,6 +15,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 
@@ -24,13 +25,14 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILabelService labelService: ILabelService
 	) {
 		super({
 			getExecPath: (): string | undefined => {
 				return environmentService.execPath;
 			}
-		}, process.env as IProcessEnvironment, editorService, configurationService, commandService, workspaceContextService, quickInputService);
+		}, process.env as IProcessEnvironment, editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
 

@@ -1313,6 +1313,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCell {
+		readonly index: number;
 		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
@@ -1399,27 +1400,16 @@ declare module 'vscode' {
 
 	export interface WorkspaceEdit {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
-		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
-
-		replaceNotebookMetadata(value: NotebookDocumentMetadata): void;
-
+		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
 		replaceCellOutput(index: number, outputs: CellOutput[]): void;
 		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
-
-		/** @deprecated */
-		replaceOutput(index: number, outputs: CellOutput[]): void;
-		/** @deprecated */
-		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
-		/** @deprecated */
-		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
-		/** @deprecated */
-		delete(index: number): void;
 	}
 
 	export interface NotebookCellRange {
@@ -1503,6 +1493,16 @@ declare module 'vscode' {
 		 */
 		asWebviewUri(localResource: Uri): Uri;
 
+		/**
+		 * Perform an edit on the notebook associated with this notebook editor.
+		 *
+		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
+		 * be used to make edits. Note that the edit-builder is only valid while the
+		 * callback executes.
+		 *
+		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
+		 * @return A promise that resolves with a value indicating if the edits could be applied.
+		 */
 		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 
 		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
@@ -2036,32 +2036,6 @@ declare module 'vscode' {
 
 	export namespace languages {
 		export function getTokenInformationAtPosition(document: TextDocument, position: Position): Promise<TokenInformation>;
-	}
-
-	//#endregion
-
-	//#region Support `scmResourceState` in `when` clauses #86180 https://github.com/microsoft/vscode/issues/86180
-
-	export interface SourceControlResourceState {
-		/**
-		 * Context value of the resource state. This can be used to contribute resource specific actions.
-		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
-		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"scm/resourceState/context": [
-		 *				{
-		 *					"command": "extension.diff",
-		 *					"when": "scmResourceState == diffable"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
-		 * ```
-		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
-		 */
-		readonly contextValue?: string;
 	}
 
 	//#endregion
