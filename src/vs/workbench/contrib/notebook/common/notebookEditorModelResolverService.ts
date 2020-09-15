@@ -62,16 +62,16 @@ export class NotebookModelResolverService implements INotebookEditorModelResolve
 
 	async resolve(resource: URI, viewType?: string): Promise<IReference<INotebookEditorModel>> {
 
+		const existingViewType = this._notebookService.getNotebookTextModel(resource)?.viewType;
 		if (!viewType) {
-			viewType = this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
+			viewType = existingViewType ?? this._notebookService.getContributedNotebookProviders(resource)[0]?.id;
 		}
 		if (!viewType) {
 			throw new Error(`Missing viewType for '${resource}'`);
 		}
 
-		const existing = this._notebookService.getNotebookTextModel(resource);
-		if (existing && existing.viewType !== viewType) {
-			throw new Error(`A notebook with view type '${existing.viewType}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
+		if (existingViewType && existingViewType !== viewType) {
+			throw new Error(`A notebook with view type '${existingViewType}' already exists for '${resource}', CANNOT create another notebook with view type ${viewType}`);
 		}
 
 		const reference = this._data.acquire(resource.toString(), viewType);
