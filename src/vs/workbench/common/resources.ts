@@ -76,8 +76,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 				this._resourceKey.set(value);
 				this._schemeKey.set(value ? value.scheme : null);
 				this._filenameKey.set(value ? basename(value) : null);
-				this._folderKey.set(value ? dirname(value).path : null);
-				this._pathKey.set(value ? value.path : null);
+				this._folderKey.set(value ? dirname(value).fsPath : null);
+				this._pathKey.set(value ? value.fsPath : null);
 				this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 				this._extensionKey.set(value ? extname(value) : null);
 				this._hasResource.set(!!value);
