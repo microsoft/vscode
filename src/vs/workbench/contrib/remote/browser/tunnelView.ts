@@ -42,8 +42,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -74,8 +72,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITerminalService readonly terminalService: ITerminalService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -89,11 +86,6 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: ''
 		};
-
-		const urlFinder = this._register(new UrlFinder(terminalService));
-		this._register(urlFinder.onDidMatchLocalUrl(localUrl => {
-			this.model.forward(localUrl);
-		}));
 	}
 
 	async groups(): Promise<ITunnelGroup[]> {
@@ -866,7 +858,7 @@ namespace ClosePortAction {
 	}
 }
 
-namespace OpenPortInBrowserAction {
+export namespace OpenPortInBrowserAction {
 	export const ID = 'remote.tunnel.open';
 	export const LABEL = nls.localize('remote.tunnel.open', "Open in Browser");
 
@@ -876,14 +868,18 @@ namespace OpenPortInBrowserAction {
 				const model = accessor.get(IRemoteExplorerService).tunnelModel;
 				const openerService = accessor.get(IOpenerService);
 				const key = MakeAddress(arg.remoteHost, arg.remotePort);
-				const tunnel = model.forwarded.get(key) || model.detected.get(key);
-				let address: string | undefined;
-				if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remoteHost, tunnel.remotePort))) {
-					return openerService.open(URI.parse('http://' + address));
-				}
-				return Promise.resolve();
+				return run(model, openerService, key);
 			}
 		};
+	}
+
+	export function run(model: TunnelModel, openerService: IOpenerService, key: string) {
+		const tunnel = model.forwarded.get(key) || model.detected.get(key);
+		let address: string | undefined;
+		if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remoteHost, tunnel.remotePort))) {
+			return openerService.open(URI.parse('http://' + address));
+		}
+		return Promise.resolve();
 	}
 }
 
