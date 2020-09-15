@@ -207,33 +207,6 @@ suite('GlobalStateSync', () => {
 		assert.deepEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	});
 
-	test('first time sync - push', async () => {
-		updateStorage('a', 'value1', testClient);
-		updateStorage('b', 'value2', testClient);
-
-		await testObject.push();
-		assert.equal(testObject.status, SyncStatus.Idle);
-		assert.deepEqual(testObject.conflicts, []);
-
-		const { content } = await testClient.read(testObject.resource);
-		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
-		assert.deepEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
-	});
-
-	test('first time sync - pull', async () => {
-		updateStorage('a', 'value1', client2);
-		updateStorage('b', 'value2', client2);
-		await client2.sync();
-
-		await testObject.pull();
-		assert.equal(testObject.status, SyncStatus.Idle);
-		assert.deepEqual(testObject.conflicts, []);
-
-		assert.equal(readStorage('a', testClient), 'value1');
-		assert.equal(readStorage('b', testClient), 'value2');
-	});
-
 	function parseGlobalState(content: string): IGlobalState {
 		const syncData: ISyncData = JSON.parse(content);
 		return JSON.parse(syncData.content);

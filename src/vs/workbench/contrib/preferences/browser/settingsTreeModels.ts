@@ -424,7 +424,7 @@ function wordifyKey(key: string): string {
 				match;
 		});
 
-	for (let [k, v] of knownTermMappings) {
+	for (const [k, v] of knownTermMappings) {
 		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
 	}
 
@@ -631,7 +631,7 @@ const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
-	let extensions: string[] = [];
+	const extensions: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -643,7 +643,7 @@ export function parseQuery(query: string): IParsedQuery {
 	});
 
 	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
-		let extensionIdQuery: string = extensionId || quotedExtensionId;
+		const extensionIdQuery: string = extensionId || quotedExtensionId;
 		if (extensionIdQuery) {
 			extensions.push(...extensionIdQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
 		}

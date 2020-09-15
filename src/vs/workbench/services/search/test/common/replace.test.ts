@@ -8,7 +8,7 @@ import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 suite('Replace Pattern test', () => {
 
 	test('parse replace string', () => {
-		let testParse = (input: string, expected: string, expectedHasParameters: boolean) => {
+		const testParse = (input: string, expected: string, expectedHasParameters: boolean) => {
 			let actual = new ReplacePattern(input, { pattern: 'somepattern', isRegExp: true });
 			assert.equal(expected, actual.pattern);
 			assert.equal(expectedHasParameters, actual.hasParameters);
@@ -138,6 +138,12 @@ suite('Replace Pattern test', () => {
 		testObject = new ReplacePattern('cat$1', { pattern: 'for(.*)', isRegExp: true });
 		actual = testObject.getReplaceString('for ()');
 		assert.equal('cat ()', actual);
+	});
+
+	test('case operations', () => {
+		let testObject = new ReplacePattern('a\\u$1l\\u\\l\\U$2M$3n', { pattern: 'a(l)l(good)m(e)n', isRegExp: true });
+		let actual = testObject.getReplaceString('allgoodmen');
+		assert.equal('aLlGoODMen', actual);
 	});
 
 	test('get replace string for no matches', () => {

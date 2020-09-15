@@ -179,18 +179,18 @@ export function equals(one: any, other: any): boolean {
 }
 
 /**
- * Calls JSON.Stringify with a replacer to break apart any circular references.
- * This prevents JSON.stringify from throwing the exception
+ * Calls `JSON.Stringify` with a replacer to break apart any circular references.
+ * This prevents `JSON`.stringify` from throwing the exception
  *  "Uncaught TypeError: Converting circular structure to JSON"
  */
 export function safeStringify(obj: any): string {
-	const seen: any[] = [];
+	const seen = new Set<any>();
 	return JSON.stringify(obj, (key, value) => {
 		if (isObject(value) || Array.isArray(value)) {
-			if (seen.indexOf(value) !== -1) {
+			if (seen.has(value)) {
 				return '[Circular]';
 			} else {
-				seen.push(value);
+				seen.add(value);
 			}
 		}
 		return value;

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
-export const IPathService = createDecorator<IPathService>('path');
+export const IPathService = createDecorator<IPathService>('pathService');
 
 /**
  * Provides access to path related properties that will match the
@@ -27,6 +27,14 @@ export interface IPathService {
 	 * the local file system's path library depending on the OS.
 	 */
 	readonly path: Promise<IPath>;
+
+	/**
+	 * Determines the best default URI scheme for the current workspace.
+	 * It uses information about whether we're running remote, in browser,
+	 * or native combined with information about the current workspace to
+	 * find the best default scheme.
+	 */
+	readonly defaultUriScheme: string;
 
 	/**
 	 * Converts the given path to a file URI to use for the target
@@ -59,6 +67,8 @@ export abstract class AbstractPathService implements IPathService {
 
 	private resolveUserHome: Promise<URI>;
 	private maybeUnresolvedUserHome: URI | undefined;
+
+	abstract readonly defaultUriScheme: string;
 
 	constructor(
 		private localUserHome: URI,

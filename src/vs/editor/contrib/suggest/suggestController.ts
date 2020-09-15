@@ -34,6 +34,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IdleValue } from 'vs/base/common/async';
 import { isObject, assertType } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
+import { OvertypingCapturer } from './suggestOvertypingCapturer';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -112,6 +113,7 @@ export class SuggestController implements IEditorContribution {
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
+	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 
 	constructor(
 		editor: ICodeEditor,
@@ -201,6 +203,11 @@ export class SuggestController implements IEditorContribution {
 			}));
 
 			return widget;
+		}));
+
+		// Wire up text overtyping capture
+		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
+			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
 		}));
 
 		this._alternatives = this._toDispose.add(new IdleValue(() => {
@@ -361,7 +368,8 @@ export class SuggestController implements IEditorContribution {
 			undoStopBefore: false,
 			undoStopAfter: false,
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
-			clipboardText: event.model.clipboardText
+			clipboardText: event.model.clipboardText,
+			overtypingCapturer: this._overtypingCapturer.value
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
@@ -434,7 +442,7 @@ export class SuggestController implements IEditorContribution {
 	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
 		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
 		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
-			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
+			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
@@ -590,7 +598,8 @@ export class TriggerSuggestAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape] },
+				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KEY_I] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});

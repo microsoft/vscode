@@ -123,7 +123,10 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			try {
 				quickpick.busy = true;
 
-				const children = (await vscode.workspace.fs.readDirectory(folder)).map(([name]) => name);
+				const children = (await vscode.workspace.fs.readDirectory(folder))
+					.map(([name]) => name)
+					.filter(name => name !== '.git');
+
 				quickpick.items = children.map(name => ({ label: name }));
 				quickpick.selectedItems = quickpick.items;
 				quickpick.busy = false;
@@ -140,9 +143,11 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 				const ignored = new Set(children);
 				result.forEach(c => ignored.delete(c.label));
 
-				const raw = [...ignored].map(i => `/${i}`).join('\n');
-				const encoder = new TextEncoder();
-				await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
+				if (ignored.size > 0) {
+					const raw = [...ignored].map(i => `/${i}`).join('\n');
+					const encoder = new TextEncoder();
+					await vscode.workspace.fs.writeFile(gitignore, encoder.encode(raw));
+				}
 			} finally {
 				quickpick.dispose();
 			}

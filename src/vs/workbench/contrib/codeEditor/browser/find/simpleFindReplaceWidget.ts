@@ -43,7 +43,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
-	private readonly _replaceInput!: ReplaceInput;
+	protected readonly _replaceInput!: ReplaceInput;
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
@@ -369,6 +369,34 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._domNode.setAttribute('aria-hidden', 'false');
 
 			this.focus();
+		}, 0);
+	}
+
+	public showWithReplace(initialInput?: string, replaceInput?: string): void {
+		if (initialInput && !this._isVisible) {
+			this._findInput.setValue(initialInput);
+		}
+
+		if (replaceInput && !this._isVisible) {
+			this._replaceInput.setValue(replaceInput);
+		}
+
+		this._isVisible = true;
+		this._isReplaceVisible = true;
+		this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
+		if (this._isReplaceVisible) {
+			this._innerReplaceDomNode.style.display = 'flex';
+		} else {
+			this._innerReplaceDomNode.style.display = 'none';
+		}
+
+		setTimeout(() => {
+			dom.addClass(this._domNode, 'visible');
+			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.setAttribute('aria-hidden', 'false');
+			this._updateButtons();
+
+			this._replaceInput.focus();
 		}, 0);
 	}
 

@@ -31,6 +31,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _appender: ITelemetryAppender;
 	private _commonProperties: Promise<{ [name: string]: any; }>;
+	private _experimentProperties: { [name: string]: string } = {};
 	private _piiPaths: string[];
 	private _userOptIn: boolean;
 	private _enabled: boolean;
@@ -79,12 +80,16 @@ export class TelemetryService implements ITelemetryService {
 		}
 	}
 
+	setExperimentProperty(name: string, value: string): void {
+		this._experimentProperties[name] = value;
+	}
+
 	setEnabled(value: boolean): void {
 		this._enabled = value;
 	}
 
 	private _updateUserOptIn(): void {
-		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
+		const config = this._configurationService?.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 
@@ -118,6 +123,9 @@ export class TelemetryService implements ITelemetryService {
 
 			// (first) add common properties
 			data = mixin(data, values);
+
+			// (next) add experiment properties
+			data = mixin(data, this._experimentProperties);
 
 			// (last) remove all PII from data
 			data = cloneAndChange(data, value => {

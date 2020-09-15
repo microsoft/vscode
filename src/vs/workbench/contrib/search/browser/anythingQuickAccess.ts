@@ -46,7 +46,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
 import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, stripCodicons } from 'vs/base/common/codicons';
 
@@ -134,7 +134,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				this.editorViewState = {
 					group: activeEditorPane.group,
 					editor: activeEditorPane.input,
-					state: withNullAsUndefined(getCodeEditor(activeEditorPane.getControl())?.saveViewState())
+					state: withNullAsUndefined(getIEditor(activeEditorPane.getControl())?.saveViewState())
 				};
 			}
 		}
@@ -661,7 +661,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (isAbsolutePathQuery) {
 			const resource = toLocalResource(
 				await this.pathService.fileURI(detildifiedQuery),
-				this.environmentService.configuration.remoteAuthority
+				this.environmentService.configuration.remoteAuthority,
+				this.pathService.defaultUriScheme
 			);
 
 			if (token.isCancellationRequested) {
@@ -697,7 +698,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				const resource = toLocalResource(
 					folder.toResource(query.original),
-					this.environmentService.configuration.remoteAuthority
+					this.environmentService.configuration.remoteAuthority,
+					this.pathService.defaultUriScheme
 				);
 
 				try {

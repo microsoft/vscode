@@ -10,12 +10,10 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
 import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -25,7 +23,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { isWindows } from 'vs/base/common/platform';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -43,7 +41,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IModeService private readonly modeService: IModeService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IPathService private readonly pathService: IPathService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -231,7 +230,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected getSchemeFilterForWindow(defaultUriScheme?: string): string {
-		return !this.environmentService.configuration.remoteAuthority ? (!defaultUriScheme || defaultUriScheme === Schemas.file ? Schemas.file : defaultUriScheme) : REMOTE_HOST_SCHEME;
+		return defaultUriScheme ?? this.pathService.defaultUriScheme;
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[], defaultUri?: URI }): string {
@@ -259,7 +258,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Build the file filter by using our known languages
 		const ext: string | undefined = defaultUri ? resources.extname(defaultUri) : undefined;
 		let matchingFilter: IFilter | undefined;
-		const filters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
+		const registeredLanguageFilters: IFilter[] = coalesce(this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);
 			if (!extensions || !extensions.length) {
 				return null;
@@ -279,24 +278,20 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// We have no matching filter, e.g. because the language
 		// is unknown. We still add the extension to the list of
 		// filters though so that it can be picked
-		// (https://github.com/microsoft/vscode/issues/96283) but
-		// only on Windows where this is an issue. Adding this to
-		// macOS would result in the following bugs:
-		// https://github.com/microsoft/vscode/issues/100614 and
-		// https://github.com/microsoft/vscode/issues/100241
-		if (isWindows && !matchingFilter && ext) {
+		// (https://github.com/microsoft/vscode/issues/96283)
+		if (!matchingFilter && ext) {
 			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
 		}
 
 		// Order of filters is
-		// - File Extension Match
-		// - All Files
+		// - All Files (we MUST do this to fix macOS issue https://github.com/microsoft/vscode/issues/102713)
+		// - File Extension Match (if any)
 		// - All Languages
 		// - No Extension
 		options.filters = coalesce([
-			matchingFilter,
 			{ name: nls.localize('allFiles', "All Files"), extensions: ['*'] },
-			...filters,
+			matchingFilter,
+			...registeredLanguageFilters,
 			{ name: nls.localize('noExt', "No Extension"), extensions: [''] }
 		]);
 

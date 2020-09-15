@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -13,12 +12,14 @@ import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
-import { EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_STATUSBAR_HEIGHT, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata, INotebookSearchOptions, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export abstract class BaseCellViewModel extends Disposable {
+
 	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
 	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
@@ -59,15 +60,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this._editState === CellEditState.Preview) {
 			this.focusMode = CellFocusMode.Container;
 		}
-	}
-
-	private _currentTokenSource: CancellationTokenSource | undefined;
-	public set currentTokenSource(v: CancellationTokenSource | undefined) {
-		this._currentTokenSource = v;
-	}
-
-	public get currentTokenSource(): CancellationTokenSource | undefined {
-		return this._currentTokenSource;
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;
@@ -116,7 +108,12 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._dragging = v;
 	}
 
-	constructor(readonly viewType: string, readonly model: NotebookCellTextModel, public id: string) {
+	constructor(
+		readonly viewType: string,
+		readonly model: NotebookCellTextModel,
+		public id: string,
+		private readonly _configurationService: IConfigurationService
+	) {
 		super();
 
 		this._register(model.onDidChangeLanguage(() => {
@@ -126,12 +123,24 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._register(model.onDidChangeMetadata(() => {
 			this._onDidChangeState.fire({ metadataChanged: true });
 		}));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ShowCellStatusBarKey)) {
+				this.layoutChange({});
+			}
+		}));
+	}
+
+	protected getEditorStatusbarHeight() {
+		const showCellStatusBar = this._configurationService.getValue<boolean>(ShowCellStatusBarKey);
+		return showCellStatusBar ? CELL_STATUSBAR_HEIGHT : 0;
 	}
 
 	// abstract resolveTextModel(): Promise<model.ITextModel>;
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
+	abstract layoutChange(change: any): void;
 
 	assertTextModelAttached(): boolean {
 		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
@@ -182,7 +191,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this.saveViewState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
-			let resolvedid = value.id;
+			const resolvedid = value.id;
 
 			if (resolvedid) {
 				this._textEditor?.deltaDecorations([resolvedid], []);

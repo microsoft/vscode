@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/product/common/product';
 import { app, Event as ElectronEvent } from 'electron';

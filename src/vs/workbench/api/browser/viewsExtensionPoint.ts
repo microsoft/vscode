@@ -32,6 +32,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { CustomTreeView } from 'vs/workbench/contrib/views/browser/treeView';
+import { WebviewViewPane } from 'vs/workbench/contrib/webviewView/browser/webviewViewPane';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -76,7 +77,15 @@ export const viewsContainersContribution: IJSONSchema = {
 	}
 };
 
+enum ViewType {
+	Tree = 'tree',
+	Webview = 'webview'
+}
+
+
 interface IUserFriendlyViewDescriptor {
+	type?: ViewType;
+
 	id: string;
 	name: string;
 	when?: string;
@@ -98,9 +107,23 @@ enum InitialVisibility {
 
 const viewDescriptor: IJSONSchema = {
 	type: 'object',
+	required: ['id', 'name'],
+	defaultSnippets: [{ body: { id: '${1:id}', name: '${2:name}' } }],
 	properties: {
+		type: {
+			markdownDescription: localize('vscode.extension.contributes.view.type', "Type of the the view. This can either be `tree` for a tree view based view or `webview` for a webview based view. The default is `tree`."),
+			type: 'string',
+			enum: [
+				'tree',
+				'webview',
+			],
+			markdownEnumDescriptions: [
+				localize('vscode.extension.contributes.view.tree', "The view is backed by a `TreeView` created by `createTreeView`."),
+				localize('vscode.extension.contributes.view.webview', "The view is backed by a `WebviewView` registered by `registerWebviewViewProvider`."),
+			]
+		},
 		id: {
-			description: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
+			markdownDescription: localize('vscode.extension.contributes.view.id', 'Identifier of the view. This should be unique across all views. It is recommended to include your extension id as part of the view id. Use this to register a data provider through `vscode.window.registerTreeDataProviderForView` API. Also to trigger activating your extension by registering `onView:${id}` event to `activationEvents`.'),
 			type: 'string'
 		},
 		name: {
@@ -127,8 +150,9 @@ const viewDescriptor: IJSONSchema = {
 				'hidden',
 				'collapsed'
 			],
+			default: 'visible',
 			enumDescriptions: [
-				localize('vscode.extension.contributes.view.initialState.visible', "The default initial state for view. The view will be expanded. This may have different behavior when the view container that the view is in is built in."),
+				localize('vscode.extension.contributes.view.initialState.visible', "The default initial state for the view. In most containers the view will be expanded, however; some built-in containers (explorer, scm, and debug) show all contributed views collapsed regardless of the `visibility`."),
 				localize('vscode.extension.contributes.view.initialState.hidden', "The view will not be shown in the view container, but will be discoverable through the views menu and other view entry points and can be un-hidden by the user."),
 				localize('vscode.extension.contributes.view.initialState.collapsed', "The view will show in the view container, but will be collapsed.")
 			]
@@ -207,10 +231,17 @@ const viewsContribution: IJSONSchema = {
 	}
 };
 
-export interface ICustomViewDescriptor extends ITreeViewDescriptor {
+export interface ICustomTreeViewDescriptor extends ITreeViewDescriptor {
 	readonly extensionId: ExtensionIdentifier;
 	readonly originalContainerId: string;
 }
+
+export interface ICustomWebviewViewDescriptor extends IViewDescriptor {
+	readonly extensionId: ExtensionIdentifier;
+	readonly originalContainerId: string;
+}
+
+export type ICustomViewDescriptor = ICustomTreeViewDescriptor | ICustomWebviewViewDescriptor;
 
 type ViewContainerExtensionPointType = { [loc: string]: IUserFriendlyViewsContainerDescriptor[] };
 const viewsContainersExtensionPoint: IExtensionPoint<ViewContainerExtensionPointType> = ExtensionsRegistry.registerExtensionPoint<ViewContainerExtensionPointType>({
@@ -441,16 +472,29 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
 					const initialVisibility = this.convertInitialVisibility(item.visibility);
-					const viewDescriptor = <ICustomViewDescriptor>{
+
+					const type = this.getViewType(item.type);
+					if (!type) {
+						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
+						return null;
+					}
+
+					if (type === ViewType.Webview && !extension.description.enableProposedApi) {
+						collector.error(localize('webviewViewsRequireProposed', "Webview views are proposed api and are only supported when running out of dev or with the following command line switch: --enable-proposed-api"));
+						return null;
+					}
+
+					const viewDescriptor = <ICustomTreeViewDescriptor>{
+						type: type,
+						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
 						name: item.name,
-						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
 						canMoveView: true,
-						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
+						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,
 						extensionId: extension.description.identifier,
@@ -459,6 +503,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority, // TODO@roblou - delete after remote extensions are updated
 						hideByDefault: initialVisibility === InitialVisibility.Hidden
 					};
+
 
 					viewIds.add(viewDescriptor.id);
 					return viewDescriptor;
@@ -470,6 +515,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		}
 
 		this.viewsRegistry.registerViews2(allViewDescriptors);
+	}
+
+	private getViewType(type: string | undefined): ViewType | undefined {
+		if (type === ViewType.Webview) {
+			return ViewType.Webview;
+		}
+		if (!type || type === ViewType.Tree) {
+			return ViewType.Tree;
+		}
+		return undefined;
 	}
 
 	private getDefaultViewContainer(): ViewContainer {

@@ -36,6 +36,8 @@ export interface WebviewIcons {
 export interface IWebviewService {
 	readonly _serviceBrand: undefined;
 
+	readonly activeWebview: Webview | undefined;
+
 	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
@@ -86,6 +88,9 @@ export interface IDataLinkClickEvent {
 }
 
 export interface Webview extends IDisposable {
+
+	readonly id: string;
+
 	html: string;
 	contentOptions: WebviewContentOptions;
 	localResourcesRoot: URI[];
@@ -93,8 +98,12 @@ export interface Webview extends IDisposable {
 	initialScrollProgress: number;
 	state: string | undefined;
 
+	readonly isFocused: boolean;
+
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
+	readonly onDidDispose: Event<void>;
+
 	readonly onDidClickLink: Event<string>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
@@ -136,8 +145,6 @@ export interface WebviewElement extends Webview {
 export interface WebviewOverlay extends Webview {
 	readonly container: HTMLElement;
 	options: WebviewOptions;
-
-	readonly onDispose: Event<void>;
 
 	claim(owner: any): void;
 	release(owner: any): void;

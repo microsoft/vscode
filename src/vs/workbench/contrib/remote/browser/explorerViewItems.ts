@@ -4,21 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
-
 import { IAction, Action } from 'vs/base/common/actions';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IRemoteExplorerService, REMOTE_EXPLORER_TYPE_KEY } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IViewDescriptor } from 'vs/workbench/common/views';
-import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface IRemoteSelectItem extends ISelectOptionItem {
 	authority: string[];
@@ -73,7 +70,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	render(container: HTMLElement) {
 		if (this.optionsItems.length > 1) {
 			super.render(container);
-			dom.addClass(container, 'switch-remote');
+			container.classList.add('switch-remote');
 		}
 	}
 
@@ -84,7 +81,7 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	static createOptionItems(views: IViewDescriptor[], contextKeyService: IContextKeyService): IRemoteSelectItem[] {
 		let options: IRemoteSelectItem[] = [];
 		views.forEach(view => {
-			if (view.group && startsWith(view.group, 'targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
+			if (view.group && view.group.startsWith('targets') && view.remoteAuthority && (!view.when || contextKeyService.contextMatchesRules(view.when))) {
 				options.push({ text: view.name, authority: isStringArray(view.remoteAuthority) ? view.remoteAuthority : [view.remoteAuthority] });
 			}
 		});

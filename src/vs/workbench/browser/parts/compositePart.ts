@@ -7,13 +7,12 @@ import 'vs/css!./media/compositepart';
 import * as nls from 'vs/nls';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { IDisposable, dispose, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
-import * as strings from 'vs/base/common/strings';
 import { Emitter } from 'vs/base/common/event';
 import * as errors from 'vs/base/common/errors';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IActionViewItem, ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IActionViewItem } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -29,7 +28,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, addClass, hide, show, addClasses } from 'vs/base/browser/dom';
+import { Dimension, append, $, hide, show, addClasses } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 
@@ -104,6 +103,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Fullfill promise with composite that is being opened
 			return this.activeComposite;
+		}
+
+		// We cannot open the composite if we have not been created yet
+		if (!this.element) {
+			return;
 		}
 
 		// Open
@@ -379,7 +383,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
-		addClass(titleArea, 'title');
+		titleArea.classList.add('title');
 
 		// Left Title Label
 		this.titleLabel = this.createTitleLabel(titleArea);
@@ -408,8 +412,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		const $this = this;
 		return {
-			updateTitle: (id, title, keybinding) => {
-				titleLabel.innerHTML = strings.escape(title);
+			updateTitle: (_id, title, keybinding) => {
+				titleLabel.innerText = title;
 				titleLabel.title = keybinding ? nls.localize('titleTooltip', "{0} ({1})", title, keybinding) : title;
 			},
 

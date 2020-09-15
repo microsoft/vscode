@@ -20,7 +20,7 @@ function initialize() {
 		for (let c of iconRegistry.all) {
 			rules.push(formatRule(c));
 		}
-		codiconStyleSheet.innerHTML = rules.join('\n');
+		codiconStyleSheet.textContent = rules.join('\n');
 	}
 
 	const delayer = new RunOnceScheduler(updateAll, 0);
@@ -28,7 +28,7 @@ function initialize() {
 	delayer.schedule();
 }
 
-function formatRule(c: Codicon) {
+export function formatRule(c: Codicon) {
 	let def = c.definition;
 	while (def instanceof Codicon) {
 		def = def.definition;

@@ -5,7 +5,7 @@
 
 import { DelegatedLogService, ILogService, ConsoleLogInMainService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
-import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -14,13 +14,13 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class DesktopLogService extends DelegatedLogService {
+export class NativeLogService extends DelegatedLogService {
 
 	private readonly bufferSpdLogService: BufferLogService | undefined;
 	private readonly windowId: number;
-	private readonly environmentService: NativeWorkbenchEnvironmentService;
+	private readonly environmentService: INativeWorkbenchEnvironmentService;
 
-	constructor(windowId: number, mainProcessService: IMainProcessService, environmentService: NativeWorkbenchEnvironmentService) {
+	constructor(windowId: number, mainProcessService: IMainProcessService, environmentService: INativeWorkbenchEnvironmentService) {
 
 		const disposables = new DisposableStore();
 		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
@@ -62,11 +62,11 @@ export class DesktopLogService extends DelegatedLogService {
 	}
 }
 
-class DesktopLogServiceInitContribution implements IWorkbenchContribution {
+class NativeLogServiceInitContribution implements IWorkbenchContribution {
 	constructor(@ILogService logService: ILogService) {
-		if (logService instanceof DesktopLogService) {
+		if (logService instanceof NativeLogService) {
 			logService.init();
 		}
 	}
 }
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(DesktopLogServiceInitContribution, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NativeLogServiceInitContribution, LifecyclePhase.Restored);

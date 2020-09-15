@@ -7,14 +7,14 @@ import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMRepository, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMStatusController } from './activity';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
@@ -24,6 +24,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
+import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
+import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -59,6 +61,23 @@ viewsRegistry.registerViews([{
 	canToggleVisibility: true,
 	workspace: true,
 	canMoveView: true,
+	weight: 80,
+	order: -999,
+	containerIcon: Codicon.sourceControl.classNames
+}], viewContainer);
+
+viewsRegistry.registerViews([{
+	id: REPOSITORIES_VIEW_PANE_ID,
+	name: localize('source control repositories', "Source Control Repositories"),
+	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
+	canToggleVisibility: true,
+	hideByDefault: true,
+	workspace: true,
+	canMoveView: true,
+	weight: 20,
+	order: -1000,
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
+	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 	containerIcon: Codicon.sourceControl.classNames
 }], viewContainer);
 
@@ -74,14 +93,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 	linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G },
-	handler: accessor => {
+	handler: async accessor => {
 		const viewsService = accessor.get(IViewsService);
-
-		if (viewsService.isViewVisible(VIEW_PANE_ID)) {
-			viewsService.closeView(VIEW_PANE_ID);
-		} else {
-			viewsService.openView(VIEW_PANE_ID);
-		}
+		const view = await viewsService.openView(VIEW_PANE_ID);
+		view?.focus();
 	}
 });
 
@@ -167,6 +182,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'string',
 			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
 			default: 'default'
+		},
+		'scm.alwaysShowRepositories': {
+			type: 'boolean',
+			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the SCM view."),
+			default: false
+		},
+		'scm.repositories.visible': {
+			type: 'number',
+			description: localize('providersVisible', "Controls how many repositories are visible in the Source Control Repositories section. Set to `0` to be able to manually resize the view."),
+			default: 10
 		}
 	}
 });
@@ -205,4 +230,23 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {
+	if (!provider || !provider.rootUri) {
+		return;
+	}
+
+	const commandService = accessor.get(ICommandService);
+	await commandService.executeCommand('openInTerminal', provider.rootUri);
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
+	group: '100_end',
+	command: {
+		id: 'scm.openInTerminal',
+		title: localize('open in terminal', "Open In Terminal")
+	},
+	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
+});
+
 registerSingleton(ISCMService, SCMService);
+registerSingleton(ISCMViewService, SCMViewService);

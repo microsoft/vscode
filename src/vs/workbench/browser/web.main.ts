@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
@@ -25,8 +25,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import * as browser from 'vs/base/browser/browser';
-import * as platform from 'vs/base/common/platform';
+import { setFullscreen } from 'vs/base/browser/browser';
+import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -34,9 +34,6 @@ import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
 import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
-import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
-import { BACKUPS } from 'vs/platform/environment/common/environment';
-import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
@@ -50,6 +47,9 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE } from 'vs/platform/files/browser/indexedDBFileSystemProvider';
+import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
+import { IRequestService } from 'vs/platform/request/common/request';
+import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 class BrowserMain extends Disposable {
 
@@ -58,6 +58,14 @@ class BrowserMain extends Disposable {
 		private readonly configuration: IWorkbenchConstructionOptions
 	) {
 		super();
+
+		this.init();
+	}
+
+	private init(): void {
+
+		// Browser config
+		setFullscreen(!!detectFullscreen());
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -99,7 +107,7 @@ class BrowserMain extends Disposable {
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
 		// Layout
-		const viewport = platform.isIOS && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
 
 		// Prevent the back/forward gestures in macOS
@@ -123,16 +131,15 @@ class BrowserMain extends Disposable {
 		}));
 		this._register(workbench.onShutdown(() => this.dispose()));
 
-		// Fullscreen
+		// Fullscreen (Browser)
 		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
-			this._register(addDisposableListener(document, event, () => {
-				if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
-					browser.setFullscreen(true);
-				} else {
-					browser.setFullscreen(false);
-				}
-			}));
+			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
 		});
+
+		// Fullscreen (Native)
+		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
+			setFullscreen(!!detectFullscreen());
+		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: BrowserStorageService }> {
@@ -180,7 +187,7 @@ class BrowserMain extends Disposable {
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
 		// Long running services (workspace, config, storage)
-		const services = await Promise.all([
+		const [configurationService, storageService] = await Promise.all([
 			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, logService).then(service => {
 
 				// Workspace
@@ -201,7 +208,26 @@ class BrowserMain extends Disposable {
 			})
 		]);
 
-		return { serviceCollection, logService, storageService: services[1] };
+		// Request Service
+		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
+		serviceCollection.set(IRequestService, requestService);
+
+		// Userdata Initialize Service
+		const userDataInitializationService = new UserDataInitializationService(environmentService, fileService, storageService, productService, requestService, logService);
+		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
+
+		if (await userDataInitializationService.requiresInitialization()) {
+			mark('willInitRequiredUserData');
+			// Initialize required resources - settings & global state
+			await userDataInitializationService.initializeRequiredResources();
+
+			// Important: Reload only local user configuration after initializing
+			// Reloading complete configuraiton blocks workbench until remote configuration is loaded.
+			await configurationService.reloadLocalUserConfiguration();
+			mark('didInitRequiredUserData');
+		}
+
+		return { serviceCollection, logService, storageService };
 	}
 
 	private async registerFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, remoteAgentService: IRemoteAgentService, logService: BufferLogService, logsPath: URI): Promise<void> {
@@ -231,17 +257,9 @@ class BrowserMain extends Disposable {
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-
 			// Remote file system
 			const remoteFileSystemProvider = this._register(new RemoteFileSystemProvider(remoteAgentService));
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
-
-			if (!this.configuration.userDataProvider) {
-				const remoteUserDataUri = this.getRemoteUserDataUri();
-				if (remoteUserDataUri) {
-					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService, logService));
-				}
-			}
 		}
 
 		// User data
@@ -310,18 +328,6 @@ class BrowserMain extends Disposable {
 		}
 
 		return { id: 'empty-window' };
-	}
-
-	private getRemoteUserDataUri(): URI | undefined {
-		const element = document.getElementById('vscode-remote-user-data-uri');
-		if (element) {
-			const remoteUserDataPath = element.getAttribute('data-settings');
-			if (remoteUserDataPath) {
-				return joinPath(URI.revive(JSON.parse(remoteUserDataPath)), 'User');
-			}
-		}
-
-		return undefined;
 	}
 
 	private getCookieValue(name: string): string | undefined {

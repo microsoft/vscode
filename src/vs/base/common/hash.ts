@@ -8,7 +8,11 @@ import * as strings from 'vs/base/common/strings';
 /**
  * Return a hash value for an object.
  */
-export function hash(obj: any, hashVal = 0): number {
+export function hash(obj: any): number {
+	return doHash(obj, 0);
+}
+
+export function doHash(obj: any, hashVal: number): number {
 	switch (typeof obj) {
 		case 'object':
 			if (obj === null) {
@@ -24,9 +28,9 @@ export function hash(obj: any, hashVal = 0): number {
 		case 'number':
 			return numberHash(obj, hashVal);
 		case 'undefined':
-			return numberHash(0, 937);
+			return numberHash(937, hashVal);
 		default:
-			return numberHash(0, 617);
+			return numberHash(617, hashVal);
 	}
 }
 
@@ -48,14 +52,14 @@ export function stringHash(s: string, hashVal: number) {
 
 function arrayHash(arr: any[], initialHashVal: number): number {
 	initialHashVal = numberHash(104579, initialHashVal);
-	return arr.reduce((hashVal, item) => hash(item, hashVal), initialHashVal);
+	return arr.reduce((hashVal, item) => doHash(item, hashVal), initialHashVal);
 }
 
 function objectHash(obj: any, initialHashVal: number): number {
 	initialHashVal = numberHash(181387, initialHashVal);
 	return Object.keys(obj).sort().reduce((hashVal, key) => {
 		hashVal = stringHash(key, hashVal);
-		return hash(obj[key], hashVal);
+		return doHash(obj[key], hashVal);
 	}, initialHashVal);
 }
 
@@ -68,7 +72,7 @@ export class Hasher {
 	}
 
 	hash(obj: any): number {
-		this._value = hash(obj, this._value);
+		this._value = doHash(obj, this._value);
 		return this._value;
 	}
 }

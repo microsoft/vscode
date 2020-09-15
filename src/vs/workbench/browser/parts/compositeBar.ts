@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { illegalArgument } from 'vs/base/common/errors';
 import * as arrays from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionViewItem, ActivityAction, ICompositeBar, ICompositeBarColors } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Dimension, $, addDisposableListener, EventType, EventHelper, toggleClass, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -285,8 +285,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	private updateFromDragging(element: HTMLElement, showFeedback: boolean, front: boolean): Before2D | undefined {
-		toggleClass(element, 'dragged-over-head', showFeedback && front);
-		toggleClass(element, 'dragged-over-tail', showFeedback && !front);
+		element.classList.toggle('dragged-over-head', showFeedback && front);
+		element.classList.toggle('dragged-over-tail', showFeedback && !front);
 
 		if (!showFeedback) {
 			return undefined;
@@ -629,7 +629,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		});
 	}
 
-	private getContextMenuActions(): ReadonlyArray<IAction> {
+	private getContextMenuActions(): IAction[] {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,

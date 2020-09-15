@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction, Action, Separator } from 'vs/base/common/actions';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, IDebugModel, IDataBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction, RemoveBreakpointAction, EnableAllBreakpointsAction, DisableAllBreakpointsAction, ReapplyBreakpointsAction } from 'vs/workbench/contrib/debug/browser/debugActions';
@@ -16,7 +16,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IListVirtualDelegate, IListContextMenuEvent, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -87,8 +86,8 @@ export class BreakpointsView extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-breakpoints');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
 		this.list = <WorkbenchList<BreakpointItem>>this.instantiationService.createInstance(WorkbenchList, 'Breakpoints', container, delegate, [
@@ -370,7 +369,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 
 	renderElement(breakpoint: IBreakpoint, index: number, data: IBreakpointTemplateData): void {
 		data.context = breakpoint;
-		dom.toggleClass(data.breakpoint, 'disabled', !this.debugService.getModel().areBreakpointsActivated());
+		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 
 		data.name.textContent = resources.basenameOrAuthority(breakpoint.uri);
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
@@ -386,7 +385,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
 		if (debugActive && !breakpoint.verified) {
-			dom.addClass(data.breakpoint, 'disabled');
+			data.breakpoint.classList.add('disabled');
 		}
 	}
 
@@ -422,7 +421,7 @@ class ExceptionBreakpointsRenderer implements IListRenderer<IExceptionBreakpoint
 		dom.append(data.breakpoint, data.checkbox);
 
 		data.name = dom.append(data.breakpoint, $('span.name'));
-		dom.addClass(data.breakpoint, 'exception');
+		data.breakpoint.classList.add('exception');
 
 		return data;
 	}
@@ -484,7 +483,7 @@ class FunctionBreakpointsRenderer implements IListRenderer<FunctionBreakpoint, I
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		data.breakpoint.classList.toggle('disabled', (session && !session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (session && !session.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
@@ -540,7 +539,7 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IBaseBrea
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.capabilities.supportsDataBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		data.breakpoint.classList.toggle('disabled', (session && !session.capabilities.supportsDataBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (session && !session.capabilities.supportsDataBreakpoints) {
 			data.breakpoint.title = nls.localize('dataBreakpointsNotSupported', "Data breakpoints are not supported by this debug type");
 		}

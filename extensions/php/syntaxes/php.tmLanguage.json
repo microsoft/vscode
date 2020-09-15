@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/882f6c0e19f0ebf9dafa443bf4c3fc5626f76aed",
+	"version": "https://github.com/atom/language-php/commit/6c0da475f86b45ea990638525f68be7658986546",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -146,7 +146,7 @@
 					"name": "keyword.other.use.php"
 				}
 			},
-			"end": "(?<=})|(?=;)",
+			"end": "(?<=})|(?=;)|(?=\\?>)",
 			"name": "meta.use.php",
 			"patterns": [
 				{
@@ -1329,6 +1329,17 @@
 				}
 			]
 		},
+		"named-arguments": {
+			"match": "(?i)(?<=^|\\(|,)\\s*([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(:)(?!:)",
+			"captures": {
+				"1": {
+					"name": "entity.name.variable.parameter.php"
+				},
+				"2": {
+					"name": "punctuation.separator.colon.php"
+				}
+			}
+		},
 		"function-call": {
 			"patterns": [
 				{
@@ -1357,6 +1368,9 @@
 					},
 					"name": "meta.function-call.php",
 					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
 						{
 							"include": "$self"
 						}
@@ -1395,6 +1409,9 @@
 					},
 					"name": "meta.function-call.php",
 					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
 						{
 							"include": "$self"
 						}
@@ -2243,6 +2260,9 @@
 					"name": "meta.method-call.php",
 					"patterns": [
 						{
+							"include": "#named-arguments"
+						},
+						{
 							"include": "$self"
 						}
 					]
@@ -2614,6 +2634,9 @@
 					},
 					"name": "meta.method-call.static.php",
 					"patterns": [
+						{
+							"include": "#named-arguments"
+						},
 						{
 							"include": "$self"
 						}
@@ -3447,6 +3470,18 @@
 				}
 			},
 			"patterns": [
+				{
+					"match": "(?i)^\\s*([a-z_\\x{7f}-\\x{7fffffff}][a-z0-9_\\x{7f}-\\x{7fffffff}]*)\\s*(?=:(?!:))",
+					"captures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "$self"
+								}
+							]
+						}
+					}
+				},
 				{
 					"include": "$self"
 				}

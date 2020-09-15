@@ -203,7 +203,8 @@ suite('ExtHostTreeView', function () {
 					assert.deepEqual(actuals, ['1/a', '1/b']);
 					return testObject.$getChildren('testNodeWithIdTreeProvider', '1/a')
 						.then(() => testObject.$getChildren('testNodeWithIdTreeProvider', '1/b'))
-						.then(() => { assert.fail('Should fail with duplicate id'); done(); }, () => done());
+						.then(() => assert.fail('Should fail with duplicate id'))
+						.finally(done);
 				});
 		});
 		onDidChangeTreeNode.fire(undefined);
@@ -247,7 +248,7 @@ suite('ExtHostTreeView', function () {
 	});
 
 	async function runWithEventMerging(action: (resolve: () => void) => void) {
-		await new Promise((resolve) => {
+		await new Promise<void>((resolve) => {
 			let subscription: IDisposable | undefined = undefined;
 			subscription = target.onRefresh.event(() => {
 				subscription!.dispose();
@@ -255,7 +256,7 @@ suite('ExtHostTreeView', function () {
 			});
 			onDidChangeTreeNode.fire(getNode('b'));
 		});
-		await new Promise(action);
+		await new Promise<void>(action);
 	}
 
 	test('refresh parent and child node trigger refresh only on parent - scenario 1', async () => {

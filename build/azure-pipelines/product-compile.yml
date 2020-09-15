@@ -16,7 +16,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
@@ -52,9 +52,13 @@ steps:
   displayName: Merge distro
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
 
+- script: |
+    echo -n $VSCODE_ARCH > .build/arch
+  displayName: Prepare arch cache flag
+
 - task: 1ESLighthouseEng.PipelineArtifactCaching.RestoreCacheV1.RestoreCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'))
@@ -67,7 +71,7 @@ steps:
 
 - task: 1ESLighthouseEng.PipelineArtifactCaching.SaveCacheV1.SaveCache@1
   inputs:
-    keyfile: 'build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
+    keyfile: '.build/arch, build/.cachesalt, .yarnrc, remote/.yarnrc, **/yarn.lock, !**/node_modules/**/yarn.lock, !**/.*/**/yarn.lock'
     targetfolder: '**/node_modules, !**/node_modules/**/node_modules'
     vstsFeed: 'npm-vscode'
   condition: and(succeeded(), ne(variables['CacheExists-Compilation'], 'true'), ne(variables['CacheRestored'], 'true'))

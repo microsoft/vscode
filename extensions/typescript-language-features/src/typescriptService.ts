@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
+import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { ExectuionTarget } from './tsServer/server';
+import { TypeScriptVersion } from './tsServer/versionProvider';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import { PluginManager } from './utils/plugins';
-import { TypeScriptVersion } from './utils/versionProvider';
+import { TelemetryReporter } from './utils/telemetry';
+
+export enum ServerType {
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+}
 
 export namespace ServerResponse {
 
@@ -139,9 +145,14 @@ export interface ITypeScriptServiceClient {
 	/**
 	 * Tries to ensure that a vscode document is open on the TS server.
 	 *
-	 * Returns the normalized path.
+	 * @return The normalized path or `undefined` if the document is not open on the server.
 	 */
 	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
+
+	/**
+	 * Checks if `resource` has a given capability.
+	 */
+	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
@@ -159,9 +170,11 @@ export interface ITypeScriptServiceClient {
 	showVersionPicker(): void;
 
 	readonly apiVersion: API;
+
 	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
 	readonly bufferSyncSupport: BufferSyncSupport;
+	readonly telemetryReporter: TelemetryReporter;
 
 	execute<K extends keyof StandardTsServerRequests>(
 		command: K,

@@ -19,7 +19,8 @@
 			"timeout": 30000,
 			"port": 5870,
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/extensions/*/out/**/*.js"
 			]
 		},
 		{
@@ -177,6 +178,24 @@
 			}
 		},
 		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Custom Editor Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-custom-editor-tests/test-workspace",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-custom-editor-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-custom-editor-tests/out/test"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 6
+			}
+		},
+		{
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
@@ -198,29 +217,32 @@
 			"port": 9222,
 			"timeout": 20000,
 			"env": {
-				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1"
 			},
 			"cleanUp": "wholeBrowser",
-			"breakOnLoad": false,
 			"urlFilter": "*workbench.html*",
 			"runtimeArgs": [
 				"--inspect=5875",
 				"--no-cached-data",
 			],
 			"webRoot": "${workspaceFolder}",
-			// Settings for js-debug:
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
 			"userDataDir": false,
 			"pauseForSourceMap": false,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
-			"browserLaunchLocation": "workspace"
+			"browserLaunchLocation": "workspace",
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
 		},
 		{
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/resources/serverless/code-web.js",
+			"program": "${workspaceFolder}/resources/web/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -417,6 +439,7 @@
 				"Attach to Extension Host",
 				"Attach to Shared Process",
 			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 1

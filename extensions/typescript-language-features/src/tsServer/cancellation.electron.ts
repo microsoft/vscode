@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { OngoingRequestCanceller, OngoingRequestCancellerFactory } from './cancellation';
-import { getTempFile } from '../utils/electron';
+import { getTempFile } from '../utils/temp.electron';
 import Tracer from '../utils/tracer';
+import { OngoingRequestCanceller, OngoingRequestCancellerFactory } from './cancellation';
 
 export class NodeRequestCanceller implements OngoingRequestCanceller {
 	public readonly cancellationPipeName: string;

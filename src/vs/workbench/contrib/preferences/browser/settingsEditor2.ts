@@ -9,7 +9,6 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import * as arrays from 'vs/base/common/arrays';
 import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
@@ -32,16 +31,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { getUserDataSyncStore, IUserDataAutoSyncService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorMemento, IEditorPane } from 'vs/workbench/common/editor';
+import { IUserDataAutoSyncService, IUserDataSyncService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IEditorMemento, IEditorOpenContext, IEditorPane } from 'vs/workbench/common/editor';
 import { attachSuggestEnabledInputBoxStyler, SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { commonlyUsedData, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
@@ -54,6 +52,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
@@ -76,7 +75,7 @@ const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
 const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
-export class SettingsEditor2 extends BaseEditor {
+export class SettingsEditor2 extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.settings2';
 	private static NUM_INSTANCES: number = 0;
@@ -167,7 +166,7 @@ export class SettingsEditor2 extends BaseEditor {
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IProductService private readonly productService: IProductService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
@@ -201,7 +200,7 @@ export class SettingsEditor2 extends BaseEditor {
 	get minimumWidth(): number { return 375; }
 	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
 
-	// these setters need to exist because this extends from BaseEditor
+	// these setters need to exist because this extends from EditorPane
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
@@ -234,9 +233,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.updateStyles();
 	}
 
-	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, token: CancellationToken): Promise<void> {
+	setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
-		return super.setInput(input, options, token)
+		return super.setInput(input, options, context, token)
 			.then(() => timeout(0)) // Force setInput to be async
 			.then(() => {
 				// Don't block setInput on render (which can trigger an async search)
@@ -343,7 +342,10 @@ export class SettingsEditor2 extends BaseEditor {
 		super.setEditorVisible(visible, group);
 
 		if (!visible) {
-			this.searchWidget.onHide();
+			// Wait for editor to be removed from DOM #106303
+			setTimeout(() => {
+				this.searchWidget.onHide();
+			}, 0);
 		}
 	}
 
@@ -472,7 +474,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
-		if (syncAllowed(this.productService, this.configurationService) && this.userDataAutoSyncService.canToggleEnablement()) {
+		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncService.canToggleEnablement()) {
 			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
 		}
@@ -865,19 +867,19 @@ export class SettingsEditor2 extends BaseEditor {
 			const remoteResult = props.searchResults[SearchResultIdx.Remote];
 			const localResult = props.searchResults[SearchResultIdx.Local];
 
-			const localIndex = arrays.firstIndex(localResult!.filterMatches, m => m.setting.key === props.key);
+			const localIndex = localResult!.filterMatches.findIndex(m => m.setting.key === props.key);
 			groupId = localIndex >= 0 ?
 				'local' :
 				'remote';
 
 			displayIndex = localIndex >= 0 ?
 				localIndex :
-				remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
+				remoteResult && (remoteResult.filterMatches.findIndex(m => m.setting.key === props.key) + localResult.filterMatches.length);
 
 			if (this.searchResultModel) {
 				const rawResults = this.searchResultModel.getRawResults();
 				if (rawResults[SearchResultIdx.Remote]) {
-					const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
+					const _nlpIndex = rawResults[SearchResultIdx.Remote].filterMatches.findIndex(m => m.setting.key === props.key);
 					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
 				}
 			}
@@ -966,7 +968,7 @@ export class SettingsEditor2 extends BaseEditor {
 		}
 
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
+		const dividedGroups = collections.groupBy(groups, g => g.extensionInfo ? 'extension' : 'core');
 		const settingsResult = resolveSettingsTree(tocData, dividedGroups.core);
 		const resolvedSettingsRoot = settingsResult.tree;
 
@@ -1421,7 +1423,7 @@ class SyncControls extends Disposable {
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;
-		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Preferences Sync");
+		this.turnOnSyncButton.label = localize('turnOnSyncButton', "Turn on Settings Sync");
 		DOM.hide(this.turnOnSyncButton.element);
 
 		this._register(this.turnOnSyncButton.onDidClick(async () => {
@@ -1465,7 +1467,7 @@ class SyncControls extends Disposable {
 			return;
 		}
 
-		if (this.userDataAutoSyncService.isEnabled()) {
+		if (this.userDataAutoSyncService.isEnabled() || this.userDataSyncService.status !== SyncStatus.Idle) {
 			DOM.show(this.lastSyncedLabel);
 			DOM.hide(this.turnOnSyncButton.element);
 		} else {
@@ -1478,8 +1480,4 @@ class SyncControls extends Disposable {
 interface ISettingsEditor2State {
 	searchQuery: string;
 	target: SettingsTarget;
-}
-
-function syncAllowed(productService: IProductService, configService: IConfigurationService): boolean {
-	return !!getUserDataSyncStore(productService, configService);
 }

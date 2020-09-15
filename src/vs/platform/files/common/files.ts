@@ -29,7 +29,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes it's capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -856,6 +856,7 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
 		return Promise.resolve();
 	}
+
 	return new Promise((c, e) => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {
@@ -867,7 +868,7 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 }
 
 /**
- * Desktop only: limits for memory sizes
+ * Native only: limits for memory sizes
  */
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

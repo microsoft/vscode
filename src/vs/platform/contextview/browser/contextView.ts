@@ -15,8 +15,9 @@ export interface IContextViewService extends IContextViewProvider {
 
 	readonly _serviceBrand: undefined;
 
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement): IDisposable;
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable;
 	hideContextView(data?: any): void;
+	getContextViewElement(): HTMLElement;
 	layout(): void;
 	anchorAlignment?: AnchorAlignment;
 }

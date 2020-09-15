@@ -7,14 +7,16 @@ import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 import { EventName } from '../protocol.const';
 import { CallbackMap } from '../tsServer/callbackMap';
-import { OngoingRequestCanceller } from './cancellation';
 import { RequestItem, RequestQueue, RequestQueueingType } from '../tsServer/requestQueue';
 import { TypeScriptServerError } from '../tsServer/serverError';
-import { ServerResponse, TypeScriptRequests } from '../typescriptService';
+import { ServerResponse, ServerType, TypeScriptRequests } from '../typescriptService';
+import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
-import { TypeScriptVersion } from '../utils/versionProvider';
+import { OngoingRequestCanceller } from './cancellation';
+import { TypeScriptVersionManager } from './versionManager';
+import { TypeScriptVersion } from './versionProvider';
 
 export enum ExectuionTarget {
 	Semantic,
@@ -41,6 +43,23 @@ export interface TsServerDelegate {
 	onFatalError(command: string, error: Error): void;
 }
 
+export const enum TsServerProcessKind {
+	Main = 'main',
+	Syntax = 'syntax',
+	Semantic = 'semantic',
+	Diagnostics = 'diagnostics'
+}
+
+export interface TsServerProcessFactory {
+	fork(
+		tsServerPath: string,
+		args: readonly string[],
+		kind: TsServerProcessKind,
+		configuration: TypeScriptServiceConfiguration,
+		versionManager: TypeScriptVersionManager,
+	): TsServerProcess;
+}
+
 export interface TsServerProcess {
 	write(serverRequest: Proto.Request): void;
 
@@ -51,7 +70,6 @@ export interface TsServerProcess {
 	kill(): void;
 }
 
-
 export class ProcessBasedTsServer extends Disposable implements ITypeScriptServer {
 	private readonly _requestQueue = new RequestQueue();
 	private readonly _callbacks = new CallbackMap<Proto.Response>();
@@ -59,6 +77,7 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 
 	constructor(
 		private readonly _serverId: string,
+		private readonly _serverSource: ServerType,
 		private readonly _process: TsServerProcess,
 		private readonly _tsServerLogFile: string | undefined,
 		private readonly _requestCanceller: OngoingRequestCanceller,
@@ -112,7 +131,14 @@ export class ProcessBasedTsServer extends Disposable implements ITypeScriptServe
 		try {
 			switch (message.type) {
 				case 'response':
-					this.dispatchResponse(message as Proto.Response);
+					if (this._serverSource) {
+						this.dispatchResponse({
+							...(message as Proto.Response),
+							_serverType: this._serverSource
+						});
+					} else {
+						this.dispatchResponse(message as Proto.Response);
+					}
 					break;
 
 				case 'event':
@@ -292,7 +318,6 @@ class RequestRouter {
 		'open',
 		'updateOpen',
 		'configure',
-		'configurePlugin',
 	]);
 
 	constructor(
@@ -464,7 +489,8 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 	private static readonly semanticCommands = new Set<keyof TypeScriptRequests>([
 		'geterr',
 		'geterrForProject',
-		'projectInfo'
+		'projectInfo',
+		'configurePlugin',
 	]);
 
 	/**

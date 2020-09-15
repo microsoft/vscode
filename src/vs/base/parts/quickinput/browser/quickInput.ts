@@ -18,7 +18,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Button, IButtonStyles } from 'vs/base/browser/ui/button/button';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
-import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -28,6 +28,7 @@ import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWid
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -277,7 +278,7 @@ class QuickInput extends Disposable implements IQuickInput {
 		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
 		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
-			this.ui.title.innerHTML = '&nbsp;';
+			this.ui.title.innerText = '\u00a0;';
 		}
 		const description = this.getDescription();
 		if (this.ui.description.textContent !== description) {
@@ -380,7 +381,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
 	private _value = '';
-	private _ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
+	private _ariaLabel: string | undefined;
 	private _placeholder: string | undefined;
 	private readonly onDidChangeValueEmitter = this._register(new Emitter<string>());
 	private readonly onDidAcceptEmitter = this._register(new Emitter<IQuickPickAcceptEvent>());
@@ -434,8 +435,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 
 	filterValue = (value: string) => value;
 
-	set ariaLabel(ariaLabel: string) {
-		this._ariaLabel = ariaLabel || QuickPick.DEFAULT_ARIA_LABEL;
+	set ariaLabel(ariaLabel: string | undefined) {
+		this._ariaLabel = ariaLabel;
 		this.update();
 	}
 
@@ -883,8 +884,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (inputShownJustForScreenReader) {
 			this.ui.inputBox.ariaLabel = '';
-		} else if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
-			this.ui.inputBox.ariaLabel = this.ariaLabel;
+		} else {
+			const ariaLabel = this.ariaLabel || this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			if (this.ui.inputBox.ariaLabel !== ariaLabel) {
+				this.ui.inputBox.ariaLabel = ariaLabel;
+			}
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
@@ -1383,9 +1387,6 @@ export class QuickInputController extends Disposable {
 			];
 			input.canSelectMany = !!options.canPickMany;
 			input.placeholder = options.placeHolder;
-			if (options.placeHolder) {
-				input.ariaLabel = options.placeHolder;
-			}
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.matchOnDescription = !!options.matchOnDescription;
 			input.matchOnDetail = !!options.matchOnDetail;
@@ -1415,7 +1416,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
-		return new Promise<string>((resolve, reject) => {
+		return new Promise<string | undefined>((resolve) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
 				return;
@@ -1691,8 +1692,8 @@ export class QuickInputController extends Disposable {
 				content.push(`.quick-input-list .quick-input-list-separator { color:  ${this.styles.list.pickerGroupForeground}; }`);
 			}
 			const newStyles = content.join('\n');
-			if (newStyles !== this.ui.styleSheet.innerHTML) {
-				this.ui.styleSheet.innerHTML = newStyles;
+			if (newStyles !== this.ui.styleSheet.textContent) {
+				this.ui.styleSheet.textContent = newStyles;
 			}
 		}
 	}

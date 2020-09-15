@@ -22,7 +22,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		return loginService.manuallyProvideToken();
 	}));
 
-	vscode.authentication.registerAuthenticationProvider({
+	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
 		id: 'github',
 		label: 'GitHub',
 		supportsMultipleAccounts: false,
@@ -70,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				throw e;
 			}
 		}
-	});
+	}));
 
 	return;
 }

@@ -228,11 +228,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	public $startDebugging(folder: UriComponents | undefined, nameOrConfig: string | IDebugConfiguration, options: IStartDebuggingOptions): Promise<boolean> {
 		const folderUri = folder ? uri.revive(folder) : undefined;
 		const launch = this.debugService.getConfigurationManager().getLaunch(folderUri);
+		const parentSession = this.getSession(options.parentSessionID);
 		const debugOptions: IDebugSessionOptions = {
 			noDebug: options.noDebug,
-			parentSession: this.getSession(options.parentSessionID),
+			parentSession,
 			repl: options.repl,
-			compact: options.compact
+			compact: options.compact,
+			compoundRoot: parentSession?.compoundRoot
 		};
 		return this.debugService.startDebugging(launch, nameOrConfig, debugOptions).then(success => {
 			return success;
@@ -262,10 +264,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.reject(new Error('debug session not found'));
 	}
 
-	public $terminateDebugSession(sessionId: DebugSessionUUID): Promise<void> {
+	public $getDebugProtocolBreakpoint(sessionId: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined> {
 		const session = this.debugService.getModel().getSession(sessionId, true);
 		if (session) {
-			return session.terminate();
+			return Promise.resolve(session.getDebugProtocolBreakpoint(breakpoinId));
 		}
 		return Promise.reject(new Error('debug session not found'));
 	}

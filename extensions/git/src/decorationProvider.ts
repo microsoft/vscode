@@ -21,7 +21,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 	constructor(private model: Model) {
 		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
-			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore')),
+			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
 		));

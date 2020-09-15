@@ -6,13 +6,14 @@
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, joinPath } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -37,6 +38,7 @@ export class NotebookEditorInput extends EditorInput {
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IPathService private readonly _pathService: IPathService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -108,7 +110,8 @@ export class NotebookEditorInput extends EditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this._textModel.object.resource;
+		const dialogPath = this.isUntitled() ? await this.suggestName(this.name) : this._textModel.object.resource;
+
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
 			return undefined; // save cancelled
@@ -136,6 +139,10 @@ ${patterns}
 		return this._move(group, target)?.editor;
 	}
 
+	async suggestName(suggestedFilename: string) {
+		return joinPath(this._fileDialogService.defaultFilePath() || (await this._pathService.userHome()), suggestedFilename);
+	}
+
 	// called when users rename a notebook document
 	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this._textModel) {
@@ -161,13 +168,13 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookEditorModel | null> {
+	async resolve(): Promise<INotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
 
 			this._register(this._textModel.object.onDidChangeDirty(() => {
 				this._onDidChangeDirty.fire();

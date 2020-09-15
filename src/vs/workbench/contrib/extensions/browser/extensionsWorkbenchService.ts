@@ -39,6 +39,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { asDomUri } from 'vs/base/browser/dom';
 import { getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isWeb } from 'vs/base/common/platform';
+import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -217,7 +218,11 @@ class Extension implements IExtension {
 			return Promise.resolve(null);
 		}
 
-		return Promise.resolve(this.local!.manifest);
+		if (this.local) {
+			return Promise.resolve(this.local.manifest);
+		}
+
+		return Promise.resolve(null);
 	}
 
 	hasReadme(): boolean {
@@ -665,14 +670,88 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (extensions.length === 1) {
 			return extensions[0];
 		}
+
 		const enabledExtensions = extensions.filter(e => e.local && this.extensionEnablementService.isEnabled(e.local));
-		if (enabledExtensions.length === 0) {
-			return extensions[0];
-		}
 		if (enabledExtensions.length === 1) {
 			return enabledExtensions[0];
 		}
-		return enabledExtensions.find(e => e.server === this.extensionManagementServerService.remoteExtensionManagementServer) || enabledExtensions[0];
+
+		const extensionsToChoose = enabledExtensions.length ? enabledExtensions : extensions;
+		const manifest = extensionsToChoose.find(e => e.local && e.local.manifest)?.local?.manifest;
+
+		// Manifest is not found which should not happen.
+		// In which case return the first extension.
+		if (!manifest) {
+			return extensionsToChoose[0];
+		}
+
+		const extensionKinds = getExtensionKind(manifest, this.productService, this.configurationService);
+
+		let extension = extensionsToChoose.find(extension => {
+			for (const extensionKind of extensionKinds) {
+				switch (extensionKind) {
+					case 'ui':
+						/* UI extension is chosen only if it is installed locally */
+						if (extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
+							return true;
+						}
+						return false;
+					case 'workspace':
+						/* Choose remote workspace extension if exists */
+						if (extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+							return true;
+						}
+						return false;
+					case 'web':
+						/* Choose web extension if exists */
+						if (extension.server === this.extensionManagementServerService.webExtensionManagementServer) {
+							return true;
+						}
+						return false;
+				}
+			}
+			return false;
+		});
+
+		if (!extension && this.extensionManagementServerService.localExtensionManagementServer) {
+			extension = extensionsToChoose.find(extension => {
+				for (const extensionKind of extensionKinds) {
+					switch (extensionKind) {
+						case 'workspace':
+							/* Choose local workspace extension if exists */
+							if (extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
+								return true;
+							}
+							return false;
+						case 'web':
+							/* Choose local web extension if exists */
+							if (extension.server === this.extensionManagementServerService.localExtensionManagementServer) {
+								return true;
+							}
+							return false;
+					}
+				}
+				return false;
+			});
+		}
+
+		if (!extension && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			extension = extensionsToChoose.find(extension => {
+				for (const extensionKind of extensionKinds) {
+					switch (extensionKind) {
+						case 'web':
+							/* Choose remote web extension if exists */
+							if (extension.server === this.extensionManagementServerService.remoteExtensionManagementServer) {
+								return true;
+							}
+							return false;
+					}
+				}
+				return false;
+			});
+		}
+
+		return extension || extensions[0];
 	}
 
 	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): IExtension {
@@ -911,7 +990,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const id = extension.identifier.id.toLowerCase();
 
 		// first remove the extension completely from ignored extensions
-		let currentValue = [...this.configurationService.getValue<string[]>('sync.ignoredExtensions')].map(id => id.toLowerCase());
+		let currentValue = [...this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions')].map(id => id.toLowerCase());
 		currentValue = currentValue.filter(v => v !== id && v !== `-${id}`);
 
 		// If ignored, then add only if it is ignored by default
@@ -924,7 +1003,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			currentValue.push(id);
 		}
 
-		return this.configurationService.updateValue('sync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
+		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 	}
 
 	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {
@@ -1084,7 +1163,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return changed;
 	}
 
-	private _activityCallBack: (() => void) | null = null;
+	private _activityCallBack: ((value: void) => void) | null = null;
 	private updateActivity(): void {
 		if ((this.localExtensions && this.localExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))
 			|| (this.remoteExtensions && this.remoteExtensions.local.some(e => e.state === ExtensionState.Installing || e.state === ExtensionState.Uninstalling))

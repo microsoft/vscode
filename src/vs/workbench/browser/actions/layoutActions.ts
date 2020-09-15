@@ -610,7 +610,12 @@ export class MoveViewAction extends Action {
 		return new Promise((resolve, reject) => {
 			quickPick.onDidAccept(() => {
 				const viewId = quickPick.selectedItems[0];
-				resolve(viewId.id);
+				if (viewId.id) {
+					resolve(viewId.id);
+				} else {
+					reject();
+				}
+
 				quickPick.hide();
 			});
 
@@ -762,7 +767,6 @@ export class MoveFocusedViewAction extends Action {
 }
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveFocusedViewAction), 'View: Move Focused View', viewCategory.value, FocusedViewContext.notEqualsTo(''));
-
 
 // --- Reset View Location with Command
 export class ResetFocusedViewLocationAction extends Action {

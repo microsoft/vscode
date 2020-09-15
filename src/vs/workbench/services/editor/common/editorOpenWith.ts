@@ -49,7 +49,12 @@ export async function openEditorWith(
 		return;
 	}
 
-	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
+	let overrideToUse;
+	if (typeof id === 'string') {
+		overrideToUse = allEditorOverrides.find(([_, entry]) => entry.id === id);
+	} else if (allEditorOverrides.length === 1) {
+		overrideToUse = allEditorOverrides[0];
+	}
 	if (overrideToUse) {
 		return overrideToUse[0].open(input, overrideOptions, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
@@ -57,13 +62,13 @@ export async function openEditorWith(
 	// Prompt
 	const resourceExt = extname(resource);
 
-	const items: (IQuickPickItem & { handler: IOpenEditorOverrideHandler })[] = allEditorOverrides.map((override) => {
+	const items: (IQuickPickItem & { handler: IOpenEditorOverrideHandler })[] = allEditorOverrides.map(([handler, entry]) => {
 		return {
-			handler: override[0],
-			id: override[1].id,
-			label: override[1].label,
-			description: override[1].active ? nls.localize('promptOpenWith.currentlyActive', 'Currently Active') : undefined,
-			detail: override[1].detail,
+			handler: handler,
+			id: entry.id,
+			label: entry.label,
+			description: entry.active ? nls.localize('promptOpenWith.currentlyActive', 'Currently Active') : undefined,
+			detail: entry.detail,
 			buttons: resourceExt ? [{
 				iconClass: 'codicon-settings-gear',
 				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)

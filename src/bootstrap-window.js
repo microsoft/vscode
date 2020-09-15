@@ -23,6 +23,7 @@
 }(this, function () {
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
+	const webFrame = preloadGlobals.webFrame;
 	const safeProcess = sandbox ? preloadGlobals.process : process;
 
 	/**
@@ -35,6 +36,7 @@
 		/**
 		 * // configuration: INativeWindowConfiguration
 		 * @type {{
+		 * zoomLevel?: number,
 		 * extensionDevelopmentPath?: string[],
 		 * extensionTestsPath?: string,
 		 * userEnv?: { [key: string]: string | undefined },
@@ -42,6 +44,12 @@
 		 * nodeCachedDataDir?: string
 		 * }} */
 		const configuration = JSON.parse(args['config'] || '{}') || {};
+
+		// Apply zoom level early to avoid glitches
+		const zoomLevel = configuration.zoomLevel;
+		if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+			webFrame.setZoomLevel(zoomLevel);
+		}
 
 		// Error handler
 		safeProcess.on('uncaughtException', function (error) {
