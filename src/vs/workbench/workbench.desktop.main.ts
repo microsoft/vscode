@@ -45,7 +45,6 @@ import 'vs/workbench/services/extensionManagement/electron-browser/extensionMana
 import 'vs/workbench/services/extensionManagement/electron-browser/extensionTipsService';
 import 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import 'vs/workbench/services/telemetry/electron-browser/telemetryService';
-import 'vs/workbench/services/extensionManagement/node/extensionManagementService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';

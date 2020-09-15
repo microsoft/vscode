@@ -39,6 +39,7 @@ import 'vs/workbench/services/configurationResolver/electron-sandbox/configurati
 import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityService';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
+import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
 
 //#endregion
 

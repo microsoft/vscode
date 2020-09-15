@@ -20,7 +20,7 @@ import { IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remo
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -54,7 +54,7 @@ import { LinkedMap } from 'vs/base/common/map';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IReportedExtension, IGalleryMetadata, IExtensionIdentifier, IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -91,6 +91,7 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
+	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 
 	options?: IWorkbenchConstructionOptions | undefined;
@@ -834,35 +835,6 @@ class SimpleTaskService implements ITaskService {
 }
 
 registerSingleton(ITaskService, SimpleTaskService);
-
-//#endregion
-
-
-//#region Extension Management
-
-class SimpleExtensionManagementService implements IExtensionManagementService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onInstallExtension = Event.None;
-	onDidInstallExtension = Event.None;
-	onUninstallExtension = Event.None;
-	onDidUninstallExtension = Event.None;
-
-	async zip(extension: ILocalExtension): Promise<URI> { throw new Error('Method not implemented.'); }
-	async unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('Method not implemented.'); }
-	async getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('Method not implemented.'); }
-	async install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	async canInstall(extension: IGalleryExtension): Promise<boolean> { throw new Error('Method not implemented.'); }
-	async installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	async uninstall(extension: ILocalExtension, force?: boolean): Promise<void> { }
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> { }
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> { return []; }
-	async getExtensionsReport(): Promise<IReportedExtension[]> { return []; }
-	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(IExtensionManagementService, SimpleExtensionManagementService);
 
 //#endregion
 
