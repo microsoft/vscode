@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tmpdir } from 'os';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
@@ -21,6 +20,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { joinPath } from 'vs/base/common/resources';
 import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
@@ -32,7 +33,8 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(channel, galleryService, configurationService, productService);
 		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
@@ -87,7 +89,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 	}
 
 	private async downloadAndInstall(extension: IGalleryExtension, installed: ILocalExtension[]): Promise<ILocalExtension> {
-		const location = joinPath(URI.file(tmpdir()), generateUuid());
+		const location = joinPath(this.environmentService.tmpDir, generateUuid());
 		await this.galleryService.download(extension, location, installed.filter(i => areSameExtensions(i.identifier, extension.identifier))[0] ? InstallOperation.Update : InstallOperation.Install);
 		return super.install(location);
 	}
