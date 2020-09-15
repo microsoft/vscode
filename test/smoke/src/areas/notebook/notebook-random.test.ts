@@ -34,6 +34,7 @@ export function setup() {
 
 		beforeEach(async function () {
 			const app = this.app as Application;
+			await app.captureScreenshot(`${this.id}/z_initial`);
 			await app.workbench.notebook.createRealNotebook();
 			await app.workbench.quickaccess.runCommand('workbench.action.splitEditor');
 			await app.workbench.quickaccess.runCommand('notifications.clearAll');
@@ -218,7 +219,6 @@ class NotebookActionRunner {
 
 	async doRandomActions(n: number) {
 		console.log(`Starting random action run: ${this.id}`);
-		await this.app.captureScreenshot(`${this.id}/z_initial`);
 		for (let i = 0; i < n; i++) {
 			await this.doRandomAction(i);
 		}
