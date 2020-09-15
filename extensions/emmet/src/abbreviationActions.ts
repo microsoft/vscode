@@ -403,7 +403,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
-		// Fix for https://github.com/Microsoft/vscode/issues/34162
+		// Fix for https://github.com/microsoft/vscode/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
 
@@ -447,7 +447,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
-		// Workaround for https://github.com/Microsoft/vscode/30188
+		// Workaround for https://github.com/microsoft/vscode/30188
 		// The line above the rule selector is considered as part of the selector by the css-parser
 		// But we should assume it is a valid location for css properties under the parent rule
 		if (currentCssNode.parent
@@ -488,12 +488,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 		const innerRange = getInnerRange(currentHtmlNode);
 
-		// Fix for https://github.com/Microsoft/vscode/issues/28829
+		// Fix for https://github.com/microsoft/vscode/issues/28829
 		if (!innerRange || !innerRange.contains(position)) {
 			return false;
 		}
 
-		// Fix for https://github.com/Microsoft/vscode/issues/35128
+		// Fix for https://github.com/microsoft/vscode/issues/35128
 		// Find the position up till where we will backtrack looking for unescaped < or >
 		// to decide if current position is valid for emmet expansion
 		start = innerRange.start;
@@ -536,7 +536,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			i--;
 			continue;
 		}
-		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// Fix for https://github.com/microsoft/vscode/issues/55411
 		// A space is not a valid character right after < in a tag name.
 		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
 			i--;
@@ -640,7 +640,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 		}
 		expandOptions['text'] = input.textToWrap;
 
-		// Below fixes https://github.com/Microsoft/vscode/issues/29898
+		// Below fixes https://github.com/microsoft/vscode/issues/29898
 		// With this, Emmet formats inline elements as block elements
 		// ensuring the wrapped multi line text does not get merged to a single line
 		if (!input.rangeToReplace.isSingleLine) {

@@ -307,7 +307,7 @@ export class NativeWindow extends Disposable {
 		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {
 			configuredZoomLevel = windowConfig.window.zoomLevel;
 
-			// Leave early if the configured zoom level did not change (https://github.com/Microsoft/vscode/issues/1536)
+			// Leave early if the configured zoom level did not change (https://github.com/microsoft/vscode/issues/1536)
 			if (this.previousConfiguredZoomLevel === configuredZoomLevel) {
 				return;
 			}

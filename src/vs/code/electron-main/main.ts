@@ -102,7 +102,7 @@ class CodeMain {
 
 		// We need to buffer the spdlog logs until we are sure
 		// we are the only instance running, otherwise we'll have concurrent
-		// log file access on Windows (https://github.com/Microsoft/vscode/issues/41218)
+		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
 
 		const [instantiationService, instanceEnvironment, environmentService] = this.createServices(args, bufferLogService);
@@ -474,7 +474,7 @@ class CodeMain {
 
 		// Trim trailing quotes
 		if (isWindows) {
-			path = rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+			path = rtrim(path, '"'); // https://github.com/microsoft/vscode/issues/1498
 		}
 
 		// Trim whitespaces

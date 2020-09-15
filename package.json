@@ -181,10 +181,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Microsoft/vscode.git"
+    "url": "https://github.com/microsoft/vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/Microsoft/vscode/issues"
+    "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.2.0",

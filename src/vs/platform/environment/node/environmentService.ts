@@ -231,7 +231,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 }
 
 // Read this before there's any chance it is overwritten
-// Related to https://github.com/Microsoft/vscode/issues/30624
+// Related to https://github.com/microsoft/vscode/issues/30624
 export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {

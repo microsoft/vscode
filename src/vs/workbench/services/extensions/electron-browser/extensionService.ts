@@ -132,7 +132,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// extension host more (LifecyclePhase.Restored) because
 		// some editors require the extension host to restore
 		// and this would result in a deadlock
-		// see https://github.com/Microsoft/vscode/issues/41322
+		// see https://github.com/microsoft/vscode/issues/41322
 		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
 			runWhenIdle(() => {
