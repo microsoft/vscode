@@ -24,8 +24,9 @@ export interface IBuiltInExtension {
 
 export type ConfigurationSyncStore = {
 	url: string,
-	insidersUrl?: string,
-	stableUrl?: string,
+	insidersUrl: string,
+	stableUrl: string,
+	canSwitch: boolean,
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
