@@ -117,7 +117,4 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
 
-// Configuration Exporter
-import 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper.contribution';
-
 //#endregion
