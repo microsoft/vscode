@@ -460,13 +460,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL);
 	}
 
-	private getFullKey(extensionId: string, key: string): string {
-		return `${this.productService.urlProtocol}${extensionId}${key}`;
+	private getFullKey(extensionId: string): string {
+		return `${this.productService.urlProtocol}${extensionId}`;
 	}
 
 	async $getPassword(extensionId: string, key: string): Promise<string | undefined> {
-		const fullKey = this.getFullKey(extensionId, key);
-		const password = await this.credentialsService.getPassword(fullKey, 'account');
+		const fullKey = this.getFullKey(extensionId);
+		const password = await this.credentialsService.getPassword(fullKey, key);
 		const decrypted = password && await this.encryptionService.decrypt(password);
 
 		if (decrypted) {
@@ -484,20 +484,19 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	async $setPassword(extensionId: string, key: string, value: string): Promise<void> {
-		const fullKey = this.getFullKey(extensionId, key);
+		const fullKey = this.getFullKey(extensionId);
 		const toEncrypt = JSON.stringify({
 			extensionId,
 			content: value
 		});
 		const encrypted = await this.encryptionService.encrypt(toEncrypt);
-		return this.credentialsService.setPassword(fullKey, 'account', encrypted);
+		return this.credentialsService.setPassword(fullKey, key, encrypted);
 	}
 
 	async $deletePassword(extensionId: string, key: string): Promise<void> {
 		try {
-			await this.$getPassword(extensionId, key);
-			const fullKey = this.getFullKey(extensionId, key);
-			await this.credentialsService.deletePassword(fullKey, 'account');
+			const fullKey = this.getFullKey(extensionId);
+			await this.credentialsService.deletePassword(fullKey, key);
 		} catch (_) {
 			throw new Error('Cannot delete password');
 		}

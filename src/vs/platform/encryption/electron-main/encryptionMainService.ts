@@ -5,7 +5,6 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICommonEncryptionService } from 'vs/platform/encryption/electron-main/common/encryptionService';
-import { encrypt, decrypt } from 'vscode-encrypt';
 
 export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
 
@@ -18,11 +17,13 @@ export class EncryptionMainService implements ICommonEncryptionService {
 
 	}
 
-	encrypt(value: string): Promise<string> {
-		return encrypt(this.machineId, value);
+	async encrypt(value: string): Promise<string> {
+		const encryption = await import('vscode-encrypt');
+		return encryption.encrypt(this.machineId, value);
 	}
 
-	decrypt(value: string): Promise<string> {
-		return decrypt(this.machineId, value);
+	async decrypt(value: string): Promise<string> {
+		const encryption = await import('vscode-encrypt');
+		return encryption.decrypt(this.machineId, value);
 	}
 }
