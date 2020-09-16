@@ -38,7 +38,7 @@ This project incorporates components from the projects listed below. The origina
 31.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
 32.	marked version 0.6.2 (https://github.com/markedjs/marked)
 33.	mdn-data version 1.1.12 (https://github.com/mdn/data)
-34.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://microsoft/TypeScript-TmLanguage)
+34.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
 35.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
 36.	microsoft/vscode-mssql version 1.9.0 (https://github.com/microsoft/vscode-mssql)
 37.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
