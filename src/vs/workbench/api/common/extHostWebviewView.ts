@@ -51,6 +51,8 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		this.#isDisposed = true;
 		this.#onDidDispose.fire();
 
+		this.#webview.dispose();
+
 		super.dispose();
 	}
 
@@ -186,6 +188,8 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		const webviewView = this.getWebviewView(webviewHandle);
 		this._webviewViews.delete(webviewHandle);
 		webviewView.dispose();
+
+		this._extHostWebview.deleteWebview(webviewHandle);
 	}
 
 	private getWebviewView(handle: string): ExtHostWebviewView {
