@@ -47,8 +47,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 			text: this._text,
 			linkHandler: this._linkHandler,
 			// .xterm-hover lets xterm know that the hover is part of a link
-			additionalClasses: ['xterm-hover'],
-			anchorPosition: AnchorPosition.BELOW
+			additionalClasses: ['xterm-hover']
 		});
 		if (hover) {
 			this._register(hover);
