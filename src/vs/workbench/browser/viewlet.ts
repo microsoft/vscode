@@ -44,6 +44,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
 		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(id, viewPaneContainer, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		// Only updateTitleArea for non-filter views: microsoft/vscode-remote-release#3676
 		if (!(viewPaneContainer instanceof FilterViewPaneContainer)) {
 			this._register(Event.any(viewPaneContainer.onDidAddViews, viewPaneContainer.onDidRemoveViews, viewPaneContainer.onTitleAreaUpdate)(() => {
 				// Update title area since there is no better way to update secondary actions
