@@ -126,7 +126,6 @@ export class TabsTitleControl extends TitleControl {
 		//  on: multiple rows with flex side-by-side
 		this.tabsAndActionsContainer = document.createElement('div');
 		this.tabsAndActionsContainer.classList.add('tabs-and-actions-container');
-    this.tabsAndActionsContainer.classList.toggle('multi-line', this.accessor.partOptions.multiLineTabs);
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		// Tabs Container
@@ -512,12 +511,7 @@ export class TabsTitleControl extends TitleControl {
 			this.computeTabLabels();
 		}
 
-		// Update tabs multiline wrapping
-		if (oldOptions.multiLineTabs !== newOptions.multiLineTabs) {
-			this.updateMultiLineTabs();
-		}
-
-		// Udate tabs scrollbar sizing
+		// Update tabs scrollbar sizing
 		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
 			this.updateTabsScrollbarSizing();
 		}
@@ -535,12 +529,6 @@ export class TabsTitleControl extends TitleControl {
 		) {
 			this.redraw();
 		}
-	}
-
-	private updateMultiLineTabs(): void {
-		const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
-
-		this.tabsAndActionsContainer.classList.toggle('multi-line', this.accessor.partOptions.multiLineTabs);
 	}
 
 	updateStyles(): void {
@@ -1051,7 +1039,6 @@ export class TabsTitleControl extends TitleControl {
 		// Borders / Outline
 		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
-		tabContainer.style.borderBottom = borderRightColor && this.accessor.partOptions.multiLineTabs ? `1px solid ${borderRightColor}` : ''; // bottom border when wrapping multi-line
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
@@ -1190,6 +1177,17 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_INACTIVE_BACKGROUND : TAB_UNFOCUSED_INACTIVE_BACKGROUND) || '';
 			tabContainer.style.boxShadow = '';
 
+			// bottom border when wrapping to multi-line tabs
+			if (this.accessor.partOptions.multiLineTabs) {
+				tabContainer.classList.add('multi-line');
+				tabContainer.classList.add('tab-border-bottom');
+				const borderBottom = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) || '';
+				tabContainer.style.setProperty('--tab-border-bottom-color', borderBottom.toString());
+			} else {
+				tabContainer.classList.remove('multi-line');
+				tabContainer.classList.remove('tab-border-bottom');
+			}
+
 			// Label
 			tabContainer.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND) || '';
 		}
@@ -1285,7 +1283,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private doLayoutTabs(activeTab: HTMLElement, activeIndex: number): void {
-		const [tabsContainer, tabsScrollbar] = assertAllDefined(this.tabsContainer, this.tabsScrollbar);
+		const [tabsContainer, tabsScrollbar, tabsAndActionsContainer] = assertAllDefined(this.tabsContainer, this.tabsScrollbar, this.tabsAndActionsContainer);
 
 		//
 		// Synopsis
@@ -1305,6 +1303,7 @@ export class TabsTitleControl extends TitleControl {
 
 		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
+		const allTabsHeight = tabsContainer.offsetHeight;
 
 		// Compute width of sticky tabs depending on pinned tab sizing
 		// - compact: sticky-tabs * TAB_SIZES.compact
@@ -1338,6 +1337,13 @@ export class TabsTitleControl extends TitleControl {
 			activeTabSticky = false;
 		} else {
 			tabsContainer.classList.remove('disable-sticky-tabs');
+		}
+
+		// Add the multi-line tabs class after first row is filled out and wraps
+		if (allTabsWidth > visibleTabsContainerWidth && this.accessor.partOptions.multiLineTabs) {
+			tabsAndActionsContainer.classList.add('multi-line');
+		} else if ((allTabsWidth === visibleTabsContainerWidth && allTabsHeight === EDITOR_TITLE_HEIGHT) || !this.accessor.partOptions.multiLineTabs) {
+			tabsAndActionsContainer.classList.remove('multi-line');
 		}
 
 		let activeTabPosX: number | undefined;

@@ -712,6 +712,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count === 0;
 	}
 
+	get titleHeight(): number {
+		return this.titleContainer.offsetHeight;
+	}
+
 	get isMinimized(): boolean {
 		if (!this.dimension) {
 			return false;

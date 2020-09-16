@@ -117,6 +117,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly isEmpty: boolean;
 	readonly isMinimized: boolean;
+	readonly titleHeight: number;
 
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
