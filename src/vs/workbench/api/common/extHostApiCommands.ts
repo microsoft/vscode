@@ -282,6 +282,8 @@ export class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'rangeOrSelection', description: 'Range in a text document. Some refactoring provider requires Selection object.', constraint: types.Range },
 				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of code actions to resolve (too large numbers slow down code actions)', constraint: (value: any) => value === undefined || typeof value === 'number' }
+
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
@@ -436,13 +438,14 @@ export class ExtHostApiCommands {
 	}
 
 
-	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string, itemResolveCount?: number): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
 			rangeOrSelection: types.Selection.isSelection(rangeOrSelection)
 				? typeConverters.Selection.from(rangeOrSelection)
 				: typeConverters.Range.from(rangeOrSelection),
-			kind
+			kind,
+			itemResolveCount,
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {

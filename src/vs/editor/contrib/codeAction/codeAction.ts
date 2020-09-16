@@ -225,7 +225,7 @@ function getDocumentation(
 }
 
 registerLanguageCommand('_executeCodeActionProvider', async function (accessor, args): Promise<ReadonlyArray<modes.CodeAction>> {
-	const { resource, rangeOrSelection, kind } = args;
+	const { resource, rangeOrSelection, kind, itemResolveCount } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
@@ -252,6 +252,17 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		Progress.None,
 		CancellationToken.None);
 
-	setTimeout(() => codeActionSet.dispose(), 100);
-	return codeActionSet.validActions.map(item => item.action);
+
+	const resolving: Promise<any>[] = [];
+	const resolveCount = Math.min(codeActionSet.validActions.length, typeof itemResolveCount === 'number' ? itemResolveCount : 0);
+	for (let i = 0; i < resolveCount; i++) {
+		resolving.push(codeActionSet.validActions[i].resolve(CancellationToken.None));
+	}
+
+	try {
+		await Promise.all(resolving);
+		return codeActionSet.validActions.map(item => item.action);
+	} finally {
+		setTimeout(() => codeActionSet.dispose(), 100);
+	}
 });

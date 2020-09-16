@@ -1612,7 +1612,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(extension.enableProposedApi && provider.resolveCodeAction));
+		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
 		store.add(this._createDisposable(handle));
 		return store;
 	}
