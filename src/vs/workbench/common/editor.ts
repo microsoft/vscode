@@ -1219,6 +1219,7 @@ export interface IWorkbenchEditorConfiguration {
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
+	multiLineTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
@@ -1243,7 +1244,6 @@ interface IEditorPartConfiguration {
 		value?: number;
 		perEditorGroup?: boolean;
 	};
-	multiLineTabs?: boolean;
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {

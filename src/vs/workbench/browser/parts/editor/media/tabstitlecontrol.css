@@ -41,7 +41,7 @@
 	flex-wrap: wrap;
 }
 
-.monaco-workbench .part.editor>.content .editor-group-container>.title.tabs >.tabs-and-actions-container.multi-line>.monaco-scrollable-element>.tabs-container::after {
+.monaco-workbench .part.editor>.content .editor-group-container>.title.tabs >.tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container::after {
 	content: ""; /* Add a hidden space after the last tab in multi-line tabs */
 	flex: 1 0 auto;
 }

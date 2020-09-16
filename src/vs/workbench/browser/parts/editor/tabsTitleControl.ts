@@ -1051,11 +1051,8 @@ export class TabsTitleControl extends TitleControl {
 		// Borders / Outline
 		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
 		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
+		tabContainer.style.borderBottom = borderRightColor && this.accessor.partOptions.multiLineTabs ? `1px solid ${borderRightColor}` : ''; // bottom border when wrapping multi-line
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
-		// Add a border to the bottom of the tabs if multi-line tabs is enabled
-		if (this.accessor.partOptions.multiLineTabs) {
-			tabContainer.style.borderBottom = `1px solid ${borderRightColor}`;
-		}
 
 		// Settings
 		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
