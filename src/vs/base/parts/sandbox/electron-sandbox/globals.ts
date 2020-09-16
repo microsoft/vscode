@@ -110,7 +110,7 @@ export const process = (window as any).vscode.process as {
 	 * memory is more representative of the actual pre-compression memory usage of the
 	 * process on macOS.
 	 */
-	getProcessMemoryInfo: () => ProcessMemoryInfo;
+	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.
