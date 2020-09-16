@@ -12,7 +12,6 @@ import type { IViewportRange } from 'xterm';
 import { IHoverTarget, IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 const $ = dom.$;
 
