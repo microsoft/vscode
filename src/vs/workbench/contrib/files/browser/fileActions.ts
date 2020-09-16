@@ -48,7 +48,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { once } from 'vs/base/common/functional';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
-import { trim, rtrim, pad } from 'vs/base/common/strings';
+import { trim, rtrim } from 'vs/base/common/strings';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -375,7 +375,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g2);
 			return number < maxNumber
-				? g1 + pad(number + 1, g2.length) + g3
+				? g1 + String(number + 1).padStart(g2.length, '0') + g3
 				: `${g1}${g2}.1${g3}`;
 		});
 	}
@@ -386,7 +386,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? pad(number + 1, g1.length) + g2 + g3
+				? String(number + 1).padStart(g1.length, '0') + g2 + g3
 				: `${g1}${g2}.1${g3}`;
 		});
 	}
@@ -397,7 +397,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? pad(number + 1, g1.length) + g2
+				? String(number + 1).padStart(g1.length, '0') + g2
 				: `${g1}.1${g2}`;
 		});
 	}
@@ -413,7 +413,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/(\d+)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? pad(number + 1, groups[0].length)
+				? String(number + 1).padStart(groups[0].length, '0')
 				: `${groups[0]}.1`;
 		});
 	}
@@ -423,7 +423,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? pad(number + 1, groups[0].length) + groups[1]
+				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
 				: `${groups[0]}${groups[1]}.1`;
 		});
 	}
