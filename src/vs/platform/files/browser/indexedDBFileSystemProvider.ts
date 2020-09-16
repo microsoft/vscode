@@ -18,9 +18,6 @@ const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
 export const INDEXEDDB_LOGS_OBJECT_STORE = 'vscode-logs-store';
 
-// To be a periodic check if db has been externally modified (other tab)
-const CACHE_TTL = 60 * 1000;
-
 export class IndexedDB {
 
 	private indexedDBPromise: Promise<IDBDatabase | null>;
@@ -82,13 +79,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super();
 		this.writeManyThrottler = new Throttler();
-		setInterval(() => {
-			const findTop = (rec: Record<string, number>) =>
-				Object.entries(rec).sort((a, b) => b[1] - a[1]).slice(0, 15);
-
-			console.log({ stat: findTop(this.statMap), readDir: findTop(this.readDirMap) });
-		}, 1000);
-
 		this.initRoot = (async () => {
 			try {
 				await this.getValue('/', 'dir');
@@ -116,8 +106,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		await this.initRoot;
 		const parent = dirname(resource);
 		const parentContents = await this.readdir(parent);
-		this.readDirCache.delete(parent.toString());
-
 		const existing = parentContents.find(([path]) => path === resource.path);
 		if (!existing) {
 			parentContents.push([resource.path, FileType.Directory]);
@@ -130,61 +118,33 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		await this.writeManyThrottler.queue(() => this.writeMany());
 	}
 
-	private statMap: Record<string, number> = {};
-	private statCache: Map<string, { value: IStat, expiry: number }> = new Map();
 	async stat(resource: URI): Promise<IStat> {
-		const key = resource.toString();
-		this.statMap[key] = (this.statMap[key] ?? 0) + 1;
-
 		await this.initRoot;
-		if (!this.statCache.has(key) || this.statCache.get(key)!.expiry < Date.now()) {
+		const content = await this.getValue(resource.path);
+		if (!content) {
+			throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
+		} else if (content instanceof Uint8Array) {
+			return {
+				type: FileType.File,
+				ctime: 0,
+				mtime: this.versions.get(resource.toString()) || 0,
+				size: content.byteLength
+			};
 
-			const content = await this.getValue(resource.path);
-			if (!content) {
-				this.statCache.delete(key);
-				throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-			} else if (content instanceof Uint8Array) {
-				this.statCache.set(key, {
-					expiry: Date.now() + CACHE_TTL,
-					value: {
-						type: FileType.File,
-						ctime: 0,
-						mtime: this.versions.get(key) || 0,
-						size: content.byteLength
-					}
-				});
-			} else if (Array.isArray(content)) {
-				this.statCache.set(key, {
-					expiry: Date.now() + CACHE_TTL,
-					value: {
-						type: FileType.Directory,
-						ctime: 0,
-						mtime: 0,
-						size: 0
-					}
-				});
-			} else {
-				this.statCache.delete(key);
-				throw createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown);
-			}
+		} else if (Array.isArray(content)) {
+			return {
+				type: FileType.Directory,
+				ctime: 0,
+				mtime: 0,
+				size: 0
+			};
+		} else {
+			throw createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown);
 		}
-		return this.statCache.get(key)!.value;
 	}
 
-	private readDirMap: Record<string, number> = {};
-	private readDirCache: Map<string, { value: DirEntry[], expiry: number }> = new Map();
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		this.readDirMap[resource.toString()] = (this.readDirMap[resource.toString()] ?? 0) + 1;
-		const key = resource.toString();
-		if (!this.readDirCache.has(key) || this.readDirCache.get(key)!.expiry < Date.now()) {
-			try {
-				this.readDirCache.set(key, { expiry: Date.now() + CACHE_TTL, value: await this.getValue(resource.path, 'dir') });
-			} catch (e) {
-				this.readDirCache.delete(key);
-				throw e;
-			}
-		}
-		return this.readDirCache.get(key)!.value;
+		return this.getValue(resource.path, 'dir');
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
@@ -195,8 +155,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		await this.initRoot;
 		const parent = dirname(resource);
 		const parentContents = await this.readdir(parent);
-		this.readDirCache.delete(parent.toString());
-
 		const existing = parentContents.find(([path]) => path === resource.path);
 		if (existing?.[1] === FileType.Directory) {
 			throw createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory);
@@ -210,42 +168,62 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		await this.initRoot;
-		const hasKey = await this.hasKey(resource.path);
-		if (hasKey) {
-			if (opts.recursive) {
-				try {
-					const files = await this.readdir(resource);
-					await Promise.all(files.map(([key]) => this.delete(resource.with({ path: key }), opts)));
-				} catch (e) {
-					if (e.code !== FileSystemProviderErrorCode.FileNotADirectory) {
-						throw e;
-					}
-				}
-			}
+		console.log('del');
 
-			await this.deleteKey(resource.path);
-			this.statCache.delete(resource.toString());
-			this.readDirCache.delete(resource.toString());
-			this.versions.delete(resource.path);
-			this._onDidChangeFile.fire([{ resource, type: FileChangeType.DELETED }]);
-			return;
+		await this.initRoot;
+		let stat: IStat;
+		try {
+			stat = await this.stat(resource);
+		} catch (e) {
+			if (e.code === FileSystemProviderErrorCode.FileNotFound) {
+				return;
+			}
+			throw e;
 		}
 
+		let toDelete: string[];
+		if (opts.recursive) {
+			const tree = (await this.tree(resource));
+			console.log({ tree });
+
+			toDelete = tree.map(([path]) => path);
+		} else {
+			if (stat.type === FileType.Directory && (await this.readdir(resource)).length) {
+				throw createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
+			}
+			toDelete = [resource.path];
+		}
+		console.log({ toDelete });
+
+		await this.deleteKeys(toDelete);
+		toDelete.forEach(key => this.versions.delete(key));
+		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
+	}
+
+
+	private async tree(resource: URI): Promise<DirEntry[]> {
+		if ((await this.stat(resource)).type === FileType.Directory) {
+			let items = await this.readdir(resource);
+			await Promise.all(items.map(
+				async ([key, type]) => {
+					if (type === FileType.Directory) {
+						const childEntries = (await this.tree(resource.with({ path: key })));
+						items = items.concat(childEntries);
+					}
+				}));
+			items = items.concat([[resource.path, FileType.Directory]]);
+			console.log({ tree: resource.toString(), items });
+
+			return items;
+		} else {
+			const items: DirEntry[] = [[resource.path, FileType.File]];
+			console.log({ tree: resource.toString(), items });
+			return items;
+		}
 	}
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
 		return Promise.reject(new Error('Not Supported'));
-	}
-
-	private hasKey(key: string): Promise<boolean> {
-		return new Promise<boolean>(async (c, e) => {
-			const transaction = this.database.transaction([this.store]);
-			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.getKey(key);
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => c(request.result !== undefined);
-		});
 	}
 
 	private getValue(key: string): Promise<Uint8Array | DirEntry[] | undefined>;
@@ -366,13 +344,23 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		});
 	}
 
-	protected deleteKey(key: string): Promise<void> {
+	protected deleteKeys(keys: string[]): Promise<void> {
 		return new Promise(async (c, e) => {
 			const transaction = this.database.transaction([this.store], 'readwrite');
+			transaction.onerror = () => e(transaction.error);
 			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.delete(key);
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => c();
+
+			let request: IDBRequest | undefined = undefined;
+			for (const key of keys) {
+				const thisRequest = objectStore.delete(key);
+				request = thisRequest;
+			}
+
+			if (request) {
+				request.onsuccess = () => c();
+			} else {
+				transaction.oncomplete = () => c();
+			}
 		});
 	}
 }
