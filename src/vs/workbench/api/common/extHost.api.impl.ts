@@ -629,7 +629,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					retainContextWhenHidden?: boolean
 				}
 			}) {
-				checkProposedApiEnabled(extension);
 				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
 			}
 		};
