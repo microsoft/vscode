@@ -228,7 +228,7 @@ export class TypeOperations {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
 					goodIndent = goodIndent || '\t';
 					let possibleTypeText = config.normalizeIndentation(goodIndent);
-					if (!strings.startsWith(lineText, possibleTypeText)) {
+					if (!lineText.startsWith(possibleTypeText)) {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
 						continue;
 					}
