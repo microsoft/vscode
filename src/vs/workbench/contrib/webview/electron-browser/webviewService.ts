@@ -8,7 +8,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
 import { WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
-import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-browser/iframeWebviewElement';
+import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-sandbox/iframeWebviewElement';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService extends WebviewService {
