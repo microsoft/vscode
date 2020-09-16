@@ -44,10 +44,10 @@ export function setup() {
 			this.timeout(1000000);
 
 			const app = this.app as Application;
-			// if (app.pauseAtEnd) {
-			// 	console.log(`Done. Pausing...`);
-			// 	await wait(1000000);
-			// }
+			if (this.currentTest.state === 'failed' && app.pauseAtEnd) {
+				console.log(`Done. Pausing...`);
+				await wait(1000000);
+			}
 
 			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
 			await app.workbench.quickaccess.runCommand('workbench.action.closeAllGroups');
@@ -263,6 +263,7 @@ function getActions(app: Application): INotebookActions {
 		},
 		insertCodeWithLotsOfText: async () => {
 			await n.insertNotebookCell('code');
+			await n.editCell();
 			await n.waitForTypeInEditor('1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 ');
 		},
 		insertMarkdownEmpty: async () => {
@@ -270,12 +271,12 @@ function getActions(app: Application): INotebookActions {
 		},
 		insertMarkdownWithText: async () => {
 			await n.insertNotebookCell('markdown');
-			await wait(200);
+			await n.editCell();
 			await n.waitForTypeInEditor('# top header\n\n## next header\n\n- Here is a\n- bulleted list\n- of content\n\nAnd some **more** text');
 		},
 		insertMarkdownWithImage: async () => {
 			await n.insertNotebookCell('markdown');
-			await wait(200);
+			await n.editCell();
 			await n.waitForTypeInEditor('![msft](https://upload.wikimedia.org/wikipedia/en/4/4d/Microsoft_logo_%281980%29.png)');
 		},
 		editCell: async () => {
@@ -290,7 +291,10 @@ function getActions(app: Application): INotebookActions {
 		focusPrevious: () => n.focusPreviousCell(),
 		focusNext: () => n.focusNextCell(),
 		focusTop: () => app.code.dispatchKeybinding('cmd+up'),
-		focusBottom: () => app.code.dispatchKeybinding('cmd+down'),
+		focusBottom: async () => {
+			await app.code.dispatchKeybinding('cmd+down');
+			await app.code.dispatchKeybinding('down');
+		},
 		moveUp: () => app.code.dispatchKeybinding('alt+up'),
 		moveDown: () => app.code.dispatchKeybinding('alt+down'),
 		copyCell: () => qa.runCommand('notebook.cell.copy'),
