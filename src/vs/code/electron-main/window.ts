@@ -34,7 +34,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Schemas } from 'vs/base/common/network';
+import { toCodeFileUri } from 'vs/base/common/network';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IWindowCreationOptions {
@@ -836,12 +836,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		const url = `${require.toUrl(workbench)}`;
-		const fileUrl = URI.parse(url).with({
-			scheme: Schemas.vscodeFileResource,
-			authority: 'localhost',
-			query: `config=${encodeURIComponent(JSON.stringify(config))}`
-		}).toString(true);
+		const fileUrl = toCodeFileUri(
+			workbench,
+			`config=${encodeURIComponent(JSON.stringify(config))}`, true);
 
 		return fileUrl;
 	}

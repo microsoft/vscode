@@ -100,7 +100,7 @@
 			baseUrl: `${uriFromPath(configuration.appRoot)}/out`,
 			'vs/nls': nlsConfig,
 			amdModulesPattern: /^vs\//,
-			preferScriptTags: true,
+			preferScriptTags: true
 		};
 
 		// cached data config
@@ -243,7 +243,7 @@
 		if (safeProcess.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
 			uri = encodeURI(`file:${pathName}`);
 		} else {
-			uri = encodeURI(`vscode-file://localhost${pathName}`);
+			uri = encodeURI(`vscode-file://app${pathName}`);
 		}
 
 		return uri.replace(/#/g, '%23');

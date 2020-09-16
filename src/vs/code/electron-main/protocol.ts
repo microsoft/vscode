@@ -26,17 +26,19 @@ export class FileProtocolHandler extends Disposable {
 		}));
 	}
 
-	private async handleResourceRequest(request: Electron.Request, callback: any) {
+	private async handleResourceRequest(
+		request: Electron.Request,
+		callback: any) {
 		const uri = URI.parse(request.url);
 		const appRoot = this.environmentService.appRoot;
 		const extensionsPath = this.environmentService.extensionsPath;
 		if (uri.path.startsWith(appRoot) ||
 			(extensionsPath && uri.path.startsWith(extensionsPath))) {
 			return callback({
-				path: uri.path
+				path: decodeURIComponent(uri.path)
 			});
 		}
-		console.error(`vscode-file: Cannot load resource ${uri.path}`);
+		console.error(`vscode-file: Refused to load resource ${uri.path}`);
 		callback({ error: -3 /* ABORTED */ });
 	}
 }
