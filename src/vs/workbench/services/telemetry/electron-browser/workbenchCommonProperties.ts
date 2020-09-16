@@ -7,6 +7,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { instanceStorageKey, firstSessionDateStorageKey, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export async function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
