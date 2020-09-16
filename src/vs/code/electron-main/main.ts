@@ -40,7 +40,7 @@ import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
@@ -298,7 +298,7 @@ class CodeMain {
 					// Create a diagnostic service connected to the existing shared process
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
 					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
-					const diagnosticsService = new DiagnosticsService(diagnosticsChannel);
+					const diagnosticsService = createChannelSender<IDiagnosticsService>(diagnosticsChannel);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
 					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);

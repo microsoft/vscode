@@ -43,7 +43,6 @@ import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -223,7 +222,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			server.registerChannel('localizations', localizationsChannel);
 
 			const diagnosticsService = accessor.get(IDiagnosticsService);
-			const diagnosticsChannel = new DiagnosticsChannel(diagnosticsService);
+			const diagnosticsChannel = createChannelReceiver(diagnosticsService);
 			server.registerChannel('diagnostics', diagnosticsChannel);
 
 			const extensionTipsService = accessor.get(IExtensionTipsService);
