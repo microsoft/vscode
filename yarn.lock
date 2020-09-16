@@ -9841,9 +9841,9 @@ vscode-debugprotocol@1.41.0:
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.41.0.tgz#fc99b01dee26e9f25cbb5708318fc0081002808c"
   integrity sha512-Sxp7kDDuhpEZiDaIfhM0jLF3RtMqvc6CpoESANE77t351uezsd/oDoqALLcOnmmsDzTgQ3W0sCvM4gErnjDFpA==
 
-"vscode-encrypt@https://github.com/microsoft/vscode-encrypt.git#9a6a5d054a026920aefa1f14048260e6cce4d2b9":
+"vscode-encrypt@https://github.com/microsoft/vscode-encrypt.git#3396f64b86ea686b2f116910edd123067748e0a6":
   version "1.0.0"
-  resolved "https://github.com/microsoft/vscode-encrypt.git#9a6a5d054a026920aefa1f14048260e6cce4d2b9"
+  resolved "https://github.com/microsoft/vscode-encrypt.git#3396f64b86ea686b2f116910edd123067748e0a6"
   dependencies:
     fs-extra "^7.0.0"
     got "^10.7.0"

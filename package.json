@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "vscode-encrypt": "https://github.com/microsoft/vscode-encrypt.git#9a6a5d054a026920aefa1f14048260e6cce4d2b9",
+    "vscode-encrypt": "https://github.com/microsoft/vscode-encrypt.git#3396f64b86ea686b2f116910edd123067748e0a6",
     "chokidar": "3.4.2",
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",
