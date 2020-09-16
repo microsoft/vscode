@@ -14,7 +14,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { TelemetryAppenderClient } from 'vs/platform/telemetry/node/telemetryIpc';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-browser/workbenchCommonProperties';
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
