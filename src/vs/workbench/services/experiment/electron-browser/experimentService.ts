@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as platform from 'vs/base/common/platform';
-import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client';
+import type { IKeyValueStorage, IExperimentationTelemetry, IExperimentationFilterProvider, ExperimentationService as TASClient } from 'tas-client-umd';
 import { MementoObject, Memento } from 'vs/workbench/common/memento';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -206,7 +206,7 @@ export class ExperimentService implements ITASExperimentService {
 		const telemetry = new ExperimentServiceTelemetry(this.telemetryService);
 
 		const tasConfig = this.productService.tasConfig!;
-		const tasClient = new (await import('tas-client')).ExperimentationService({
+		const tasClient = new (await import('tas-client-umd')).ExperimentationService({
 			filterProviders: [filterProvider],
 			telemetry: telemetry,
 			storageKey: storageKey,

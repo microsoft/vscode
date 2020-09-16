@@ -8965,10 +8965,17 @@ tar@^4:
     safe-buffer "^5.1.2"
     yallist "^3.0.2"
 
-tas-client@^0.0.950:
-  version "0.0.950"
-  resolved "https://registry.yarnpkg.com/tas-client/-/tas-client-0.0.950.tgz#0fadc684721d5bc6d6af03b09e1ff5a83a5186fc"
-  integrity sha512-AvCNjvfouxJyKln+TsobOBO5KmXklL9+FlxrEPlIgaixy1TxCC2v2Vs/MflCiyHlGl+BeIStP4oAVPqo5c0pIA==
+tas-client-umd@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.0.tgz#267ab9a53b7bc138068db58ea240b63a4f02af2e"
+  integrity sha512-RdD5IchlVurbMHiRUfNQgAsOvqA4iktQcWRpL+reAQv0Q9v6GliuDhUgi7v2A8LTGX4bCTQNG7lX2DqX61JuLw==
+  dependencies:
+    tas-client "^0.1.8"
+
+tas-client@^0.1.8:
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/tas-client/-/tas-client-0.1.8.tgz#6f6ba49578933853a0ebb339db0373a979a55852"
+  integrity sha512-KlL/FdIxm0beR5yfbNz4UOxM+0TZcUrF0vKC17xmK8yqb7pKvbaOEJy5goac9jLe9WPGXkjWGY5apfREU5Lpmg==
   dependencies:
     axios "^0.19.0"
 
