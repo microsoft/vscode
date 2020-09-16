@@ -48,6 +48,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	}
 
 	protected toUserDataSyncStore(productStore: ConfigurationSyncStore | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
+		// Web overrides
+		productStore = isWeb && productStore?.web ? { ...productStore, ...productStore.web } : productStore;
 		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
 		if (value
 			&& isString(value.url)

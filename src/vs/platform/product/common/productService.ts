@@ -23,6 +23,7 @@ export interface IBuiltInExtension {
 }
 
 export type ConfigurationSyncStore = {
+	web?: Partial<Omit<ConfigurationSyncStore, 'web'>>,
 	url: string,
 	insidersUrl: string,
 	stableUrl: string,
