@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addClass, toggleClass, addDisposableListener, EventType, EventHelper, $, addClasses, removeClasses } from 'vs/base/browser/dom';
+import { clearNode, addClass, addDisposableListener, EventType, EventHelper, $, addClasses, removeClasses } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -306,7 +306,7 @@ export class NotificationTemplateRenderer extends Disposable {
 	private render(notification: INotificationViewItem): void {
 
 		// Container
-		toggleClass(this.template.container, 'expanded', notification.expanded);
+		this.template.container.classList.toggle('expanded', notification.expanded);
 		this.inputDisposables.add(addDisposableListener(this.template.container, EventType.AUXCLICK, e => {
 			if (!notification.hasProgress && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e, true);

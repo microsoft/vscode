@@ -9,7 +9,7 @@ import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass, Dimension } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 import { EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -37,7 +37,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(Gesture.addTarget(titleContainer));
 
 		const labelContainer = document.createElement('div');
-		addClass(labelContainer, 'label-container');
+		labelContainer.classList.add('label-container');
 		titleContainer.appendChild(labelContainer);
 
 		// Editor Label
@@ -46,12 +46,12 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Breadcrumbs
 		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
-		toggleClass(titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
-		this._register({ dispose: () => removeClass(titleContainer, 'breadcrumbs') }); // import to remove because the container is a shared dom node
+		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
+		this._register({ dispose: () => titleContainer.classList.remove('breadcrumbs') }); // import to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
-		addClass(actionsContainer, 'title-actions');
+		actionsContainer.classList.add('title-actions');
 		titleContainer.appendChild(actionsContainer);
 
 		// Editor actions toolbar
@@ -168,12 +168,12 @@ export class NoTabsTitleControl extends TitleControl {
 
 			// Signal dirty (unless saving)
 			if (editor.isDirty() && !editor.isSaving()) {
-				addClass(titleContainer, 'dirty');
+				titleContainer.classList.add('dirty');
 			}
 
 			// Otherwise, clear dirty
 			else {
-				removeClass(titleContainer, 'dirty');
+				titleContainer.classList.remove('dirty');
 			}
 		});
 	}
@@ -191,7 +191,7 @@ export class NoTabsTitleControl extends TitleControl {
 	protected handleBreadcrumbsEnablementChange(): void {
 		const titleContainer = assertIsDefined(this.titleContainer);
 
-		toggleClass(titleContainer, 'breadcrumbs', Boolean(this.breadcrumbsControl));
+		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this.redraw();
 	}
 
@@ -237,7 +237,7 @@ export class NoTabsTitleControl extends TitleControl {
 		if (this.breadcrumbsControl) {
 			if (isGroupActive) {
 				this.breadcrumbsControl.update();
-				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
+				this.breadcrumbsControl.domNode.classList.toggle('preview', !isEditorPinned);
 			} else {
 				this.breadcrumbsControl.hide();
 			}
@@ -246,7 +246,7 @@ export class NoTabsTitleControl extends TitleControl {
 		// Clear if there is no editor
 		const [titleContainer, editorLabel] = assertAllDefined(this.titleContainer, this.editorLabel);
 		if (!editor) {
-			removeClass(titleContainer, 'dirty');
+			titleContainer.classList.remove('dirty');
 			editorLabel.clear();
 			this.clearEditorActionsToolbar();
 		}
