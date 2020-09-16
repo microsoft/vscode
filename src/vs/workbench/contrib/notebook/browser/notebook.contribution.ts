@@ -447,19 +447,7 @@ class CellContentProvider implements ITextModelContentProvider {
 			return null;
 		}
 
-		const documentAlreadyOpened = this._notebookService.listNotebookDocuments().find(document => document.uri.toString() === data.notebook.toString());
-		let viewType = documentAlreadyOpened?.viewType;
-
-		if (!viewType) {
-			const info = getFirstNotebookInfo(this._notebookService, data.notebook);
-			viewType = info?.id;
-		}
-
-		if (!viewType) {
-			return null;
-		}
-
-		const ref = await this._notebookModelResolverService.resolve(data.notebook, viewType);
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
 		for (const cell of ref.object.notebook.cells) {
