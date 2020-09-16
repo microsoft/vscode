@@ -64,11 +64,11 @@ export class TitlebarPart extends BrowserTitleBarPart {
 	private onDidChangeMaximized(maximized: boolean) {
 		if (this.maxRestoreControl) {
 			if (maximized) {
-				DOM.removeClasses(this.maxRestoreControl, Codicon.chromeMaximize.classNames);
-				DOM.addClasses(this.maxRestoreControl, Codicon.chromeRestore.classNames);
+				this.maxRestoreControl.classList.remove(...Codicon.chromeMaximize.classNamesArray);
+				this.maxRestoreControl.classList.add(...Codicon.chromeRestore.classNamesArray);
 			} else {
-				DOM.removeClasses(this.maxRestoreControl, Codicon.chromeRestore.classNames);
-				DOM.addClasses(this.maxRestoreControl, Codicon.chromeMaximize.classNames);
+				this.maxRestoreControl.classList.remove(...Codicon.chromeRestore.classNamesArray);
+				this.maxRestoreControl.classList.add(...Codicon.chromeMaximize.classNamesArray);
 			}
 		}
 
