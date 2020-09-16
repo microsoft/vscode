@@ -11,6 +11,15 @@ const localize = nls.loadMessageBundle();
 const TEXT_ALWAYS = localize('status.text.auto.attach.always', 'Auto Attach: Always');
 const TEXT_SMART = localize('status.text.auto.attach.smart', 'Auto Attach: Smart');
 const TEXT_WITH_FLAG = localize('status.text.auto.attach.withFlag', 'Auto Attach: With Flag');
+const TEXT_STATE_LABEL = {
+	[State.Disabled]: localize('debug.javascript.autoAttach.disabled.label', 'Disabled'),
+	[State.Always]: localize('debug.javascript.autoAttach.always.label', 'Always'),
+	[State.Smart]: localize('debug.javascript.autoAttach.smart.label', 'Smart'),
+	[State.OnlyWithFlag]: localize(
+		'debug.javascript.autoAttach.onlyWithFlag.label',
+		'Only With Flag',
+	),
+};
 const TEXT_STATE_DESCRIPTION = {
 	[State.Disabled]: localize(
 		'debug.javascript.autoAttach.disabled.description',
@@ -29,6 +38,8 @@ const TEXT_STATE_DESCRIPTION = {
 		'Only auto attach when the `--inspect` flag is given',
 	),
 };
+const TEXT_TOGGLE_WORKSPACE = localize('scope.workspace', 'Toggle auto attach in this workspace');
+const TEXT_TOGGLE_GLOBAL = localize('scope.global', 'Toggle auto attach on this machine');
 
 const TOGGLE_COMMAND = 'extension.node-debug.toggleAutoAttach';
 const STORAGE_IPC = 'jsDebugIpcState';
@@ -82,11 +93,6 @@ export async function deactivate(): Promise<void> {
 	await destroyAttachServer();
 }
 
-type StatePickItem =
-	| (vscode.QuickPickItem & { state: State })
-	| (vscode.QuickPickItem & { scope: vscode.ConfigurationTarget })
-	| (vscode.QuickPickItem & { type: 'separator' });
-
 function getDefaultScope(info: ReturnType<vscode.WorkspaceConfiguration['inspect']>) {
 	if (!info) {
 		return vscode.ConfigurationTarget.Global;
@@ -101,39 +107,44 @@ function getDefaultScope(info: ReturnType<vscode.WorkspaceConfiguration['inspect
 	return vscode.ConfigurationTarget.Global;
 }
 
+type PickResult = { state: State } | { scope: vscode.ConfigurationTarget } | undefined;
+
 async function toggleAutoAttachSetting(scope?: vscode.ConfigurationTarget): Promise<void> {
 	const section = vscode.workspace.getConfiguration(SETTING_SECTION);
 	scope = scope || getDefaultScope(section.inspect(SETTING_STATE));
 
-	const stateItems = [State.Always, State.Smart, State.OnlyWithFlag, State.Disabled].map(state => ({
+	const isGlobalScope = scope === vscode.ConfigurationTarget.Global;
+	const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { state: State }>();
+	const current = readCurrentState();
+
+	quickPick.items = [State.Always, State.Smart, State.OnlyWithFlag, State.Disabled].map(state => ({
 		state,
-		label: state.slice(0, 1).toUpperCase() + state.slice(1),
+		label: TEXT_STATE_LABEL[state],
 		description: TEXT_STATE_DESCRIPTION[state],
 		alwaysShow: true,
 	}));
 
-	const scopeItem =
-		scope === vscode.ConfigurationTarget.Global
-			? {
-				label: localize('scope.workspace', 'Toggle in this workspace $(arrow-right)'),
-				scope: vscode.ConfigurationTarget.Workspace,
-			}
-			: {
-				label: localize('scope.global', 'Toggle for this machine $(arrow-right)'),
-				scope: vscode.ConfigurationTarget.Global,
-			};
-
-	const quickPick = vscode.window.createQuickPick<StatePickItem>();
-	// todo: have a separator here, see https://github.com/microsoft/vscode/issues/74967
-	quickPick.items = [...stateItems, scopeItem];
+	quickPick.activeItems = quickPick.items.filter(i => i.state === current);
+	quickPick.title = isGlobalScope ? TEXT_TOGGLE_GLOBAL : TEXT_TOGGLE_WORKSPACE;
+	quickPick.buttons = [
+		{
+			iconPath: new vscode.ThemeIcon(isGlobalScope ? 'folder' : 'globe'),
+			tooltip: isGlobalScope ? TEXT_TOGGLE_WORKSPACE : TEXT_TOGGLE_GLOBAL,
+		},
+	];
 
 	quickPick.show();
-	const current = readCurrentState();
-	quickPick.activeItems = stateItems.filter(i => i.state === current);
 
-	const result = await new Promise<StatePickItem | undefined>(resolve => {
+	const result = await new Promise<PickResult>(resolve => {
 		quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
 		quickPick.onDidHide(() => resolve());
+		quickPick.onDidTriggerButton(() => {
+			resolve({
+				scope: isGlobalScope
+					? vscode.ConfigurationTarget.Workspace
+					: vscode.ConfigurationTarget.Global,
+			});
+		});
 	});
 
 	quickPick.dispose();
