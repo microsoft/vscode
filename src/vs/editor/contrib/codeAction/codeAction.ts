@@ -34,10 +34,14 @@ export class CodeActionItem {
 	async resolve(token: CancellationToken): Promise<this> {
 		// TODO@jrieken when is an item resolved already?
 		if (this.provider?.resolveCodeAction && !this.action.edit && !this.action.command) {
+			let action: modes.CodeAction | undefined | null;
 			try {
-				this.provider.resolveCodeAction(this.action, token);
+				action = await this.provider.resolveCodeAction(this.action, token);
 			} catch (err) {
 				onUnexpectedExternalError(err);
+			}
+			if (action) {
+				this.action.edit = action.edit;
 			}
 		}
 		return this;

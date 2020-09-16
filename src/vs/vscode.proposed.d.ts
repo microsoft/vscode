@@ -16,6 +16,17 @@
 
 declare module 'vscode' {
 
+	//#region https://github.com/microsoft/vscode/issues/106410
+
+	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
+		// TODO@jrieken make it clear that there is no support for commands, only code action
+		// TODO@jrieken only edit can be set
+		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	//#endregion
+
+
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
