@@ -312,12 +312,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				if (change.kind === NotebookCellsChangeType.ModelChange || change.kind === NotebookCellsChangeType.Initialize) {
 					changes = change.changes;
 					compute(changes, e.synchronous);
-					return;
+					continue;
 				} else if (change.kind === NotebookCellsChangeType.Move) {
 					compute([[change.index, change.length, []]], e.synchronous);
 					compute([[change.newIdx, 0, change.cells]], e.synchronous);
 				} else {
-					return;
+					continue;
 				}
 			}
 		}));
@@ -625,7 +625,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	createCell(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[], synchronous: boolean, pushUndoStop: boolean = true, previouslyFocused: ICellViewModel[] = []): CellViewModel {
 		const beforeSelections = previouslyFocused.map(e => e.handle);
-		this._notebook.applyEdit(this._notebook.versionId, [
+		this._notebook.applyEdits(this._notebook.versionId, [
 			{
 				editType: CellEditType.Replace,
 				index,
@@ -663,7 +663,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 		}
 
-		this._notebook.applyEdit(this._notebook.versionId, [
+		this._notebook.applyEdits(this._notebook.versionId, [
 			{
 				editType: CellEditType.Replace,
 				index: index,
@@ -691,7 +691,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			return false;
 		}
 
-		this._notebook.applyEdit(this._notebook.versionId, [
+		this._notebook.applyEdits(this._notebook.versionId, [
 			{
 				editType: CellEditType.Move,
 				index,
@@ -785,7 +785,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				const editorSelections = cell.getSelections();
 				const language = cell.language;
 				const kind = cell.cellKind;
-				this._notebook.applyEdit(this._notebook.versionId, [
+				this._notebook.applyEdits(this._notebook.versionId, [
 					{
 						editType: CellEditType.CellContent,
 						index,
@@ -957,11 +957,15 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	getEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean } = {};
-		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => editingCells[cell.model.handle] = true);
+		this._viewCells.forEach((cell, i) => {
+			if (cell.editState === CellEditState.Editing) {
+				editingCells[i] = true;
+			}
+		});
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
-		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
+		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach((viewState, i) => {
 			if (viewState.state) {
-				editorViewStates[viewState.handle] = viewState.state;
+				editorViewStates[i] = viewState.state;
 			}
 		});
 
@@ -977,8 +981,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this._viewCells.forEach((cell, index) => {
-			const isEditing = viewState.editingCells && viewState.editingCells[cell.handle];
-			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[cell.handle];
+			const isEditing = viewState.editingCells && viewState.editingCells[index];
+			const editorViewState = viewState.editorViewStates && viewState.editorViewStates[index];
 
 			cell.editState = isEditing ? CellEditState.Editing : CellEditState.Preview;
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;

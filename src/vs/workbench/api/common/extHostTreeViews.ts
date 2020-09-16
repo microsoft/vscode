@@ -13,7 +13,7 @@ import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.proto
 import { ITreeItem, TreeViewItemHandleArg, ITreeItemLabel, IRevealOptions } from 'vs/workbench/common/views';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { asPromise } from 'vs/base/common/async';
-import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType, ThemeColor } from 'vs/workbench/api/common/extHostTypes';
+import { TreeItemCollapsibleState, ThemeIcon, MarkdownString as MarkdownStringType } from 'vs/workbench/api/common/extHostTypes';
 import { isUndefinedOrNull, isString } from 'vs/base/common/types';
 import { equals, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -100,6 +100,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get title() { return treeView.title; },
 			set title(title: string) {
 				treeView.title = title;
+			},
+			get description() {
+				checkProposedApiEnabled(extension);
+				return treeView.description;
+			},
+			set description(description: string | undefined) {
+				checkProposedApiEnabled(extension);
+				treeView.description = description;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {
 				return treeView.reveal(element, options);
@@ -318,7 +326,17 @@ class ExtHostTreeView<T> extends Disposable {
 
 	set title(title: string) {
 		this._title = title;
-		this.proxy.$setTitle(this.viewId, title);
+		this.proxy.$setTitle(this.viewId, title, this._description);
+	}
+
+	private _description: string | undefined;
+	get description(): string | undefined {
+		return this._description;
+	}
+
+	set description(description: string | undefined) {
+		this._description = description;
+		this.proxy.$setTitle(this.viewId, this._title, description);
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
@@ -550,7 +568,6 @@ class ExtHostTreeView<T> extends Disposable {
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : undefined,
-			iconColor: this.getIconColor(extensionTreeItem),
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation
 		};
@@ -562,11 +579,6 @@ class ExtHostTreeView<T> extends Disposable {
 			children: undefined,
 			dispose(): void { disposable.dispose(); }
 		};
-	}
-
-	private getIconColor(extensionTreeItem: vscode.TreeItem2): ThemeColor | undefined {
-		checkProposedApiEnabled(this.extension);
-		return (extensionTreeItem.iconPath instanceof ThemeIcon) ? <ThemeColor>extensionTreeItem.iconColor : undefined;
 	}
 
 	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {

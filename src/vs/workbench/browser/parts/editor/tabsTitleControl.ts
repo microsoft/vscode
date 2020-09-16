@@ -118,18 +118,6 @@ export class TabsTitleControl extends TitleControl {
 		(async () => this.path = await this.pathService.path)();
 	}
 
-	protected registerListeners(): void {
-		super.registerListeners();
-
-		this._register(this.accessor.onDidEditorPartOptionsChange(e => {
-			if (e.oldPartOptions.titleScrollbarSizing !== e.newPartOptions.titleScrollbarSizing) {
-				this.updateTabsScrollbarSizing();
-			} else if (e.oldPartOptions.multiLineTabs !== e.newPartOptions.multiLineTabs) {
-				this.updateWrappedTabs();
-			}
-		}));
-	}
-
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
@@ -190,16 +178,6 @@ export class TabsTitleControl extends TitleControl {
 		this.tabsScrollbar?.updateOptions({
 			horizontalScrollbarSize: this.getTabsScrollbarSizing()
 		});
-	}
-
-	private updateWrappedTabs(): void {
-		const tabsAndActionsContainer = this.tabsAndActionsContainer as HTMLElement;
-
-		if (this.accessor.partOptions.multiLineTabs) {
-			tabsAndActionsContainer.classList.add('multi-line-tabs-container');
-		} else {
-			tabsAndActionsContainer.classList.remove('multi-line-tabs-container');
-		}
 	}
 
 	private getTabsScrollbarSizing(): number {
@@ -534,7 +512,12 @@ export class TabsTitleControl extends TitleControl {
 			this.computeTabLabels();
 		}
 
-		// Apply new options if something of interest changed
+		// Update tabs multiline wrapping
+		if (oldOptions.multiLineTabs !== newOptions.multiLineTabs) {
+			this.updateWrappedTabs();
+		}
+
+		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
@@ -546,6 +529,21 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.multiLineTabs !== newOptions.multiLineTabs
 		) {
 			this.redraw();
+		}
+
+		// Udate tabs scrollbar sizing
+		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
+			this.updateTabsScrollbarSizing();
+		}
+	}
+
+	private updateWrappedTabs(): void {
+		const tabsAndActionsContainer = this.tabsAndActionsContainer as HTMLElement;
+
+		if (this.accessor.partOptions.multiLineTabs) {
+			tabsAndActionsContainer.classList.add('multi-line-tabs-container');
+		} else {
+			tabsAndActionsContainer.classList.remove('multi-line-tabs-container');
 		}
 	}
 

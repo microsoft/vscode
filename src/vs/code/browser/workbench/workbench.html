@@ -14,6 +14,9 @@
 		<!-- Workbench Configuration -->
 		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
 
+		<!-- Workbench Auth Session -->
+		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
+
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
 		<link rel="manifest" href="/manifest.json">
@@ -31,6 +34,7 @@
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
+			createTrustedScriptURL: value => value,
 			paths: {
 				'vscode-textmate': `${window.location.origin}/static/node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `${window.location.origin}/static/node_modules/vscode-oniguruma/release/main`,

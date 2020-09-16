@@ -22,7 +22,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -46,8 +45,8 @@ let experimentData: { [i: string]: any; } = {
 const local = aLocalExtension('installedExtension1', { version: '1.0.0' });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-	properties = assign({
+	manifest = Object.assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+	properties = Object.assign({
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
 		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },

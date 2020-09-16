@@ -66,6 +66,9 @@ export class MockContextKeyService implements IContextKeyService {
 	public createScoped(domNode: HTMLElement): IContextKeyService {
 		return this;
 	}
+	updateParent(_parentContextKeyService: IContextKeyService): void {
+		// no-op
+	}
 }
 
 export class MockKeybindingService implements IKeybindingService {

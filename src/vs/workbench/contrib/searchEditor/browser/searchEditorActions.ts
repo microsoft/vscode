@@ -160,10 +160,10 @@ export const openNewSearchEditor =
 			args.triggerSearch === true ||
 			args.triggerSearch !== false && searchOnType && args.query
 		) {
-			editor.triggerSearch({ focusResults: args.focusResults !== false });
+			editor.triggerSearch({ focusResults: args.focusResults });
 		}
 
-		if (args.focusResults === false) { editor.focusSearchInput(); }
+		if (!args.focusResults) { editor.focusSearchInput(); }
 	};
 
 export const createEditorFromSearchResult =

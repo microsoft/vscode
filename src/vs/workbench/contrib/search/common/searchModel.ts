@@ -10,7 +10,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
-import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
@@ -1102,7 +1101,7 @@ export class SearchModel extends Disposable {
 		this._searchResult.add(this._resultQueue);
 		this._resultQueue = [];
 
-		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
+		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
 		delete (options as any).pattern;
 
 		const stats = completed && completed.stats as ITextSearchStats;

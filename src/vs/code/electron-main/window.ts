@@ -169,6 +169,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					enableWebSQL: false,
 					enableRemoteModule: false,
+					spellcheck: false,
 					nativeWindowOpen: true,
 					webviewTag: true,
 					zoomFactor: zoomLevelToZoomFactor(windowConfig?.zoomLevel),
@@ -337,7 +338,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	focus(options?: { force: boolean }): void {
-		// macOS: Electron >6.x changed its behaviour to not
+		// macOS: Electron > 7.x changed its behaviour to not
 		// bring the application to the foreground when a window
 		// is focused programmatically. Only via `app.focus` and
 		// the option `steal: true` can you get the previous

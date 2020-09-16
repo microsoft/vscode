@@ -4700,7 +4700,7 @@ declare module 'vscode' {
 	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
 	 *
 	 * ```
-	 * `defaultValue`
+	 * `defaultValue` (if defined in `package.json` otherwise derived from the value's type)
 	 * `globalValue` (if defined)
 	 * `workspaceValue` (if defined)
 	 * `workspaceFolderValue` (if defined)
@@ -7109,8 +7109,10 @@ declare module 'vscode' {
 	 * VS Code will save off the state from `setState` of all webviews that have a serializer. When the
 	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
 	 * The extension can then restore the old `WebviewPanel` from this state.
+	 *
+	 * @param T Type of the webview's state.
 	 */
-	interface WebviewPanelSerializer {
+	interface WebviewPanelSerializer<T = unknown> {
 		/**
 		 * Restore a webview panel from its serialized `state`.
 		 *
@@ -7122,7 +7124,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview has been fully restored.
 		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: T): Thenable<void>;
 	}
 
 	/**
@@ -10596,6 +10598,26 @@ declare module 'vscode' {
 		 * resource state.
 		 */
 		readonly decorations?: SourceControlResourceDecorations;
+
+		/**
+		 * Context value of the resource state. This can be used to contribute resource specific actions.
+		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"scm/resourceState/context": [
+		 *				{
+		 *					"command": "extension.diff",
+		 *					"when": "scmResourceState == diffable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
+		 */
+		readonly contextValue?: string;
 	}
 
 	/**

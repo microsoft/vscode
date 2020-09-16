@@ -4,24 +4,24 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-39 results - 23 files
+22 results - 14 files
 
 src/vs/base/browser/markdownRenderer.ts:
-  156  				const strValue = values[0];
-  157  				const span = element.querySelector(`div[data-code="${id}"]`);
-  158  				if (span) {
-  159: 					span.innerHTML = strValue;
-  160  				}
-  161  			}).catch(err => {
-  162  				// ignore
+  161  				const strValue = values[0];
+  162  				const span = element.querySelector(`div[data-code="${id}"]`);
+  163  				if (span) {
+  164: 					span.innerHTML = strValue;
+  165  				}
+  166  			}).catch(err => {
+  167  				// ignore
 
-  238  		return true;
-  239  	}
-  240  
-  241: 	element.innerHTML = insane(renderedMarkdown, {
-  242  		allowedSchemes,
-  243  		// allowedTags should included everything that markdown renders to.
-  244  		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
+  243  		return true;
+  244  	}
+  245  
+  246: 	element.innerHTML = insane(renderedMarkdown, {
+  247  		allowedSchemes,
+  248  		// allowedTags should included everything that markdown renders to.
+  249  		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
 
 src/vs/base/browser/ui/contextview/contextview.ts:
   157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
@@ -32,103 +32,23 @@ src/vs/base/browser/ui/contextview/contextview.ts:
   162  						${SHADOW_ROOT_CSS}
   163  					</style>
 
-src/vs/base/browser/ui/menu/menu.ts:
-  229  	private initializeStyleSheet(container: HTMLElement): void {
-  230  		if (isInShadowDOM(container)) {
-  231  			this.styleSheet = createStyleSheet(container);
-  232: 			this.styleSheet.innerHTML = MENU_WIDGET_CSS;
-  233  		} else {
-  234  			if (!Menu.globalStyleSheet) {
-  235  				Menu.globalStyleSheet = createStyleSheet();
-  236: 				Menu.globalStyleSheet.innerHTML = MENU_WIDGET_CSS;
-  237  			}
-  238  
-  239  			this.styleSheet = Menu.globalStyleSheet;
-
-src/vs/base/browser/ui/selectBox/selectBoxCustom.ts:
-  367  			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
-  368  		}
-  369  
-  370: 		this.styleElement.innerHTML = content.join('\n');
-  371  
-  372  		this.applyStyles();
-  373  	}
-
-  680  			});
-  681  
-  682  
-  683: 			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
-  684  			elementWidth = dom.getTotalWidth(container);
-  685  		}
-  686  
-
-src/vs/base/parts/quickinput/browser/quickInput.ts:
-  1693  			}
-  1694  			const newStyles = content.join('\n');
-  1695  			if (newStyles !== this.ui.styleSheet.innerHTML) {
-  1696: 				this.ui.styleSheet.innerHTML = newStyles;
-  1697  			}
-  1698  		}
-  1699  	}
-
-src/vs/code/electron-browser/workbench/workbench.js:
-  124  	const style = document.createElement('style');
-  125  	style.className = 'initialShellColors';
-  126  	document.head.appendChild(style);
-  127: 	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
-  128  
-  129  	if (data && data.layoutInfo) {
-  130  		// restore parts if possible (we might not always store layout info)
-
-  150  
-  151  		if (configuration.folderUri || configuration.workspace) {
-  152  			// folder or workspace -> status bar color, sidebar
-  153: 			splash.innerHTML = `
-  154  			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;"></div>
-  155  			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
-  156  			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};"></div>
-
-  158  			`;
-  159  		} else {
-  160  			// empty -> speical status bar color, no sidebar
-  161: 			splash.innerHTML = `
-  162  			<div style="position: absolute; width: 100%; left: 0; top: 0; height: ${layoutInfo.titleBarHeight}px; background-color: ${colorInfo.titleBarBackground}; -webkit-app-region: drag;"></div>
-  163  			<div style="position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: 0; width: ${layoutInfo.activityBarWidth}px; background-color: ${colorInfo.activityBarBackground};"></div>
-  164  			<div style="position: absolute; width: 100%; bottom: 0; left: 0; height: ${layoutInfo.statusBarHeight}px; background-color: ${colorInfo.statusBarNoFolderBackground};"></div>
-
 src/vs/code/electron-sandbox/issue/issueReporterMain.ts:
-   57  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
-   58  	addClass(document.body, platformClass); // used by our fonts
-   59  
-   60: 	document.body.innerHTML = BaseHtml();
-   61  	const issueReporter = new IssueReporter(configuration);
-   62  	issueReporter.render();
-   63  	document.body.style.display = 'block';
-
-  244  			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
-  245  		}
-  246  
-  247: 		styleTag.innerHTML = content.join('\n');
-  248  		document.head.appendChild(styleTag);
-  249  		document.body.style.color = styles.color || '';
-  250  	}
+  57  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+  58  	addClass(document.body, platformClass); // used by our fonts
+  59  
+  60: 	document.body.innerHTML = BaseHtml();
+  61  	const issueReporter = new IssueReporter(configuration);
+  62  	issueReporter.render();
+  63  	document.body.style.display = 'block';
 
 src/vs/code/electron-sandbox/processExplorer/processExplorerMain.ts:
-  282  		this.listeners.clear();
-  283  
-  284  		const tableHead = document.createElement('thead');
-  285: 		tableHead.innerHTML = `<tr>
-  286  			<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
-  287  			<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
-  288  			<th scope="col" class="pid">${localize('pid', "PID")}</th>
-
-  319  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
-  320  		}
-  321  
-  322: 		styleTag.innerHTML = content.join('\n');
-  323  		if (document.head) {
-  324  			document.head.appendChild(styleTag);
-  325  		}
+  320  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
+  321  		}
+  322  
+  323: 		styleTag.innerHTML = content.join('\n');
+  324  		if (document.head) {
+  325  			document.head.appendChild(styleTag);
+  326  		}
 
 src/vs/editor/browser/view/domLineBreaksComputer.ts:
   107  		allCharOffsets[i] = tmp[0];
@@ -221,41 +141,6 @@ src/vs/editor/test/browser/controller/imeTester.ts:
   74  
   75  	let startBtn = document.createElement('button');
 
-src/vs/workbench/contrib/comments/browser/commentsView.ts:
-  109  			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
-  110  		}
-  111  
-  112: 		styleElement.innerHTML = content.join('\n');
-  113  	}
-  114  
-  115  	private async renderComments(): Promise<void> {
-
-src/vs/workbench/contrib/comments/browser/commentThreadWidget.ts:
-  692  		}
-  693  
-  694  		if (label) {
-  695: 			this._headingLabel.innerHTML = strings.escape(label);
-  696  			this._headingLabel.setAttribute('aria-label', label);
-  697  		}
-  698  	}
-
-  916  			font-weight: ${fontInfo.fontWeight};
-  917  		}`);
-  918  
-  919: 		this._styleElement.innerHTML = content.join('\n');
-  920  
-  921  		// Editor decorations should also be responsive to theme changes
-  922  		this.setCommentEditorDecorations();
-
-src/vs/workbench/contrib/debug/browser/repl.ts:
-  306  			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
-  307  
-  308  			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
-  309: 			this.styleElement.innerHTML = `
-  310  				.repl .repl-tree .expression {
-  311  					font-size: ${fontSize}px;
-  312  					font-family: ${fontFamily};
-
 src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
   454  
   455  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
@@ -265,21 +150,13 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
   459  		// Remove all rendered content nodes after the
   460  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
 
-  598  
-  599  	private getDragImageImpl(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
-  600  		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
-  601: 		dragImageContainer.innerHTML = templateData.container.innerHTML;
-  602  
-  603  		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
-  604  		if (!editorContainer) {
-
-  610  			return null;
-  611  		}
-  612  
-  613: 		editorContainer.innerHTML = richEditorText;
-  614  
-  615  		return dragImageContainer;
-  616  	}
+  611  			return null;
+  612  		}
+  613  
+  614: 		editorContainer.innerHTML = richEditorText;
+  615  
+  616  		return dragImageContainer;
+  617  	}
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
@@ -290,14 +167,6 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   380  						domEval(outputNode);
   381  					} else {
 
-src/vs/workbench/contrib/webview/browser/webviewIconManager.ts:
-  61  				}
-  62  			}
-  63  		}
-  64: 		this._styleElement.innerHTML = cssRules.join('\n');
-  65  	}
-  66  }
-
 src/vs/workbench/contrib/webview/browser/pre/main.js:
   386  			// apply default styles
   387  			const defaultStyles = newDocument.createElement('style');
@@ -306,15 +175,6 @@ src/vs/workbench/contrib/webview/browser/pre/main.js:
   390  			newDocument.head.prepend(defaultStyles);
   391  
   392  			applyStyles(newDocument, newDocument.body);
-
-src/vs/workbench/contrib/welcome/page/browser/welcomePage.ts:
-  328  
-  329  		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
-  330  		if (prodName) {
-  331: 			prodName.innerHTML = this.productService.nameLong;
-  332  		}
-  333  
-  334  		recentlyOpened.then(({ workspaces }) => {
 
 src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
   281  

@@ -8,12 +8,11 @@ import { IAction, IActionRunner, IActionViewItemProvider } from 'vs/base/common/
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { append, $, addClasses } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IActionProvider, DropdownMenu, IDropdownMenuOptions, ILabelRenderer } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
-import { asArray } from 'vs/base/common/arrays';
 
 export interface IKeybindingProvider {
 	(action: IAction): ResolvedKeybinding | undefined;
@@ -60,14 +59,20 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 		const labelRenderer: ILabelRenderer = (el: HTMLElement): IDisposable | null => {
 			this.element = append(el, $('a.action-label'));
 
-			const classNames = this.options.classNames ? asArray(this.options.classNames) : [];
+			let classNames: string[] = [];
+
+			if (typeof this.options.classNames === 'string') {
+				classNames = this.options.classNames.split(/\W+/g).filter(s => !!s);
+			} else if (this.options.classNames) {
+				classNames = this.options.classNames;
+			}
 
 			// todo@aeschli: remove codicon, should come through `this.options.classNames`
 			if (!classNames.find(c => c === 'icon')) {
 				classNames.push('codicon');
 			}
 
-			addClasses(this.element, ...classNames);
+			this.element.classList.add(...classNames);
 
 			this.element.tabIndex = 0;
 			this.element.setAttribute('role', 'button');

@@ -717,16 +717,69 @@ declare module 'vscode' {
 
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
+	// TODO@jrieken FileDecoration, FileDecorationProvider etc.
+	// TODO@jrieken Add selector notion to limit decorations to a view.
+	// TODO@jrieken Rename `Decoration.letter` to `short` so that it could be used for coverage et al.
+
 	export class Decoration {
+
+		/**
+		 * A letter that represents this decoration.
+		 */
 		letter?: string;
+
+		/**
+		 * The human-readable title for this decoration.
+		 */
 		title?: string;
+
+		/**
+		 * The color of this decoration.
+		 */
 		color?: ThemeColor;
+
+		/**
+		 * The priority of this decoration.
+		 */
 		priority?: number;
+
+		/**
+		 * A flag expressing that this decoration should be
+		 * propagted to its parents.
+		 */
 		bubble?: boolean;
+
+		/**
+		 * Creates a new decoration.
+		 *
+		 * @param letter A letter that represents the decoration.
+		 * @param title The title of the decoration.
+		 * @param color The color of the decoration.
+		 */
+		constructor(letter?: string, title?: string, color?: ThemeColor);
 	}
 
+	/**
+	 * The decoration provider interfaces defines the contract between extensions and
+	 * file decorations.
+	 */
 	export interface DecorationProvider {
+
+		/**
+		 * An event to signal decorations for one or many files have changed.
+		 *
+		 * @see [EventEmitter](#EventEmitter
+		 */
 		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+
+		/**
+		 * Provide decorations for a given uri.
+		 *
+		 *
+		 * @param uri The uri of the file to provide a decoration for.
+		 * @param token A cancellation token.
+		 * @returns A decoration or a thenable that resolves to such.
+		 */
 		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
 	}
 
@@ -971,11 +1024,6 @@ declare module 'vscode' {
 		 * Content to be shown when you hover over the tree item.
 		 */
 		tooltip?: string | MarkdownString | /* for compilation */ any;
-
-		/**
-		 * When `iconPath` is a [ThemeColor](#ThemeColor) `iconColor` will be used to set the color of the icon.
-		 */
-		iconColor?: ThemeColor;
 
 		/**
 		 * @param label Label describing this item
@@ -1265,6 +1313,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCell {
+		readonly index: number;
 		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
@@ -1351,27 +1400,16 @@ declare module 'vscode' {
 
 	export interface WorkspaceEdit {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
-		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
-
-		replaceNotebookMetadata(value: NotebookDocumentMetadata): void;
-
+		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
 		replaceCellOutput(index: number, outputs: CellOutput[]): void;
 		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
-
-		/** @deprecated */
-		replaceOutput(index: number, outputs: CellOutput[]): void;
-		/** @deprecated */
-		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
-		/** @deprecated */
-		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
-		/** @deprecated */
-		delete(index: number): void;
 	}
 
 	export interface NotebookCellRange {
@@ -1455,6 +1493,16 @@ declare module 'vscode' {
 		 */
 		asWebviewUri(localResource: Uri): Uri;
 
+		/**
+		 * Perform an edit on the notebook associated with this notebook editor.
+		 *
+		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
+		 * be used to make edits. Note that the edit-builder is only valid while the
+		 * callback executes.
+		 *
+		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
+		 * @return A promise that resolves with a value indicating if the edits could be applied.
+		 */
 		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
 
 		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
@@ -1992,32 +2040,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Support `scmResourceState` in `when` clauses #86180 https://github.com/microsoft/vscode/issues/86180
-
-	export interface SourceControlResourceState {
-		/**
-		 * Context value of the resource state. This can be used to contribute resource specific actions.
-		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
-		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"scm/resourceState/context": [
-		 *				{
-		 *					"command": "extension.diff",
-		 *					"when": "scmResourceState == diffable"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
-		 * ```
-		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
-		 */
-		readonly contextValue?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/104436
 
 	export enum ExtensionRuntime {
@@ -2118,6 +2140,11 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 	}
 
+	/**
+	 * Additional information the webview view being resolved.
+	 *
+	 * @param T Type of the webview's state.
+	 */
 	interface WebviewViewResolveContext<T = unknown> {
 		/**
 		 * Persisted state from the webview content.
@@ -2227,6 +2254,18 @@ declare module 'vscode' {
 		isWritableFileSystem(scheme: string): boolean | undefined;
 	}
 
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/105667
+
+	export interface TreeView<T> {
+		/**
+		 * An optional human-readable description that will be rendered in the title of the view.
+		 * Setting the title description to null, undefined, or empty string will remove the title description from the view.
+		 */
+		description?: string | undefined;
+	}
 
 	//#endregion
 }

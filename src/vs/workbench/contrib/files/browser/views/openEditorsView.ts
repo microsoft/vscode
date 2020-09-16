@@ -206,8 +206,8 @@ export class OpenEditorsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'open-editors');
-		dom.addClass(container, 'show-file-icons');
+		container.classList.add('open-editors');
+		container.classList.add('show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
 
@@ -431,10 +431,10 @@ export class OpenEditorsView extends ViewPane {
 
 		let dirty = this.workingCopyService.dirtyCount;
 		if (dirty === 0) {
-			dom.addClass(this.dirtyCountElement, 'hidden');
+			this.dirtyCountElement.classList.add('hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
-			dom.removeClass(this.dirtyCountElement, 'hidden');
+			this.dirtyCountElement.classList.remove('hidden');
 		}
 	}
 
@@ -595,7 +595,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
 		const editor = openedEditor.editor;
 		templateData.actionRunner.editor = openedEditor;
-		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
+		editor.isDirty() && !editor.isSaving() ? templateData.container.classList.add('dirty') : templateData.container.classList.remove('dirty');
 		templateData.root.setResource({
 			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),

@@ -43,8 +43,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 				extensionManagementService,
 				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
 			};
-		}
-		if (isWeb) {
+		} else if (isWeb) {
 			const extensionManagementService = instantiationService.createInstance(WebExtensionManagementService);
 			this.webExtensionManagementServer = {
 				id: 'web',
