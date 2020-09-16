@@ -274,7 +274,6 @@ export class TextAreaInput extends Disposable {
 
 			const [newState, typeInput] = deduceComposition(e.data);
 			this._textAreaState = newState;
-			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
 		}));
 
@@ -295,9 +294,9 @@ export class TextAreaInput extends Disposable {
 				this._onType.fire(typeInput);
 			}
 
-			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome (the textarea is not updated correctly when composition ends)
+			// Due to isEdgeOrIE (where the textarea was not cleared initially) and isChrome, isFirefox (the textarea is not updated correctly when composition ends)
 			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdge || browser.isChrome) {
+			if (browser.isEdge || browser.isChrome || browser.isFirefox) {
 				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
 			}
 
