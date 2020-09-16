@@ -745,7 +745,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	}
 }
 
-export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: string, shouldHaveIt: boolean) {
+export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: 'none' | 'copy' | 'link' | 'move', shouldHaveIt: boolean) {
 	if (!dataTransfer) {
 		return;
 	}

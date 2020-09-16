@@ -445,7 +445,7 @@ export class Git {
 					const [, letter] = match;
 
 					try {
-						const networkPath = await new Promise<string>(resolve =>
+						const networkPath = await new Promise<string | undefined>(resolve =>
 							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
 								resolve(err !== null ? undefined : resolvedPath),
 							),
