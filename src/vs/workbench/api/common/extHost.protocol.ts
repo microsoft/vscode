@@ -288,7 +288,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }): Promise<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
-	$setTitle(treeViewId: string, title: string): void;
+	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {

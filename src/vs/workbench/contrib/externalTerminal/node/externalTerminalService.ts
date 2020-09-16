@@ -9,7 +9,6 @@ import * as processes from 'vs/base/node/processes';
 import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import * as env from 'vs/base/common/platform';
-import { assign } from 'vs/base/common/objects';
 import { IExternalTerminalService, IExternalTerminalConfiguration, IExternalTerminalSettings } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
@@ -49,7 +48,7 @@ export class WindowsExternalTerminalService implements IExternalTerminalService 
 			];
 
 			// merge environment variables into a copy of the process.env
-			const env = assign({}, process.env, envVars);
+			const env = Object.assign({}, process.env, envVars);
 
 			// delete environment variables that have a null value
 			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
@@ -251,7 +250,7 @@ export class LinuxExternalTerminalService implements IExternalTerminalService {
 				termArgs.push(`''${bashCommand}''`);	// wrapping argument in two sets of ' because node is so "friendly" that it removes one set...
 
 				// merge environment variables into a copy of the process.env
-				const env = assign({}, process.env, envVars);
+				const env = Object.assign({}, process.env, envVars);
 
 				// delete environment variables that have a null value
 				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
