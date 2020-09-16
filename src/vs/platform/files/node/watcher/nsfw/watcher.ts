@@ -13,8 +13,8 @@ export interface IWatcherRequest {
 
 export interface IWatcherService {
 
-	readonly onDidLogMessage: Event<ILogMessage>;
 	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+	readonly onDidLogMessage: Event<ILogMessage>;
 
 	setRoots(roots: IWatcherRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;

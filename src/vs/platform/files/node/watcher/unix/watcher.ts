@@ -14,12 +14,18 @@ export interface IWatcherRequest {
 export interface IWatcherOptions {
 	pollingInterval?: number;
 	usePolling?: boolean;
+	verboseLogging?: boolean;
 }
 
 export interface IWatcherService {
-	watch(options: IWatcherOptions): Event<IDiskFileChange[]>;
+
+	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+	readonly onDidLogMessage: Event<ILogMessage>;
+
+	init(options: IWatcherOptions): Promise<void>;
+
 	setRoots(roots: IWatcherRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
-	onLogMessage: Event<ILogMessage>;
+
 	stop(): Promise<void>;
 }
