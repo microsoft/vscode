@@ -25,24 +25,6 @@
 	height: 1px;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs> .tabs-and-actions-container.multi-line-tabs-container > .monaco-scrollable-element > .tabs-container {
-	height: auto !important;
-	flex-wrap: wrap;
-}
-
-.monaco-workbench .part.editor>.content .editor-group-container>.title.tabs>.tabs-and-actions-container.multi-line-tabs-container>.monaco-scrollable-element>.tabs-container::after {
-	content: ""; /* Add a hidden space after the last tab in multi-line tabs */
-	flex: 1 0 auto;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line-tabs-container > .monaco-scrollable-element {
-	height: auto !important;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs> .tabs-and-actions-container.multi-line-tabs-container > .monaco-scrollable-element > .tabs-container > .tab {
-	flex-grow: 1;
-}
-
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element {
 	flex: 1;
 }
@@ -50,6 +32,26 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element .scrollbar {
 	z-index: 3; /* on top of tabs */
 	cursor: default;
+}
+
+/* Title Container (multi-line wrapping) */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container {
+	height: auto !important;
+	flex-wrap: wrap;
+}
+
+.monaco-workbench .part.editor>.content .editor-group-container>.title.tabs >.tabs-and-actions-container.multi-line>.monaco-scrollable-element>.tabs-container::after {
+	content: ""; /* Add a hidden space after the last tab in multi-line tabs */
+	flex: 1 0 auto;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element {
+	height: auto !important;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container > .tab {
+	flex-grow: 1;
 }
 
 /* Tabs Container */

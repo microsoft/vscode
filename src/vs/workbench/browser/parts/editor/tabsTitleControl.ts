@@ -32,7 +32,7 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
+import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, toggleClass } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -121,13 +121,13 @@ export class TabsTitleControl extends TitleControl {
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
-		// Tabs and Actions Container (are on a single row with flex side-by-side)
+		// Tabs and Actions Container: depending on the multi-line setting:
+		// off: single row with flex side-by-side
+		//  on: multiple rows with flex side-by-side
 		this.tabsAndActionsContainer = document.createElement('div');
 		addClass(this.tabsAndActionsContainer, 'tabs-and-actions-container');
+		toggleClass(this.tabsAndActionsContainer, 'multi-line', this.accessor.partOptions.multiLineTabs);
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
-		if (this.accessor.partOptions.multiLineTabs) {
-			this.tabsAndActionsContainer.classList.add('multi-line-tabs-container');
-		}
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
@@ -514,7 +514,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Update tabs multiline wrapping
 		if (oldOptions.multiLineTabs !== newOptions.multiLineTabs) {
-			this.updateWrappedTabs();
+			this.updateMultiLineTabs();
+		}
+
+		// Udate tabs scrollbar sizing
+		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
+			this.updateTabsScrollbarSizing();
 		}
 
 		// Redraw tabs when other options change
@@ -530,21 +535,12 @@ export class TabsTitleControl extends TitleControl {
 		) {
 			this.redraw();
 		}
-
-		// Udate tabs scrollbar sizing
-		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
-			this.updateTabsScrollbarSizing();
-		}
 	}
 
-	private updateWrappedTabs(): void {
-		const tabsAndActionsContainer = this.tabsAndActionsContainer as HTMLElement;
+	private updateMultiLineTabs(): void {
+		const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
 
-		if (this.accessor.partOptions.multiLineTabs) {
-			tabsAndActionsContainer.classList.add('multi-line-tabs-container');
-		} else {
-			tabsAndActionsContainer.classList.remove('multi-line-tabs-container');
-		}
+		toggleClass(tabsAndActionsContainer, 'multi-line', this.accessor.partOptions.multiLineTabs);
 	}
 
 	updateStyles(): void {
