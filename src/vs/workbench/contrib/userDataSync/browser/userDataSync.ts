@@ -513,19 +513,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.title = SYNC_TITLE;
 			quickPick.ok = false;
 			quickPick.customButton = true;
-			if (this.userDataSyncWorkbenchService.all.length) {
-				quickPick.customLabel = localize('turn on', "Turn On");
-			} else {
-				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
-				const displayName = this.userDataSyncWorkbenchService.authenticationProviders.length === 1
-					? this.authenticationService.getLabel(this.userDataSyncWorkbenchService.authenticationProviders[0].id)
-					: this.userDataSyncWorkbenchService.authenticationProviders.map(({ id }) => this.authenticationService.getLabel(id)).join(` ${orTerm} `);
-				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
-				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
-			}
-			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
+			quickPick.customLabel = localize('turn on', "Turn On");
+			quickPick.description = localize('configure and turn on sync detail', "Please turn on to synchronize your data across devices.");
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
+			quickPick.hideInput = true;
+			quickPick.hideCheckAll = true;
+
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
