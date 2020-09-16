@@ -162,8 +162,8 @@ suite('EditorGroupsService', () => {
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
 
-		const rightGroupCKS = part.activeGroup.getInternalContextKeyService();
-		const rootGroupCKS = rootGroup.getInternalContextKeyService();
+		const rightGroupCKS = part.activeGroup.scopedContextKeyService;
+		const rootGroupCKS = rootGroup.scopedContextKeyService;
 
 		assert.ok(rightGroupCKS);
 		assert.ok(rootGroupCKS);

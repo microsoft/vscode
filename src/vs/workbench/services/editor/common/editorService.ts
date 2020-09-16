@@ -133,6 +133,12 @@ export interface IEditorService {
 	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
 
 	/**
+	 * Get the context key service for the active editor or `undefined` if there is currently no
+	 * active editor
+	 */
+	readonly activeEditorContextKeyService: IContextKeyService | undefined;
+
+	/**
 	 * The currently active text editor mode or `undefined` if there is currently no active
 	 * editor or the active editor control is neither a text nor a diff editor. If the active
 	 * editor is a diff editor, the modified side's mode will be taken.
@@ -252,11 +258,6 @@ export interface IEditorService {
 	 * and also notify the editor service when a custom editor view type is registered/unregistered.
 	 */
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
-
-	/**
-	 * Get the context key service for the active editor.
-	 */
-	getEditorContextKeyService(): IContextKeyService;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

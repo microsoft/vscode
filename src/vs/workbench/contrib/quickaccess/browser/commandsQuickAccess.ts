@@ -27,6 +27,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -58,7 +59,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
@@ -94,7 +96,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	private getGlobalCommandPicks(disposables: DisposableStore): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
-		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, this.editorService.getEditorContextKeyService());
+		const menuContextKeyService = this.editorService.activeEditorContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
+		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, menuContextKeyService);
 		const globalCommandsMenuActions = globalCommandsMenu.getActions()
 			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
 			.filter(action => action instanceof MenuItemAction) as MenuItemAction[];

@@ -113,6 +113,12 @@ export interface IEditorPane extends IComposite {
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
 
 	/**
+	 * The context key service for this editor. Should be overridden by
+	 * editors that have their own ScopedContextKeyService
+	 */
+	readonly scopedContextKeyService: IContextKeyService | undefined;
+
+	/**
 	 * Returns the underlying control of this editor. Callers need to cast
 	 * the control to a specific instance as needed, e.g. by using the
 	 * `isCodeEditor` helper method to access the text code editor.
@@ -123,11 +129,6 @@ export interface IEditorPane extends IComposite {
 	 * Finds out if this editor is visible or not.
 	 */
 	isVisible(): boolean;
-
-	/**
-	 * Should be overridden by editors that have their own ScopedContextKeyService
-	 */
-	getInternalContextKeyService(): IContextKeyService | undefined;
 }
 
 /**

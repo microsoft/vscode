@@ -631,7 +631,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	stickEditor(editor?: IEditorInput | undefined): void { }
 	unstickEditor(editor?: IEditorInput | undefined): void { }
 	focus(): void { }
-	getInternalContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
+	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
 	setActive(_isActive: boolean): void { }
 	notifyIndexChanged(_index: number): void { }
 	dispose(): void { }
@@ -691,6 +691,7 @@ export class TestEditorService implements EditorServiceImpl {
 	count = this.editors.length;
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
+	activeEditorContextKeyService: IContextKeyService | undefined;
 	getEditors() { return []; }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }

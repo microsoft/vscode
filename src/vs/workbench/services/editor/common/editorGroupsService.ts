@@ -452,6 +452,11 @@ export interface IEditorGroup {
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
+	 * The scoped context key service for this group.
+	 */
+	readonly scopedContextKeyService: IContextKeyService;
+
+	/**
 	 * Get all editors that are currently opened in the group.
 	 *
 	 * @param order the order of the editors to use
@@ -589,9 +594,4 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
-
-	/**
-	 * Invoke a function in the context of the services of this group.
-	 */
-	getInternalContextKeyService(): IContextKeyService;
 }

@@ -14,7 +14,7 @@ import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditor
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -201,16 +201,12 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		// Subclasses can override
 	}
 
-	getInternalContextKeyService(): IContextKeyService | undefined {
-		return this.invokeWithinContext(accessor => accessor.get(IContextKeyService));
-	}
-
-	private invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T | undefined {
+	get scopedContextKeyService(): IContextKeyService | undefined {
 		if (!this.editorControl) {
 			return undefined;
 		}
 
-		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(fn) : undefined;
+		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
 
 	focus(): void {

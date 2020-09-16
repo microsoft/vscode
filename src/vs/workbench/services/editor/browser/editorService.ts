@@ -429,6 +429,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
 	}
 
+	get activeEditorContextKeyService(): IContextKeyService | undefined {
+		return this.activeEditorPane?.scopedContextKeyService;
+	}
+
 	get count(): number {
 		return this.editorsObserver.count;
 	}
@@ -784,32 +788,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		if (targetGroup) {
 			return targetGroup.replaceEditors(typedEditors);
 		}
-	}
-
-	//#endregion
-
-	//#region getEditorContextKeyService()
-
-	getEditorContextKeyService(): IContextKeyService {
-		const activeEditorPane = this.activeEditorPane;
-		if (activeEditorPane) {
-			const result = activeEditorPane.getInternalContextKeyService();
-			if (result) {
-				return result;
-			}
-
-			const activeControl = activeEditorPane.getControl();
-			if (isCompositeEditor(activeControl) && isCodeEditor(activeControl.activeCodeEditor)) {
-				return activeControl.activeCodeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService));
-			}
-		}
-
-		const activeGroup = this.editorGroupService.activeGroup;
-		if (activeGroup) {
-			return activeGroup.getInternalContextKeyService();
-		}
-
-		return this.instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 	}
 
 	//#endregion
@@ -1338,6 +1316,7 @@ export class DelegatingEditorService implements IEditorService {
 	get visibleTextEditorControls(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorControls; }
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
+	get activeEditorContextKeyService(): IContextKeyService | undefined { return this.editorService.activeEditorContextKeyService; }
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> { return this.editorService.getEditors(order, options); }
 
@@ -1359,8 +1338,6 @@ export class DelegatingEditorService implements IEditorService {
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable { return this.editorService.overrideOpenEditor(handler); }
 	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) { return this.editorService.getEditorOverrides(resource, options, group); }
-
-	getEditorContextKeyService(): IContextKeyService { return this.editorService.getEditorContextKeyService(); }
 
 	createEditorInput(input: IResourceEditorInputType): IEditorInput { return this.editorService.createEditorInput(input); }
 

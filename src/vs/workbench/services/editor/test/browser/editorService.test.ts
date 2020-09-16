@@ -1037,9 +1037,9 @@ suite('EditorService', () => {
 
 		await service.openEditor(input1, { pinned: true });
 
-		const editorCKS = service.getEditorContextKeyService();
+		const editorCKS = service.activeEditorContextKeyService;
 		assert.ok(editorCKS);
-		assert.ok(editorCKS === part.activeGroup.activeEditorPane?.getInternalContextKeyService());
+		assert.ok(editorCKS === part.activeGroup.activeEditorPane?.scopedContextKeyService);
 
 		part.dispose();
 	});

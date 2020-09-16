@@ -17,7 +17,7 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -61,21 +61,16 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		this.doSaveOrClearTextDiffEditorViewState(editor);
 	}
 
-	getInternalContextKeyService(): IContextKeyService | undefined {
-		return this.invokeWithinDiffEditorContext(accessor => accessor.get(IContextKeyService));
-	}
-
-	private invokeWithinDiffEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T | undefined {
+	get scopedContextKeyService(): IContextKeyService | undefined {
 		const control = this.getControl();
 		if (!control) {
 			return undefined;
 		}
 
-		if (control.getOriginalEditor().hasTextFocus()) {
-			return control.getOriginalEditor().invokeWithinContext(fn);
-		} else {
-			return control.getModifiedEditor().invokeWithinContext(fn);
-		}
+		const useEditor = control.getOriginalEditor().hasTextFocus() ?
+			control.getOriginalEditor() :
+			control.getModifiedEditor();
+		return useEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
 
 	getTitle(): string {

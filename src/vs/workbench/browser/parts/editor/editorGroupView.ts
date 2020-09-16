@@ -105,7 +105,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private _whenRestored: Promise<void>;
 	private isRestored = false;
 
-	private scopedInstantiationService: IInstantiationService;
+	private readonly scopedInstantiationService: IInstantiationService;
+	private readonly _scopedContextKeyService: IContextKeyService;
 
 	private titleContainer: HTMLElement;
 	private titleAreaControl: TitleControl;
@@ -172,14 +173,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.progressBar.hide();
 
 			// Scoped services
-			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, scopedContextKeyService],
+				[IContextKeyService, this._scopedContextKeyService],
 				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
 			));
 
 			// Context keys
-			this.handleGroupContextKeys(scopedContextKeyService);
+			this.handleGroupContextKeys(this._scopedContextKeyService);
 
 			// Title container
 			this.titleContainer = document.createElement('div');
@@ -869,8 +870,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	getInternalContextKeyService(): IContextKeyService {
-		return this.scopedInstantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
+	get scopedContextKeyService(): IContextKeyService {
+		return this._scopedContextKeyService;
 	}
 
 	//#endregion

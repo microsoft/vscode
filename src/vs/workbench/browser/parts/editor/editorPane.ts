@@ -62,6 +62,13 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
 
+	/**
+	 * Should be overridden by editors that have their own ScopedContextKeyService
+	 */
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		return undefined;
+	}
+
 	constructor(
 		id: string,
 		telemetryService: ITelemetryService,
@@ -83,13 +90,6 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * this method to construct the editor widget.
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
-
-	/**
-	 * Should be overridden by editors that have their own ScopedContextKeyService
-	 */
-	getInternalContextKeyService(): IContextKeyService | undefined {
-		return undefined;
-	}
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
