@@ -29,6 +29,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -227,13 +228,16 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	readonly isEmbedded: boolean;
 
+	private readonly contextKeyService: IContextKeyService;
+	private readonly instantiationService: IInstantiationService;
+
 	constructor(
 		readonly creationOptions: INotebookEditorCreationOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@INotebookService private notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -241,6 +245,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	) {
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
+
+		this._overlayContainer = document.createElement('div');
+		this.contextKeyService = contextKeyService.createScoped(this._overlayContainer);
+		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+
 		this._memento = new Memento(NotebookEditorWidget.ID, storageService);
 		this._activeKernelMemento = new Memento(NotebookEditorActiveKernelCache, storageService);
 
@@ -371,7 +380,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	createEditor(): void {
-		this._overlayContainer = document.createElement('div');
 		const id = generateUuid();
 		this._overlayContainer.id = `notebook-${id}`;
 		this._overlayContainer.className = 'notebookOverlay';
@@ -629,6 +637,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this._onDidFocusEditorWidget.fire();
+	}
+
+	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
+		this.contextKeyService.updateParent(parentContextKeyService);
 	}
 
 	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {

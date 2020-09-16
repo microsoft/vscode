@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/notebook';
 import { localize } from 'vs/nls';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -57,6 +58,7 @@ export class NotebookEditor extends EditorPane {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorWidgetService private readonly _notebookWidgetService: INotebookEditorWidgetService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 		this._editorMemento = this.getEditorMemento<INotebookEditorViewState>(_editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
@@ -180,6 +182,7 @@ export class NotebookEditor extends EditorPane {
 
 		const viewState = this._loadNotebookEditorViewState(input);
 
+		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
 		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options : undefined);
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
