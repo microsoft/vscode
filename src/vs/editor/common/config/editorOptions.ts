@@ -3786,7 +3786,7 @@ export const EditorOptions = {
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
 				''
 			],
-			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
+			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
 	codeLens: register(new EditorBooleanOption(
