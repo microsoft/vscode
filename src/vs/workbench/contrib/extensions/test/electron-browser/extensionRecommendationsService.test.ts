@@ -30,7 +30,6 @@ import { URI } from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IPager } from 'vs/base/common/paging';
-import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ConfigurationKey, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -52,7 +51,7 @@ import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { NoOpWorkspaceTagsService } from 'vs/workbench/contrib/tags/browser/workspaceTagsService';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
@@ -166,10 +165,9 @@ const noAssets: IGalleryExtensionAssets = {
 };
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
-	const galleryExtension = <IGalleryExtension>Object.create({});
-	assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
-	assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
-	assign(galleryExtension.assets, assets);
+	const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
+	galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
+	galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: uuid.generateUuid() };
 	return <IGalleryExtension>galleryExtension;
 }

@@ -163,6 +163,11 @@ suite('EditorService', () => {
 		assert.equal(input, sequentialEditorsExcludingSticky[0].editor);
 		assert.equal(otherInput, sequentialEditorsExcludingSticky[1].editor);
 
+		const mruEditorsExcludingSticky = service.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true });
+		assert.equal(mruEditorsExcludingSticky.length, 2);
+		assert.equal(input, sequentialEditorsExcludingSticky[0].editor);
+		assert.equal(otherInput, sequentialEditorsExcludingSticky[1].editor);
+
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();

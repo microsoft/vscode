@@ -15,7 +15,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { Webview, WebviewExtensionDescription, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { WebviewInputOptions } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 
 export class MainThreadWebviews extends Disposable implements extHostProtocol.MainThreadWebviewsShape {
 
@@ -69,7 +69,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		disposables.add(webview.onMessage((message: any) => { this._proxy.$onMessage(handle, message); }));
 		disposables.add(webview.onMissingCsp((extension: ExtensionIdentifier) => this._proxy.$onMissingCsp(handle, extension.value)));
 
-		disposables.add(webview.onDispose(() => {
+		disposables.add(webview.onDidDispose(() => {
 			disposables.dispose();
 			this._webviews.delete(handle);
 		}));

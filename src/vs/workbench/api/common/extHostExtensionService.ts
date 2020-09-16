@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
 import { originalFSPath, joinPath } from 'vs/base/common/resources';
 import { Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -385,14 +384,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				subscriptions: [],
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
-				asAbsolutePath(relativePath: string) {
-					if (platform.isWeb) {
-						// web worker
-						return URI.joinPath(extensionDescription.extensionLocation, relativePath).toString();
-					} else {
-						return path.join(extensionDescription.extensionLocation.fsPath, relativePath);
-					}
-				},
+				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				get storagePath() { return that._storagePath.workspaceValue(extensionDescription)?.fsPath; },
 				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription).fsPath; },
 				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
@@ -755,7 +747,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	protected abstract _beforeAlmostReadyToRunExtensions(): Promise<void>;
 	protected abstract _getEntryPoint(extensionDescription: IExtensionDescription): string | undefined;
 	protected abstract _loadCommonJSModule<T>(module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T>;
-	public abstract async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
+	public abstract $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void>;
 }
 
 

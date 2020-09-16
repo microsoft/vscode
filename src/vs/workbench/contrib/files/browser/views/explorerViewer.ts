@@ -34,7 +34,7 @@ import { fillResourceDataTransfers, CodeDataTransfers, extractResources, contain
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
-import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -171,7 +171,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 		this.updateCollapsed(this.collapsed);
 
 		if (this._index < this.labels.length) {
-			DOM.addClass(this.labels[this._index], 'active');
+			this.labels[this._index].classList.add('active');
 		}
 	}
 
@@ -212,9 +212,9 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 			return;
 		}
 
-		DOM.removeClass(this.labels[this._index], 'active');
+		this.labels[this._index].classList.remove('active');
 		this._index = index;
-		DOM.addClass(this.labels[this._index], 'active');
+		this.labels[this._index].classList.add('active');
 
 		this._onDidChange.fire();
 	}
@@ -285,7 +285,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const stat = node.element;
 		const editableData = this.explorerService.getEditableData(stat);
 
-		DOM.removeClass(templateData.label.element, 'compressed');
+		templateData.label.element.classList.remove('compressed');
 
 		// File Label
 		if (!editableData) {
@@ -309,7 +309,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// File Label
 		if (!editableData) {
-			DOM.addClass(templateData.label.element, 'compressed');
+			templateData.label.element.classList.add('compressed');
 			templateData.label.element.style.display = 'flex';
 
 			const disposables = new DisposableStore();
@@ -340,7 +340,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// Input Box
 		else {
-			DOM.removeClass(templateData.label.element, 'compressed');
+			templateData.label.element.classList.remove('compressed');
 			templateData.label.element.style.display = 'none';
 			templateData.elementDisposable = this.renderInputBox(templateData.container, editable[0], editableData);
 		}
@@ -817,11 +817,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 							this.compressedDragOverElement = iconLabelName.element;
 							this.compressedDropTargetDisposable.dispose();
 							this.compressedDropTargetDisposable = toDisposable(() => {
-								DOM.removeClass(iconLabelName.element, 'drop-target');
+								iconLabelName.element.classList.remove('drop-target');
 								this.compressedDragOverElement = undefined;
 							});
 
-							DOM.addClass(iconLabelName.element, 'drop-target');
+							iconLabelName.element.classList.add('drop-target');
 						}
 
 						return typeof result === 'boolean' ? result : { ...result, feedback: [] };
@@ -839,11 +839,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
-		const fromDesktop = data instanceof DesktopDragAndDropData;
-		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
+		const isNative = data instanceof NativeDragAndDropData;
+		const effect = (isNative || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
 
-		// Desktop DND
-		if (fromDesktop) {
+		// Native DND
+		if (isNative) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
 				return false;
 			}
@@ -979,7 +979,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		// Desktop DND (Import file)
-		if (data instanceof DesktopDragAndDropData) {
+		if (data instanceof NativeDragAndDropData) {
 			if (isWeb) {
 				this.handleWebExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 			} else {
@@ -992,7 +992,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleWebExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const items = (originalEvent.dataTransfer as unknown as IWebkitDataTransfer).items;
 
 		// Somehow the items thing is being modified at random, maybe as a security
@@ -1205,7 +1205,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		});
 	}
 
-	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
+	private async handleExternalDrop(data: NativeDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 
 		// Check for dropped external files to be folders
 		const droppedResources = extractResources(originalEvent, true);
@@ -1456,8 +1456,8 @@ function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Ele
 
 	let element: HTMLElement | null = target;
 
-	while (element && !DOM.hasClass(element, 'monaco-list-row')) {
-		if (DOM.hasClass(element, 'label-name') && element.hasAttribute('data-icon-label-count')) {
+	while (element && !element.classList.contains('monaco-list-row')) {
+		if (element.classList.contains('label-name') && element.hasAttribute('data-icon-label-count')) {
 			const count = Number(element.getAttribute('data-icon-label-count'));
 			const index = Number(element.getAttribute('data-icon-label-index'));
 

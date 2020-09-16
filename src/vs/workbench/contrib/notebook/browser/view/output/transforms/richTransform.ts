@@ -17,10 +17,10 @@ import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
+import { dirname } from 'vs/base/common/resources';
 
 class RichRenderer implements IOutputTransformContribution {
-	private _mdRenderer: MarkdownRenderer;
-	private _richMimeTypeRenderers = new Map<string, (output: ITransformedDisplayOutputDto, container: HTMLElement) => IRenderOutput>();
+	private _richMimeTypeRenderers = new Map<string, (output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
 
 	constructor(
 		public notebookEditor: INotebookEditor,
@@ -29,7 +29,6 @@ class RichRenderer implements IOutputTransformContribution {
 		@IModeService private readonly modeService: IModeService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
-		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer, undefined);
 		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
 		this._richMimeTypeRenderers.set('application/javascript', this.renderJavaScript.bind(this));
 		this._richMimeTypeRenderers.set('text/html', this.renderHTML.bind(this));
@@ -41,7 +40,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
 	}
 
-	render(output: ITransformedDisplayOutputDto, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput {
+	render(output: ITransformedDisplayOutputDto, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
 		if (!output.data) {
 			const contentNode = document.createElement('p');
 			contentNode.innerText = `No data could be found for output.`;
@@ -69,10 +68,10 @@ class RichRenderer implements IOutputTransformContribution {
 		}
 
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
-		return renderer!(output, container);
+		return renderer!(output, notebookUri, container);
 	}
 
-	renderJSON(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderJSON(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['application/json'];
 		const str = JSON.stringify(data, null, '\t');
 
@@ -105,7 +104,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderCode(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderCode(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['text/x-javascript'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 
@@ -138,7 +137,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderJavaScript(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderJavaScript(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['application/javascript'];
 		const str = isArray(data) ? data.join('') : data;
 		const scriptVal = `<script type="application/javascript">${str}</script>`;
@@ -150,7 +149,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderHTML(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderHTML(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['text/html'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -161,7 +160,7 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderSVG(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderSVG(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['image/svg+xml'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		return {
@@ -172,17 +171,18 @@ class RichRenderer implements IOutputTransformContribution {
 		};
 	}
 
-	renderMarkdown(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderMarkdown(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['text/markdown'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const mdOutput = document.createElement('div');
-		mdOutput.appendChild(this._mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }).element);
+		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, dirname(notebookUri));
+		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }).element);
 		container.appendChild(mdOutput);
 
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderPNG(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderPNG(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const image = document.createElement('img');
 		image.src = `data:image/png;base64,${output.data['image/png']}`;
 		const display = document.createElement('div');
@@ -192,7 +192,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderJPEG(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderJPEG(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const image = document.createElement('img');
 		image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
 		const display = document.createElement('div');
@@ -202,7 +202,7 @@ class RichRenderer implements IOutputTransformContribution {
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
 	}
 
-	renderPlainText(output: ITransformedDisplayOutputDto, container: HTMLElement): IRenderOutput {
+	renderPlainText(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.data['text/plain'];
 		const str = (isArray(data) ? data.join('') : data) as string;
 		const contentNode = DOM.$('.output-plaintext');

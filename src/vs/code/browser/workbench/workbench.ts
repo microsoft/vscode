@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, ICommand, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
-import product from 'vs/platform/product/common/product';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -17,6 +16,25 @@ import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
+import product from 'vs/platform/product/common/product';
+
+function doCreateUri(path: string, queryValues: Map<string, string>): URI {
+	let query: string | undefined = undefined;
+
+	if (queryValues) {
+		let index = 0;
+		queryValues.forEach((value, key) => {
+			if (!query) {
+				query = '';
+			}
+
+			const prefix = (index++ === 0) ? '' : '&';
+			query += `${prefix}${key}=${encodeURIComponent(value)}`;
+		});
+	}
+
+	return URI.parse(window.location.href).with({ path, query });
+}
 
 interface ICredential {
 	service: string;
@@ -27,6 +45,32 @@ interface ICredential {
 class LocalStorageCredentialsProvider implements ICredentialsProvider {
 
 	static readonly CREDENTIALS_OPENED_KEY = 'credentials.provider';
+
+	private readonly authService: string | undefined;
+
+	constructor() {
+		let authSessionInfo: { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean, readonly scopes: string[][] } | undefined;
+		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
+		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
+		if (authSessionElementAttribute) {
+			try {
+				authSessionInfo = JSON.parse(authSessionElementAttribute);
+			} catch (error) { /* Invalid session is passed. Ignore. */ }
+		}
+
+		if (authSessionInfo) {
+			// Settings Sync Entry
+			this.setPassword(`${product.urlProtocol}.login`, 'account', JSON.stringify(authSessionInfo));
+
+			// Auth extension Entry
+			this.authService = `${product.urlProtocol}-${authSessionInfo.providerId}.login`;
+			this.setPassword(this.authService, 'account', JSON.stringify(authSessionInfo.scopes.map(scopes => ({
+				id: authSessionInfo!.id,
+				scopes,
+				accessToken: authSessionInfo!.accessToken
+			}))));
+		}
+	}
 
 	private _credentials: ICredential[] | undefined;
 	private get credentials(): ICredential[] {
@@ -69,14 +113,39 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 	}
 
 	async setPassword(service: string, account: string, password: string): Promise<void> {
-		this.deletePassword(service, account);
+		this.doDeletePassword(service, account);
 
 		this.credentials.push({ service, account, password });
 
 		this.save();
+
+		try {
+			if (password && service === this.authService) {
+				const value = JSON.parse(password);
+				if (Array.isArray(value) && value.length === 0) {
+					await this.logout(service);
+				}
+			}
+		} catch (error) {
+			console.log(error);
+		}
 	}
 
 	async deletePassword(service: string, account: string): Promise<boolean> {
+		const result = await this.doDeletePassword(service, account);
+
+		if (result && service === this.authService) {
+			try {
+				await this.logout(service);
+			} catch (error) {
+				console.log(error);
+			}
+		}
+
+		return result;
+	}
+
+	private async doDeletePassword(service: string, account: string): Promise<boolean> {
 		let found = false;
 
 		this._credentials = this.credentials.filter(credential => {
@@ -104,6 +173,16 @@ class LocalStorageCredentialsProvider implements ICredentialsProvider {
 		return this.credentials
 			.filter(credential => credential.service === service)
 			.map(({ account, password }) => ({ account, password }));
+	}
+
+	private async logout(service: string): Promise<void> {
+		const queryValues: Map<string, string> = new Map();
+		queryValues.set('logout', String(true));
+		queryValues.set('service', service);
+
+		await request({
+			url: doCreateUri('/auth/logout', queryValues).toString(true)
+		}, CancellationToken.None);
 	}
 }
 
@@ -155,7 +234,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		// Start to poll on the callback being fired
 		this.periodicFetchCallback(requestId, Date.now());
 
-		return this.doCreateUri('/callback', queryValues);
+		return doCreateUri('/callback', queryValues);
 	}
 
 	private async periodicFetchCallback(requestId: string, startTime: number): Promise<void> {
@@ -165,7 +244,7 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		queryValues.set(PollingURLCallbackProvider.QUERY_KEYS.REQUEST_ID, requestId);
 
 		const result = await request({
-			url: this.doCreateUri('/fetch-callback', queryValues).toString(true)
+			url: doCreateUri('/fetch-callback', queryValues).toString(true)
 		}, CancellationToken.None);
 
 		// Check for callback results
@@ -186,23 +265,6 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		}
 	}
 
-	private doCreateUri(path: string, queryValues: Map<string, string>): URI {
-		let query: string | undefined = undefined;
-
-		if (queryValues) {
-			let index = 0;
-			queryValues.forEach((value, key) => {
-				if (!query) {
-					query = '';
-				}
-
-				const prefix = (index++ === 0) ? '' : '&';
-				query += `${prefix}${key}=${encodeURIComponent(value)}`;
-			});
-		}
-
-		return URI.parse(window.location.href).with({ path, query });
-	}
 }
 
 class WorkspaceProvider implements IWorkspaceProvider {
@@ -302,8 +364,6 @@ class WindowIndicator implements IWindowIndicator {
 	readonly tooltip: string;
 	readonly command: string | undefined;
 
-	readonly commandImpl: ICommand | undefined = undefined;
-
 	constructor(workspace: IWorkspace) {
 		let repositoryOwner: string | undefined = undefined;
 		let repositoryName: string | undefined = undefined;
@@ -321,20 +381,16 @@ class WindowIndicator implements IWindowIndicator {
 			}
 		}
 
+		// Repo
 		if (repositoryName && repositoryOwner) {
-			this.label = localize('openInDesktopLabel', "$(remote) Open in Desktop");
-			this.tooltip = localize('openInDesktopTooltip', "Open in Desktop");
-			this.command = '_web.openInDesktop';
-			this.commandImpl = {
-				id: this.command,
-				handler: () => {
-					const protocol = product.quality === 'stable' ? 'vscode' : 'vscode-insiders';
-					window.open(`${protocol}://vscode.git/clone?url=${encodeURIComponent(`https://github.com/${repositoryOwner}/${repositoryName}.git`)}`);
-				}
-			};
-		} else {
-			this.label = localize('playgroundLabel', "Web Playground");
-			this.tooltip = this.label;
+			this.label = localize('playgroundLabelRepository', "$(remote) VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+			this.tooltip = localize('playgroundRepositoryTooltip', "VS Code Web Playground: {0}/{1}", repositoryOwner, repositoryName);
+		}
+
+		// No Repo
+		else {
+			this.label = localize('playgroundLabel', "$(remote) VS Code Web Playground");
+			this.tooltip = localize('playgroundTooltip', "VS Code Web Playground");
 		}
 	}
 }
@@ -416,16 +472,10 @@ class WindowIndicator implements IWindowIndicator {
 		title: localize('home', "Home")
 	};
 
-	// Commands
-	const commands: ICommand[] = [];
-
 	// Window indicator (unless connected to a remote)
 	let windowIndicator: WindowIndicator | undefined = undefined;
 	if (!workspaceProvider.hasRemote()) {
 		windowIndicator = new WindowIndicator(workspace);
-		if (windowIndicator.commandImpl) {
-			commands.push(windowIndicator.commandImpl);
-		}
 	}
 
 	// Product Quality Change Handler
@@ -447,7 +497,6 @@ class WindowIndicator implements IWindowIndicator {
 	create(document.body, {
 		...config,
 		homeIndicator,
-		commands,
 		windowIndicator,
 		productQualityChangeHandler,
 		workspaceProvider,

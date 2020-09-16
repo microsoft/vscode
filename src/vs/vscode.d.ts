@@ -1160,7 +1160,7 @@ declare module 'vscode' {
 		revealRange(range: Range, revealType?: TextEditorRevealType): void;
 
 		/**
-		 * ~~Show the text editor.~~
+		 * Show the text editor.
 		 *
 		 * @deprecated Use [window.showTextDocument](#window.showTextDocument) instead.
 		 *
@@ -1170,7 +1170,7 @@ declare module 'vscode' {
 		show(column?: ViewColumn): void;
 
 		/**
-		 * ~~Hide the text editor.~~
+		 * Hide the text editor.
 		 *
 		 * @deprecated Use the command `workbench.action.closeActiveEditor` instead.
 		 * This method shows unexpected behavior and will be removed in the next major update.
@@ -1475,7 +1475,8 @@ declare module 'vscode' {
 	 * A function that represents an event to which you subscribe by calling it with
 	 * a listener function as argument.
 	 *
-	 * @sample `item.onDidChange(function(event) { console.log("Event happened: " + event); });`
+	 * @example
+	 * item.onDidChange(function(event) { console.log("Event happened: " + event); });
 	 */
 	export interface Event<T> {
 
@@ -1920,8 +1921,11 @@ declare module 'vscode' {
 	 * the [language](#TextDocument.languageId), the [scheme](#Uri.scheme) of
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
-	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', scheme: 'untitled', pattern: '**​/package.json' }`
+	 * @example <caption>A language filter that applies to typescript files on disk</caption>
+	 * { language: 'typescript', scheme: 'file' }
+	 *
+	 * @example <caption>A language filter that applies to all package.json paths</caption>
+	 * { language: 'json', scheme: 'untitled', pattern: '**​/package.json' }
 	 */
 	export interface DocumentFilter {
 
@@ -1951,7 +1955,8 @@ declare module 'vscode' {
 	 * a feature works without further context, e.g. without the need to resolve related
 	 * 'files'.
 	 *
-	 * @sample `let sel:DocumentSelector = { scheme: 'file', language: 'typescript' }`;
+	 * @example
+	 * let sel:DocumentSelector = { scheme: 'file', language: 'typescript' };
 	 */
 	export type DocumentSelector = DocumentFilter | string | Array<DocumentFilter | string>;
 
@@ -2498,9 +2503,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * ~~MarkedString can be used to render human-readable text. It is either a markdown string
+	 * MarkedString can be used to render human-readable text. It is either a markdown string
 	 * or a code-block that provides a language and a code snippet. Note that
-	 * markdown strings will be sanitized - that means html will be escaped.~~
+	 * markdown strings will be sanitized - that means html will be escaped.
 	 *
 	 * @deprecated This type is deprecated, please use [`MarkdownString`](#MarkdownString) instead.
 	 */
@@ -2753,7 +2758,7 @@ declare module 'vscode' {
 		constructor(name: string, kind: SymbolKind, containerName: string, location: Location);
 
 		/**
-		 * ~~Creates a new symbol information object.~~
+		 * Creates a new symbol information object.
 		 *
 		 * @deprecated Please use the constructor taking a [location](#Location) object.
 		 *
@@ -3820,6 +3825,13 @@ declare module 'vscode' {
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
+		 *
+		 * Note that `sortText` is only used for the initial ordering of completion
+		 * items. When having a leading word (prefix) ordering is based on how
+		 * well completion match that prefix and the initial ordering is only used
+		 * when completions match equal. The prefix is defined by the
+		 * [`range`](#CompletionItem.range)-property and can therefore be different
+		 * for each completion.
 		 */
 		sortText?: string;
 
@@ -3827,6 +3839,10 @@ declare module 'vscode' {
 		 * A string that should be used when filtering a set of
 		 * completion items. When `falsy` the [label](#CompletionItem.label)
 		 * is used.
+		 *
+		 * Note that the filter text is matched against the leading word (prefix) which is defined
+		 * by the [`range`](#CompletionItem.range)-property.
+		 * prefix.
 		 */
 		filterText?: string;
 
@@ -3874,12 +3890,12 @@ declare module 'vscode' {
 		/**
 		 * @deprecated Use `CompletionItem.insertText` and `CompletionItem.range` instead.
 		 *
-		 * ~~An [edit](#TextEdit) which is applied to a document when selecting
+		 * An [edit](#TextEdit) which is applied to a document when selecting
 		 * this completion. When an edit is provided the value of
-		 * [insertText](#CompletionItem.insertText) is ignored.~~
+		 * [insertText](#CompletionItem.insertText) is ignored.
 		 *
-		 * ~~The [range](#Range) of the edit must be single-line and on the same
-		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.~~
+		 * The [range](#Range) of the edit must be single-line and on the same
+		 * line completions were [requested](#CompletionItemProvider.provideCompletionItems) at.
 		 */
 		textEdit?: TextEdit;
 
@@ -4684,7 +4700,7 @@ declare module 'vscode' {
 	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
 	 *
 	 * ```
-	 * `defaultValue`
+	 * `defaultValue` (if defined in `package.json` otherwise derived from the value's type)
 	 * `globalValue` (if defined)
 	 * `workspaceValue` (if defined)
 	 * `workspaceFolderValue` (if defined)
@@ -5220,7 +5236,7 @@ declare module 'vscode' {
 		show(preserveFocus?: boolean): void;
 
 		/**
-		 * ~~Reveal this channel in the UI.~~
+		 * Reveal this channel in the UI.
 		 *
 		 * @deprecated Use the overload with just one parameter (`show(preserveFocus?: boolean): void`).
 		 *
@@ -5625,6 +5641,9 @@ declare module 'vscode' {
 
 		/**
 		 * Get the absolute path of a resource contained in the extension.
+		 *
+		 * *Note* that an absolute uri can be constructed via [`Uri.joinPath`](#Uri.joinPath) and
+		 * [`extensionUri`](#ExtensionContent.extensionUri), e.g. `vscode.Uri.joinPath(context.extensionUri, relativePath);`
 		 *
 		 * @param relativePath A relative path to a resource contained in the extension.
 		 * @return The absolute path of the resource.
@@ -6176,7 +6195,7 @@ declare module 'vscode' {
 		constructor(taskDefinition: TaskDefinition, scope: WorkspaceFolder | TaskScope.Global | TaskScope.Workspace, name: string, source: string, execution?: ProcessExecution | ShellExecution | CustomExecution, problemMatchers?: string | string[]);
 
 		/**
-		 * ~~Creates a new task.~~
+		 * Creates a new task.
 		 *
 		 * @deprecated Use the new constructors that allow specifying a scope for the task.
 		 *
@@ -6206,7 +6225,9 @@ declare module 'vscode' {
 		name: string;
 
 		/**
-		 * A detail to show for the task on a second line in places where the task's name is displayed.
+		 * A human-readable string which is rendered less prominently on a separate line in places
+		 * where the task's name is displayed. Supports rendering of [theme icons](#ThemeIcon)
+		 * via the `$(<name>)`-syntax.
 		 */
 		detail?: string;
 
@@ -6261,7 +6282,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return an array of tasks
 		 */
-		provideTasks(token?: CancellationToken): ProviderResult<T[]>;
+		provideTasks(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
@@ -6276,7 +6297,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The resolved task
 		 */
-		resolveTask(task: T, token?: CancellationToken): ProviderResult<T>;
+		resolveTask(task: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -7088,8 +7109,10 @@ declare module 'vscode' {
 	 * VS Code will save off the state from `setState` of all webviews that have a serializer. When the
 	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
 	 * The extension can then restore the old `WebviewPanel` from this state.
+	 *
+	 * @param T Type of the webview's state.
 	 */
-	interface WebviewPanelSerializer {
+	interface WebviewPanelSerializer<T = unknown> {
 		/**
 		 * Restore a webview panel from its serialized `state`.
 		 *
@@ -7101,7 +7124,7 @@ declare module 'vscode' {
 		 *
 		 * @return Thenable indicating that the webview has been fully restored.
 		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: T): Thenable<void>;
 	}
 
 	/**
@@ -8129,8 +8152,8 @@ declare module 'vscode' {
 		export function setStatusBarMessage(text: string): Disposable;
 
 		/**
-		 * ~~Show progress in the Source Control viewlet while running the given callback and while
-		 * its returned promise isn't resolve or rejected.~~
+		 * Show progress in the Source Control viewlet while running the given callback and while
+		 * its returned promise isn't resolve or rejected.
 		 *
 		 * @deprecated Use `withProgress` instead.
 		 *
@@ -9566,8 +9589,8 @@ declare module 'vscode' {
 		export const fs: FileSystem;
 
 		/**
-		 * ~~The folder that is open in the editor. `undefined` when no folder
-		 * has been opened.~~
+		 * The folder that is open in the editor. `undefined` when no folder
+		 * has been opened.
 		 *
 		 * @deprecated Use [`workspaceFolders`](#workspace.workspaceFolders) instead.
 		 */
@@ -9708,7 +9731,9 @@ declare module 'vscode' {
 		/**
 		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
-		 * @sample `findFiles('**​/*.js', '**​/node_modules/**', 10)`
+		 * @example
+		 * findFiles('**​/*.js', '**​/node_modules/**', 10)
+		 *
 		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
 		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
@@ -9947,7 +9972,7 @@ declare module 'vscode' {
 		export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
 
 		/**
-		 * ~~Register a task provider.~~
+		 * Register a task provider.
 		 *
 		 * @deprecated Use the corresponding function on the `tasks` namespace instead
 		 *
@@ -10573,6 +10598,26 @@ declare module 'vscode' {
 		 * resource state.
 		 */
 		readonly decorations?: SourceControlResourceDecorations;
+
+		/**
+		 * Context value of the resource state. This can be used to contribute resource specific actions.
+		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
+		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"scm/resourceState/context": [
+		 *				{
+		 *					"command": "extension.diff",
+		 *					"when": "scmResourceState == diffable"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
+		 */
+		readonly contextValue?: string;
 	}
 
 	/**
@@ -10686,8 +10731,8 @@ declare module 'vscode' {
 	export namespace scm {
 
 		/**
-		 * ~~The [input box](#SourceControlInputBox) for the last source control
-		 * created by the extension.~~
+		 * The [input box](#SourceControlInputBox) for the last source control
+		 * created by the extension.
 		 *
 		 * @deprecated Use SourceControl.inputBox instead
 		 */

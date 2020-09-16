@@ -3,19 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IExtensionTipsService, IConfigBasedExtensionTip, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { IExtensionTipsService, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Emitter } from 'vs/base/common/event';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
@@ -34,19 +27,11 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return [...this.importantRecommendations, ...this.otherRecommendations]; }
 
 	constructor(
-		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
+		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, extensionsWorkbenchService, extensionManagementService, storageKeysSyncRegistryService);
+		super(promptedExtensionRecommendations);
 	}
 
 	protected async doActivate(): Promise<void> {

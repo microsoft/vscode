@@ -11,7 +11,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -58,7 +58,7 @@ import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-browser/userDataAutoSyncService';
+import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -67,7 +67,7 @@ import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export interface ISharedProcessConfiguration {
@@ -81,7 +81,7 @@ export function startup(configuration: ISharedProcessConfiguration) {
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
-	args: ParsedArgs;
+	args: NativeParsedArgs;
 	logLevel: LogLevel;
 }
 
@@ -116,7 +116,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	disposables.add(server);
 
-	const environmentService = new EnvironmentService(initData.args, process.execPath);
+	const environmentService = new EnvironmentService(initData.args);
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const loggerClient = new LoggerChannelClient(server.getChannel('logger', mainRouter));

@@ -66,6 +66,9 @@ export class MockContextKeyService implements IContextKeyService {
 	public createScoped(domNode: HTMLElement): IContextKeyService {
 		return this;
 	}
+	updateParent(_parentContextKeyService: IContextKeyService): void {
+		// no-op
+	}
 }
 
 export class MockKeybindingService implements IKeybindingService {
@@ -133,6 +136,10 @@ export class MockKeybindingService implements IKeybindingService {
 	}
 
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
+		return false;
+	}
+
+	public toggleLogging(): boolean {
 		return false;
 	}
 

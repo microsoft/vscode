@@ -11,7 +11,7 @@ import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/
 import { Registry } from 'vs/platform/registry/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IsFullscreenContext } from 'vs/workbench/browser/contextkeys';
-import { IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsMacNativeContext, IsDevelopmentContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputButton, IQuickInputService, IQuickPickSeparator, IKeyMods, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -345,7 +345,7 @@ const viewCategory = nls.localize('view', "View");
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleFullScreenAction, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', viewCategory);
 
 const developerCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowAction), 'Developer: Reload Window', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowAction), 'Developer: Reload Window', developerCategory, IsWebContext.toNegated());
 
 const helpCategory = nls.localize('help', "Help");
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAboutDialogAction), `Help: About`, helpCategory);

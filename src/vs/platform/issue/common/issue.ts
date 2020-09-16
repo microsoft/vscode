@@ -17,8 +17,7 @@ export interface WindowData {
 export const enum IssueType {
 	Bug,
 	PerformanceIssue,
-	FeatureRequest,
-	SettingsSearchIssue
+	FeatureRequest
 }
 
 export interface IssueReporterStyles extends WindowStyles {
@@ -64,13 +63,6 @@ export interface ISettingSearchResult {
 	extensionId: string;
 	key: string;
 	score: number;
-}
-
-export interface ISettingsSearchIssueReporterData extends IssueReporterData {
-	issueType: IssueType.SettingsSearchIssue;
-	actualSearchResults: ISettingSearchResult[];
-	query: string;
-	filterResultCount: number;
 }
 
 export interface IssueReporterFeatures {

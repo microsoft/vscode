@@ -29,6 +29,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const ADD_CONFIGURATION_ID = 'debug.addConfiguration';
 export const TOGGLE_INLINE_BREAKPOINT_ID = 'editor.debug.action.toggleInlineBreakpoint';
@@ -167,8 +168,8 @@ export function registerCommands(): void {
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
-					const targets = response.body.targets;
-					if (targets.length) {
+					const targets = response?.body.targets;
+					if (targets && targets.length) {
 						let id = targets[0].id;
 						if (targets.length > 1) {
 							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
@@ -564,7 +565,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService));
+					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IEditorService), accessor.get(IUriIdentityService));
 				}
 			}
 

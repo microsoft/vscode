@@ -4,18 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as errors from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
-import { originalFSPath } from 'vs/base/common/resources';
+import { joinPath, originalFSPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -264,7 +263,7 @@ export class CachedExtensionScanner {
 		if (devMode) {
 			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
 
-			const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
+			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
 			const controlFile = pfs.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 

@@ -38,7 +38,6 @@ export function getDefaultIgnoredSettings(): string[] {
 
 export function registerConfiguration(): IDisposable {
 	const ignoredSettingsSchemaId = 'vscode://schemas/ignoredSettings';
-	const ignoredExtensionsSchemaId = 'vscode://schemas/ignoredExtensions';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration({
 		id: 'settingsSync',
@@ -60,7 +59,11 @@ export function registerConfiguration(): IDisposable {
 			'settingsSync.ignoredExtensions': {
 				'type': 'array',
 				markdownDescription: localize('settingsSync.ignoredExtensions', "List of extensions to be ignored while synchronizing. The identifier of an extension is always `${publisher}.${name}`. For example: `vscode.csharp`."),
-				$ref: ignoredExtensionsSchemaId,
+				items: [{
+					type: 'string',
+					pattern: EXTENSION_IDENTIFIER_PATTERN,
+					errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+				}],
 				'default': [],
 				'scope': ConfigurationScope.APPLICATION,
 				uniqueItems: true,
@@ -102,11 +105,6 @@ export function registerConfiguration(): IDisposable {
 		};
 		jsonRegistry.registerSchema(ignoredSettingsSchemaId, ignoredSettingsSchema);
 	};
-	jsonRegistry.registerSchema(ignoredExtensionsSchemaId, {
-		type: 'string',
-		pattern: EXTENSION_IDENTIFIER_PATTERN,
-		errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
-	});
 	return configurationRegistry.onDidUpdateConfiguration(() => registerIgnoredSettingsSchema());
 }
 
@@ -122,8 +120,9 @@ export type IAuthenticationProvider = { id: string, scopes: string[] };
 export interface IUserDataSyncStore {
 	readonly url: URI;
 	readonly defaultUrl: URI;
-	readonly stableUrl: URI | undefined;
-	readonly insidersUrl: URI | undefined;
+	readonly stableUrl: URI;
+	readonly insidersUrl: URI;
+	readonly canSwitch: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
 }
 

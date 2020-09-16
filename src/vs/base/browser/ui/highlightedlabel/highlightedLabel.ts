@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { escape } from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export interface IHighlight {
 	start: number;
@@ -15,7 +15,7 @@ export interface IHighlight {
 
 export class HighlightedLabel {
 
-	private domNode: HTMLElement;
+	private readonly domNode: HTMLElement;
 	private text: string = '';
 	private title: string = '';
 	private highlights: IHighlight[] = [];
@@ -44,10 +44,6 @@ export class HighlightedLabel {
 			return;
 		}
 
-		if (!Array.isArray(highlights)) {
-			highlights = [];
-		}
-
 		this.text = text;
 		this.title = title;
 		this.highlights = highlights;
@@ -56,7 +52,7 @@ export class HighlightedLabel {
 
 	private render(): void {
 
-		let htmlContent = '';
+		const children: HTMLSpanElement[] = [];
 		let pos = 0;
 
 		for (const highlight of this.highlights) {
@@ -64,31 +60,26 @@ export class HighlightedLabel {
 				continue;
 			}
 			if (pos < highlight.start) {
-				htmlContent += '<span>';
 				const substring = this.text.substring(pos, highlight.start);
-				htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
-				htmlContent += '</span>';
+				children.push(dom.$('span', undefined, ...this.supportCodicons ? renderCodicons(substring) : [substring]));
 				pos = highlight.end;
 			}
-			if (highlight.extraClasses) {
-				htmlContent += `<span class="highlight ${highlight.extraClasses}">`;
-			} else {
-				htmlContent += `<span class="highlight">`;
-			}
+
 			const substring = this.text.substring(highlight.start, highlight.end);
-			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
-			htmlContent += '</span>';
+			const element = dom.$('span.highlight', undefined, ...this.supportCodicons ? renderCodicons(substring) : [substring]);
+			if (highlight.extraClasses) {
+				element.classList.add(highlight.extraClasses);
+			}
+			children.push(element);
 			pos = highlight.end;
 		}
 
 		if (pos < this.text.length) {
-			htmlContent += '<span>';
-			const substring = this.text.substring(pos);
-			htmlContent += this.supportCodicons ? renderCodicons(escape(substring)) : escape(substring);
-			htmlContent += '</span>';
+			const substring = this.text.substring(pos,);
+			children.push(dom.$('span', undefined, ...this.supportCodicons ? renderCodicons(substring) : [substring]));
 		}
 
-		this.domNode.innerHTML = htmlContent;
+		dom.reset(this.domNode, ...children);
 		if (this.title) {
 			this.domNode.title = this.title;
 		} else {

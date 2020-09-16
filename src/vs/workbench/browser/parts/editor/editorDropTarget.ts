@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
-import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
@@ -77,15 +77,15 @@ class DropOverlay extends Themable {
 
 		// Parent
 		this.groupView.element.appendChild(container);
-		addClass(this.groupView.element, 'dragged-over');
+		this.groupView.element.classList.add('dragged-over');
 		this._register(toDisposable(() => {
 			this.groupView.element.removeChild(container);
-			removeClass(this.groupView.element, 'dragged-over');
+			this.groupView.element.classList.remove('dragged-over');
 		}));
 
 		// Overlay
 		this.overlay = document.createElement('div');
-		addClass(this.overlay, 'editor-group-overlay-indicator');
+		this.overlay.classList.add('editor-group-overlay-indicator');
 		container.appendChild(this.overlay);
 
 		// Overlay Event Handling
@@ -475,7 +475,7 @@ class DropOverlay extends Themable {
 		overlay.style.opacity = '1';
 
 		// Enable transition after a timeout to prevent initial animation
-		setTimeout(() => addClass(overlay, 'overlay-move-transition'), 0);
+		setTimeout(() => overlay.classList.add('overlay-move-transition'), 0);
 
 		// Remember as current split direction
 		this.currentDropOperation = { splitDirection };
@@ -513,7 +513,7 @@ class DropOverlay extends Themable {
 		// Reset overlay
 		this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
 		overlay.style.opacity = '0';
-		removeClass(overlay, 'overlay-move-transition');
+		overlay.classList.remove('overlay-move-transition');
 
 		// Reset current operation
 		this.currentDropOperation = undefined;
@@ -629,7 +629,7 @@ export class EditorDropTarget extends Themable {
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {
-		toggleClass(this.container, 'dragged-over', isDraggedOver);
+		this.container.classList.toggle('dragged-over', isDraggedOver);
 	}
 
 	dispose(): void {

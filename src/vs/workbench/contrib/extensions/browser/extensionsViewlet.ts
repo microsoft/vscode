@@ -13,7 +13,7 @@ import { Event as EventOf, Emitter } from 'vs/base/common/event';
 import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { append, $, addClass, toggleClass, Dimension, hide, show } from 'vs/base/browser/dom';
+import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -49,7 +49,6 @@ import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -59,6 +58,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -127,14 +127,18 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		if (this.extensionManagementServerService.localExtensionManagementServer) {
 			servers.push(this.extensionManagementServerService.localExtensionManagementServer);
 		}
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			servers.push(this.extensionManagementServerService.webExtensionManagementServer);
+		}
 		if (this.extensionManagementServerService.remoteExtensionManagementServer) {
 			servers.push(this.extensionManagementServerService.remoteExtensionManagementServer);
 		}
-		if (servers.length === 0 && this.extensionManagementServerService.webExtensionManagementServer) {
-			servers.push(this.extensionManagementServerService.webExtensionManagementServer);
-		}
 		const getViewName = (viewTitle: string, server: IExtensionManagementServer): string => {
-			return servers.length > 1 ? `${server.label} - ${viewTitle}` : viewTitle;
+			if (servers.length) {
+				const serverLabel = server === this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer ? localize('local', "Local") : server.label;
+				return servers.length > 1 ? `${serverLabel} - ${viewTitle}` : viewTitle;
+			}
+			return viewTitle;
 		};
 		for (const server of servers) {
 			const getInstalledViewName = (): string => getViewName(localize('installed', "Installed"), server);
@@ -398,7 +402,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	create(parent: HTMLElement): void {
-		addClass(parent, 'extensions-viewlet');
+		parent.classList.add('extensions-viewlet');
 		this.root = parent;
 
 		const overlay = append(this.root, $('.overlay'));
@@ -494,7 +498,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	layout(dimension: Dimension): void {
 		if (this.root) {
-			toggleClass(this.root, 'narrow', dimension.width <= 300);
+			this.root.classList.toggle('narrow', dimension.width <= 300);
 		}
 		if (this.searchBox) {
 			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
@@ -519,14 +523,16 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		]);
 
 		if (this.extensionGalleryService.isEnabled()) {
-			filterActions.splice(0, 0, ...[
+			const galleryFilterActions = [
 				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.featured', localize('featured filter', "Featured"), '@featured'),
 				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.popular', localize('most popular filter', "Most Popular"), '@popular'),
 				this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.recommended', localize('most popular recommended', "Recommended"), '@recommended'),
 				this.instantiationService.createInstance(RecentlyPublishedExtensionsAction, RecentlyPublishedExtensionsAction.ID, localize('recently published filter', "Recently Published")),
+				new Separator(),
 				new SubmenuAction('workbench.extensions.action.filterExtensionsByCategory', localize('filter by category', "Category"), EXTENSION_CATEGORIES.map(category => this.instantiationService.createInstance(SearchCategoryAction, `extensions.actions.searchByCategory.${category}`, category, category))),
 				new Separator(),
-			]);
+			];
+			filterActions.splice(0, 0, ...galleryFilterActions);
 			filterActions.push(...[
 				new Separator(),
 				new SubmenuAction('workbench.extensions.action.sortBy', localize('sorty by', "Sort By"), this.sortActions),
@@ -580,6 +586,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				.replace(/@tag:/g, 'tag:')
 				.replace(/@ext:/g, 'ext:')
 				.replace(/@featured/g, 'featured')
+				.replace(/@web/g, 'tag:"__web_extension"')
 				.replace(/@popular/g, '@sort:installs')
 			: '';
 	}
@@ -737,7 +744,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		if (!this.environmentService.disableExtensions) {
 			this.loopCheckForMaliciousExtensions();

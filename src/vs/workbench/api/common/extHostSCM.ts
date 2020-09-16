@@ -516,6 +516,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		}
 
 		this._proxy.$registerGroups(this.handle, groups, splices);
+		this.createdResourceGroups.clear();
 	}
 
 	@debounce(100)

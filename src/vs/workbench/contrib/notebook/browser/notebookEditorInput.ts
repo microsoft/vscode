@@ -168,13 +168,13 @@ ${patterns}
 		return;
 	}
 
-	async resolve(editorId?: string): Promise<INotebookEditorModel | null> {
+	async resolve(): Promise<INotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType!)) {
 			return null;
 		}
 
 		if (!this._textModel) {
-			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!, editorId);
+			this._textModel = await this._notebookModelResolverService.resolve(this.resource, this.viewType!);
 
 			this._register(this._textModel.object.onDidChangeDirty(() => {
 				this._onDidChangeDirty.fire();

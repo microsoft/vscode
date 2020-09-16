@@ -199,6 +199,7 @@ import 'vs/workbench/contrib/url/browser/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';
+import 'vs/workbench/contrib/webviewPanel/browser/webviewPanel.contribution';
 import 'vs/workbench/contrib/webviewView/browser/webviewView.contribution';
 import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
@@ -231,6 +232,9 @@ import 'vs/workbench/contrib/emmet/browser/emmet.contribution';
 
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/browser/codeEditor.contribution';
+
+// Keybindings Contributions
+import 'vs/workbench/contrib/keybindings/browser/keybindings.contribution';
 
 // Execution
 import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewportRange, IBufferRange, ILink, ILinkDecorations } from 'xterm';
+import type { IViewportRange, IBufferRange, ILink, ILinkDecorations, Terminal } from 'xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -23,10 +23,11 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private _tooltipScheduler: RunOnceScheduler | undefined;
 	private _hoverListeners: DisposableStore | undefined;
 
-	private readonly _onLeave = new Emitter<void>();
-	public get onLeave(): Event<void> { return this._onLeave.event; }
+	private readonly _onInvalidated = new Emitter<void>();
+	public get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
 	constructor(
+		private readonly _xterm: Terminal,
 		public readonly range: IBufferRange,
 		public readonly text: string,
 		private readonly _viewportY: number,
@@ -57,14 +58,23 @@ export class TerminalLink extends DisposableStore implements ILink {
 
 	hover(event: MouseEvent, text: string): void {
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
-		this.add(dom.addDisposableListener(document, 'keydown', e => {
-			if (this._isModifierDown(e)) {
+		this._hoverListeners = new DisposableStore();
+		this._hoverListeners.add(dom.addDisposableListener(document, 'keydown', e => {
+			if (!e.repeat && this._isModifierDown(e)) {
 				this._enableDecorations();
 			}
 		}));
-		this.add(dom.addDisposableListener(document, 'keyup', e => {
-			if (!this._isModifierDown(e)) {
+		this._hoverListeners.add(dom.addDisposableListener(document, 'keyup', e => {
+			if (!e.repeat && !this._isModifierDown(e)) {
 				this._disableDecorations();
+			}
+		}));
+
+		// Listen for when the terminal renders on the same line as the link
+		this._hoverListeners.add(this._xterm.onRender(e => {
+			const viewportRangeY = this.range.start.y - this._viewportY;
+			if (viewportRangeY >= e.start && viewportRangeY <= e.end) {
+				this._onInvalidated.fire();
 			}
 		}));
 
@@ -88,7 +98,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}
 
 		const origin = { x: event.pageX, y: event.pageY };
-		this._hoverListeners = new DisposableStore();
 		this._hoverListeners.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._isModifierDown(e)) {
@@ -111,7 +120,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		this._hoverListeners = undefined;
 		this._tooltipScheduler?.dispose();
 		this._tooltipScheduler = undefined;
-		this._onLeave.fire();
 	}
 
 	private _enableDecorations(): void {

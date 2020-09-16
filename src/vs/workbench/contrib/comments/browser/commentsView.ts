@@ -109,7 +109,7 @@ export class CommentsPanel extends ViewPane {
 			content.push(`.comments-panel .comments-panel-container .text code { color: ${codeTextForegroundColor}; }`);
 		}
 
-		styleElement.innerHTML = content.join('\n');
+		styleElement.textContent = content.join('\n');
 	}
 
 	private async renderComments(): Promise<void> {

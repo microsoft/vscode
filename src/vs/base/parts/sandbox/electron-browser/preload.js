@@ -93,6 +93,8 @@
 		process: {
 			platform: process.platform,
 			env: process.env,
+			versions: process.versions,
+
 			_whenEnvResolved: undefined,
 			get whenEnvResolved() {
 				if (!this._whenEnvResolved) {
@@ -101,6 +103,15 @@
 
 				return this._whenEnvResolved;
 			},
+
+			getProcessMemoryInfo:
+				/**
+				 * @returns {Promise<import('electron').ProcessMemoryInfo>}
+				 */
+				function () {
+					return process.getProcessMemoryInfo();
+				},
+
 			on:
 				/**
 				 * @param {string} type

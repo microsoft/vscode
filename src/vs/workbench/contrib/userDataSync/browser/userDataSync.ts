@@ -431,6 +431,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async turnOn(): Promise<void> {
 		try {
+			if (!this.userDataSyncWorkbenchService.authenticationProviders.length) {
+				throw new Error(localize('no authentication providers', "No authentication providers are available."));
+			}
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
 					return;
@@ -478,7 +481,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						return;
 				}
 			}
-			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
+			this.notificationService.error(localize('turn on failed', "Error while starting Settings Sync: {0}", toErrorMessage(e)));
 		}
 	}
 
@@ -673,7 +676,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async switchSyncService(): Promise<void> {
 		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (userDataSyncStore?.insidersUrl && userDataSyncStore?.stableUrl && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
+		if (userDataSyncStore?.canSwitch && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
 			return new Promise<void>((c, e) => {
 				const disposables: DisposableStore = new DisposableStore();
 				const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
@@ -946,7 +949,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): any {
-				return new Promise((c, e) => {
+				return new Promise<void>((c, e) => {
 					const quickInputService = accessor.get(IQuickInputService);
 					const commandService = accessor.get(ICommandService);
 					const disposables = new DisposableStore();
@@ -1117,7 +1120,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerSwitchSyncServiceAction(): void {
 		const that = this;
 		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (userDataSyncStore?.insidersUrl && userDataSyncStore?.stableUrl && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
+		if (userDataSyncStore?.canSwitch && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
 			this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
 				constructor() {
 					super({

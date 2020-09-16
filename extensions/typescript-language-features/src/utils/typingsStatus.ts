@@ -75,7 +75,7 @@ export class AtaProgressReporter extends Disposable {
 
 	private _onBegin(eventId: number): void {
 		const handle = setTimeout(() => this._onEndOrTimeout(eventId), typingsInstallTimeout);
-		const promise = new Promise(resolve => {
+		const promise = new Promise<void>(resolve => {
 			this._promises.set(eventId, () => {
 				clearTimeout(handle);
 				resolve();

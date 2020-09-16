@@ -55,7 +55,7 @@ export class ProxyAuthHandler extends Disposable {
 			skipTaskbar: true,
 			resizable: false,
 			width: 450,
-			height: 220,
+			height: 225,
 			show: true,
 			title: 'VS Code',
 			webPreferences: {
@@ -64,6 +64,7 @@ export class ProxyAuthHandler extends Disposable {
 				contextIsolation: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
+				spellcheck: false,
 				devTools: false
 			}
 		};
@@ -92,9 +93,9 @@ export class ProxyAuthHandler extends Disposable {
 			if (channel === 'vscode:proxyAuthResponse') {
 				const { username, password } = credentials;
 				cb(username, password);
+				win.removeListener('close', onWindowClose);
+				win.close();
 			}
-			win.removeListener('close', onWindowClose);
-			win.close();
 		});
 		win.loadURL(url);
 	}

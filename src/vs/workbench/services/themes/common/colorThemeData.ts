@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as resources from 'vs/base/common/resources';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { ThemeType, ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
+import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
@@ -26,6 +26,7 @@ import { IExtensionResourceLoaderService } from 'vs/workbench/services/extension
 import { CharCode } from 'vs/base/common/charCode';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
 import { ThemeConfiguration } from 'vs/workbench/services/themes/common/themeConfiguration';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
 
@@ -540,17 +541,17 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.id.split(' ')[0];
 	}
 
-	get type(): ThemeType {
+	get type(): ColorScheme {
 		switch (this.baseTheme) {
-			case VS_LIGHT_THEME: return 'light';
-			case VS_HC_THEME: return 'hc';
-			default: return 'dark';
+			case VS_LIGHT_THEME: return ColorScheme.LIGHT;
+			case VS_HC_THEME: return ColorScheme.HIGH_CONTRAST;
+			default: return ColorScheme.DARK;
 		}
 	}
 
 	// constructors
 
-	static createUnloadedThemeForThemeType(themeType: ThemeType, colorMap?: { [id: string]: string }): ColorThemeData {
+	static createUnloadedThemeForThemeType(themeType: ColorScheme, colorMap?: { [id: string]: string }): ColorThemeData {
 		return ColorThemeData.createUnloadedTheme(getThemeTypeSelector(themeType), colorMap);
 	}
 
