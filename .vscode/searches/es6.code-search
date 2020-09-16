@@ -2,40 +2,26 @@
 # Flags: CaseSensitive WordMatch
 # ContextLines: 2
 
-12 results - 4 files
+10 results - 2 files
 
-src/vs/base/browser/dom.ts:
+monaco • src/vs/base/browser/dom.ts:
   83  };
   84  
   85: /** @deprecated ES6 - use classList*/
-  86  export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+  86  export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
   87: /** @deprecated ES6 - use classList*/
-  88  export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+  88  export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
   89: /** @deprecated ES6 - use classList*/
-  90  export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+  90  export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
   91: /** @deprecated ES6 - use classList*/
-  92  export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+  92  export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
   93: /** @deprecated ES6 - use classList*/
-  94  export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+  94  export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
   95: /** @deprecated ES6 - use classList*/
-  96  export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+  96  export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
   97  
 
-src/vs/base/common/arrays.ts:
-  401  
-  402  /**
-  403:  * @deprecated ES6: use `Array.find`
-  404   */
-  405  export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
-
-src/vs/base/common/objects.ts:
-  115  
-  116  /**
-  117:  * @deprecated ES6
-  118   */
-  119  export function assign<T>(destination: T): T;
-
-src/vs/base/common/strings.ts:
+monaco • src/vs/base/common/strings.ts:
    15  
    16  /**
    17:  * @deprecated ES6: use `String.padStart`
