@@ -146,7 +146,7 @@ suite('ContextKeyExpr', () => {
 		}
 		t('a', 'b', 'a && b');
 		t('a || b', 'c', 'a && c || b && c');
-		t('a || b', 'c || d', 'a && c || b && c || a && d || b && d');
+		t('a || b', 'c || d', 'a && c || a && d || b && c || b && d');
 		t('a || b', 'c && d', 'a && c && d || b && c && d');
 		t('a || b', 'c && d || e', 'a && e || b && e || a && c && d || b && c && d');
 	});
