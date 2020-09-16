@@ -40,7 +40,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOSProperties } from 'vs/platform/electron/common/electron';
+import { IOSProperties, IOSStatistics } from 'vs/platform/electron/common/electron';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
@@ -198,8 +198,9 @@ export class TestElectronService implements IElectronService {
 	async showItemInFolder(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
-	async getTotalMem(): Promise<number> { return 0; }
-	async getOS(): Promise<IOSProperties> { return Object.create(null); }
+	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
+	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
+	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }

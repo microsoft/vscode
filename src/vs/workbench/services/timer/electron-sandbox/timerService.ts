@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { virtualMachineHint } from 'vs/base/node/id';
-import * as os from 'os';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -18,6 +16,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IStartupMetrics, AbstractTimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 export class TimerService extends AbstractTimerService {
 
@@ -49,12 +48,18 @@ export class TimerService extends AbstractTimerService {
 
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		try {
-			info.totalmem = os.totalmem();
-			info.freemem = os.freemem();
-			info.platform = os.platform();
-			info.release = os.release();
-			info.arch = os.arch();
-			info.loadavg = os.loadavg();
+			const [osProperties, osStatistics, virtualMachineHint] = await Promise.all([
+				this._electronService.getOSProperties(),
+				this._electronService.getOSStatistics(),
+				this._electronService.getOSVirtualMachineHint()
+			]);
+
+			info.totalmem = osStatistics.totalmem;
+			info.freemem = osStatistics.freemem;
+			info.platform = osProperties.platform;
+			info.release = osProperties.release;
+			info.arch = osProperties.arch;
+			info.loadavg = osStatistics.loadavg;
 
 			const processMemoryInfo = await process.getProcessMemoryInfo();
 			info.meminfo = {
@@ -63,9 +68,9 @@ export class TimerService extends AbstractTimerService {
 				sharedBytes: processMemoryInfo.shared
 			};
 
-			info.isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
+			info.isVMLikelyhood = Math.round((virtualMachineHint * 100));
 
-			const rawCpus = os.cpus();
+			const rawCpus = osProperties.cpus;
 			if (rawCpus && rawCpus.length > 0) {
 				info.cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
 			}
@@ -78,8 +83,12 @@ export class TimerService extends AbstractTimerService {
 //#region cached data logic
 
 export function didUseCachedData(): boolean {
+	// TODO@Ben TODO@Jo need a different way to figure out if cached data was used
+	if (context.sandbox) {
+		return true;
+	}
 	// We surely don't use cached data when we don't tell the loader to do so
-	if (!Boolean((<any>global).require.getConfig().nodeCachedData)) {
+	if (!Boolean((<any>window).require.getConfig().nodeCachedData)) {
 		return false;
 	}
 	// There are loader events that signal if cached data was missing, rejected,

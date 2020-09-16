@@ -45,7 +45,6 @@ import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remot
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { AbstractTimerService, IStartupMetrics, ITimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
@@ -761,20 +760,6 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 }
 
 registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
-
-//#endregion
-
-
-//#region Timer
-
-class SimpleTimerService extends AbstractTimerService {
-	protected _isInitialStartup(): boolean { return true; }
-	protected _didUseCachedData(): boolean { return false; }
-	protected async _getWindowCount(): Promise<number> { return 1; }
-	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> { }
-}
-
-registerSingleton(ITimerService, SimpleTimerService);
 
 //#endregion
 

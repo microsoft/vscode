@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ProcessMemoryInfo } from 'vs/base/parts/sandbox/common/electronTypes';
+
 export const ipcRenderer = (window as any).vscode.ipcRenderer as {
 
 	/**
@@ -94,6 +96,21 @@ export const process = (window as any).vscode.process as {
 	 * A listener on the process. Only a small subset of listener types are allowed.
 	 */
 	on: (type: string, callback: Function) => void;
+
+	/**
+	 * Resolves with a ProcessMemoryInfo
+	 *
+	 * Returns an object giving memory usage statistics about the current process. Note
+	 * that all statistics are reported in Kilobytes. This api should be called after
+	 * app ready.
+	 *
+	 * Chromium does not provide `residentSet` value for macOS. This is because macOS
+	 * performs in-memory compression of pages that haven't been recently used. As a
+	 * result the resident set size value is not what one would expect. `private`
+	 * memory is more representative of the actual pre-compression memory usage of the
+	 * process on macOS.
+	 */
+	getProcessMemoryInfo: () => ProcessMemoryInfo;
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.

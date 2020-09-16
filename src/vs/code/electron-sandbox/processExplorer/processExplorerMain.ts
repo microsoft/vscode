@@ -293,13 +293,13 @@ class ProcessExplorer {
 		container.append(tableHead);
 
 		const hasMultipleMachines = Object.keys(processLists).length > 1;
-		const totalMem = await this.electronService.getTotalMem();
+		const { totalmem } = await this.electronService.getOSStatistics();
 		processLists.forEach((remote, i) => {
 			const isLocal = i === 0;
 			if (isRemoteDiagnosticError(remote.rootProcess)) {
 				this.renderProcessFetchError(remote.name, remote.rootProcess.errorMessage);
 			} else {
-				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalMem), hasMultipleMachines, isLocal);
+				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalmem), hasMultipleMachines, isLocal);
 			}
 		});
 	}

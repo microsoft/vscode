@@ -60,13 +60,10 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
-import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
-import { TimerService } from 'vs/workbench/services/timer/electron-browser/timerService';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 registerSingleton(ITunnelService, TunnelService);
-registerSingleton(ITimerService, TimerService);
 registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 
 //#endregion
