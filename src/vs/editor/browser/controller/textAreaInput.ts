@@ -272,7 +272,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceComposition(e.data);
+			const [newState] = deduceComposition(e.data);
 			this._textAreaState = newState;
 			this._onCompositionUpdate.fire(e);
 		}));
