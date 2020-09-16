@@ -27,7 +27,6 @@ import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/se
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -90,7 +89,7 @@ export class NotebookEditor extends EditorPane {
 	}
 
 	get scopedContextKeyService(): IContextKeyService | undefined {
-		return this._widget.value?.contextKeyService;
+		return this._widget.value?.scopedContextKeyService;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
