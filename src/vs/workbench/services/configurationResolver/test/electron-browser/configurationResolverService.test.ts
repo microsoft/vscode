@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import { normalize } from 'vs/base/common/path';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
@@ -655,7 +655,7 @@ class MockQuickInputService implements IQuickInputService {
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
 	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined; }): string {
-		return path.normalize(resource.fsPath);
+		return normalize(resource.fsPath);
 	}
 	getUriBasenameLabel(resource: uri): string {
 		throw new Error('Method not implemented.');

@@ -676,7 +676,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private async switchSyncService(): Promise<void> {
 		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (userDataSyncStore?.insidersUrl && userDataSyncStore?.stableUrl && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
+		if (userDataSyncStore?.canSwitch && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
 			return new Promise<void>((c, e) => {
 				const disposables: DisposableStore = new DisposableStore();
 				const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
@@ -1120,7 +1120,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	private registerSwitchSyncServiceAction(): void {
 		const that = this;
 		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (userDataSyncStore?.insidersUrl && userDataSyncStore?.stableUrl && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
+		if (userDataSyncStore?.canSwitch && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
 			this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
 				constructor() {
 					super({

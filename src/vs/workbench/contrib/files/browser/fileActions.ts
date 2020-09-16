@@ -10,7 +10,6 @@ import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
@@ -49,6 +48,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { once } from 'vs/base/common/functional';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
+import { trim, rtrim } from 'vs/base/common/strings';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -375,8 +375,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g2);
 			return number < maxNumber
-				? g1 + strings.pad(number + 1, g2.length) + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+				? g1 + String(number + 1).padStart(g2.length, '0') + g3
+				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
@@ -386,8 +386,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2 + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+				? String(number + 1).padStart(g1.length, '0') + g2 + g3
+				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
@@ -397,15 +397,15 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2
-				: strings.format('{0}.1{1}', g1, g2);
+				? String(number + 1).padStart(g1.length, '0') + g2
+				: `${g1}.1${g2}`;
 		});
 	}
 
 	// file.txt=>file.1.txt
 	const lastIndexOfDot = name.lastIndexOf('.');
 	if (!isFolder && lastIndexOfDot >= 0) {
-		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
+		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
 	}
 
 	// folder.1=>folder.2
@@ -413,8 +413,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/(\d+)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length)
-				: strings.format('{0}.1', groups[0]);
+				? String(number + 1).padStart(groups[0].length, '0')
+				: `${groups[0]}.1`;
 		});
 	}
 
@@ -423,13 +423,13 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length) + groups[1]
-				: strings.format('{0}{1}.1', groups[0], groups[1]);
+				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
+				: `${groups[0]}${groups[1]}.1`;
 		});
 	}
 
 	// file/folder=>file.1/folder.1
-	return strings.format('{0}.1', name);
+	return `${name}.1`;
 }
 
 // Global Compare with
@@ -781,12 +781,12 @@ export function getWellFormedFileName(filename: string): string {
 	}
 
 	// Trim tabs
-	filename = strings.trim(filename, '\t');
+	filename = trim(filename, '\t');
 
 	// Remove trailing dots and slashes
-	filename = strings.rtrim(filename, '.');
-	filename = strings.rtrim(filename, '/');
-	filename = strings.rtrim(filename, '\\');
+	filename = rtrim(filename, '.');
+	filename = rtrim(filename, '/');
+	filename = rtrim(filename, '\\');
 
 	return filename;
 }

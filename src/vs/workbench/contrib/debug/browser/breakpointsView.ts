@@ -37,6 +37,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const $ = dom.$;
 
@@ -76,7 +77,8 @@ export class BreakpointsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
@@ -133,7 +135,7 @@ export class BreakpointsView extends ViewPane {
 			const element = this.list.element(e.element);
 
 			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, this.debugService, this.editorService);
+				openBreakpointSource(element, e.sideBySide, e.editorOptions.preserveFocus || false, this.debugService, this.editorService, this.uriIdentityService);
 			}
 			if (e.browserEvent instanceof MouseEvent && e.browserEvent.detail === 2 && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				// double click
@@ -192,7 +194,7 @@ export class BreakpointsView extends ViewPane {
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), '', true, async () => {
 				if (element instanceof Breakpoint) {
-					const editor = await openBreakpointSource(element, false, false, this.debugService, this.editorService);
+					const editor = await openBreakpointSource(element, false, false, this.debugService, this.editorService, this.uriIdentityService);
 					if (editor) {
 						const codeEditor = editor.getControl();
 						if (isCodeEditor(codeEditor)) {
@@ -671,7 +673,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 	}
 }
 
-export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): Promise<IEditorPane | undefined> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService, uriIdentityService: IUriIdentityService): Promise<IEditorPane | undefined> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return Promise.resolve(undefined);
 	}
@@ -689,7 +691,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 		};
 
 	return editorService.openEditor({
-		resource: breakpoint.uri,
+		resource: uriIdentityService.asCanonicalUri(breakpoint.uri),
 		options: {
 			preserveFocus,
 			selection,

@@ -88,7 +88,7 @@ class CodeLensContentWidget implements IContentWidget {
 			}
 			hasSymbol = true;
 			if (lens.command) {
-				const title = renderCodicons(lens.command.title);
+				const title = renderCodicons(lens.command.title.trim());
 				if (lens.command.id) {
 					children.push(dom.$('a', { id: String(i) }, ...title));
 					this._commands.set(String(i), lens.command);

@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -25,7 +24,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { writeFile } from 'vs/base/node/pfs';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
@@ -40,13 +38,15 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { renderCodicons } from 'vs/base/browser/codicons';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Schemas } from 'vs/base/common/network';
-import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
+import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -126,7 +126,8 @@ export class RuntimeExtensionsEditor extends EditorPane {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IElectronService private readonly _electronService: IElectronService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -352,7 +353,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService), { icon: true, label: true });
+					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService, this._electronService), { icon: true, label: true });
 				}
 
 				let title: string;
@@ -467,7 +468,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
-			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService));
+			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService, this._electronService));
 			actions.push(new Separator());
 
 			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
@@ -522,10 +523,10 @@ export class ReportExtensionIssueAction extends Action {
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
 	private static readonly _label = nls.localize('reportExtensionIssue', "Report Issue");
 
-	private readonly _url: string;
+	private _url: string | undefined;
 
 	constructor(
-		extension: {
+		private extension: {
 			description: IExtensionDescription;
 			marketplaceInfo: IExtension;
 			status?: IExtensionsStatus;
@@ -533,26 +534,28 @@ export class ReportExtensionIssueAction extends Action {
 		},
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === ExtensionType.User
 			&& !!extension.description.repository && !!extension.description.repository.url;
-
-		this._url = this._generateNewIssueUrl(extension);
 	}
 
 	async run(): Promise<void> {
+		if (!this._url) {
+			this._url = await this._generateNewIssueUrl(this.extension);
+		}
 		this.openerService.open(URI.parse(this._url));
 	}
 
-	private _generateNewIssueUrl(extension: {
+	private async _generateNewIssueUrl(extension: {
 		description: IExtensionDescription;
 		marketplaceInfo: IExtension;
 		status?: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
-	}): string {
+	}): Promise<string> {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
@@ -565,7 +568,8 @@ export class ReportExtensionIssueAction extends Action {
 		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
 		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+		const os = await this.electronService.getOSProperties();
+		const osVersion = `${os.type} ${os.arch} ${os.release}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- Issue Type: \`${reason}\`
@@ -665,6 +669,7 @@ export class SaveExtensionHostProfileAction extends Action {
 		@IElectronService private readonly _electronService: IElectronService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super(id, label, undefined, false);
 		this._extensionHostProfileService.onDidChangeLastProfile(() => {
@@ -709,7 +714,7 @@ export class SaveExtensionHostProfileAction extends Action {
 			savePath = savePath + '.txt';
 		}
 
-		return writeFile(savePath, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
+		return this._fileService.writeFile(URI.file(savePath), VSBuffer.fromString(JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t')));
 	}
 }
 

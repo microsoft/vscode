@@ -31,8 +31,9 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleRemoteAuthorityResolverService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 
 class DesktopMain extends Disposable {
 
@@ -159,7 +160,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
-		const remoteAuthorityResolverService = new SimpleRemoteAuthorityResolverService();
+		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Sign

@@ -179,11 +179,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		} else {
 			data.separator.style.display = 'none';
 		}
-		if (element.separator) {
-			dom.addClass(data.entry, 'quick-input-list-separator-border');
-		} else {
-			dom.removeClass(data.entry, 'quick-input-list-separator-border');
-		}
+		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
 
 		// Actions
 		data.actionBar.clear();
@@ -204,9 +200,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
-			dom.addClass(data.entry, 'has-actions');
+			data.entry.classList.add('has-actions');
 		} else {
-			dom.removeClass(data.entry, 'has-actions');
+			data.entry.classList.remove('has-actions');
 		}
 	}
 

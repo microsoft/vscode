@@ -12,7 +12,6 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { Event } from 'vs/base/common/event';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
@@ -46,7 +45,6 @@ import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remot
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { AbstractTimerService, IStartupMetrics, ITimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
@@ -437,19 +435,6 @@ export class SimpleResourceIdentityService implements IResourceIdentityService {
 
 //#region Remote
 
-export class SimpleRemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeConnectionData: Event<void> = Event.None;
-	resolveAuthority(authority: string): Promise<ResolverResult> { throw new Error('Method not implemented.'); }
-	getConnectionData(authority: string): IRemoteConnectionData | null { return null; }
-	_clearResolvedAuthority(authority: string): void { }
-	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void { }
-	_setResolvedAuthorityError(authority: string, err: any): void { }
-	_setAuthorityConnectionToken(authority: string, connectionToken: string): void { }
-}
-
 export class SimpleRemoteAgentService implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
@@ -775,20 +760,6 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 }
 
 registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
-
-//#endregion
-
-
-//#region Timer
-
-class SimpleTimerService extends AbstractTimerService {
-	protected _isInitialStartup(): boolean { return true; }
-	protected _didUseCachedData(): boolean { return false; }
-	protected async _getWindowCount(): Promise<number> { return 1; }
-	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> { }
-}
-
-registerSingleton(ITimerService, SimpleTimerService);
 
 //#endregion
 

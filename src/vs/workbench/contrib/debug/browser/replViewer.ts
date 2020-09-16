@@ -23,6 +23,7 @@ import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugCon
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const $ = dom.$;
 
@@ -138,7 +139,8 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		private readonly linkDetector: LinkDetector,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) { }
 
 	get templateId(): string {
@@ -159,7 +161,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 			e.stopPropagation();
 			const source = data.getReplElementSource();
 			if (source) {
-				source.source.openInEditor(this.editorService, {
+				source.source.openInEditor(this.editorService, this.uriIdentityService, {
 					startLineNumber: source.lineNumber,
 					startColumn: source.column,
 					endLineNumber: source.lineNumber,
