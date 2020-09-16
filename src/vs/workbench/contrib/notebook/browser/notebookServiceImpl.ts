@@ -27,7 +27,7 @@ import { NotebookKernelProviderAssociationRegistry, NotebookViewTypesExtensionRe
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellEditType, CellKind, CellOutputKind, DisplayOrderKey, ICellEditOperation, IDisplayOutput, INotebookDecorationRenderOptions, INotebookKernelInfo2, INotebookKernelProvider, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellOutputsSplice, notebookDocumentFilterMatch, NotebookEditorPriority, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -261,6 +261,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private _lastClipboardIsCopy: boolean = true;
 
 	private _displayOrder: { userOrder: string[], defaultOrder: string[] } = Object.create(null);
+	private readonly _decorationOptionProviders = new Map<string, INotebookDecorationRenderOptions>();
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -517,6 +518,24 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			});
 		}
 
+	}
+
+	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void {
+		if (this._decorationOptionProviders.has(key)) {
+			return;
+		}
+
+		this._decorationOptionProviders.set(key, options);
+	}
+
+	removeEditorDecorationType(key: string): void {
+		this._decorationOptionProviders.delete(key);
+
+		this.listNotebookEditors().forEach(editor => editor.removeEditorDecorations(key));
+	}
+
+	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined {
+		return this._decorationOptionProviders.get(key);
 	}
 
 	getViewTypes(): ICustomEditorInfo[] {

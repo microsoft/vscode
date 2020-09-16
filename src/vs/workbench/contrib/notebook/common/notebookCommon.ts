@@ -24,6 +24,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRange } from 'vs/editor/common/core/range';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export enum CellKind {
 	Markdown = 1,
@@ -882,4 +883,10 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const enum CellStatusbarAlignment {
 	LEFT,
 	RIGHT
+}
+
+export interface INotebookDecorationRenderOptions {
+	backgroundColor?: string | ThemeColor;
+	borderColor?: string | ThemeColor;
+	top?: editorCommon.IContentDecorationRenderOptions;
 }

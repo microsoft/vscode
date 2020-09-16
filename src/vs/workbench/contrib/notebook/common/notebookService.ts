@@ -10,7 +10,7 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Event } from 'vs/base/common/event';
 import {
 	INotebookTextModel, INotebookRendererInfo,
-	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions
+	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -78,5 +78,7 @@ export interface INotebookService {
 	listNotebookEditors(): readonly IEditor[];
 	listVisibleNotebookEditors(): readonly IEditor[];
 	listNotebookDocuments(): readonly NotebookTextModel[];
-
+	registerEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	removeEditorDecorationType(key: string): void;
+	resolveEditorDecorationOptions(key: string): INotebookDecorationRenderOptions | undefined;
 }

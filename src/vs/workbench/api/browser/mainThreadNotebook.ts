@@ -18,7 +18,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -645,6 +645,22 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				default:
 					break;
 			}
+		}
+	}
+
+	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions) {
+		this._notebookService.registerEditorDecorationType(key, options);
+	}
+
+	$removeNotebookEditorDecorationType(key: string) {
+		this._notebookService.removeEditorDecorationType(key);
+	}
+
+	$trySetDecorations(id: string, range: ICellRange, key: string) {
+		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id);
+		if (editor && editor.isNotebookEditor) {
+			const notebookEditor = editor as INotebookEditor;
+			notebookEditor.setEditorDecorations(key, range);
 		}
 	}
 

@@ -438,6 +438,9 @@ export interface INotebookEditor extends IEditor {
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
+	setEditorDecorations(key: string, range: ICellRange): void;
+	removeEditorDecorations(key: string): void;
+
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
@@ -515,6 +518,7 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
+	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
 	collapsedPart: HTMLElement;
 	expandButton: HTMLElement;

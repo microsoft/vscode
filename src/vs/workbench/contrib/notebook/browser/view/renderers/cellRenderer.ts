@@ -418,6 +418,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
+			rootContainer,
 			collapsedPart,
 			expandButton,
 			contextKeyService,
@@ -471,6 +472,17 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+		const removedClassNames: string[] = [];
+		templateData.rootContainer.classList.forEach(className => {
+			if (/^nb\-.*$/.test(className)) {
+				removedClassNames.push(className);
+			}
+		});
+
+		removedClassNames.forEach(className => {
+			templateData.rootContainer.classList.remove(className);
+		});
+
 		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
@@ -700,6 +712,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
+			rootContainer,
 			editorPart,
 			collapsedPart,
 			expandButton,
@@ -808,14 +821,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		const removedClassNames: string[] = [];
-		templateData.container.classList.forEach(className => {
+		templateData.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
 				removedClassNames.push(className);
 			}
 		});
 
 		removedClassNames.forEach(className => {
-			templateData.container.classList.remove(className);
+			templateData.rootContainer.classList.remove(className);
 		});
 
 		this.commonRenderElement(element, templateData);
