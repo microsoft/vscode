@@ -41,6 +41,7 @@ import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { homedir } from 'os';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -238,6 +239,7 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 	});
 
 	instantiationService.stub(INativeHostService, new TestNativeHostService());
+	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
 
 	return instantiationService;
 }
@@ -263,7 +265,7 @@ export class TestNativePathService extends TestPathService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
-		super(environmentService.userHome);
+	constructor() {
+		super(URI.file(homedir()));
 	}
 }
