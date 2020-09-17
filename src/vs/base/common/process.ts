@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isMacintosh, setImmediate, IProcessEnvironment } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, setImmediate, IProcessEnvironment, globals } from 'vs/base/common/platform';
 
-interface IProcess {
-	platform: string;
+export interface IProcess {
+	platform: 'win32' | 'linux' | 'darwin';
 	env: IProcessEnvironment;
 
 	cwd(): string;
@@ -14,12 +14,28 @@ interface IProcess {
 }
 
 declare const process: IProcess;
-const safeProcess: IProcess = (typeof process === 'undefined') ? {
-	cwd(): string { return '/'; },
-	env: Object.create(null),
-	get platform(): string { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
-	nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
-} : process;
+
+let safeProcess: IProcess;
+
+// Native node.js environment
+if (typeof process !== 'undefined') {
+	safeProcess = process;
+}
+
+// Native sandbox environment
+else if (typeof globals.vscode !== 'undefined') {
+	safeProcess = globals.vscode.process;
+}
+
+// Web environment
+else {
+	safeProcess = {
+		cwd(): string { return '/'; },
+		env: Object.create(null),
+		get platform(): 'win32' | 'linux' | 'darwin' { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
+		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
+	};
+}
 
 export const cwd = safeProcess.cwd;
 export const env = safeProcess.env;

@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ProcessMemoryInfo } from 'vs/base/parts/sandbox/common/electronTypes';
+import type { ProcessMemoryInfo } from 'vs/base/parts/sandbox/common/electronTypes';
+import type { IProcess } from 'vs/base/common/process';
+import { globals } from 'vs/base/common/platform';
 
-export const ipcRenderer = (window as any).vscode.ipcRenderer as {
+export const ipcRenderer = globals.vscode.ipcRenderer as {
 
 	/**
 	 * Listens to `channel`, when a new message arrives `listener` would be called with
@@ -41,7 +43,7 @@ export const ipcRenderer = (window as any).vscode.ipcRenderer as {
 	send(channel: string, ...args: any[]): void;
 };
 
-export const webFrame = (window as any).vscode.webFrame as {
+export const webFrame = globals.vscode.webFrame as {
 
 	/**
 	 * Changes the zoom level to the specified level. The original size is 0 and each
@@ -51,7 +53,7 @@ export const webFrame = (window as any).vscode.webFrame as {
 	setZoomLevel(level: number): void;
 };
 
-export const crashReporter = (window as any).vscode.crashReporter as {
+export const crashReporter = globals.vscode.crashReporter as {
 
 	/**
 	 * Set an extra parameter to be sent with the crash report. The values specified
@@ -73,7 +75,7 @@ export const crashReporter = (window as any).vscode.crashReporter as {
 	addExtraParameter(key: string, value: string): void;
 };
 
-export const process = (window as any).vscode.process as {
+export const process = globals.vscode.process as IProcess & {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
@@ -87,10 +89,22 @@ export const process = (window as any).vscode.process as {
 	env: { [key: string]: string | undefined };
 
 	/**
+	 * The current working directory.
+	 */
+	cwd(): string;
+
+	/**
 	 * Allows to await resolving the full process environment by checking for the shell environment
 	 * of the OS in certain cases (e.g. when the app is started from the Dock on macOS).
 	 */
 	whenEnvResolved(): Promise<void>;
+
+	/**
+	 * Adds callback to the "next tick queue". This queue is fully drained
+	 * after the current operation on the JavaScript stack runs to completion
+	 * and before the event loop is allowed to continue.
+	 */
+	nextTick(callback: (...args: any[]) => void, ...args: any[]): void;
 
 	/**
 	 * A listener on the process. Only a small subset of listener types are allowed.
@@ -118,7 +132,7 @@ export const process = (window as any).vscode.process as {
 	versions: { [key: string]: string | undefined };
 };
 
-export const context = (window as any).vscode.context as {
+export const context = globals.vscode.context as {
 
 	/**
 	 * Wether the renderer runs with `sandbox` enabled or not.

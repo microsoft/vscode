@@ -115,6 +115,27 @@
 					return this._whenEnvResolved;
 				},
 
+			nextTick:
+				/**
+				 * Adds callback to the "next tick queue". This queue is fully drained
+				 * after the current operation on the JavaScript stack runs to completion
+				 * and before the event loop is allowed to continue.
+				 *
+				 * @param {Function} callback
+				 * @param {any[]} args
+				 */
+				function nextTick(callback, ...args) {
+					return process.nextTick(callback, ...args);
+				},
+
+			cwd:
+				/**
+				 * @returns the current working directory.
+				 */
+				function () {
+					return process.cwd();
+				},
+
 			getProcessMemoryInfo:
 				/**
 				 * @returns {Promise<import('electron').ProcessMemoryInfo>}
