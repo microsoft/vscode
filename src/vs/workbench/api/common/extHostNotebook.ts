@@ -334,7 +334,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		const supportBackup = !!provider.backupNotebook;
 
 		const viewOptionsFilenamePattern = typeConverters.NotebookExclusiveDocumentPattern.from(options?.viewOptions?.filenamePattern);
-		console.warn(`Notebook content provider view options file name pattern is valid ${options?.viewOptions?.filenamePattern}`);
+		if (!viewOptionsFilenamePattern) {
+			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
+		}
 
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation, description: extension.description }, viewType, supportBackup, {
 			transientOutputs: options?.transientOutputs || false,
