@@ -36,3 +36,4 @@ However, within this extension, you can run a development version of `vscode-jso
 - Open both `vscode-json-languageservice` and this extension in a single workspace with [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
 - Run `yarn watch` at `json-languagefeatures/server/` to recompile this extension with the linked version of `vscode-json-languageservice`
 - Make some changes in `vscode-json-languageservice`
+- Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-json-languageservice`. You can interactively test the language features.
