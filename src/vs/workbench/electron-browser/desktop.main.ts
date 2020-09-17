@@ -48,7 +48,8 @@ import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
-import { INativeHostService, NativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 
 class DesktopMain extends Disposable {
 

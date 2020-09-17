@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { NativeHostService, INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';

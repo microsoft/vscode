@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { NativeHostService, INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';

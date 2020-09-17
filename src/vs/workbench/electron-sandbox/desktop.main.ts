@@ -30,7 +30,8 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
-import { INativeHostService, NativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
 import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
