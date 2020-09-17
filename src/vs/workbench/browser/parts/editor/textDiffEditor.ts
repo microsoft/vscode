@@ -67,10 +67,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			return undefined;
 		}
 
-		const useEditor = control.getOriginalEditor().hasTextFocus() ?
+		return (control.getOriginalEditor().hasTextFocus() ?
 			control.getOriginalEditor() :
-			control.getModifiedEditor();
-		return useEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService));
+			control.getModifiedEditor()).invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
 
 	getTitle(): string {
