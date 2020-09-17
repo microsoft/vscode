@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
@@ -137,7 +137,17 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	public getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
-		return undefined;
+		// use theme rules match
+		const style = this.tokenTheme._match([type].concat(modifiers).join('.'));
+		const metadata = style.metadata;
+		const foreground = TokenMetadata.getForeground(metadata);
+		const fontStyle = TokenMetadata.getFontStyle(metadata);
+		return {
+			foreground: foreground,
+			italic: Boolean(fontStyle & FontStyle.Italic),
+			bold: Boolean(fontStyle & FontStyle.Bold),
+			underline: Boolean(fontStyle & FontStyle.Underline)
+		};
 	}
 
 	public get tokenColorMap(): string[] {
