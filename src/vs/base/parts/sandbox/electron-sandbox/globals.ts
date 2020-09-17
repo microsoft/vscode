@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ProcessMemoryInfo } from 'vs/base/parts/sandbox/common/electronTypes';
-import type { IProcess } from 'vs/base/common/process';
-import { globals } from 'vs/base/common/platform';
+import { globals, INodeProcess } from 'vs/base/common/platform';
 
 export const ipcRenderer = globals.vscode.ipcRenderer as {
 
@@ -75,7 +74,7 @@ export const crashReporter = globals.vscode.crashReporter as {
 	addExtraParameter(key: string, value: string): void;
 };
 
-export const process = globals.vscode.process as IProcess & {
+export const process = globals.vscode.process as INodeProcess & {
 
 	/**
 	 * The process.platform property returns a string identifying the operating system platform
@@ -84,7 +83,17 @@ export const process = globals.vscode.process as IProcess & {
 	platform: 'win32' | 'linux' | 'darwin';
 
 	/**
-	 * The process.env property returns an object containing the user environment. See environ(7).
+	 * The type will always be Electron renderer.
+	 */
+	type: 'renderer';
+
+	/**
+	 * A list of versions for the current node.js/electron configuration.
+	 */
+	versions: { [key: string]: string | undefined };
+
+	/**
+	 * The process.env property returns an object containing the user environment.
 	 */
 	env: { [key: string]: string | undefined };
 
@@ -92,6 +101,11 @@ export const process = globals.vscode.process as IProcess & {
 	 * The current working directory.
 	 */
 	cwd(): string;
+
+	/**
+	 * Returns the numeric user identity of the process.
+	 */
+	getuid(): number;
 
 	/**
 	 * Allows to await resolving the full process environment by checking for the shell environment
@@ -125,11 +139,6 @@ export const process = globals.vscode.process as IProcess & {
 	 * process on macOS.
 	 */
 	getProcessMemoryInfo: () => Promise<ProcessMemoryInfo>;
-
-	/**
-	 * A list of versions for the current node.js/electron configuration.
-	 */
-	versions: { [key: string]: string | undefined };
 };
 
 export const context = globals.vscode.context as {

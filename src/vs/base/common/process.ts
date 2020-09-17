@@ -3,19 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows, isMacintosh, setImmediate, IProcessEnvironment, globals } from 'vs/base/common/platform';
+import { isWindows, isMacintosh, setImmediate, globals, INodeProcess } from 'vs/base/common/platform';
 
-export interface IProcess {
-	platform: 'win32' | 'linux' | 'darwin';
-	env: IProcessEnvironment;
+declare const process: INodeProcess;
 
-	cwd(): string;
-	nextTick(callback: (...args: any[]) => void): void;
-}
-
-declare const process: IProcess;
-
-let safeProcess: IProcess;
+let safeProcess: INodeProcess;
 
 // Native node.js environment
 if (typeof process !== 'undefined') {
@@ -30,10 +22,15 @@ else if (typeof globals.vscode !== 'undefined') {
 // Web environment
 else {
 	safeProcess = {
-		cwd(): string { return '/'; },
-		env: Object.create(null),
+
+		// Supported
 		get platform(): 'win32' | 'linux' | 'darwin' { return isWindows ? 'win32' : isMacintosh ? 'darwin' : 'linux'; },
-		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); }
+		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
+
+		// Unsupported
+		get env() { return Object.create(null); },
+		cwd(): string { return '/'; },
+		getuid(): number { return -1; }
 	};
 }
 

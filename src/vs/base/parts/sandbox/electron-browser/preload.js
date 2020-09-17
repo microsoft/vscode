@@ -98,9 +98,10 @@
 		 * Support for a subset of access to node.js global `process`.
 		 */
 		process: {
-			platform: process.platform,
-			env: process.env,
-			versions: process.versions,
+			get platform() { return process.platform; },
+			get env() { return process.env; },
+			get versions() { return process.versions; },
+			get type() { return 'renderer'; },
 
 			_whenEnvResolved: undefined,
 			whenEnvResolved:
@@ -136,6 +137,14 @@
 					return process.cwd();
 				},
 
+			getuid:
+				/**
+				 * @returns the numeric user identity of the process
+				 */
+				function () {
+					return process.getuid();
+				},
+
 			getProcessMemoryInfo:
 				/**
 				 * @returns {Promise<import('electron').ProcessMemoryInfo>}
@@ -160,7 +169,7 @@
 		 * Some information about the context we are running in.
 		 */
 		context: {
-			sandbox: process.argv.includes('--enable-sandbox')
+			get sandbox() { return process.argv.includes('--enable-sandbox'); }
 		}
 	};
 
