@@ -32,8 +32,7 @@ export class CodeActionItem {
 	) { }
 
 	async resolve(token: CancellationToken): Promise<this> {
-		// TODO@jrieken when is an item resolved already?
-		if (this.provider?.resolveCodeAction && !this.action.edit && !this.action.command) {
+		if (this.provider?.resolveCodeAction && !this.action.edit) {
 			let action: modes.CodeAction | undefined | null;
 			try {
 				action = await this.provider.resolveCodeAction(this.action, token);
