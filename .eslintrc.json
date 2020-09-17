@@ -521,8 +521,8 @@
                     "vscode-textmate",
                     "vscode-oniguruma",
                     "iconv-lite-umd",
-					"semver-umd",
-					"tas-client-umd"
+                    "semver-umd",
+                    "tas-client-umd"
                 ]
             },
             {
