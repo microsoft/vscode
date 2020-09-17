@@ -30,6 +30,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
@@ -47,6 +48,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private cachedFolderConfigs: ResourceMap<FolderConfiguration>;
 	private workspaceEditingQueue: Queue<void>;
 
+	private readonly logService: ILogService;
 	private readonly fileService: IFileService;
 
 	protected readonly _onDidChangeConfiguration: Emitter<IConfigurationChangeEvent> = this._register(new Emitter<IConfigurationChangeEvent>());
@@ -71,7 +73,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		{ remoteAuthority, configurationCache }: { remoteAuthority?: string, configurationCache: IConfigurationCache },
 		environmentService: IWorkbenchEnvironmentService,
 		fileService: IFileService,
-		remoteAgentService: IRemoteAgentService
+		remoteAgentService: IRemoteAgentService,
+		logService: ILogService,
 	) {
 		super();
 
@@ -86,6 +89,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.defaultConfiguration = new DefaultConfigurationModel();
 		this.configurationCache = configurationCache;
 		this.fileService = fileService;
+		this.logService = logService;
 		this._configuration = new Configuration(this.defaultConfiguration, new ConfigurationModel(), new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), this.workspace);
 		this.cachedFolderConfigs = new ResourceMap<FolderConfiguration>();
 		this.localUserConfiguration = this._register(new UserConfiguration(environmentService.settingsResource, remoteAuthority ? LOCAL_MACHINE_SCOPES : undefined, fileService));
@@ -639,6 +643,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		}
 	}
 
+	// Filter out workspace folders which are files (not directories)
+	// Workspace folders those cannot be resolved are not filtered because they are handled by the Explorer.
 	private async toValidWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<WorkspaceFolder[]> {
 		const validWorkspaceFolders: WorkspaceFolder[] = [];
 		for (const workspaceFolder of workspaceFolders) {
@@ -647,7 +653,10 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 				if (!result.isDirectory) {
 					continue;
 				}
-			} catch (e) { /* Ignore */ }
+			} catch (e) {
+				// Ignore Error
+				this.logService.error(e);
+			}
 			validWorkspaceFolders.push(workspaceFolder);
 		}
 		return validWorkspaceFolders;
