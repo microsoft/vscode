@@ -8,7 +8,8 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 
-export class DiagnosticsService {
+// @ts-ignore: interface is implemented via proxy
+export class DiagnosticsService implements IDiagnosticsService {
 
 	declare readonly _serviceBrand: undefined;
 
