@@ -499,7 +499,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 			quickPick.title = SYNC_TITLE;
 			quickPick.ok = false;
-			quickPick.placeholder = localize('choose account placeholder', "Select an account");
+			quickPick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 			quickPick.ignoreFocusOut = true;
 			quickPick.items = this.createQuickpickItems();
 
