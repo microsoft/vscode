@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
@@ -58,7 +58,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	...parseArgs(process.argv, OPTIONS)
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;

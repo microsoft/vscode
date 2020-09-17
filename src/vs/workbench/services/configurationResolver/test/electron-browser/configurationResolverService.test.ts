@@ -13,7 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { Workspace, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -719,6 +719,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWorkbenchConfiguration, userEnv });
+		super({ ...TestWorkbenchConfiguration, userEnv }, TestProductService);
 	}
 }

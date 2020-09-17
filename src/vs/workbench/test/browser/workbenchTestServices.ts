@@ -308,7 +308,9 @@ class TestEnvironmentServiceWithArgs extends BrowserWorkbenchEnvironmentService 
 	args = [];
 }
 
-export const TestEnvironmentService = new TestEnvironmentServiceWithArgs(Object.create(null));
+export const TestProductService = { _serviceBrand: undefined, ...product };
+
+export const TestEnvironmentService = new TestEnvironmentServiceWithArgs(Object.create(null), TestProductService);
 
 export class TestProgressService implements IProgressService {
 

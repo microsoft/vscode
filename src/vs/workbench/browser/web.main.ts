@@ -161,13 +161,13 @@ class BrowserMain extends Disposable {
 
 		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
 
-		// Environment
-		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration });
-		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
-
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product, ...this.configuration.productConfiguration };
 		serviceCollection.set(IProductService, productService);
+
+		// Environment
+		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration }, productService);
+		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(this.configuration.resourceUriProvider);

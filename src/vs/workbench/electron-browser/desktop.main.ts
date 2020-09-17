@@ -52,7 +52,8 @@ import { IElectronService, ElectronService } from 'vs/platform/electron/electron
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration);
+	private readonly productService: IProductService = { _serviceBrand: undefined, ...product };
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.productService);
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
@@ -175,8 +176,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		serviceCollection.set(IProductService, productService);
+		serviceCollection.set(IProductService, this.productService);
 
 		// Log
 		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
@@ -191,7 +191,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, productService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, this.productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Electron

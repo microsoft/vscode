@@ -20,7 +20,7 @@ import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configurati
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { workbenchInstantiationService, RemoteFileSystemProvider } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, RemoteFileSystemProvider, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkbenchConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -56,7 +56,7 @@ import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration);
+		super(TestWorkbenchConfiguration, TestProductService);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -2094,7 +2094,7 @@ suite('ConfigurationService - Configuration Defaults', () => {
 
 	function createConfiurationService(configurationDefaults: Record<string, any>): IConfigurationService {
 		const remoteAgentService = (<TestInstantiationService>workbenchInstantiationService()).createInstance(RemoteAgentService);
-		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: URI.file(''), workspaceId: '', configurationDefaults });
+		const environmentService = new BrowserWorkbenchEnvironmentService({ logsPath: URI.file(''), workspaceId: '', configurationDefaults }, TestProductService);
 		const fileService = new FileService(new NullLogService());
 		return disposableStore.add(new WorkspaceService({ configurationCache: new BrowserConfigurationCache() }, environmentService, fileService, remoteAgentService));
 	}
