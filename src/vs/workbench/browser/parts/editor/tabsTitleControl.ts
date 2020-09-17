@@ -238,7 +238,7 @@ export class TabsTitleControl extends TitleControl {
 			}));
 		});
 
-		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault();
@@ -254,7 +254,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if the target is not on the tabs container
 				if (e.target !== tabsContainer) {
-					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
+					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/microsoft/vscode/issues/52093
 					return;
 				}
 
@@ -610,7 +610,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
 				return undefined; // only for left mouse click
@@ -657,7 +657,7 @@ export class TabsTitleControl extends TitleControl {
 		// Close on mouse middle click
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
 			if (e.button === 1 /* Middle Button*/) {
-				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
 				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
@@ -748,7 +748,7 @@ export class TabsTitleControl extends TitleControl {
 			if (input) {
 				this.onContextMenu(input, e, tab);
 			}
-		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
+		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
 		// Drag support
 		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
@@ -766,7 +766,7 @@ export class TabsTitleControl extends TitleControl {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.doFillResourceDataTransfers(editor, e);
 
-			// Fixes https://github.com/Microsoft/vscode/issues/18733
+			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
 			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
 		}));
@@ -857,7 +857,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-			return true; // optimistically allow external data (// see https://github.com/Microsoft/vscode/issues/25789)
+			return true; // optimistically allow external data (// see https://github.com/microsoft/vscode/issues/25789)
 		}
 
 		return false;

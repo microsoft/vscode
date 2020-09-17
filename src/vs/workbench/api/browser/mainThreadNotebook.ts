@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
+import { IRelativePattern } from 'vs/base/common/glob';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
@@ -18,7 +19,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, INotebookExclusiveDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -443,10 +444,15 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		// }
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void> {
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: {
+		transientOutputs: boolean;
+		transientMetadata: TransientMetadata;
+		viewOptions?: { displayName: string; filenamePattern: string | IRelativePattern | INotebookExclusiveDocumentFilter; exclusive: boolean; };
+	}): Promise<void> {
 		const controller: IMainNotebookController = {
 			supportBackup,
 			options,
+			viewOptions: options.viewOptions,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
 				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
 				mainthreadTextModel.updateLanguages(data.languages);

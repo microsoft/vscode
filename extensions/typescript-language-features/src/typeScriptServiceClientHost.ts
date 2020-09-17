@@ -5,7 +5,7 @@
 
 /* --------------------------------------------------------------------------------------------
  * Includes code from typescript-sublime-plugin project, obtained from
- * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
+ * https://github.com/microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
 import * as vscode from 'vscode';
@@ -229,7 +229,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void {
-		// See https://github.com/Microsoft/TypeScript/issues/10384
+		// See https://github.com/microsoft/TypeScript/issues/10384
 		const body = event.body;
 		if (!body || !body.diagnostics || !body.configFile) {
 			return;

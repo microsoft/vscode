@@ -43,7 +43,6 @@ import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -53,7 +52,7 @@ import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration,
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, StorageKeysSyncRegistryChannelClient, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
@@ -155,8 +154,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
-	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
-	services.set(IElectronService, electronService);
+	const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: configuration.windowId });
+	services.set(INativeHostService, nativeHostService);
 
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 
@@ -223,7 +222,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			server.registerChannel('localizations', localizationsChannel);
 
 			const diagnosticsService = accessor.get(IDiagnosticsService);
-			const diagnosticsChannel = new DiagnosticsChannel(diagnosticsService);
+			const diagnosticsChannel = createChannelReceiver(diagnosticsService);
 			server.registerChannel('diagnostics', diagnosticsChannel);
 
 			const extensionTipsService = accessor.get(IExtensionTipsService);

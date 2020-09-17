@@ -10,19 +10,21 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { Event } from 'vs/base/common/event';
 import {
 	INotebookTextModel, INotebookRendererInfo,
-	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions
+	IEditor, ICellEditOperation, NotebookCellOutputsSplice, INotebookKernelProvider, INotebookKernelInfo2, TransientMetadata, NotebookDataDto, TransientOptions, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter
 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
 	supportBackup: boolean;
+	viewOptions?: { displayName: string; filenamePattern: string | IRelativePattern | INotebookExclusiveDocumentFilter; exclusive: boolean; };
 	options: { transientOutputs: boolean; transientMetadata: TransientMetadata; };
 	resolveNotebookDocument(viewType: string, uri: URI, backupId?: string): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions }>;
 	reloadNotebook(mainthreadTextModel: NotebookTextModel): Promise<void>;

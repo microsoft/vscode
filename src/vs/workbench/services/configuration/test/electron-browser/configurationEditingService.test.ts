@@ -12,7 +12,7 @@ import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestProductService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkbenchConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
@@ -45,7 +45,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration);
+		super(TestWorkbenchConfiguration, TestProductService);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
@@ -113,7 +113,7 @@ suite('ConfigurationEditingService', () => {
 		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, undefined, diskFileSystemProvider, environmentService, new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
-		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService, new NullLogService());
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? { id: '' } : { folder: URI.file(workspaceDir), id: createHash('md5').update(URI.file(workspaceDir).toString()).digest('hex') }).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);

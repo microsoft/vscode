@@ -137,7 +137,7 @@ async function toggleAutoAttachSetting(scope?: vscode.ConfigurationTarget): Prom
 
 	const result = await new Promise<PickResult>(resolve => {
 		quickPick.onDidAccept(() => resolve(quickPick.selectedItems[0]));
-		quickPick.onDidHide(() => resolve());
+		quickPick.onDidHide(() => resolve(undefined));
 		quickPick.onDidTriggerButton(() => {
 			resolve({
 				scope: isGlobalScope

@@ -263,7 +263,7 @@ export class TypeOperations {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (!selection.isEmpty()) {
-				// looks like https://github.com/Microsoft/vscode/issues/2773
+				// looks like https://github.com/microsoft/vscode/issues/2773
 				// where a cursor operation occurred before a canceled composition
 				// => ignore composition
 				commands[i] = null;

@@ -448,7 +448,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
 	});
 
-	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
+	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
 		let lineParts = createViewLineTokens([

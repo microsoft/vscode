@@ -11,12 +11,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextFileService, } from 'vs/workbench/services/textfile/common/textfiles';
-import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { isWindows } from 'vs/base/common/platform';
 import { getRemotes, AllowedSecondLevelDomains, getDomainsOfRemotes } from 'vs/platform/extensionManagement/common/configRemotes';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 
 export function getHashedRemotesFromConfig(text: string, stripEndingDotGit: boolean = false): string[] {
 	return getRemotes(text, stripEndingDotGit).map(r => {
@@ -32,8 +32,8 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@ISharedProcessService private readonly sharedProcessService: ISharedProcessService,
-		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService
+		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
+		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService
 	) {
 		if (this.telemetryService.isOptedIn) {
 			this.report();
@@ -53,8 +53,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 
 		this.reportProxyStats();
 
-		const diagnosticsChannel = this.sharedProcessService.getChannel('diagnostics');
-		this.getWorkspaceInformation().then(stats => diagnosticsChannel.call('reportWorkspaceStats', stats));
+		this.getWorkspaceInformation().then(stats => this.diagnosticsService.reportWorkspaceStats(stats));
 	}
 
 	async reportWindowsEdition(): Promise<void> {

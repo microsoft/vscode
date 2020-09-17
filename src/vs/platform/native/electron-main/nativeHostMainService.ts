@@ -11,7 +11,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
-import { ICommonElectronService, IOSProperties, IOSStatistics } from 'vs/platform/electron/common/electron';
+import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
@@ -25,11 +25,11 @@ import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { virtualMachineHint } from 'vs/base/node/id';
 
-export interface IElectronMainService extends AddFirstParameterToFunctions<ICommonElectronService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
+export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
-export const IElectronMainService = createDecorator<IElectronMainService>('electronMainService');
+export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
-export class ElectronMainService implements IElectronMainService {
+export class NativeHostMainService implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
 

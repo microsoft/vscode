@@ -21,7 +21,6 @@ import { joinPath } from 'vs/base/common/resources';
 import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
@@ -34,7 +33,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(channel, galleryService, configurationService, productService);
 		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
