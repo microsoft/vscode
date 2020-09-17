@@ -12,7 +12,8 @@ export const IElectronService = createDecorator<IElectronService>('electronServi
 
 export interface IElectronService extends ICommonElectronService { }
 
-export class ElectronService {
+// @ts-ignore: interface is implemented via proxy
+export class ElectronService implements IElectronService {
 
 	declare readonly _serviceBrand: undefined;
 

@@ -9,7 +9,8 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
-export class NativeWorkspacesService {
+// @ts-ignore: interface is implemented via proxy
+export class NativeWorkspacesService implements IWorkspacesService {
 
 	declare readonly _serviceBrand: undefined;
 

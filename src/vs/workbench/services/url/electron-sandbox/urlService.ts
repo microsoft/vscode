@@ -31,7 +31,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	) {
 		super();
 
-		this.urlService = createChannelSender(mainProcessService.getChannel('url'));
+		this.urlService = createChannelSender<IURLService>(mainProcessService.getChannel('url'));
 
 		mainProcessService.registerChannel('urlHandler', new URLHandlerChannel(this));
 		openerService.registerOpener(this);
