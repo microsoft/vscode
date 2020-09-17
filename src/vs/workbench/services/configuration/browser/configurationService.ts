@@ -10,7 +10,7 @@ import { equals } from 'vs/base/common/objects';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Queue, Barrier, runWhenIdle } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { IWorkspaceContextService, Workspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, toWorkspaceFolders, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, keyFromOverrideIdentifier, isConfigurationOverrides, IConfigurationData, IConfigurationService, IConfigurationValue, IConfigurationChange } from 'vs/platform/configuration/common/configuration';
 import { Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
@@ -31,6 +31,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+
+class Workspace extends BaseWorkspace {
+	initialized: boolean = false;
+}
 
 export class WorkspaceService extends Disposable implements IConfigurationService, IWorkspaceContextService {
 
@@ -101,9 +106,8 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		this.workspaceConfiguration = this._register(new WorkspaceConfiguration(configurationCache, fileService));
 		this._register(this.workspaceConfiguration.onDidUpdateConfiguration(() => {
 			this.onWorkspaceConfigurationChanged().then(() => {
-				if (this.workspaceConfiguration.loaded) {
-					this.releaseWorkspaceBarrier();
-				}
+				this.workspace.initialized = this.workspaceConfiguration.initialized;
+				this.checkAndMarkWorkspaceComplete();
 			});
 		}));
 
@@ -303,12 +307,14 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 		return this._configuration.keys();
 	}
 
-	initialize(arg: IWorkspaceInitializationPayload): Promise<any> {
+	async initialize(arg: IWorkspaceInitializationPayload): Promise<void> {
 		mark('willInitWorkspaceService');
-		return this.createWorkspace(arg)
-			.then(workspace => this.updateWorkspaceAndInitializeConfiguration(workspace)).then(() => {
-				mark('didInitWorkspaceService');
-			});
+
+		const workspace = await this.createWorkspace(arg);
+		await this.updateWorkspaceAndInitializeConfiguration(workspace);
+		this.checkAndMarkWorkspaceComplete();
+
+		mark('didInitWorkspaceService');
 	}
 
 	acquireInstantiationService(instantiationService: IInstantiationService): void {
@@ -335,34 +341,33 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	}
 
 	private createMultiFolderWorkspace(workspaceIdentifier: IWorkspaceIdentifier): Promise<Workspace> {
-		return this.workspaceConfiguration.load({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath })
+		return this.workspaceConfiguration.initialize({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath })
 			.then(() => {
 				const workspaceConfigPath = workspaceIdentifier.configPath;
 				const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath);
 				const workspaceId = workspaceIdentifier.id;
 				const workspace = new Workspace(workspaceId, workspaceFolders, workspaceConfigPath);
-				if (this.workspaceConfiguration.loaded) {
-					this.releaseWorkspaceBarrier();
-				}
+				workspace.initialized = this.workspaceConfiguration.initialized;
 				return workspace;
 			});
 	}
 
 	private createSingleFolderWorkspace(singleFolder: ISingleFolderWorkspaceInitializationPayload): Promise<Workspace> {
 		const workspace = new Workspace(singleFolder.id, [toWorkspaceFolder(singleFolder.folder)]);
-		this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is single folder.
+		workspace.initialized = true;
 		return Promise.resolve(workspace);
 	}
 
 	private createEmptyWorkspace(emptyWorkspace: IEmptyWorkspaceInitializationPayload): Promise<Workspace> {
 		const workspace = new Workspace(emptyWorkspace.id);
-		this.releaseWorkspaceBarrier(); // Release barrier as workspace is complete because it is an empty workspace.
+		workspace.initialized = true;
 		return Promise.resolve(workspace);
 	}
 
-	private releaseWorkspaceBarrier(): void {
-		if (!this.completeWorkspaceBarrier.isOpen()) {
+	private checkAndMarkWorkspaceComplete(): void {
+		if (!this.completeWorkspaceBarrier.isOpen() && this.workspace.initialized) {
 			this.completeWorkspaceBarrier.open();
+			this.validateWorkspaceFoldersAndReload();
 		}
 	}
 
@@ -400,9 +405,6 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 					this._onDidChangeWorkspaceFolders.fire(folderChanges);
 				}
 
-			} else {
-				// Not waiting on this validation to unblock start up
-				this.validateWorkspaceFoldersAndReload();
 			}
 
 			if (!this.localUserConfiguration.hasTasksLoaded) {
@@ -557,15 +559,19 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 	private async onWorkspaceConfigurationChanged(): Promise<void> {
 		if (this.workspace && this.workspace.configuration) {
 			let newFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration);
-			const { added, removed, changed } = this.compareFolders(this.workspace.folders, newFolders);
 
-			/* If changed validate new folders */
-			if (added.length || removed.length || changed.length) {
-				newFolders = await this.toValidWorkspaceFolders(newFolders);
-			}
-			/* Otherwise use existing */
-			else {
-				newFolders = this.workspace.folders;
+			// Validate only if workspace is initialized
+			if (this.workspace.initialized) {
+				const { added, removed, changed } = this.compareFolders(this.workspace.folders, newFolders);
+
+				/* If changed validate new folders */
+				if (added.length || removed.length || changed.length) {
+					newFolders = await this.toValidWorkspaceFolders(newFolders);
+				}
+				/* Otherwise use existing */
+				else {
+					newFolders = this.workspace.folders;
+				}
 			}
 
 			await this.updateWorkspaceConfiguration(newFolders, this.workspaceConfiguration.getConfiguration());
@@ -654,8 +660,7 @@ export class WorkspaceService extends Disposable implements IConfigurationServic
 					continue;
 				}
 			} catch (e) {
-				// Ignore Error
-				this.logService.error(e);
+				this.logService.warn(`Ignoring the error while validating workspace folder ${workspaceFolder.uri.toString()} - ${toErrorMessage(e)}`);
 			}
 			validWorkspaceFolders.push(workspaceFolder);
 		}

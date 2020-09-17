@@ -402,9 +402,8 @@ export class WorkspaceConfiguration extends Disposable {
 	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
-	private _loaded: boolean = false;
-	get loaded(): boolean { return this._loaded; }
-
+	private _initialized: boolean = false;
+	get initialized(): boolean { return this._initialized; }
 	constructor(
 		configurationCache: IConfigurationCache,
 		fileService: IFileService
@@ -414,7 +413,7 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfiguration = this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
 	}
 
-	async load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+	async initialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<boolean> {
 		this._workspaceIdentifier = workspaceIdentifier;
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
 			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
@@ -423,12 +422,15 @@ export class WorkspaceConfiguration extends Disposable {
 				this.waitAndSwitch(this._workspaceIdentifier);
 			}
 		}
-		this._loaded = this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration;
-		await this._workspaceConfiguration.load(this._workspaceIdentifier);
+		this._initialized = this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration;
+		await this.reload();
+		return this.initialized;
 	}
 
-	reload(): Promise<void> {
-		return this._workspaceIdentifier ? this.load(this._workspaceIdentifier) : Promise.resolve();
+	async reload(): Promise<void> {
+		if (this._workspaceIdentifier) {
+			await this._workspaceConfiguration.load(this._workspaceIdentifier);
+		}
 	}
 
 	getFolders(): IStoredWorkspaceFolder[] {
@@ -458,7 +460,7 @@ export class WorkspaceConfiguration extends Disposable {
 			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier);
 			this.switch(fileServiceBasedWorkspaceConfiguration);
-			this._loaded = true;
+			this._initialized = true;
 			this.onDidWorkspaceConfigurationChange(false);
 		}
 	}
