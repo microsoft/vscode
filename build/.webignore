@@ -25,3 +25,5 @@ xterm-addon-unicode11/out/**
 
 xterm-addon-webgl/src/**
 xterm-addon-webgl/out/**
+
+tas-client/**
