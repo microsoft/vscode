@@ -2,6 +2,27 @@
 # yarn lockfile v1
 
 
+axios@^0.19.0:
+  version "0.19.2"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-0.19.2.tgz#3ea36c5d8818d0d5f8a8a97a6d36b86cdc00cb27"
+  integrity sha512-fjgm5MvRHLhx+osE2xoekY70AhARk3a6hkN+3Io1jc00jtquGvxYlKlsFUhmUET0V5te6CcZI7lcv2Ym61mjHA==
+  dependencies:
+    follow-redirects "1.5.10"
+
+debug@=3.1.0:
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/debug/-/debug-3.1.0.tgz#5bb5a0672628b64149566ba16819e61518c67261"
+  integrity sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
+  dependencies:
+    ms "2.0.0"
+
+follow-redirects@1.5.10:
+  version "1.5.10"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.5.10.tgz#7b7a9f9aea2fdff36786a94ff643ed07f4ff5e2a"
+  integrity sha512-0V5l4Cizzvqt5D44aTXbFZz+FtyXV1vrDN6qrelxtfYQKW0KO0W2T/hkE8xvGa/540LkZlkaUjO4ailYTFtHVQ==
+  dependencies:
+    debug "=3.1.0"
+
 iconv-lite-umd@0.6.8:
   version "0.6.8"
   resolved "https://registry.yarnpkg.com/iconv-lite-umd/-/iconv-lite-umd-0.6.8.tgz#5ad310ec126b260621471a2d586f7f37b9958ec0"
@@ -12,10 +33,29 @@ jschardet@2.2.1:
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-2.2.1.tgz#03b0264669a90c7a5c436a68c5a7d4e4cb0c9823"
   integrity sha512-Ks2JNuUJoc7PGaZ7bVFtSEvOcr0rBq6Q1J5/7+zKWLT+g+4zziL63O0jg7y2jxhzIa1LVsHUbPXrbaWmz9iwDw==
 
+ms@2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/ms/-/ms-2.0.0.tgz#5608aeadfc00be6c2901df5f9861788de0d597c8"
+  integrity sha1-VgiurfwAvmwpAd9fmGF4jeDVl8g=
+
 semver-umd@^5.5.7:
   version "5.5.7"
   resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.7.tgz#966beb5e96c7da6fbf09c3da14c2872d6836c528"
   integrity sha512-XgjPNlD0J6aIc8xoTN6GQGwWc2Xg0kq8NzrqMVuKG/4Arl6ab1F8+Am5Y/XKKCR+FceFr2yN/Uv5ZJBhRyRqKg==
+
+tas-client-umd@^0.1.0:
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.0.tgz#267ab9a53b7bc138068db58ea240b63a4f02af2e"
+  integrity sha512-RdD5IchlVurbMHiRUfNQgAsOvqA4iktQcWRpL+reAQv0Q9v6GliuDhUgi7v2A8LTGX4bCTQNG7lX2DqX61JuLw==
+  dependencies:
+    tas-client "^0.1.8"
+
+tas-client@^0.1.8:
+  version "0.1.8"
+  resolved "https://registry.yarnpkg.com/tas-client/-/tas-client-0.1.8.tgz#6f6ba49578933853a0ebb339db0373a979a55852"
+  integrity sha512-KlL/FdIxm0beR5yfbNz4UOxM+0TZcUrF0vKC17xmK8yqb7pKvbaOEJy5goac9jLe9WPGXkjWGY5apfREU5Lpmg==
+  dependencies:
+    axios "^0.19.0"
 
 vscode-oniguruma@1.3.1:
   version "1.3.1"
