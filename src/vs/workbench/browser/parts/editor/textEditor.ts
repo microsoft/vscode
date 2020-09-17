@@ -202,10 +202,6 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	}
 
 	get scopedContextKeyService(): IContextKeyService | undefined {
-		if (!this.editorControl) {
-			return undefined;
-		}
-
 		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
 

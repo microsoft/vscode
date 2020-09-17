@@ -106,7 +106,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private isRestored = false;
 
 	private readonly scopedInstantiationService: IInstantiationService;
+
 	private readonly _scopedContextKeyService: IContextKeyService;
+	get scopedContextKeyService(): IContextKeyService { return this._scopedContextKeyService; }
 
 	private titleContainer: HTMLElement;
 	private titleAreaControl: TitleControl;
@@ -868,10 +870,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.titleAreaControl.unstickEditor(editor);
 			}
 		}
-	}
-
-	get scopedContextKeyService(): IContextKeyService {
-		return this._scopedContextKeyService;
 	}
 
 	//#endregion

@@ -41,6 +41,17 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	private diffNavigator: DiffNavigator | undefined;
 	private readonly diffNavigatorDisposables = this._register(new DisposableStore());
 
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		const control = this.getControl();
+		if (!control) {
+			return undefined;
+		}
+
+		return (control.getOriginalEditor().hasTextFocus() ?
+			control.getOriginalEditor() :
+			control.getModifiedEditor()).invokeWithinContext(accessor => accessor.get(IContextKeyService));
+	}
+
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -59,17 +70,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		// in the onWillCloseEditor because at that time the editor has not yet
 		// been disposed and we can safely persist the view state still as needed.
 		this.doSaveOrClearTextDiffEditorViewState(editor);
-	}
-
-	get scopedContextKeyService(): IContextKeyService | undefined {
-		const control = this.getControl();
-		if (!control) {
-			return undefined;
-		}
-
-		return (control.getOriginalEditor().hasTextFocus() ?
-			control.getOriginalEditor() :
-			control.getModifiedEditor()).invokeWithinContext(accessor => accessor.get(IContextKeyService));
 	}
 
 	getTitle(): string {
