@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
@@ -16,7 +15,7 @@ export class DiagnosticsService {
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {
-		return createChannelSender<ILocalizationsService>(sharedProcessService.getChannel('diagnostics'));
+		return createChannelSender<IDiagnosticsService>(sharedProcessService.getChannel('diagnostics'));
 	}
 }
 
