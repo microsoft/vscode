@@ -11,8 +11,8 @@ import { env } from 'vs/base/common/process';
 
 let product: IProductConfiguration;
 
-// Web
-if (isWeb) {
+// Web or Native (sandbox TODO@sandbox need to add all properties of product.json)
+if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !== 'function') {
 
 	// Built time configuration (do NOT modify)
 	product = { /*BUILD->INSERT_PRODUCT_CONFIGURATION*/ } as IProductConfiguration;
@@ -21,10 +21,17 @@ if (isWeb) {
 	if (Object.keys(product).length === 0) {
 		Object.assign(product, {
 			version: '1.50.0-dev',
-			nameLong: 'Visual Studio Code Web Dev',
-			nameShort: 'VSCode Web Dev',
+			nameShort: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
+			nameLong: isWeb ? 'Code Web - OSS Dev' : 'Code - OSS Dev',
+			applicationName: 'code-oss',
+			dataFolderName: '.vscode-oss',
 			urlProtocol: 'code-oss',
+			reportIssueUrl: 'https://github.com/Microsoft/vscode/issues/new',
+			licenseName: 'MIT',
+			licenseUrl: 'https://github.com/Microsoft/vscode/blob/master/LICENSE.txt',
 			extensionAllowedProposedApi: [
+				'ms-vscode.vscode-js-profile-flame',
+				'ms-vscode.vscode-js-profile-table',
 				'ms-vscode.references-view',
 				'ms-vscode.github-browser'
 			],
@@ -32,8 +39,8 @@ if (isWeb) {
 	}
 }
 
-// Node: AMD loader
-else if (typeof require !== 'undefined' && typeof require.__$__nodeRequire === 'function') {
+// Native (non-sandboxed)
+else {
 
 	// Obtain values from product.json and package.json
 	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
@@ -53,11 +60,6 @@ else if (typeof require !== 'undefined' && typeof require.__$__nodeRequire === '
 	Object.assign(product, {
 		version: pkg.version
 	});
-}
-
-// Unknown
-else {
-	throw new Error('Unable to resolve product configuration');
 }
 
 export default product;
