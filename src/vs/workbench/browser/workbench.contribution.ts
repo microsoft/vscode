@@ -233,6 +233,12 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': 'bottom',
 				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
 			},
+			'workbench.panel.opensMaximized': {
+				'type': 'string',
+				'enum': ['always', 'never', 'rememberLast'],
+				'default': 'rememberLast',
+				'description': nls.localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open maximized depending on whether or not it was maximized when last closed.")
+			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',
 				'default': true,
