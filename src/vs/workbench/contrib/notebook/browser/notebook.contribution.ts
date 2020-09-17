@@ -344,7 +344,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const infos = this.notebookService.getContributedNotebookProviders(notebookUri);
-		let info = infos.find(info => !id || info.id === id);
+		let info = infos.find(info => (!id || info.id === id) && info.exclusive) || infos.find(info => !id || info.id === id);
 
 		if (!info && id !== undefined) {
 			info = this.notebookService.getContributedNotebookProvider(id);

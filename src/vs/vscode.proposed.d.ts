@@ -1791,7 +1791,12 @@ declare module 'vscode' {
 				 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
 				 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 				 */
-				transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean }
+				transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
+
+				/**
+				 * Not ready for production or development use yet.
+				 */
+				viewOptions?: { displayName: string; filenamePattern: GlobPattern | { include: GlobPattern; exclude: GlobPattern; }; exclusive?: boolean; };
 			}
 		): Disposable;
 
