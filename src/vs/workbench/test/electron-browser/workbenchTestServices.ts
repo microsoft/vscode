@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -40,7 +40,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOSProperties, IOSStatistics } from 'vs/platform/electron/common/electron';
+import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
@@ -155,7 +155,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 	async whenSharedProcessReady(): Promise<void> { }
 }
 
-export class TestElectronService implements IElectronService {
+export class TestNativeHostService implements INativeHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -238,7 +238,7 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 		pathService: insta => <IPathService>insta.createInstance(TestNativePathService)
 	});
 
-	instantiationService.stub(IElectronService, new TestElectronService());
+	instantiationService.stub(INativeHostService, new TestNativeHostService());
 
 	return instantiationService;
 }
@@ -251,7 +251,7 @@ export class TestServiceAccessor {
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
-		@IElectronService public electronService: TestElectronService,
+		@INativeHostService public nativeHostService: TestNativeHostService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
 		@IBackupFileService public backupFileService: NodeTestBackupFileService,
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,

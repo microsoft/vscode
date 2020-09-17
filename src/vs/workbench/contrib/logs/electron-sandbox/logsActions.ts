@@ -7,7 +7,7 @@ import { Action } from 'vs/base/common/actions';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -19,13 +19,13 @@ export class OpenLogsFolderAction extends Action {
 
 	constructor(id: string, label: string,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(id, label);
 	}
 
 	run(): Promise<void> {
-		return this.electronService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')).fsPath);
+		return this.nativeHostService.showItemInFolder(URI.file(join(this.environmentService.logsPath, 'main.log')).fsPath);
 	}
 }
 
@@ -37,7 +37,7 @@ export class OpenExtensionLogsFolderAction extends Action {
 	constructor(id: string, label: string,
 		@IWorkbenchEnvironmentService private readonly environmentSerice: INativeWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(id, label);
 	}
@@ -45,7 +45,7 @@ export class OpenExtensionLogsFolderAction extends Action {
 	async run(): Promise<void> {
 		const folderStat = await this.fileService.resolve(this.environmentSerice.extHostLogsPath);
 		if (folderStat.children && folderStat.children[0]) {
-			return this.electronService.showItemInFolder(folderStat.children[0].resource.fsPath);
+			return this.nativeHostService.showItemInFolder(folderStat.children[0].resource.fsPath);
 		}
 	}
 }

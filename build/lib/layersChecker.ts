@@ -61,7 +61,7 @@ const NATIVE_TYPES = [
 	'NativeParsedArgs',
 	'INativeEnvironmentService',
 	'INativeWindowConfiguration',
-	'ICommonElectronService'
+	'ICommonNativeHostService'
 ];
 
 const RULES = [
@@ -114,6 +114,17 @@ const RULES = [
 	// Common: vs/platform/windows/common/windows.ts
 	{
 		target: '**/vs/platform/windows/common/windows.ts',
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		allowedTypes: CORE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/platform/native/common/native.ts
+	{
+		target: '**/vs/platform/native/common/native.ts',
 		disallowedTypes: [/* Ignore native types that are defined from here */],
 		allowedTypes: CORE_TYPES,
 		disallowedDefinitions: [

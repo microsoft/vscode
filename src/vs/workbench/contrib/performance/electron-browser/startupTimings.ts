@@ -14,7 +14,7 @@ import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/platform
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -27,7 +27,7 @@ export class StartupTimings implements IWorkbenchContribution {
 
 	constructor(
 		@ITimerService private readonly _timerService: ITimerService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
@@ -61,10 +61,10 @@ export class StartupTimings implements IWorkbenchContribution {
 		]).then(([startupMetrics]) => {
 			return promisify(appendFile)(appendTo, `${startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`);
 		}).then(() => {
-			this._electronService.quit();
+			this._nativeHostService.quit();
 		}).catch(err => {
 			console.error(err);
-			this._electronService.quit();
+			this._nativeHostService.quit();
 		});
 	}
 
@@ -78,7 +78,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			return StartupKindToString(this._lifecycleService.startupKind);
 		}
-		const windowCount = await this._electronService.getWindowCount();
+		const windowCount = await this._nativeHostService.getWindowCount();
 		if (windowCount !== 1) {
 			return 'Expected window count : 1, Actual : ' + windowCount;
 		}

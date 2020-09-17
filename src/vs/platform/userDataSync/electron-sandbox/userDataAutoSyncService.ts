@@ -5,7 +5,7 @@
 //
 import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncResourceEnablementService, IUserDataSyncStoreService, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,7 +20,7 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IUserDataSyncService userDataSyncService: IUserDataSyncService,
-		@IElectronService electronService: IElectronService,
+		@INativeHostService nativeHostService: INativeHostService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IUserDataSyncAccountService authTokenService: IUserDataSyncAccountService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -31,8 +31,8 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		super(userDataSyncStoreManagementService, userDataSyncStoreService, userDataSyncResourceEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService, environmentService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
-			Event.map(electronService.onWindowFocus, () => 'windowFocus'),
-			Event.map(electronService.onWindowOpen, () => 'windowOpen'),
+			Event.map(nativeHostService.onWindowFocus, () => 'windowFocus'),
+			Event.map(nativeHostService.onWindowOpen, () => 'windowOpen'),
 		), (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, true, false)));
 	}
 

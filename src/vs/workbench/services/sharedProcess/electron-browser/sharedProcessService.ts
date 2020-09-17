@@ -11,7 +11,7 @@ import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedPr
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class SharedProcessService implements ISharedProcessService {
 
@@ -22,13 +22,13 @@ export class SharedProcessService implements ISharedProcessService {
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IElectronService electronService: IElectronService,
+		@INativeHostService nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		this.sharedProcessMainChannel = mainProcessService.getChannel('sharedProcess');
 
 		this.withSharedProcessConnection = this.whenSharedProcessReady()
-			.then(() => connect(environmentService.sharedIPCHandle, `window:${electronService.windowId}`));
+			.then(() => connect(environmentService.sharedIPCHandle, `window:${nativeHostService.windowId}`));
 	}
 
 	whenSharedProcessReady(): Promise<void> {

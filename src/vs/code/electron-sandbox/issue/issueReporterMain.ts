@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { NativeHostService, INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
@@ -65,7 +65,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private electronService!: IElectronService;
+	private nativeHostService!: INativeHostService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -267,8 +267,8 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
-		serviceCollection.set(IElectronService, this.electronService);
+		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
+		serviceCollection.set(INativeHostService, this.nativeHostService);
 	}
 
 	private setEventHandlers(): void {
@@ -827,7 +827,7 @@ export class IssueReporter extends Disposable {
 		return new Promise((resolve, reject) => {
 			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
 				if (shouldWrite) {
-					await this.electronService.writeClipboardText(issueBody);
+					await this.nativeHostService.writeClipboardText(issueBody);
 					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
 				} else {
 					reject();

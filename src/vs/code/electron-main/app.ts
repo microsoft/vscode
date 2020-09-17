@@ -68,7 +68,7 @@ import { statSync } from 'fs';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 import { ElectronExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/electron-main/extensionHostDebugIpc';
-import { IElectronMainService, ElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { INativeHostMainService, NativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { ISharedProcessMainService, SharedProcessMainService } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { IDialogMainService, DialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -443,7 +443,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, createChannelSender(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
-		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
+		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService));
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
@@ -531,10 +531,10 @@ export class CodeApplication extends Disposable {
 		const issueChannel = createChannelReceiver(issueMainService);
 		electronIpcServer.registerChannel('issue', issueChannel);
 
-		const electronMainService = accessor.get(IElectronMainService);
-		const electronChannel = createChannelReceiver(electronMainService);
-		electronIpcServer.registerChannel('electron', electronChannel);
-		sharedProcessClient.then(client => client.registerChannel('electron', electronChannel));
+		const nativeHostMainService = accessor.get(INativeHostMainService);
+		const nativeHostChannel = createChannelReceiver(nativeHostMainService);
+		electronIpcServer.registerChannel('nativeHost', nativeHostChannel);
+		sharedProcessClient.then(client => client.registerChannel('nativeHost', nativeHostChannel));
 
 		const sharedProcessMainService = accessor.get(ISharedProcessMainService);
 		const sharedProcessChannel = createChannelReceiver(sharedProcessMainService);
@@ -657,7 +657,7 @@ export class CodeApplication extends Disposable {
 		});
 
 		// Create a URL handler which forwards to the last active window
-		const activeWindowManager = new ActiveWindowManager(electronMainService);
+		const activeWindowManager = new ActiveWindowManager(nativeHostMainService);
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 		const urlHandlerRouter = new URLHandlerRouter(activeWindowRouter);
 		const urlHandlerChannel = electronIpcServer.getChannel('urlHandler', urlHandlerRouter);

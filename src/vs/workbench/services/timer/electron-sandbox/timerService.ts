@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -21,7 +21,7 @@ import { context, process } from 'vs/base/parts/sandbox/electron-sandbox/globals
 export class TimerService extends AbstractTimerService {
 
 	constructor(
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -43,15 +43,15 @@ export class TimerService extends AbstractTimerService {
 		return didUseCachedData();
 	}
 	protected _getWindowCount(): Promise<number> {
-		return this._electronService.getWindowCount();
+		return this._nativeHostService.getWindowCount();
 	}
 
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		try {
 			const [osProperties, osStatistics, virtualMachineHint] = await Promise.all([
-				this._electronService.getOSProperties(),
-				this._electronService.getOSStatistics(),
-				this._electronService.getOSVirtualMachineHint()
+				this._nativeHostService.getOSProperties(),
+				this._nativeHostService.getOSStatistics(),
+				this._nativeHostService.getOSVirtualMachineHint()
 			]);
 
 			info.totalmem = osStatistics.totalmem;

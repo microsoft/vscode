@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { NativeHostService, INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
@@ -40,11 +40,11 @@ class ProcessExplorer {
 
 	private listeners = new DisposableStore();
 
-	private electronService: IElectronService;
+	private nativeHostService: INativeHostService;
 
 	constructor(windowId: number, private data: ProcessExplorerData) {
 		const mainProcessService = new MainProcessService(windowId);
-		this.electronService = new ElectronService(windowId, mainProcessService) as IElectronService;
+		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
 
 		this.applyStyles(data.styles);
 
@@ -293,7 +293,7 @@ class ProcessExplorer {
 		container.append(tableHead);
 
 		const hasMultipleMachines = Object.keys(processLists).length > 1;
-		const { totalmem } = await this.electronService.getOSStatistics();
+		const { totalmem } = await this.nativeHostService.getOSStatistics();
 		processLists.forEach((remote, i) => {
 			const isLocal = i === 0;
 			if (isRemoteDiagnosticError(remote.rootProcess)) {
@@ -339,14 +339,14 @@ class ProcessExplorer {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, 'SIGTERM');
+					this.nativeHostService.killProcess(pid, 'SIGTERM');
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, 'SIGKILL');
+					this.nativeHostService.killProcess(pid, 'SIGKILL');
 				}
 			});
 
@@ -360,7 +360,7 @@ class ProcessExplorer {
 			click: () => {
 				const row = document.getElementById(pid.toString());
 				if (row) {
-					this.electronService.writeClipboardText(row.innerText);
+					this.nativeHostService.writeClipboardText(row.innerText);
 				}
 			}
 		});
@@ -370,7 +370,7 @@ class ProcessExplorer {
 			click: () => {
 				const processList = document.getElementById('process-list');
 				if (processList) {
-					this.electronService.writeClipboardText(processList.innerText);
+					this.nativeHostService.writeClipboardText(processList.innerText);
 				}
 			}
 		});

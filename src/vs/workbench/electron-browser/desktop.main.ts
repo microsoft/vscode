@@ -48,7 +48,7 @@ import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
-import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService, NativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class DesktopMain extends Disposable {
 
@@ -194,15 +194,15 @@ class DesktopMain extends Disposable {
 		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, this.productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-		// Electron
-		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
-		serviceCollection.set(IElectronService, electronService);
+		// Native Host
+		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
+		serviceCollection.set(INativeHostService, nativeHostService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, electronService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider

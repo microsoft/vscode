@@ -17,7 +17,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -122,7 +122,7 @@ class ReportExtensionSlowAction extends Action {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super('report.slow', localize('cmd.report', "Report Issue"));
@@ -137,7 +137,7 @@ class ReportExtensionSlowAction extends Action {
 		await profiler.writeProfile(data, path).then(undefined, onUnexpectedError);
 
 		// build issue
-		const os = await this._electronService.getOSProperties();
+		const os = await this._nativeHostService.getOSProperties();
 		const title = encodeURIComponent('Extension causes high cpu load');
 		const osVersion = `${os.type} ${os.arch} ${os.release}`;
 		const message = `:warning: Make sure to **attach** this file from your *home*-directory:\n:warning:\`${path}\`\n\nFind more details here: https://github.com/microsoft/vscode/wiki/Explain-extension-causes-high-cpu-load`;

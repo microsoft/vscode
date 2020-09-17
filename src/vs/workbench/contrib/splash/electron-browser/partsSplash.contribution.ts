@@ -26,7 +26,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class PartsSplash {
 
@@ -46,7 +46,7 @@ class PartsSplash {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
-		@IElectronService private readonly _electronService: IElectronService
+		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		lifecycleService.when(LifecyclePhase.Restored).then(_ => {
 			this._removePartsSplash();
@@ -114,7 +114,7 @@ class PartsSplash {
 			// the color needs to be in hex
 			const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getColorTheme());
 			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
-			ipcRenderer.send('vscode:changeColorTheme', this._electronService.windowId, payload);
+			ipcRenderer.send('vscode:changeColorTheme', this._nativeHostService.windowId, payload);
 		}
 	}
 

@@ -52,7 +52,7 @@ import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration,
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, StorageKeysSyncRegistryChannelClient, UserDataSyncMachinesServiceChannel, UserDataSyncAccountServiceChannel, UserDataSyncStoreManagementServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
@@ -154,8 +154,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(ILoggerService, new SyncDescriptor(LoggerService));
 
-	const electronService = createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: configuration.windowId });
-	services.set(IElectronService, electronService);
+	const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: configuration.windowId });
+	services.set(INativeHostService, nativeHostService);
 
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
 

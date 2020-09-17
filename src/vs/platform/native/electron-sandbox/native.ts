@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonElectronService } from 'vs/platform/electron/common/electron';
+import { ICommonNativeHostService } from 'vs/platform/native/common/native';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
-export const IElectronService = createDecorator<IElectronService>('electronService');
+export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');
 
-export interface IElectronService extends ICommonElectronService { }
+export interface INativeHostService extends ICommonNativeHostService { }
 
 // @ts-ignore: interface is implemented via proxy
-export class ElectronService implements IElectronService {
+export class NativeHostService implements INativeHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -21,7 +21,7 @@ export class ElectronService implements IElectronService {
 		readonly windowId: number,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		return createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), {
+		return createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), {
 			context: windowId,
 			properties: (() => {
 				const properties = new Map<string, unknown>();

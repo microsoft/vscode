@@ -51,7 +51,7 @@ import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { IOpenerService, OpenOptions } from 'vs/platform/opener/common/opener';
 import { Schemas } from 'vs/base/common/network';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
@@ -100,7 +100,7 @@ export class NativeWindow extends Disposable {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
@@ -242,7 +242,7 @@ export class NativeWindow extends Disposable {
 			this._register(DOM.addDisposableListener(titlePart, DOM.EventType.DBLCLICK, e => {
 				DOM.EventHelper.stop(e);
 
-				this.electronService.handleTitleDoubleClick();
+				this.nativeHostService.handleTitleDoubleClick();
 			}));
 		}
 
@@ -260,8 +260,8 @@ export class NativeWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronService.windowId), () => true),
-			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronService.windowId), () => false)
+			Event.map(Event.filter(this.nativeHostService.onWindowMaximize, id => id === this.nativeHostService.windowId), () => true),
+			Event.map(Event.filter(this.nativeHostService.onWindowUnmaximize, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
@@ -271,7 +271,7 @@ export class NativeWindow extends Disposable {
 		if ((!this.isDocumentedEdited && isDirty) || (this.isDocumentedEdited && !isDirty)) {
 			this.isDocumentedEdited = isDirty;
 
-			this.electronService.setDocumentEdited(isDirty);
+			this.nativeHostService.setDocumentEdited(isDirty);
 		}
 	}
 
@@ -296,7 +296,7 @@ export class NativeWindow extends Disposable {
 	private onAllEditorsClosed(): void {
 		const visibleEditorPanes = this.editorService.visibleEditorPanes.length;
 		if (visibleEditorPanes === 0) {
-			this.electronService.closeWindow();
+			this.nativeHostService.closeWindow();
 		}
 	}
 
@@ -321,7 +321,7 @@ export class NativeWindow extends Disposable {
 	}
 
 	private updateRepresentedFilename(filePath: string | undefined): void {
-		this.electronService.setRepresentedFilename(filePath ? filePath : '');
+		this.nativeHostService.setRepresentedFilename(filePath ? filePath : '');
 	}
 
 	private provideCustomTitleContextMenu(filePath: string | undefined): void {
@@ -354,7 +354,7 @@ export class NativeWindow extends Disposable {
 			}
 
 			const commandId = `workbench.action.revealPathInFinder${i}`;
-			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.electronService.showItemInFolder(path)));
+			this.customTitleContextMenuDisposable.add(CommandsRegistry.registerCommand(commandId, () => this.nativeHostService.showItemInFolder(path)));
 			this.customTitleContextMenuDisposable.add(MenuRegistry.appendMenuItem(MenuId.TitleBarContext, { command: { id: commandId, title: label || posix.sep }, order: -i }));
 		}
 	}
@@ -370,14 +370,14 @@ export class NativeWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Notify main side when window ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.electronService.notifyReady());
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => this.nativeHostService.notifyReady());
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Restored).then(async () => {
-			const isAdmin = await this.electronService.isAdmin();
+			const isAdmin = await this.nativeHostService.isAdmin();
 
 			// Update title
 			this.titleService.updateProperties({ isAdmin });
@@ -402,12 +402,12 @@ export class NativeWindow extends Disposable {
 		// Handle external open() calls
 		this.openerService.setExternalOpener({
 			openExternal: async (href: string) => {
-				const success = await this.electronService.openExternal(href);
+				const success = await this.nativeHostService.openExternal(href);
 				if (!success) {
 					const fileCandidate = URI.parse(href);
 					if (fileCandidate.scheme === Schemas.file) {
 						// if opening failed, and this is a file, we can still try to reveal it
-						await this.electronService.showItemInFolder(fileCandidate.fsPath);
+						await this.nativeHostService.showItemInFolder(fileCandidate.fsPath);
 					}
 				}
 
@@ -503,7 +503,7 @@ export class NativeWindow extends Disposable {
 		// Only update if the actions have changed
 		if (!equals(this.lastInstalledTouchedBar, items)) {
 			this.lastInstalledTouchedBar = items;
-			this.electronService.updateTouchBar(items);
+			this.nativeHostService.updateTouchBar(items);
 		}
 	}
 
@@ -597,7 +597,7 @@ class NativeMenubarControl extends MenubarControl {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(
 			menuService,
@@ -646,7 +646,7 @@ class NativeMenubarControl extends MenubarControl {
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };
 		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.electronService.windowId, menubarData);
+			this.menubarService.updateMenubar(this.nativeHostService.windowId, menubarData);
 		}
 	}
 
