@@ -975,6 +975,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 			// we need to move focus into the tree to detect keybindings
 			// properly when the input box is not visible (quick nav)
 			this.ui.list.domFocus();
+
+			// Focus the first element in the list if multiselect is enabled
+			if (this.canSelectMany) {
+				this.ui.list.focus(QuickInputListFocus.First);
+			}
 		}
 	}
 }
