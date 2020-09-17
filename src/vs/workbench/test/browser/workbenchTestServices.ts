@@ -114,6 +114,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/browser/textFileService';
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Iterable } from 'vs/base/common/iterator';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined);
@@ -850,6 +851,12 @@ export class TestFileService implements IFileService {
 
 	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
 	canHandleResource(resource: URI): boolean { return resource.scheme === 'file' || this.providers.has(resource.scheme); }
+	listCapabilities() {
+		return [
+			{ scheme: 'file', capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
+			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
+		];
+	}
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
 		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
 			return true;

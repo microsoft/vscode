@@ -60,6 +60,11 @@ export interface IFileService {
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
 
 	/**
+	 * List the schemes and capabilies for registered file system providers
+	 */
+	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }>
+
+	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
 	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
 	 */
