@@ -105,6 +105,7 @@ suite('BackupTracker', () => {
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 		await pfs.mkdirp(backupHome);
+		await pfs.mkdirp(workspaceBackupPath);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
