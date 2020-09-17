@@ -1093,7 +1093,7 @@ export function registerTestEditor(id: string, inputs: SyncDescriptor<EditorInpu
 		layout(): void { }
 		createEditor(): void { }
 
-		getInternalContextKeyService() {
+		get scopedContextKeyService() {
 			return this._scopedContextKeyService;
 		}
 	}
