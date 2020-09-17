@@ -19,7 +19,7 @@ suite('StandaloneKeybindingService', () => {
 		}
 	}
 
-	test('issue Microsoft/monaco-editor#167', () => {
+	test('issue microsoft/monaco-editor#167', () => {
 
 		let serviceCollection = new ServiceCollection();
 		const instantiationService = new InstantiationService(serviceCollection, true);

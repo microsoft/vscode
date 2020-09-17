@@ -195,7 +195,7 @@ class Label {
 			this.singleLabel.textContent = label;
 		} else {
 			this.container.innerText = '';
-			dom.addClass(this.container, 'multiple');
+			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
 			for (let i = 0; i < label.length; i++) {
@@ -257,9 +257,8 @@ class LabelWithHighlights {
 
 			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
 		} else {
-
 			this.container.innerText = '';
-			dom.addClass(this.container, 'multiple');
+			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
 			const separator = options?.separator || '/';

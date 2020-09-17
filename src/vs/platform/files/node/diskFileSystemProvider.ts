@@ -216,8 +216,8 @@ export class DiskFileSystemProvider extends Disposable implements
 					try {
 						// On Windows and if the file exists, we use a different strategy of saving the file
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
-						// (see https://github.com/Microsoft/vscode/issues/931) and prevent removing alternate data streams
-						// (see https://github.com/Microsoft/vscode/issues/6363)
+						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
+						// (see https://github.com/microsoft/vscode/issues/6363)
 						await truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.

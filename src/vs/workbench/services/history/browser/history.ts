@@ -136,7 +136,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// if the service is created late enough that an editor is already opened
 		// make sure to trigger the onActiveEditorChanged() to track the editor
-		// properly (fixes https://github.com/Microsoft/vscode/issues/59908)
+		// properly (fixes https://github.com/microsoft/vscode/issues/59908)
 		if (this.editorService.activeEditorPane) {
 			this.onActiveEditorChanged();
 		}
@@ -596,7 +596,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			}
 
 			if (this.layoutService.isRestored() && !this.fileService.canHandleResource(inputResource)) {
-				return false; // make sure to only check this when workbench has restored (for https://github.com/Microsoft/vscode/issues/48275)
+				return false; // make sure to only check this when workbench has restored (for https://github.com/microsoft/vscode/issues/48275)
 			}
 
 			return extUri.isEqual(inputResource, resource);
@@ -699,7 +699,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// If no editor was opened, try with the next one
 		if (!editorPane) {
-			// Fix for https://github.com/Microsoft/vscode/issues/67882
+			// Fix for https://github.com/microsoft/vscode/issues/67882
 			// If opening of the editor fails, make sure to try the next one
 			// but make sure to remove this one from the list to prevent
 			// endless loops.
@@ -888,7 +888,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			try {
 				return this.safeLoadHistoryEntry(entry);
 			} catch (error) {
-				return undefined; // https://github.com/Microsoft/vscode/issues/60960
+				return undefined; // https://github.com/microsoft/vscode/issues/60960
 			}
 		}));
 	}

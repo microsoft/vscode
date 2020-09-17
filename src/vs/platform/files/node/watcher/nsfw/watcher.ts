@@ -11,13 +11,13 @@ export interface IWatcherRequest {
 	excludes: string[];
 }
 
-export interface IWatcherOptions {
-}
-
 export interface IWatcherService {
-	watch(options: IWatcherOptions): Event<IDiskFileChange[]>;
+
+	readonly onDidChangeFile: Event<IDiskFileChange[]>;
+	readonly onDidLogMessage: Event<ILogMessage>;
+
 	setRoots(roots: IWatcherRequest[]): Promise<void>;
 	setVerboseLogging(enabled: boolean): Promise<void>;
-	onLogMessage: Event<ILogMessage>;
+
 	stop(): Promise<void>;
 }

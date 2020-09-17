@@ -17,7 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class StartupProfiler implements IWorkbenchContribution {
@@ -30,7 +30,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IProductService private readonly _productService: IProductService
 	) {
 		// wait for everything to be ready
@@ -83,7 +83,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 			}).then(res => {
 				if (res.confirmed) {
 					Promise.all<any>([
-						this._electronService.showItemInFolder(URI.file(join(dir, files[0])).fsPath),
+						this._nativeHostService.showItemInFolder(URI.file(join(dir, files[0])).fsPath),
 						this._createPerfIssue(files)
 					]).then(() => {
 						// keep window stable until restart is selected
@@ -95,13 +95,13 @@ export class StartupProfiler implements IWorkbenchContribution {
 							secondaryButton: undefined
 						}).then(() => {
 							// now we are ready to restart
-							this._electronService.relaunch({ removeArgs });
+							this._nativeHostService.relaunch({ removeArgs });
 						});
 					});
 
 				} else {
 					// simply restart
-					this._electronService.relaunch({ removeArgs });
+					this._nativeHostService.relaunch({ removeArgs });
 				}
 			});
 		});

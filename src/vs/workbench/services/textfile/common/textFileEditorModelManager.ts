@@ -151,7 +151,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						const resource = model.resource;
 
 						if (extUri.isEqualOrParent(resource, target)) {
-							// EXPLICITLY do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384
+							// EXPLICITLY do not ignorecase, see https://github.com/microsoft/vscode/issues/56384
 							targetModels.push(model);
 						}
 

@@ -42,6 +42,7 @@ class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManage
 			defaultUrl: URI.revive(userDataSyncStore.defaultUrl),
 			insidersUrl: URI.revive(userDataSyncStore.insidersUrl),
 			stableUrl: URI.revive(userDataSyncStore.stableUrl),
+			canSwitch: userDataSyncStore.canSwitch,
 			authenticationProviders: userDataSyncStore.authenticationProviders,
 		};
 	}

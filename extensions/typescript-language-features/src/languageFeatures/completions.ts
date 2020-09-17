@@ -60,7 +60,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		if (tsEntry.source) {
 			// De-prioritze auto-imports
-			// https://github.com/Microsoft/vscode/issues/40311
+			// https://github.com/microsoft/vscode/issues/40311
 			this.sortText = '\uffff' + tsEntry.sortText;
 		} else {
 			this.sortText = tsEntry.sortText;
@@ -578,7 +578,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
 		switch (context.triggerCharacter) {
-			case '@': // Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+			case '@': // Workaround for https://github.com/microsoft/TypeScript/issues/27321
 				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
 
 			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
@@ -720,7 +720,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		position: vscode.Position
 	): boolean {
 		if (this.client.apiVersion.lt(API.v320)) {
-			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
+			// Workaround for https://github.com/microsoft/TypeScript/issues/27742
 			// Only enable dot completions when previous character not a dot preceded by whitespace.
 			// Prevents incorrectly completing while typing spread operators.
 			if (position.character > 1) {
@@ -793,7 +793,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		document: vscode.TextDocument,
 		token: vscode.CancellationToken
 	): Promise<boolean> {
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
+		// Workaround for https://github.com/microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assignments or imports
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
@@ -812,7 +812,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		}
 
 		// Don't complete function call if there is already something that looks like a function call
-		// https://github.com/Microsoft/vscode/issues/18131
+		// https://github.com/microsoft/vscode/issues/18131
 		const after = document.lineAt(position.line).text.slice(position.character);
 		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
 	}

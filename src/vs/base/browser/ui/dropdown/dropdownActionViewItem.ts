@@ -62,7 +62,7 @@ export class DropdownMenuActionViewItem extends BaseActionViewItem {
 			let classNames: string[] = [];
 
 			if (typeof this.options.classNames === 'string') {
-				classNames = this.options.classNames.split(/\W+/g).filter(s => !!s);
+				classNames = this.options.classNames.split(/\s+/g).filter(s => !!s);
 			} else if (this.options.classNames) {
 				classNames = this.options.classNames;
 			}

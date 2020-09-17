@@ -85,7 +85,8 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
-			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
+			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true },
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		this.menuElement = menuElement;
@@ -200,7 +201,7 @@ export class Menu extends ActionBar {
 		scrollElement.style.position = '';
 
 		this._register(addDisposableListener(scrollElement, EventType.MOUSE_UP, e => {
-			// Absorb clicks in menu dead space https://github.com/Microsoft/vscode/issues/63575
+			// Absorb clicks in menu dead space https://github.com/microsoft/vscode/issues/63575
 			// We do this on the scroll element so the scroll bar doesn't dismiss the menu either
 			e.preventDefault();
 		}));

@@ -335,7 +335,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			// The user might have meanwhile removed items from the jump list and we have to respect that
 			// so we need to update our list of recent paths with the choice of the user to not add them again
 			// Also: Windows will not show our custom category at all if there is any entry which was removed
-			// by the user! See https://github.com/Microsoft/vscode/issues/15052
+			// by the user! See https://github.com/microsoft/vscode/issues/15052
 			let toRemove: URI[] = [];
 			for (let item of app.getJumpListSettings().removedItems) {
 				const args = item.args;

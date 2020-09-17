@@ -649,10 +649,12 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
 			this.container.setAttribute('aria-expanded', 'true');
+			this.container.setAttribute('aria-selected', 'true');
 		} else {
 			this.container.classList.remove('checked');
 			this.container.setAttribute('aria-label', this.container.title);
 			this.container.setAttribute('aria-expanded', 'false');
+			this.container.setAttribute('aria-selected', 'false');
 		}
 		this.updateStyles();
 	}

@@ -45,6 +45,9 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
+	get tmpDir(): URI { return URI.file(os.tmpdir()); }
+
+	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
@@ -228,7 +231,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 }
 
 // Read this before there's any chance it is overwritten
-// Related to https://github.com/Microsoft/vscode/issues/30624
+// Related to https://github.com/microsoft/vscode/issues/30624
 export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {

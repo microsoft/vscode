@@ -173,8 +173,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const cleanedArgs: any = {};
 	const remainingArgs: any = parsedArgs;
 
-	// https://github.com/microsoft/vscode/issues/58177
-	cleanedArgs._ = parsedArgs._.filter(arg => String(arg).length > 0);
+	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
+	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
 
 	delete remainingArgs._;
 

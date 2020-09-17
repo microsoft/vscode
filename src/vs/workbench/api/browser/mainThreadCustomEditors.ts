@@ -346,10 +346,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	private static toWorkingCopyResource(viewType: string, resource: URI) {
+		const authority = viewType.replace(/[^a-z0-9\-_]/gi, '-');
+		const path = '/' + btoa(resource.with({ query: null, fragment: null }).toString(true));
 		return URI.from({
 			scheme: Schemas.vscodeCustomEditor,
-			authority: viewType,
-			path: resource.path,
+			authority: authority,
+			path: path,
 			query: JSON.stringify(resource.toJSON()),
 		});
 	}

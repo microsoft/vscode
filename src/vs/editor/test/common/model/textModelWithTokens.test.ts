@@ -411,7 +411,7 @@ suite('TextModelWithTokens', () => {
 
 suite('TextModelWithTokens regression tests', () => {
 
-	test('Microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
+	test('microsoft/monaco-editor#122: Unhandled Exception: TypeError: Unable to get property \'replace\' of undefined or null reference', () => {
 		function assertViewLineTokens(model: TextModel, lineNumber: number, forceTokenization: boolean, expected: ViewLineToken[]): void {
 			if (forceTokenization) {
 				model.forceTokenization(lineNumber);
@@ -488,7 +488,7 @@ suite('TextModelWithTokens regression tests', () => {
 	});
 
 
-	test('Microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
+	test('microsoft/monaco-editor#133: Error: Cannot read property \'modeId\' of undefined', () => {
 
 		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
 

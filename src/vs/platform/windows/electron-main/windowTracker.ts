@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { IElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
 export class ActiveWindowManager extends Disposable {
 
@@ -15,15 +15,15 @@ export class ActiveWindowManager extends Disposable {
 
 	private activeWindowId: number | undefined;
 
-	constructor(@IElectronMainService electronService: IElectronMainService) {
+	constructor(@INativeHostMainService nativeHostMainService: INativeHostMainService) {
 		super();
 
 		// remember last active window id upon events
-		const onActiveWindowChange = Event.latch(Event.any(electronService.onWindowOpen, electronService.onWindowFocus));
+		const onActiveWindowChange = Event.latch(Event.any(nativeHostMainService.onWindowOpen, nativeHostMainService.onWindowFocus));
 		onActiveWindowChange(this.setActiveWindow, this, this.disposables);
 
 		// resolve current active window
-		this.firstActiveWindowIdPromise = createCancelablePromise(() => electronService.getActiveWindowId(-1));
+		this.firstActiveWindowIdPromise = createCancelablePromise(() => nativeHostMainService.getActiveWindowId(-1));
 		(async () => {
 			try {
 				const windowId = await this.firstActiveWindowIdPromise;

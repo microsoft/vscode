@@ -283,19 +283,19 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 		@INotificationService _notificationService: INotificationService,
 		@IContextMenuService _contextMenuService: IContextMenuService
 	) {
-		const classNames: string[] = [];
+		let classNames: string | string[] | undefined;
 
 		if (action.item.icon) {
 			if (ThemeIcon.isThemeIcon(action.item.icon)) {
-				classNames.push(ThemeIcon.asClassName(action.item.icon)!);
+				classNames = ThemeIcon.asClassName(action.item.icon)!;
 			} else if (action.item.icon.dark?.scheme) {
 				const iconPathMapKey = action.item.icon.dark.toString();
 
 				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					classNames.push('icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!);
+					classNames = ['icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!];
 				} else {
 					const className = ids.nextId();
-					classNames.push('icon', className);
+					classNames = ['icon', className];
 					createCSSRule(`.icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.light || action.item.icon.dark)}`);
 					createCSSRule(`.vs-dark .icon.${className}, .hc-black .icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.dark)}`);
 					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, className);
@@ -303,6 +303,6 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 			}
 		}
 
-		super(action, action.actions, _contextMenuService, { classNames });
+		super(action, action.actions, _contextMenuService, { classNames: classNames });
 	}
 }

@@ -856,7 +856,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				hideInput = true;
 			}
 		}
-		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
+		this.ui.container.classList.toggle('hidden-input', hideInput);
 		const visibilities: Visibilities = {
 			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description,
@@ -1201,7 +1201,7 @@ export class QuickInputController extends Disposable {
 		const message = dom.append(extraContainer, $(`#${this.idPrefix}message.quick-input-message`));
 
 		const progressBar = new ProgressBar(container);
-		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
+		progressBar.getContainer().classList.add('quick-input-progress');
 
 		const list = this._register(new QuickInputList(container, this.idPrefix + 'list', this.options));
 		this._register(list.onChangedAllVisibleChecked(checked => {

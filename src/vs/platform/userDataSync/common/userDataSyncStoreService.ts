@@ -48,6 +48,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	}
 
 	protected toUserDataSyncStore(productStore: ConfigurationSyncStore | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
+		// Web overrides
+		productStore = isWeb && productStore?.web ? { ...productStore, ...productStore.web } : productStore;
 		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
 		if (value
 			&& isString(value.url)
@@ -57,15 +59,17 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 			const syncStore = value as ConfigurationSyncStore;
 			const type: UserDataSyncStoreType | undefined = this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType | undefined;
 			const url = configuredStore?.url
-				|| (type === 'insiders' ? syncStore.insidersUrl : type === 'stable' ? syncStore.stableUrl : undefined)
-				|| syncStore.url;
+				|| type === 'insiders' ? syncStore.insidersUrl
+				: type === 'stable' ? syncStore.stableUrl
+					: syncStore.url;
 			return {
 				url: URI.parse(url),
 				type,
 				defaultType: syncStore.url === syncStore.insidersUrl ? 'insiders' : syncStore.url === syncStore.stableUrl ? 'stable' : undefined,
 				defaultUrl: URI.parse(syncStore.url),
-				stableUrl: syncStore.stableUrl ? URI.parse(syncStore.stableUrl) : undefined,
-				insidersUrl: syncStore.insidersUrl ? URI.parse(syncStore.insidersUrl) : undefined,
+				stableUrl: URI.parse(syncStore.stableUrl),
+				insidersUrl: URI.parse(syncStore.insidersUrl),
+				canSwitch: !!syncStore.canSwitch,
 				authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
 					result.push({ id, scopes: syncStore!.authenticationProviders[id].scopes });
 					return result;
@@ -110,8 +114,8 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	}
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {
-		if (type !== this.userDataSyncStore?.type) {
-			if (type === this.userDataSyncStore?.defaultType) {
+		if (this.userDataSyncStore?.canSwitch && type !== this.userDataSyncStore.type) {
+			if (type === this.userDataSyncStore.defaultType) {
 				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
 			} else {
 				this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL);

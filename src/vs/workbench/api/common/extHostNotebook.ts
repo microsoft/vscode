@@ -22,6 +22,7 @@ import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
+import { IdGenerator } from 'vs/base/common/idGenerator';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -187,6 +188,24 @@ async function withToken(cb: (token: CancellationToken) => any) {
 	}
 }
 
+export class NotebookEditorDecorationType implements vscode.NotebookEditorDecorationType {
+
+	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
+
+	private _proxy: MainThreadNotebookShape;
+	public key: string;
+
+	constructor(proxy: MainThreadNotebookShape, options: vscode.NotebookDecorationRenderOptions) {
+		this.key = NotebookEditorDecorationType._Keys.nextId();
+		this._proxy = proxy;
+		this._proxy.$registerNotebookEditorDecorationType(this.key, typeConverters.NotebookDecorationRenderOptions.from(options));
+	}
+
+	public dispose(): void {
+		this._proxy.$removeNotebookEditorDecorationType(this.key);
+	}
+}
+
 export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
 	private static _notebookKernelProviderHandlePool: number = 0;
 
@@ -336,6 +355,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			this._notebookKernelProviders.delete(handle);
 			this._proxy.$unregisterNotebookKernelProvider(handle);
 		});
+	}
+
+	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
+		return new NotebookEditorDecorationType(this._proxy, options);
 	}
 
 	private _withAdapter<T>(handle: number, uri: UriComponents, callback: (adapter: ExtHostNotebookKernelProviderAdapter, document: ExtHostNotebookDocument) => Promise<T>) {
