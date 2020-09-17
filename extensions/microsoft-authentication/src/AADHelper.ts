@@ -525,7 +525,7 @@ export class AzureActiveDirectoryService {
 				Logger.info('Token refresh success');
 				return token;
 			} else {
-				Logger.error('Refreshing token failed');
+				Logger.error(`Refreshing token failed: ${result.statusText}`);
 				throw new Error('Refreshing token failed.');
 			}
 		} catch (e) {

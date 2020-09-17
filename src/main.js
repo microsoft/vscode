@@ -294,7 +294,7 @@ function readArgvConfigSync() {
 	// Fallback to default
 	if (!argvConfig) {
 		argvConfig = {
-			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/Microsoft/vscode/issues/51791)
+			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
 		};
 	}
 
@@ -328,7 +328,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'	// "disable-hardware-acceleration": true,',
 			'',
 			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/Microsoft/vscode/issues/51791 for details',
+			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
 			'	"disable-color-correct-rendering": true',
 			'}'
 		];

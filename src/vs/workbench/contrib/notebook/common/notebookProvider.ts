@@ -6,10 +6,10 @@
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { basename } from 'vs/base/common/path';
-import { NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExclusiveDocumentFilter, isDocumentExcludePattern, NotebookEditorPriority } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface NotebookSelector {
-	readonly filenamePattern?: string;
+	readonly filenamePattern?: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 	readonly excludeFileNamePattern?: string;
 }
 
@@ -22,6 +22,8 @@ export interface NotebookEditorDescriptor {
 	readonly providerDescription?: string;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
+	readonly dynamicContribution: boolean;
+	readonly exclusive: boolean;
 }
 
 export class NotebookProviderInfo implements NotebookEditorDescriptor {
@@ -35,6 +37,8 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	readonly providerDescription?: string;
 	readonly providerDisplayName: string;
 	readonly providerExtensionLocation: URI;
+	readonly dynamicContribution: boolean;
+	readonly exclusive: boolean;
 
 	constructor(descriptor: NotebookEditorDescriptor) {
 		this.id = descriptor.id;
@@ -45,6 +49,8 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 		this.providerDescription = descriptor.providerDescription;
 		this.providerDisplayName = descriptor.providerDisplayName;
 		this.providerExtensionLocation = descriptor.providerExtensionLocation;
+		this.dynamicContribution = descriptor.dynamicContribution;
+		this.exclusive = descriptor.exclusive;
 	}
 
 	matches(resource: URI): boolean {
@@ -52,7 +58,11 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	}
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
-		if (selector.filenamePattern) {
+		if (!selector.filenamePattern) {
+			return false;
+		}
+
+		if (typeof selector.filenamePattern === 'string') {
 			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
 				if (selector.excludeFileNamePattern) {
 					if (glob.match(selector.excludeFileNamePattern.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
@@ -64,6 +74,19 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 				return true;
 			}
 		}
+
+		let filenamePattern = isDocumentExcludePattern(selector.filenamePattern) ? selector.filenamePattern.include : (selector.filenamePattern as string | glob.IRelativePattern);
+		let excludeFilenamePattern = isDocumentExcludePattern(selector.filenamePattern) ? selector.filenamePattern.exclude : undefined;
+
+		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+			if (excludeFilenamePattern) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
+					return false;
+				}
+			}
+			return true;
+		}
+
 		return false;
 	}
 }

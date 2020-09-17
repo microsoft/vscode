@@ -348,7 +348,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			// full message (inital or update)
 			if (step?.message && options.title) {
-				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
+				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
 			} else {
 				titleAndMessage = options.title || step?.message;
 			}

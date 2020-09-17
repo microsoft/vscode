@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { join, } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { env as processEnv } from 'vs/base/common/process';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
@@ -80,11 +80,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			const exePaths: string[] = [];
 			if (isWindows) {
 				if (extensionTip.windowsPath) {
-					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', processEnv['USERPROFILE']!)
-						.replace('%ProgramFiles(x86)%', processEnv['ProgramFiles(x86)']!)
-						.replace('%ProgramFiles%', processEnv['ProgramFiles']!)
-						.replace('%APPDATA%', processEnv['APPDATA']!)
-						.replace('%WINDIR%', processEnv['WINDIR']!));
+					exePaths.push(extensionTip.windowsPath.replace('%USERPROFILE%', process.env['USERPROFILE']!)
+						.replace('%ProgramFiles(x86)%', process.env['ProgramFiles(x86)']!)
+						.replace('%ProgramFiles%', process.env['ProgramFiles']!)
+						.replace('%APPDATA%', process.env['APPDATA']!)
+						.replace('%WINDIR%', process.env['WINDIR']!));
 				}
 			} else {
 				exePaths.push(join('/usr/local/bin', exeName));

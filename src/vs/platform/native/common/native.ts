@@ -29,7 +29,7 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
-export interface ICommonElectronService {
+export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
 

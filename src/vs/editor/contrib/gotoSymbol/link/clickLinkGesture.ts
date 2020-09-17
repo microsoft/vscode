@@ -154,7 +154,7 @@ export class ClickLinkGesture extends Disposable {
 
 	private _onDidChangeCursorSelection(e: ICursorSelectionChangedEvent): void {
 		if (e.selection && e.selection.startColumn !== e.selection.endColumn) {
-			this._resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/Microsoft/vscode/issues/7827)
+			this._resetHandler(); // immediately stop this feature if the user starts to select (https://github.com/microsoft/vscode/issues/7827)
 		}
 	}
 

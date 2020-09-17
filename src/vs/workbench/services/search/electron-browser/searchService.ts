@@ -13,7 +13,6 @@ import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -36,7 +35,7 @@ export class LocalSearchService extends SearchService {
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService readonly instantiationService: IInstantiationService
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
@@ -62,7 +61,7 @@ export class DiskSearch implements ISearchResultProvider {
 			serverName: 'Search',
 			timeout,
 			args: ['--type=searchService'],
-			// See https://github.com/Microsoft/vscode/issues/27665
+			// See https://github.com/microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
 			// e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
 			// results in the forked process inheriting `--inspect-brk=xxx`.

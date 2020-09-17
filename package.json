@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.50.0",
-  "distro": "adae9f8fbaaab615a6f3b965732f2a871c3143a4",
+  "distro": "8d78341175414dcfde7cd493d481064cd4bf96d4",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -181,10 +181,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Microsoft/vscode.git"
+    "url": "https://github.com/microsoft/vscode.git"
   },
   "bugs": {
-    "url": "https://github.com/Microsoft/vscode/issues"
+    "url": "https://github.com/microsoft/vscode/issues"
   },
   "optionalDependencies": {
     "vscode-windows-ca-certs": "0.2.0",

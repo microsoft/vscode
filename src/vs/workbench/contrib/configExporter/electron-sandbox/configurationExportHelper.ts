@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import product from 'vs/platform/product/common/product';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -13,6 +11,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IExportedConfigurationNode {
 	name: string;
@@ -33,10 +32,11 @@ interface IConfigurationExport {
 export class DefaultConfigurationExportHelper {
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService
 	) {
 		const exportDefaultConfigurationPath = environmentService.args['export-default-configuration'];
 		if (exportDefaultConfigurationPath) {
@@ -113,8 +113,8 @@ export class DefaultConfigurationExportHelper {
 		const result: IConfigurationExport = {
 			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
 			buildTime: Date.now(),
-			commit: product.commit,
-			buildNumber: product.settingsSearchBuildId
+			commit: this.productService.commit,
+			buildNumber: this.productService.settingsSearchBuildId
 		};
 
 		return result;

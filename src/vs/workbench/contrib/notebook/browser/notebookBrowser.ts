@@ -168,6 +168,7 @@ export interface INotebookCellDecorationOptions {
 	className?: string;
 	gutterClassName?: string;
 	outputClassName?: string;
+	topClassName?: string;
 }
 
 export interface INotebookDeltaDecoration {

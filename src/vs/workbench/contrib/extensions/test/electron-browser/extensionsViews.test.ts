@@ -45,7 +45,6 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 suite('ExtensionsListView Tests', () => {
@@ -106,7 +105,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(IWorkbenchEnvironmentService) as INativeWorkbenchEnvironmentService);
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(INativeWorkbenchEnvironmentService));
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }

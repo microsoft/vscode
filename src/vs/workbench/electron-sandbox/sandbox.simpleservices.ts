@@ -69,7 +69,7 @@ import { Schemas } from 'vs/base/common/network';
 
 //#region Environment
 
-export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
+export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -91,6 +91,7 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
+	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -107,7 +108,6 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;
 	extensionTestsLocationURI?: URI | undefined;
-	logsPath: string = undefined!;
 	logLevel?: string | undefined;
 
 	args: NativeParsedArgs = Object.create(null);
