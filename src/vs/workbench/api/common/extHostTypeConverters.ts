@@ -32,6 +32,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface PositionLike {
 	line: number;
@@ -537,10 +538,11 @@ export namespace WorkspaceEdit {
 				} else if (entry._type === types.FileEditType.Cell) {
 					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
 						resource: entry.uri,
 						edit: entry.edit,
-						metadata: entry.metadata,
-						modelVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
+						notebookMetadata: entry.notebookMetadata,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}
@@ -1345,5 +1347,15 @@ export namespace NotebookExclusiveDocumentPattern {
 	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
 		const rp = obj as vscode.RelativePattern;
 		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+}
+
+export namespace NotebookDecorationRenderOptions {
+	export function from(options: vscode.NotebookDecorationRenderOptions): INotebookDecorationRenderOptions {
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
 	}
 }

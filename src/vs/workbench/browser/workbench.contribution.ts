@@ -34,12 +34,12 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
-				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration."),
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behaviour for that duration. This value is ignored when `#workbench.editor.showTabs#` is `false`."),
 				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
-				'description': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not."),
+				'markdownDescription': nls.localize('highlightModifiedTabs', "Controls whether a top border is drawn on modified (dirty) editor tabs or not. This value is ignored when `#workbench.editor.showTabs#` is `false`."),
 				'default': false
 			},
 			'workbench.editor.labelFormat': {
@@ -74,7 +74,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
 				'default': 'right',
-				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'.")
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
@@ -84,7 +84,18 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 					nls.localize('workbench.editor.tabSizing.fit', "Always keep tabs large enough to show the full editor label."),
 					nls.localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once.")
 				],
-				'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs.")
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
+			},
+			'workbench.editor.pinnedTabSizing': {
+				'type': 'string',
+				'enum': ['compact', 'shrink', 'normal'],
+				'default': 'shrink',
+				'enumDescriptions': [
+					nls.localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
+					nls.localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name."),
+					nls.localize('workbench.editor.pinnedTabSizing.normal', "A pinned tab inherits the look of non pinned tabs.")
+				],
+				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the begining of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
 			},
 			'workbench.editor.splitSizing': {
 				'type': 'string',
@@ -330,7 +341,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 					nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
 					nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
 					nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden."),
-					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when 'window.titleBarStyle' is 'native'.")
+					nls.localize('window.menuBarVisibility.compact', "Menu is displayed as a compact button in the sidebar. This value is ignored when `#window.titleBarStyle#` is `native`.")
 				],
 				'default': isWeb ? 'compact' : 'default',
 				'scope': ConfigurationScope.APPLICATION,

@@ -31,7 +31,7 @@ import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/s
 import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Action2, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { commandsExtensionPoint } from 'vs/workbench/api/common/menusExtensionPoint';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -48,7 +48,6 @@ import { ScanCode, ScanCodeUtils, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/base/com
 import { flatten } from 'vs/base/common/arrays';
 import { BrowserFeatures, KeyboardSupport } from 'vs/base/browser/canIUse';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 interface ContributedKeyBinding {
@@ -744,26 +743,6 @@ let schema: IJSONSchema = {
 		'allOf': commandsSchemas
 	}
 };
-
-const preferencesCategory = nls.localize('preferences', "Preferences");
-
-class ToggleKeybindingsLogAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.toggleKeybindingsLog',
-			title: { value: nls.localize('toggleKeybindingsLog', "Toggle Keyboard Shortcuts Troubleshooting"), original: 'Toggle Keyboard Shortcuts Troubleshooting' },
-			category: preferencesCategory,
-			f1: true
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IKeybindingService).toggleLogging();
-	}
-}
-
-registerAction2(ToggleKeybindingsLogAction);
 
 let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);

@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import * as json from 'vs/base/common/json';
-import * as strings from 'vs/base/common/strings';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { Queue } from 'vs/base/common/async';
 import { Edit } from 'vs/base/common/jsonFormatter';
@@ -426,7 +425,7 @@ export class ConfigurationEditingService {
 
 		// Without jsonPath, the entire configuration file is being replaced, so we just use JSON.stringify
 		if (!jsonPath.length) {
-			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
+			const content = JSON.stringify(value, null, insertSpaces ? ' '.repeat(tabSize) : '\t');
 			return [{
 				content,
 				length: model.getValue().length,

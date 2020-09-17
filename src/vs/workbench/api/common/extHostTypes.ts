@@ -601,7 +601,8 @@ export interface IFileTextEdit {
 export interface IFileCellEdit {
 	_type: FileEditType.Cell;
 	uri: URI;
-	edit: ICellEditOperation;
+	edit?: ICellEditOperation;
+	notebookMetadata?: vscode.NotebookDocumentMetadata;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -629,17 +630,23 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
-	// --- cell
+	// --- notebook
 
-	replaceCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+	replaceNotebookMetadata(uri: URI, value: vscode.NotebookDocumentMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, notebookMetadata: value });
 	}
 
-	replaceCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		if (start !== end || cells.length > 0) {
+			this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+		}
+	}
+
+	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Output, index, outputs: outputs.map(output => addIdToOutput(output)) } });
 	}
 
-	replaceCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
 	}
 
@@ -2165,9 +2172,15 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 
-	constructor(id: string) {
+	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
+		this.themeColor = color;
+	}
+
+	with(color: ThemeColor): ThemeIcon {
+		return new ThemeIcon(this.id, color);
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');

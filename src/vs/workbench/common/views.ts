@@ -554,6 +554,8 @@ export interface ITreeView extends IDisposable {
 
 	title: string;
 
+	description: string | undefined;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -567,6 +569,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeActions: Event<void>;
 
 	readonly onDidChangeTitle: Event<string>;
+
+	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
 

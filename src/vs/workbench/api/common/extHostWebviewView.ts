@@ -23,17 +23,20 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 	#isDisposed = false;
 	#isVisible: boolean;
 	#title: string | undefined;
+	#description: string | undefined;
 
 	constructor(
 		handle: extHostProtocol.WebviewHandle,
 		proxy: extHostProtocol.MainThreadWebviewViewsShape,
 		viewType: string,
+		title: string | undefined,
 		webview: ExtHostWebview,
 		isVisible: boolean,
 	) {
 		super();
 
 		this.#viewType = viewType;
+		this.#title = title;
 		this.#handle = handle;
 		this.#proxy = proxy;
 		this.#webview = webview;
@@ -47,6 +50,8 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 
 		this.#isDisposed = true;
 		this.#onDidDispose.fire();
+
+		this.#webview.dispose();
 
 		super.dispose();
 	}
@@ -70,6 +75,19 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 		}
 	}
 
+	public get description(): string | undefined {
+		this.assertNotDisposed();
+		return this.#description;
+	}
+
+	public set description(value: string | undefined) {
+		this.assertNotDisposed();
+		if (this.#description !== value) {
+			this.#description = value;
+			this.#proxy.$setWebviewViewDescription(this.#handle, value);
+		}
+	}
+
 	public get visible(): boolean { return this.#isVisible; }
 
 	public get webview(): vscode.Webview { return this.#webview; }
@@ -77,12 +95,17 @@ class ExtHostWebviewView extends Disposable implements vscode.WebviewView {
 	public get viewType(): string { return this.#viewType; }
 
 	/* internal */ _setVisible(visible: boolean) {
-		if (visible === this.#isVisible) {
+		if (visible === this.#isVisible || this.#isDisposed) {
 			return;
 		}
 
 		this.#isVisible = visible;
 		this.#onDidChangeVisibility.fire();
+	}
+
+	public show(preserveFocus?: boolean): void {
+		this.assertNotDisposed();
+		this.#proxy.$show(this.#handle, !!preserveFocus);
 	}
 
 	private assertNotDisposed() {
@@ -134,6 +157,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 	async $resolveWebviewView(
 		webviewHandle: string,
 		viewType: string,
+		title: string | undefined,
 		state: any,
 		cancellation: CancellationToken,
 	): Promise<void> {
@@ -145,7 +169,7 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		const { provider, extension } = entry;
 
 		const webview = this._extHostWebview.createNewWebview(webviewHandle, { /* todo */ }, extension);
-		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, webview, true);
+		const revivedView = new ExtHostWebviewView(webviewHandle, this._proxy, viewType, title, webview, true);
 
 		this._webviewViews.set(webviewHandle, revivedView);
 
@@ -164,6 +188,8 @@ export class ExtHostWebviewViews implements extHostProtocol.ExtHostWebviewViewsS
 		const webviewView = this.getWebviewView(webviewHandle);
 		this._webviewViews.delete(webviewHandle);
 		webviewView.dispose();
+
+		this._extHostWebview.deleteWebview(webviewHandle);
 	}
 
 	private getWebviewView(handle: string): ExtHostWebviewView {

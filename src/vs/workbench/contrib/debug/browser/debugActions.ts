@@ -14,6 +14,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { deepClone } from 'vs/base/common/objects';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -369,7 +370,8 @@ export class FocusSessionAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(id, label, '', debugService, keybindingService);
 	}
@@ -378,7 +380,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 		await this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
-			await stackFrame.openInEditor(this.editorService, true);
+			await stackFrame.openInEditor(this.editorService, this.uriIdentityService, true);
 		}
 	}
 }
@@ -408,7 +410,9 @@ export class CopyValueAction extends Action {
 
 		try {
 			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
-			this.clipboardService.writeText(evaluation.body.result);
+			if (evaluation) {
+				this.clipboardService.writeText(evaluation.body.result);
+			}
 		} catch (e) {
 			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}

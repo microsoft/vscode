@@ -120,8 +120,9 @@ export type IAuthenticationProvider = { id: string, scopes: string[] };
 export interface IUserDataSyncStore {
 	readonly url: URI;
 	readonly defaultUrl: URI;
-	readonly stableUrl: URI | undefined;
-	readonly insidersUrl: URI | undefined;
+	readonly stableUrl: URI;
+	readonly insidersUrl: URI;
+	readonly canSwitch: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
 }
 

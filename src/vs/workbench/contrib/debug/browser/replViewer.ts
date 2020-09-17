@@ -23,6 +23,7 @@ import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugCon
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const $ = dom.$;
 
@@ -138,7 +139,8 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		private readonly linkDetector: LinkDetector,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) { }
 
 	get templateId(): string {
@@ -147,7 +149,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 
 	renderTemplate(container: HTMLElement): ISimpleReplElementTemplateData {
 		const data: ISimpleReplElementTemplateData = Object.create(null);
-		dom.addClass(container, 'output');
+		container.classList.add('output');
 		const expression = dom.append(container, $('.output.expression.value-and-source'));
 
 		data.container = container;
@@ -159,7 +161,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 			e.stopPropagation();
 			const source = data.getReplElementSource();
 			if (source) {
-				source.source.openInEditor(this.editorService, {
+				source.source.openInEditor(this.editorService, this.uriIdentityService, {
 					startLineNumber: source.lineNumber,
 					startColumn: source.column,
 					endLineNumber: source.lineNumber,
@@ -179,7 +181,7 @@ export class ReplSimpleElementsRenderer implements ITreeRenderer<SimpleReplEleme
 		const result = handleANSIOutput(element.value, this.linkDetector, this.themeService, element.session);
 		templateData.value.appendChild(result);
 
-		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
+		templateData.value.classList.add((element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
 		templateData.source.title = element.sourceData ? `${this.labelService.getUriLabel(element.sourceData.source.uri)}:${element.sourceData.lineNumber}` : '';
 		templateData.getReplElementSource = () => element.sourceData;
@@ -226,7 +228,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 	}
 
 	renderTemplate(container: HTMLElement): IRawObjectReplTemplateData {
-		dom.addClass(container, 'output');
+		container.classList.add('output');
 
 		const expression = dom.append(container, $('.output.expression'));
 		const name = dom.append(expression, $('span.name'));

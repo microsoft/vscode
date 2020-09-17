@@ -23,7 +23,7 @@ import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const MAX_URL_LENGTH = 2045;
@@ -148,10 +148,6 @@ export class IssueReporter extends Disposable {
 		applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
-
-		if (configuration.data.issueType === IssueType.SettingsSearchIssue) {
-			this.handleSettingsSearchData(<ISettingsSearchIssueReporterData>configuration.data);
-		}
 	}
 
 	render(): void {
@@ -244,7 +240,7 @@ export class IssueReporter extends Disposable {
 			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
-		styleTag.innerHTML = content.join('\n');
+		styleTag.textContent = content.join('\n');
 		document.head.appendChild(styleTag);
 		document.body.style.color = styles.color || '';
 	}
@@ -264,39 +260,6 @@ export class IssueReporter extends Disposable {
 		}
 
 		this.updateExtensionSelector(installedExtensions);
-	}
-
-	private handleSettingsSearchData(data: ISettingsSearchIssueReporterData): void {
-		this.issueReporterModel.update({
-			actualSearchResults: data.actualSearchResults,
-			query: data.query,
-			filterResultCount: data.filterResultCount
-		});
-		this.updateSearchedExtensionTable(data.enabledExtensions);
-		this.updateSettingsSearchDetails(data);
-	}
-
-	private updateSettingsSearchDetails(data: ISettingsSearchIssueReporterData): void {
-		const target = document.querySelector<HTMLElement>('.block-settingsSearchResults .block-info');
-		if (target) {
-			const queryDiv = $<HTMLDivElement>('div', undefined, `Query: "${data.query}"` as string);
-			const countDiv = $<HTMLElement>('div', undefined, `Literal match count: ${data.filterResultCount}` as string);
-			const detailsDiv = $<HTMLDivElement>('.block-settingsSearchResults-details', undefined, queryDiv, countDiv);
-
-			const table = $('table', undefined,
-				$('tr', undefined,
-					$('th', undefined, 'Setting'),
-					$('th', undefined, 'Extension'),
-					$('th', undefined, 'Score'),
-				),
-				...data.actualSearchResults.map(setting => $('tr', undefined,
-					$('td', undefined, setting.key),
-					$('td', undefined, setting.extensionId),
-					$('td', undefined, String(setting.score).slice(0, 5)),
-				))
-			);
-			reset(target, detailsDiv, table);
-		}
 	}
 
 	private initServices(configuration: IssueReporterConfiguration): void {
@@ -498,10 +461,6 @@ export class IssueReporter extends Disposable {
 			return true;
 		}
 
-		if (issueType === IssueType.SettingsSearchIssue) {
-			return true;
-		}
-
 		return false;
 	}
 
@@ -668,16 +627,11 @@ export class IssueReporter extends Disposable {
 
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
-		if (issueType === IssueType.SettingsSearchIssue) {
-			reset(typeSelect, makeOption(IssueType.SettingsSearchIssue, localize('settingsSearchIssue', "Settings Search Issue")));
-			typeSelect.disabled = true;
-		} else {
-			reset(typeSelect,
-				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
-			);
-		}
+		reset(typeSelect,
+			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
+			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
+		);
 
 		typeSelect.value = issueType.toString();
 
@@ -791,13 +745,6 @@ export class IssueReporter extends Disposable {
 			if (fileOnExtension) {
 				show(extensionSelector);
 			}
-		} else if (issueType === IssueType.SettingsSearchIssue) {
-			show(blockContainer);
-			show(searchedExtensionsBlock);
-			show(settingsSearchResultsBlock);
-
-			reset(descriptionTitle, localize('expectedResults', "Expected Results"), $('span.required-input', undefined, '*'));
-			reset(descriptionSubtitle, localize('settingsSearchResultsDescription', "Please list the results that you were expecting to see when you searched with this query. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		}
 	}
 
@@ -1132,20 +1079,6 @@ export class IssueReporter extends Disposable {
 			}
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
-		}
-	}
-
-	private updateSearchedExtensionTable(extensions: IssueReporterExtensionData[]): void {
-		const target = document.querySelector<HTMLElement>('.block-searchedExtensions .block-info');
-		if (target) {
-			if (!extensions.length) {
-				target.innerText = 'Extensions: none';
-				return;
-			}
-
-			const table = this.getExtensionTableHtml(extensions);
-			target.innerText = '';
-			target.appendChild(table);
 		}
 	}
 

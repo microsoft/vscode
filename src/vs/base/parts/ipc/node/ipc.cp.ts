@@ -6,7 +6,7 @@
 import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Delayer, createCancelablePromise } from 'vs/base/common/async';
-import { deepClone, assign } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { IChannel, ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient } from 'vs/base/parts/ipc/common/ipc';
@@ -14,6 +14,7 @@ import { isRemoteConsoleLog, log } from 'vs/base/common/console';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { isMacintosh } from 'vs/base/common/platform';
 
 /**
  * This implementation doesn't perform well since it uses base64 encoding for buffers.
@@ -179,10 +180,10 @@ export class Client implements IChannelClient, IDisposable {
 			const args = this.options && this.options.args ? this.options.args : [];
 			const forkOpts: ForkOptions = Object.create(null);
 
-			forkOpts.env = assign(deepClone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
+			forkOpts.env = { ...deepClone(process.env), 'VSCODE_PARENT_PID': String(process.pid) };
 
 			if (this.options && this.options.env) {
-				forkOpts.env = assign(forkOpts.env, this.options.env);
+				forkOpts.env = { ...forkOpts.env, ...this.options.env };
 			}
 
 			if (this.options && this.options.freshExecArgv) {
@@ -195,6 +196,12 @@ export class Client implements IChannelClient, IDisposable {
 
 			if (this.options && typeof this.options.debugBrk === 'number') {
 				forkOpts.execArgv = ['--nolazy', '--inspect-brk=' + this.options.debugBrk];
+			}
+
+			if (isMacintosh && forkOpts.env) {
+				// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
+				// See https://github.com/microsoft/vscode/issues/105848
+				delete forkOpts.env['DYLD_LIBRARY_PATH'];
 			}
 
 			this.child = fork(this.modulePath, args, forkOpts);

@@ -139,7 +139,7 @@ export class ContextView extends Disposable {
 			if (this.shadowRoot) {
 				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
-				DOM.removeNode(this.shadowRootHostElement!);
+				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
 			} else {
 				this.container.removeChild(this.view);
@@ -361,6 +361,10 @@ let SHADOW_ROOT_CSS = /* css */ `
 		user-select: none;
 		-webkit-user-select: none;
 		-ms-user-select: none;
+	}
+
+	:host {
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	}
 
 	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }

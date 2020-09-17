@@ -9,7 +9,7 @@ import { promisify } from 'util';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,7 +19,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as files from 'vs/workbench/contrib/files/common/files';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { didUseCachedData } from 'vs/workbench/services/timer/electron-browser/timerService';
+import { didUseCachedData } from 'vs/workbench/services/timer/electron-sandbox/timerService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 

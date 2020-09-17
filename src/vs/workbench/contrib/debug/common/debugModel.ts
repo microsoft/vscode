@@ -10,7 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isString, isUndefinedOrNull } from 'vs/base/common/types';
-import { distinct, lastIndex, first } from 'vs/base/common/arrays';
+import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
@@ -23,6 +23,7 @@ import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -374,9 +375,9 @@ export class StackFrame implements IStackFrame {
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
+	async openInEditor(editorService: IEditorService, uriIdentityService: IUriIdentityService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
 		if (this.source.available) {
-			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+			return this.source.openInEditor(editorService, uriIdentityService, this.range, preserveFocus, sideBySide, pinned);
 		}
 		return undefined;
 	}
@@ -421,7 +422,7 @@ export class Thread implements IThread {
 	}
 
 	getTopStackFrame(): IStackFrame | undefined {
-		return first(this.getCallStack(), sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'), undefined);
+		return this.getCallStack().find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
 	}
 
 	get stateLabel(): string {

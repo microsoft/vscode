@@ -38,7 +38,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		}
 	}
 
-	private static runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task>>) {
+	private static runTasks(taskService: ITaskService, tasks: Array<Task | Promise<Task | undefined>>) {
 		tasks.forEach(task => {
 			if (task instanceof Promise) {
 				task.then(promiseResult => {
@@ -52,8 +52,8 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 		});
 	}
 
-	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task>>, taskNames: Array<string> } {
-		const tasks = new Array<Task | Promise<Task>>();
+	private static findAutoTasks(taskService: ITaskService, workspaceTaskResult: Map<string, WorkspaceFolderTaskResult>): { tasks: Array<Task | Promise<Task | undefined>>, taskNames: Array<string> } {
+		const tasks = new Array<Task | Promise<Task | undefined>>();
 		const taskNames = new Array<string>();
 		if (workspaceTaskResult) {
 			workspaceTaskResult.forEach(resultElement => {
@@ -68,7 +68,7 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				if (resultElement.configurations) {
 					forEach(resultElement.configurations.byIdentifier, (configedTask) => {
 						if (configedTask.value.runOptions.runOn === RunOnOptions.folderOpen) {
-							tasks.push(new Promise<Task>(resolve => {
+							tasks.push(new Promise<Task | undefined>(resolve => {
 								taskService.getTask(resultElement.workspaceFolder, configedTask.value._id, true).then(task => resolve(task));
 							}));
 							if (configedTask.value._label) {

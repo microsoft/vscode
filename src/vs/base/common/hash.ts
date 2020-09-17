@@ -12,7 +12,6 @@ export function hash(obj: any): number {
 	return doHash(obj, 0);
 }
 
-
 export function doHash(obj: any, hashVal: number): number {
 	switch (typeof obj) {
 		case 'object':

@@ -50,6 +50,7 @@ import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
+import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -114,8 +115,7 @@ import 'vs/workbench/contrib/preferences/browser/keyboardLayoutPicker';
 import 'vs/workbench/contrib/debug/browser/extensionHostDebugService';
 
 // Webview
-import 'vs/workbench/contrib/webview/browser/webviewService';
-import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';

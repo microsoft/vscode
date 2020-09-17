@@ -610,7 +610,12 @@ export class MoveViewAction extends Action {
 		return new Promise((resolve, reject) => {
 			quickPick.onDidAccept(() => {
 				const viewId = quickPick.selectedItems[0];
-				resolve(viewId.id);
+				if (viewId.id) {
+					resolve(viewId.id);
+				} else {
+					reject();
+				}
+
 				quickPick.hide();
 			});
 

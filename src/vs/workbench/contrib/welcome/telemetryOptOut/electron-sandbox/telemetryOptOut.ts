@@ -16,11 +16,13 @@ import { AbstractTelemetryOptOut } from 'vs/workbench/contrib/welcome/telemetryO
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IOpenerService openerService: IOpenerService,
 		@INotificationService notificationService: INotificationService,
 		@IHostService hostService: IHostService,
@@ -33,7 +35,7 @@ export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IElectronService private readonly electronService: IElectronService
 	) {
-		super(storageService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
+		super(storageService, storageKeysSyncRegistryService, openerService, notificationService, hostService, telemetryService, experimentService, configurationService, galleryService, productService, environmentService, jsonEditingService);
 
 		this.handleTelemetryOptOut();
 	}

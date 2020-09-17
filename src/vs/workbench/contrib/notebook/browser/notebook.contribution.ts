@@ -201,10 +201,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	NotebookDiffEditorFactory
 );
 
-function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
-	return notebookService.getContributedNotebookProviders(uri)[0];
-}
-
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -290,7 +286,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
 		let id = typeof options?.override === 'string' ? options.override : undefined;
-		if (id === undefined && originalInput.isUntitled()) {
+		if (id === undefined && originalInput.resource?.scheme === Schemas.untitled) {
 			return undefined;
 		}
 
@@ -387,7 +383,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, notebookUri) && !(editor instanceof NotebookEditorInput));
 
 		if (existingEditors.length) {
-			return { override: this.editorService.openEditor(existingEditors[0]) };
+			return undefined;
 		}
 
 		const userAssociatedEditors = this.getUserAssociatedEditors(notebookUri);
@@ -426,7 +422,6 @@ class CellContentProvider implements ITextModelContentProvider {
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
 		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
@@ -446,12 +441,8 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!data) {
 			return null;
 		}
-		const info = getFirstNotebookInfo(this._notebookService, data.notebook);
-		if (!info) {
-			return null;
-		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook, info.id);
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
 		for (const cell of ref.object.notebook.cells) {
@@ -564,9 +555,9 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
-		this._dirtyListener = Event.debounce(workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
+		this._dirtyListener = Event.debounce(_workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
 			const inputs = this._createMissingNotebookEditors();
 			this._editorService.openEditors(inputs);
 		});
@@ -580,7 +571,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 		const result: IResourceEditorInput[] = [];
 
 		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			if (notebook.isDirty && !this._editorService.isOpen({ resource: notebook.uri })) {
+			if (this._workingCopyService.isDirty(notebook.uri.with({ scheme: Schemas.vscodeNotebook })) && !this._editorService.isOpen({ resource: notebook.uri })) {
 				result.push({
 					resource: notebook.uri,
 					options: { inactive: true, preserveFocus: true, pinned: true }

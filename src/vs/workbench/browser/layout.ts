@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, addClass, removeClass, isAncestor, getClientArea, Dimension, toggleClass, position, size, IDimension } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, isAncestor, getClientArea, Dimension, position, size, IDimension } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -344,9 +344,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Apply as CSS class
 		if (this.state.fullscreen) {
-			addClass(this.container, Classes.FULLSCREEN);
+			this.container.classList.add(Classes.FULLSCREEN);
 		} else {
-			removeClass(this.container, Classes.FULLSCREEN);
+			this.container.classList.remove(Classes.FULLSCREEN);
 
 			if (this.state.zenMode.transitionedToFullScreen && this.state.zenMode.active) {
 				this.toggleZenMode();
@@ -421,10 +421,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Adjust CSS
 		const activityBarContainer = assertIsDefined(activityBar.getContainer());
 		const sideBarContainer = assertIsDefined(sideBar.getContainer());
-		removeClass(activityBarContainer, oldPositionValue);
-		removeClass(sideBarContainer, oldPositionValue);
-		addClass(activityBarContainer, newPositionValue);
-		addClass(sideBarContainer, newPositionValue);
+		activityBarContainer.classList.remove(oldPositionValue);
+		sideBarContainer.classList.remove(oldPositionValue);
+		activityBarContainer.classList.add(newPositionValue);
+		sideBarContainer.classList.add(newPositionValue);
 
 		// Update Styles
 		activityBar.updateStyles();
@@ -471,7 +471,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.state.windowBorder = windowBorder;
 
-		toggleClass(this.container, Classes.WINDOW_BORDER, windowBorder);
+		this.container.classList.toggle(Classes.WINDOW_BORDER, windowBorder);
 
 		if (!skipLayout) {
 			this.layout();
@@ -1254,9 +1254,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.STATUSBAR_HIDDEN);
+			this.container.classList.add(Classes.STATUSBAR_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.STATUSBAR_HIDDEN);
+			this.container.classList.remove(Classes.STATUSBAR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -1459,9 +1459,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.EDITOR_HIDDEN);
+			this.container.classList.add(Classes.EDITOR_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.EDITOR_HIDDEN);
+			this.container.classList.remove(Classes.EDITOR_HIDDEN);
 		}
 
 		// Propagate to grid
@@ -1495,9 +1495,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.SIDEBAR_HIDDEN);
+			this.container.classList.add(Classes.SIDEBAR_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.SIDEBAR_HIDDEN);
+			this.container.classList.remove(Classes.SIDEBAR_HIDDEN);
 		}
 
 		// If sidebar becomes hidden, also hide the current active Viewlet if any
@@ -1546,9 +1546,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		if (hidden) {
-			addClass(this.container, Classes.PANEL_HIDDEN);
+			this.container.classList.add(Classes.PANEL_HIDDEN);
 		} else {
-			removeClass(this.container, Classes.PANEL_HIDDEN);
+			this.container.classList.remove(Classes.PANEL_HIDDEN);
 		}
 
 		// If panel part becomes hidden, also hide the current active panel if any
@@ -1670,8 +1670,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Adjust CSS
 		const panelContainer = assertIsDefined(panelPart.getContainer());
-		removeClass(panelContainer, oldPositionValue);
-		addClass(panelContainer, newPositionValue);
+		panelContainer.classList.remove(oldPositionValue);
+		panelContainer.classList.add(newPositionValue);
 
 		// Update Styles
 		panelPart.updateStyles();

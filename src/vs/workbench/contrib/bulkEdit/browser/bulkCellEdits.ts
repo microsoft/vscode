@@ -49,9 +49,9 @@ export class BulkCellEdits {
 			// }
 
 			// apply edits
-			const cellEdits = group.map(edit => edit.cellEdit);
-			this._notebookService.transformEditsOutputs(ref.object.notebook, cellEdits);
-			ref.object.notebook.applyEdit(ref.object.notebook.versionId, cellEdits, true);
+			const edits = group.map(entry => entry.cellEdit);
+			this._notebookService.transformEditsOutputs(ref.object.notebook, edits);
+			ref.object.notebook.applyEdits(ref.object.notebook.versionId, edits, true, undefined, () => undefined);
 			ref.dispose();
 
 			this._progress.report(undefined);

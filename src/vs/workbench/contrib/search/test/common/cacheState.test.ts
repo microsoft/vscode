@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import * as errors from 'vs/base/common/errors';
-import * as objects from 'vs/base/common/objects';
 import { DeferredPromise } from 'vs/base/test/common/utils';
 import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';
@@ -186,7 +185,7 @@ suite('FileQueryCacheState', () => {
 
 		public query(cacheKey: string): IFileQuery {
 			this.cacheKeys.push(cacheKey);
-			return objects.assign({ cacheKey: cacheKey }, this.baseQuery);
+			return Object.assign({ cacheKey: cacheKey }, this.baseQuery);
 		}
 
 		public load(query: IFileQuery): Promise<any> {
@@ -207,7 +206,7 @@ suite('FileQueryCacheState', () => {
 		}
 
 		public awaitDisposal(n: number) {
-			return new Promise(resolve => {
+			return new Promise<void>(resolve => {
 				if (n === Object.keys(this.disposing).length) {
 					resolve();
 				} else {

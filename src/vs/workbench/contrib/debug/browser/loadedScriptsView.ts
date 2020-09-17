@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -40,6 +39,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -433,6 +433,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -441,9 +442,9 @@ export class LoadedScriptsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-loaded-scripts');
-		dom.addClass(container, 'show-file-icons');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-loaded-scripts');
+		container.classList.add('show-file-icons');
 
 		this.treeContainer = renderViewTree(container);
 
@@ -499,7 +500,7 @@ export class LoadedScriptsView extends ViewPane {
 				const source = e.element.getSource();
 				if (source && source.available) {
 					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+					source.openInEditor(this.editorService, this.uriIdentityService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 				}
 			}
 		}));

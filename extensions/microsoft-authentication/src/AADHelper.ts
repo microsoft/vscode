@@ -40,6 +40,7 @@ interface ITokenClaims {
 	tid: string;
 	email?: string;
 	unique_name?: string;
+	preferred_username?: string;
 	oid?: string;
 	altsecid?: string;
 	ipd?: string;
@@ -454,7 +455,7 @@ export class AzureActiveDirectoryService {
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				label: claims.email || claims.unique_name || 'user@example.com',
+				label: claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};
@@ -524,7 +525,7 @@ export class AzureActiveDirectoryService {
 				Logger.info('Token refresh success');
 				return token;
 			} else {
-				Logger.error('Refreshing token failed');
+				Logger.error(`Refreshing token failed: ${result.statusText}`);
 				throw new Error('Refreshing token failed.');
 			}
 		} catch (e) {

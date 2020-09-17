@@ -5,7 +5,6 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as path from 'path';
 import { TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
@@ -110,7 +109,7 @@ export class TypeScriptVersionManager extends Disposable {
 				run: async () => {
 					await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 					const tsConfig = vscode.workspace.getConfiguration('typescript');
-					await tsConfig.update('tsdk', path.dirname(version.tsServerPath), false);
+					await tsConfig.update('tsdk', version.pathLabel, false);
 					this.updateActiveVersion(version);
 				},
 			};

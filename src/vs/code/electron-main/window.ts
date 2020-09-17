@@ -9,17 +9,16 @@ import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event, Details } from 'electron';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { parseArgs, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -35,6 +34,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -169,6 +169,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					enableWebSQL: false,
 					enableRemoteModule: false,
+					spellcheck: false,
 					nativeWindowOpen: true,
 					webviewTag: true,
 					zoomFactor: zoomLevelToZoomFactor(windowConfig?.zoomLevel),
@@ -337,7 +338,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	focus(options?: { force: boolean }): void {
-		// macOS: Electron >6.x changed its behaviour to not
+		// macOS: Electron > 7.x changed its behaviour to not
 		// bring the application to the foreground when a window
 		// is focused programmatically. Only via `app.focus` and
 		// the option `steal: true` can you get the previous
@@ -740,7 +741,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._onLoad.fire();
 	}
 
-	reload(configurationIn?: INativeWindowConfiguration, cli?: ParsedArgs): void {
+	reload(configurationIn?: INativeWindowConfiguration, cli?: NativeParsedArgs): void {
 
 		// If config is not provided, copy our current one
 		const configuration = configurationIn ? configurationIn : objects.mixin({}, this.currentConfig);
@@ -785,7 +786,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.fullscreen = this.isFullScreen;
 
 		// Set Accessibility Config
-		windowConfiguration.highContrast = nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors;
+		windowConfiguration.colorScheme = (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) ? ColorScheme.HIGH_CONTRAST : nativeTheme.shouldUseDarkColors ? ColorScheme.DARK : ColorScheme.LIGHT;
 		windowConfiguration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
 		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 

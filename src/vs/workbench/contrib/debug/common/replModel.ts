@@ -10,7 +10,6 @@ import { ExpressionContainer } from 'vs/workbench/contrib/debug/common/debugMode
 import { isString, isUndefinedOrNull, isObject } from 'vs/base/common/types';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { endsWith } from 'vs/base/common/strings';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Emitter } from 'vs/base/common/event';
 
@@ -27,7 +26,7 @@ export class SimpleReplElement implements IReplElement {
 	) { }
 
 	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}:${this.sourceData.lineNumber}` : '';
+		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
 		return this.value + sourceStr;
 	}
 
@@ -145,7 +144,7 @@ export class ReplGroup implements IReplElement {
 	}
 
 	toString(): string {
-		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}:${this.sourceData.lineNumber}` : '';
+		const sourceStr = this.sourceData ? ` ${this.sourceData.source.name}` : '';
 		return this.name + sourceStr;
 	}
 
@@ -203,7 +202,7 @@ export class ReplModel {
 
 		if (typeof data === 'string') {
 			const previousElement = this.replElements.length ? this.replElements[this.replElements.length - 1] : undefined;
-			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !endsWith(previousElement.value, '\n') && !endsWith(previousElement.value, '\r\n')) {
+			if (previousElement instanceof SimpleReplElement && previousElement.severity === sev && !previousElement.value.endsWith('\n') && !previousElement.value.endsWith('\r\n')) {
 				previousElement.value += data;
 				this._onDidChangeElements.fire();
 			} else {

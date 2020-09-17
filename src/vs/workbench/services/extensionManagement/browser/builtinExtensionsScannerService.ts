@@ -62,9 +62,6 @@ export class BuiltinExtensionsScannerService implements IBuiltinExtensionsScanne
 	}
 
 	private _getBuiltinExtensionsUrl(environmentService: IWorkbenchEnvironmentService): URI | undefined {
-		if (environmentService.options?.builtinExtensionsServiceUrl) {
-			return URI.parse(environmentService.options?.builtinExtensionsServiceUrl);
-		}
 		let enableBuiltinExtensions: boolean;
 		if (environmentService.options && typeof environmentService.options._enableBuiltinExtensions !== 'undefined') {
 			enableBuiltinExtensions = environmentService.options._enableBuiltinExtensions;

@@ -85,7 +85,8 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
-			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
+			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true },
+			respectOrientationForPreviousAndNextKey: true
 		});
 
 		this.menuElement = menuElement;
@@ -229,11 +230,11 @@ export class Menu extends ActionBar {
 	private initializeStyleSheet(container: HTMLElement): void {
 		if (isInShadowDOM(container)) {
 			this.styleSheet = createStyleSheet(container);
-			this.styleSheet.innerHTML = MENU_WIDGET_CSS;
+			this.styleSheet.textContent = MENU_WIDGET_CSS;
 		} else {
 			if (!Menu.globalStyleSheet) {
 				Menu.globalStyleSheet = createStyleSheet();
-				Menu.globalStyleSheet.innerHTML = MENU_WIDGET_CSS;
+				Menu.globalStyleSheet.textContent = MENU_WIDGET_CSS;
 			}
 
 			this.styleSheet = Menu.globalStyleSheet;

@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -29,7 +30,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): void;
+	showHover(options: IHoverOptions, focus?: boolean): IDisposable | undefined;
 
 	/**
 	 * Hides the hover if it was visible.
@@ -79,6 +80,12 @@ export interface IHoverOptions {
 	 * - Markdown that contains no links where selection is not important
 	 */
 	hideOnHover?: boolean;
+
+	/**
+	 * Whether to anchor the hover above (default) or below the target. This option will be ignored
+	 * if there is not enough room to layout the hover in the specified anchor position.
+	 */
+	anchorPosition?: AnchorPosition;
 }
 
 export interface IHoverAction {

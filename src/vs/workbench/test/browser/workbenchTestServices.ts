@@ -75,7 +75,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { find } from 'vs/base/common/arrays';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService, FilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -114,6 +113,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
 import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/browser/textFileService';
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined);
@@ -555,7 +555,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	get count(): number { return this.groups.length; }
 
 	getGroups(_order?: GroupsOrder): ReadonlyArray<IEditorGroup> { return this.groups; }
-	getGroup(identifier: number): IEditorGroup | undefined { return find(this.groups, group => group.id === identifier); }
+	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
 	getLabel(_identifier: number): string { return 'Group 1'; }
 	findGroup(_scope: IFindGroupScope, _source?: number | IEditorGroup, _wrap?: boolean): IEditorGroup { throw new Error('not implemented'); }
 	activateGroup(_group: number | IEditorGroup): IEditorGroup { throw new Error('not implemented'); }
@@ -1037,6 +1037,9 @@ export class TestHostService implements IHostService {
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
+
+	readonly colorScheme = ColorScheme.DARK;
+	onDidChangeColorScheme = Event.None;
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
@@ -1227,6 +1230,8 @@ export class TestPathService implements IPathService {
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
 	}
+
+	readonly defaultUriScheme = Schemas.vscodeRemote;
 }
 
 export class TestTextFileEditorModelManager extends TextFileEditorModelManager {

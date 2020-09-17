@@ -5,7 +5,6 @@
 
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
 import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 import * as DOM from 'vs/base/browser/dom';
@@ -22,6 +21,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
 
 
 type ParsedQuery = {
@@ -41,7 +41,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		if (query && query !== '') {
 			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (strings.startsWith(f, '!')) {
+				if (f.startsWith('!')) {
 					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
 				} else {
 					this._parsedQueries.push({ type: 'include', query: f });
@@ -51,6 +51,11 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 
 	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
+		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
+			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
+			return TreeVisibility.Visible;
+		}
+
 		let includeQueryPresent = false;
 		let includeQueryMatched = false;
 
@@ -107,13 +112,13 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService) {
 		super(null, action);
-		this.delayedFilterUpdate = new Delayer<void>(200);
+		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'repl-panel-filter-container');
+		this.container.classList.add('repl-panel-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;

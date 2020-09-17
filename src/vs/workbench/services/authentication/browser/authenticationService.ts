@@ -26,7 +26,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 
 export function getAuthenticationProviderActivationEvent(id: string): string { return `onAuthenticationRequest:${id}`; }
 
-export type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string };
+export type AuthenticationSessionInfo = { readonly id: string, readonly accessToken: string, readonly providerId: string, readonly canSignOut?: boolean };
 export async function getCurrentAuthenticationSessionInfo(environmentService: IWorkbenchEnvironmentService, productService: IProductService): Promise<AuthenticationSessionInfo | undefined> {
 	if (environmentService.options?.credentialsProvider) {
 		const authenticationSessionValue = await environmentService.options.credentialsProvider.getPassword(`${productService.urlProtocol}.login`, 'account');
@@ -329,7 +329,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
 			// provider is now in the map.
-			await new Promise((resolve, _) => {
+			await new Promise<void>((resolve, _) => {
 				this.onDidRegisterAuthenticationProvider(e => {
 					if (e.id === providerId) {
 						provider = this._authenticationProviders.get(providerId);
@@ -444,7 +444,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const didRegister: Promise<MainThreadAuthenticationProvider> = new Promise((resolve, _) => {
 			this.onDidRegisterAuthenticationProvider(e => {
 				if (e.id === providerId) {
-					resolve(this._authenticationProviders.get(providerId));
+					provider = this._authenticationProviders.get(providerId);
+					if (provider) {
+						resolve(provider);
+					} else {
+						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+					}
 				}
 			});
 		});

@@ -200,7 +200,10 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
 					});
 
-					const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+					const actions = [manageExtensionsAction];
+					if (!hasEmbedderAccountSession || authenticationSession?.canSignOut) {
+						actions.push(signOutAction);
+					}
 
 					const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
 					menus.push(menu);

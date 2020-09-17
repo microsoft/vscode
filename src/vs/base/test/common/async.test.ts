@@ -527,7 +527,7 @@ suite('Async', () => {
 
 		r1Queue.queue(syncPromiseFactory);
 
-		return new Promise(c => setTimeout(() => c(), 0)).then(() => {
+		return new Promise<void>(c => setTimeout(() => c(), 0)).then(() => {
 			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
 			assert.notEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
 		});

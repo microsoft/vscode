@@ -137,7 +137,10 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
+		//  anyFile: is never untitled as it can be saved
+		// untitled: is untitled by definition
+		// anyOther: is untitled because it cannot be saved, as such we expect a "Save As" dialog
+		return !this.fileService.canHandleResource(this.resource);
 	}
 
 	isReadonly(): boolean {
@@ -161,6 +164,14 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 	}
 
 	save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IEditorInput | undefined> {
+
+		// If this is neither an `untitled` resource, nor a resource
+		// we can handle with the file service, we can only "Save As..."
+		if (this.resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(this.resource)) {
+			return this.saveAs(group, options);
+		}
+
+		// Normal save
 		return this.doSave(group, options, false);
 	}
 

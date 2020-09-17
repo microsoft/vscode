@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
@@ -96,6 +96,13 @@ const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
 };
 
+const detectHCSchemeSettingSchema: IConfigurationPropertySchema = {
+	type: 'boolean',
+	default: true,
+	description: nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if the OS is using a high contrast theme."),
+	scope: ConfigurationScope.APPLICATION
+};
+
 const themeSettingsConfiguration: IConfigurationNode = {
 	id: 'workbench',
 	order: 7.1,
@@ -105,13 +112,23 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.PREFERRED_DARK_THEME]: preferredDarkThemeSettingSchema,
 		[ThemeSettings.PREFERRED_LIGHT_THEME]: preferredLightThemeSettingSchema,
 		[ThemeSettings.PREFERRED_HC_THEME]: preferredHCThemeSettingSchema,
-		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
 };
 configurationRegistry.registerConfiguration(themeSettingsConfiguration);
+
+const themeSettingsWindowConfiguration: IConfigurationNode = {
+	id: 'window',
+	order: 8.1,
+	type: 'object',
+	properties: {
+		[ThemeSettings.DETECT_HC]: detectHCSchemeSettingSchema,
+		[ThemeSettings.DETECT_COLOR_SCHEME]: detectColorSchemeSettingSchema,
+	}
+};
+configurationRegistry.registerConfiguration(themeSettingsWindowConfiguration);
 
 function tokenGroupSettings(description: string): IJSONSchema {
 	return {

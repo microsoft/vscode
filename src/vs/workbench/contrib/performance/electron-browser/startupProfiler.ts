@@ -8,8 +8,8 @@ import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
@@ -55,7 +55,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 		const removeArgs: string[] = ['--prof-startup'];
 		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
 			.then(() => rimraf(profileFilenamePrefix)) // (1) delete the file to tell the main process to stop profiling
-			.then(() => new Promise(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
+			.then(() => new Promise<void>(resolve => { // (2) wait for main that recreates the fail to signal profiling has stopped
 				const check = () => {
 					exists(profileFilenamePrefix).then(exists => {
 						if (exists) {

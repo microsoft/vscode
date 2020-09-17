@@ -14,8 +14,8 @@
 		<!-- Workbench Configuration -->
 		<meta id="vscode-workbench-web-configuration" data-settings="{{WORKBENCH_WEB_CONFIGURATION}}">
 
-		<!-- Workarounds/Hacks (remote user data uri) -->
-		<meta id="vscode-remote-user-data-uri" data-settings="{{REMOTE_USER_DATA_URI}}">
+		<!-- Workbench Auth Session -->
+		<meta id="vscode-workbench-auth-session" data-settings="{{WORKBENCH_AUTH_SESSION}}">
 
 		<!-- Workbench Icon/Manifest/CSS -->
 		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
@@ -34,6 +34,7 @@
 		self.require = {
 			baseUrl: `${window.location.origin}/static/out`,
 			recordStats: true,
+			createTrustedScriptURL: value => value,
 			paths: {
 				'vscode-textmate': `${window.location.origin}/static/node_modules/vscode-textmate/release/main`,
 				'vscode-oniguruma': `${window.location.origin}/static/node_modules/vscode-oniguruma/release/main`,

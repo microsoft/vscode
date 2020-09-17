@@ -35,6 +35,8 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IDiffChange } from 'vs/base/common/diff/diff';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
 
@@ -209,13 +211,13 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	async updateLayout() {
-		console.log('update layout');
 		if (!this._model) {
 			return;
 		}
 
 		const diffResult = await this.notebookEditorWorkerService.computeDiff(this._model.original.resource, this._model.modified.resource);
 		const cellChanges = diffResult.cellsDiff.changes;
+		console.log(cellChanges);
 
 		const cellDiffViewModels: CellDiffViewModel[] = [];
 		const originalModel = this._model.original.notebook;
@@ -247,38 +249,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				}
 			}
 
-			// modified cells
-			const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
-
-			for (let j = 0; j < modifiedLen; j++) {
-				cellDiffViewModels.push(new CellDiffViewModel(
-					originalModel.cells[change.originalStart + j],
-					modifiedModel.cells[change.modifiedStart + j],
-					'modified',
-					this._eventDispatcher!
-				));
-			}
-
-			for (let j = modifiedLen; j < change.originalLength; j++) {
-				// deletion
-				cellDiffViewModels.push(new CellDiffViewModel(
-					originalModel.cells[change.originalStart + j],
-					undefined,
-					'delete',
-					this._eventDispatcher!
-				));
-			}
-
-			for (let j = modifiedLen; j < change.modifiedLength; j++) {
-				// insertion
-				cellDiffViewModels.push(new CellDiffViewModel(
-					undefined,
-					modifiedModel.cells[change.modifiedStart + j],
-					'insert',
-					this._eventDispatcher!
-				));
-			}
-
+			cellDiffViewModels.push(...this._computeModifiedLCS(change, originalModel, modifiedModel));
 			originalCellIndex = change.originalStart + change.originalLength;
 			modifiedCellIndex = change.modifiedStart + change.modifiedLength;
 		}
@@ -293,6 +264,43 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 
 		this._list.splice(0, this._list.length, cellDiffViewModels);
+	}
+
+	private _computeModifiedLCS(change: IDiffChange, originalModel: NotebookTextModel, modifiedModel: NotebookTextModel) {
+		const result: CellDiffViewModel[] = [];
+		// modified cells
+		const modifiedLen = Math.min(change.originalLength, change.modifiedLength);
+
+		for (let j = 0; j < modifiedLen; j++) {
+			result.push(new CellDiffViewModel(
+				originalModel.cells[change.originalStart + j],
+				modifiedModel.cells[change.modifiedStart + j],
+				'modified',
+				this._eventDispatcher!
+			));
+		}
+
+		for (let j = modifiedLen; j < change.originalLength; j++) {
+			// deletion
+			result.push(new CellDiffViewModel(
+				originalModel.cells[change.originalStart + j],
+				undefined,
+				'delete',
+				this._eventDispatcher!
+			));
+		}
+
+		for (let j = modifiedLen; j < change.modifiedLength; j++) {
+			// insertion
+			result.push(new CellDiffViewModel(
+				undefined,
+				modifiedModel.cells[change.modifiedStart + j],
+				'insert',
+				this._eventDispatcher!
+			));
+		}
+
+		return result;
 	}
 
 	private pendingLayouts = new WeakMap<CellDiffViewModel, IDisposable>();
@@ -322,7 +330,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			r();
 		}));
 
-		return new Promise(resolve => { r = resolve; });
+		return new Promise<void>(resolve => { r = resolve; });
 	}
 
 	getDomNode() {

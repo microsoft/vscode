@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -41,10 +41,9 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,
-				get label() { return labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
+				get label() { return labelService.getHostLabel(Schemas.vscodeRemote, remoteAgentConnection!.remoteAuthority) || localize('remote', "Remote"); }
 			};
-		}
-		if (isWeb) {
+		} else if (isWeb) {
 			const extensionManagementService = instantiationService.createInstance(WebExtensionManagementService);
 			this.webExtensionManagementServer = {
 				id: 'web',
@@ -55,7 +54,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 	}
 
 	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer {
-		if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+		if (extension.location.scheme === Schemas.vscodeRemote) {
 			return this.remoteExtensionManagementServer!;
 		}
 		if (this.webExtensionManagementServer) {

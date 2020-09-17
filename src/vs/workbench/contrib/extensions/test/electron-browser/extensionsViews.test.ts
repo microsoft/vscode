@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -46,6 +45,8 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 suite('ExtensionsListView Tests', () => {
 
@@ -105,7 +106,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService));
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(IWorkbenchEnvironmentService) as INativeWorkbenchEnvironmentService);
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
@@ -525,21 +526,21 @@ suite('ExtensionsListView Tests', () => {
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-		manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-		properties = assign({
+		manifest = { name, publisher: 'pub', version: '1.0.0', ...manifest };
+		properties = {
 			type: ExtensionType.User,
 			location: URI.file(`pub.${name}`),
-			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
-			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
-		}, properties);
+			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
+			metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' },
+			...properties
+		};
 		return <ILocalExtension>Object.create({ manifest, ...properties });
 	}
 
 	function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: any = {}): IGalleryExtension {
-		const galleryExtension = <IGalleryExtension>Object.create({});
-		assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
-		assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
-		assign(galleryExtension.assets, assets);
+		const galleryExtension = <IGalleryExtension>Object.create({ name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {}, ...properties });
+		galleryExtension.properties = { ...galleryExtension.properties, dependencies: [], ...galleryExtensionProperties };
+		galleryExtension.assets = { ...galleryExtension.assets, ...assets };
 		galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
 		return <IGalleryExtension>galleryExtension;
 	}

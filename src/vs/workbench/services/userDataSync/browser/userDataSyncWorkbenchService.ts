@@ -446,8 +446,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	async switchSyncService(type: UserDataSyncStoreType): Promise<void> {
 		if (!this.userDataSyncStoreManagementService.userDataSyncStore
-			|| !this.userDataSyncStoreManagementService.userDataSyncStore.insidersUrl
-			|| !this.userDataSyncStoreManagementService.userDataSyncStore.stableUrl) {
+			|| !this.userDataSyncStoreManagementService.userDataSyncStore.canSwitch) {
 			return;
 		}
 		await this.userDataSyncStoreManagementService.switch(type);

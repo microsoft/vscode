@@ -7,7 +7,6 @@ import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -614,14 +613,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 
 if (platform.isMacintosh) {
 	// Register this with a more restrictive `when` on mac to avoid conflict with "copy path"
-	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 		id: Constants.ToggleCaseSensitiveCommandId,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
 		handler: toggleCaseSensitiveCommand
 	}, ToggleCaseSensitiveKeybinding));
 } else {
-	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 		id: Constants.ToggleCaseSensitiveCommandId,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: Constants.SearchViewFocusedKey,
@@ -629,14 +628,14 @@ if (platform.isMacintosh) {
 	}, ToggleCaseSensitiveKeybinding));
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: Constants.ToggleWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.SearchViewFocusedKey,
 	handler: toggleWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: Constants.ToggleRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.SearchViewFocusedKey,
