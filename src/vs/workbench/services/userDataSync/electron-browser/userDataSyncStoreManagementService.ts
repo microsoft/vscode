@@ -25,6 +25,7 @@ class UserDataSyncStoreManagementService extends AbstractUserDataSyncStoreManage
 	) {
 		super(productService, configurationService, storageService);
 		this.channel = sharedProcessService.getChannel('userDataSyncStoreManagement');
+		this._register(this.channel.listen('onDidChangeUserDataSyncStore')(() => this.updateUserDataSyncStore()));
 	}
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {

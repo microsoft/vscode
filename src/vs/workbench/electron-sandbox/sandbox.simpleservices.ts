@@ -752,6 +752,8 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 
 	declare readonly _serviceBrand: undefined;
 
+	onDidChangeUserDataSyncStore = Event.None;
+
 	userDataSyncStore: IUserDataSyncStore | undefined = undefined;
 
 	async switch(type: UserDataSyncStoreType): Promise<void> { }
