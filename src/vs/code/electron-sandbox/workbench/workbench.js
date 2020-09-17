@@ -34,7 +34,7 @@ const bootstrapWindow = (() => {
 })();
 
 // Load environment in parallel to workbench loading to avoid waterfall
-const whenEnvResolved = bootstrapWindow.globals().process.whenEnvResolved;
+const whenEnvResolved = bootstrapWindow.globals().process.whenEnvResolved();
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because

@@ -96,13 +96,17 @@
 			versions: process.versions,
 
 			_whenEnvResolved: undefined,
-			get whenEnvResolved() {
-				if (!this._whenEnvResolved) {
-					this._whenEnvResolved = resolveEnv();
-				}
+			whenEnvResolved:
+				/**
+				 * @returns when the shell environment has been resolved.
+				 */
+				function () {
+					if (!this._whenEnvResolved) {
+						this._whenEnvResolved = resolveEnv();
+					}
 
-				return this._whenEnvResolved;
-			},
+					return this._whenEnvResolved;
+				},
 
 			getProcessMemoryInfo:
 				/**
