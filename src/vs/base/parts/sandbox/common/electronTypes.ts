@@ -7,7 +7,7 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                      (copied from Electron 7.x)                 ###
+// ###                    (copied from Electron 9.x)                   ###
 // ###                                                                 ###
 // #######################################################################
 
@@ -132,6 +132,7 @@ export interface SaveDialogOptions {
 	 * @platform darwin
 	 */
 	showsTagField?: boolean;
+	properties?: Array<'showHiddenFiles' | 'createDirectory' | 'treatPackageAsDirectory' | 'showOverwriteConfirmation' | 'dontAddToRecent'>;
 	/**
 	 * Create a security scoped bookmark when packaged for the Mac App Store. If this
 	 * option is enabled and the file doesn't already exist a blank file will be
@@ -155,7 +156,7 @@ export interface OpenDialogOptions {
 	 * Contains which features the dialog should use. The following values are
 	 * supported:
 	 */
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
+	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent'>;
 	/**
 	 * Message to display above input boxes.
 	 *
@@ -222,11 +223,11 @@ export interface InputEvent {
 	// Docs: http://electronjs.org/docs/api/structures/input-event
 
 	/**
-	 * An array of modifiers of the event, can be `shift`, `control`, `alt`, `meta`,
-	 * `isKeypad`, `isAutoRepeat`, `leftButtonDown`, `middleButtonDown`,
-	 * `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
+	 * An array of modifiers of the event, can be `shift`, `control`, `ctrl`, `alt`,
+	 * `meta`, `command`, `cmd`, `isKeypad`, `isAutoRepeat`, `leftButtonDown`,
+	 * `middleButtonDown`, `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
 	 */
-	modifiers: Array<'shift' | 'control' | 'alt' | 'meta' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+	modifiers?: Array<'shift' | 'control' | 'ctrl' | 'alt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
 }
 
 export interface MouseInputEvent extends InputEvent {
@@ -311,6 +312,9 @@ export interface CrashReporterStartOptions {
 }
 
 export interface ProcessMemoryInfo {
+
+	// Docs: http://electronjs.org/docs/api/structures/process-memory-info
+
 	/**
 	 * The amount of memory not shared by other processes, such as JS heap or HTML
 	 * content in Kilobytes.

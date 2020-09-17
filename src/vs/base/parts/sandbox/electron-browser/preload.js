@@ -12,6 +12,7 @@
 	// #######################################################################
 	// ###                                                                 ###
 	// ###       !!! DO NOT USE GET/SET PROPERTIES ANYWHERE HERE !!!       ###
+	// ###       !!!  UNLESS THE ACCESS IS WITHOUT SIDE EFFECTS  !!!       ###
 	// ###       (https://github.com/electron/electron/issues/25516)       ###
 	// ###                                                                 ###
 	// #######################################################################
