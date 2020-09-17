@@ -60,7 +60,8 @@ const CORE_TYPES = [
 const NATIVE_TYPES = [
 	'NativeParsedArgs',
 	'INativeEnvironmentService',
-	'INativeWindowConfiguration'
+	'INativeWindowConfiguration',
+	'ICommonElectronService'
 ];
 
 const RULES = [
