@@ -9,6 +9,13 @@
 
 	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
 
+	// #######################################################################
+	// ###                                                                 ###
+	// ###       !!! DO NOT USE GET/SET PROPERTIES ANYWHERE HERE !!!       ###
+	// ###       (https://github.com/electron/electron/issues/25516)       ###
+	// ###                                                                 ###
+	// #######################################################################
+
 	const globals = {
 
 		/**
