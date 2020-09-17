@@ -21,7 +21,6 @@ import { findFreePort } from 'vs/base/node/ports';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateRandomPipeName, NodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILifecycleService, WillShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -92,7 +91,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,

@@ -17,7 +17,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -50,7 +49,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService protected dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,

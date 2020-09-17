@@ -18,7 +18,6 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import * as themes from 'vs/workbench/common/theme';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { URI } from 'vs/base/common/uri';
@@ -42,7 +41,7 @@ class PartsSplash {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IWorkbenchEnvironmentService private readonly _envService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IConfigurationService configService: IConfigurationService,
@@ -96,7 +95,7 @@ class PartsSplash {
 			windowBorderRadius: this._layoutService.getWindowBorderRadius()
 		};
 		this._textFileService.write(
-			URI.file(join(this._envService.userDataPath, 'rapid_render.json')),
+			URI.file(join(this._environmentService.userDataPath, 'rapid_render.json')),
 			JSON.stringify({
 				id: PartsSplash._splashElementId,
 				colorInfo,
@@ -125,7 +124,7 @@ class PartsSplash {
 	}
 
 	private _shouldSaveLayoutInfo(): boolean {
-		return !isFullscreen() && !this._envService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
+		return !isFullscreen() && !this._environmentService.isExtensionDevelopment && !this._didChangeTitleBarStyle;
 	}
 
 	private _removePartsSplash(): void {

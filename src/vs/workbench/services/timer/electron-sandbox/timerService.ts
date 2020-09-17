@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -22,7 +21,7 @@ export class TimerService extends AbstractTimerService {
 
 	constructor(
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,

@@ -69,7 +69,7 @@ import { Schemas } from 'vs/base/common/network';
 
 //#region Environment
 
-export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
+export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 

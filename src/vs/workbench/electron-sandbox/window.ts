@@ -95,7 +95,7 @@ export class NativeWindow extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -175,6 +175,7 @@ class DesktopMain extends Disposable {
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
+		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
 		serviceCollection.set(IProductService, this.productService);

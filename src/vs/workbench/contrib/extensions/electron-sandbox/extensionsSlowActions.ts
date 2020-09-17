@@ -19,7 +19,6 @@ import Severity from 'vs/base/common/severity';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 abstract class RepoInfo {
 	abstract get base(): string;
@@ -123,7 +122,7 @@ class ReportExtensionSlowAction extends Action {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IProductService private readonly _productService: IProductService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super('report.slow', localize('cmd.report', "Report Issue"));
 	}
@@ -167,7 +166,7 @@ class ShowExtensionSlowAction extends Action {
 		readonly profile: IExtensionHostProfile,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super('show.slow', localize('cmd.show', "Show Issues"));
 	}

@@ -8,7 +8,6 @@ import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
 
@@ -18,7 +17,7 @@ export class OpenLogsFolderAction extends Action {
 	static readonly LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
 
 	constructor(id: string, label: string,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(id, label);
@@ -35,7 +34,7 @@ export class OpenExtensionLogsFolderAction extends Action {
 	static readonly LABEL = nls.localize('openExtensionLogsFolder', "Open Extension Logs Folder");
 
 	constructor(id: string, label: string,
-		@IWorkbenchEnvironmentService private readonly environmentSerice: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly environmentSerice: INativeWorkbenchEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {

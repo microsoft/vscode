@@ -40,7 +40,6 @@ import { ILabelService, IFormatterChangeEvent } from 'vs/platform/label/common/l
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/electron-browser/extensionManagementServerService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
@@ -100,7 +99,7 @@ async function setupTest() {
 	instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 		#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 		constructor() {
-			super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(IWorkbenchEnvironmentService) as INativeWorkbenchEnvironmentService);
+			super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(INativeWorkbenchEnvironmentService));
 		}
 		get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 		set localExtensionManagementServer(server: IExtensionManagementServer) { }
@@ -1904,7 +1903,7 @@ suite('RemoteInstallAction', () => {
 		// multi server setup
 		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
-		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
+		instantiationService.stub(INativeWorkbenchEnvironmentService, { disableExtensions: true } as INativeWorkbenchEnvironmentService);
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		const workbenchService: IExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
@@ -2283,7 +2282,7 @@ suite('LocalInstallAction', () => {
 	test('Test local install action is disabled for remote ui extension which is disabled in env', async () => {
 		// multi server setup
 		const remoteUIExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
-		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
+		instantiationService.stub(INativeWorkbenchEnvironmentService, { disableExtensions: true } as INativeWorkbenchEnvironmentService);
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteUIExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));

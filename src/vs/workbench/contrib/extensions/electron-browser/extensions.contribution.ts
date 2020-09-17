@@ -20,7 +20,6 @@ import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/ele
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
 import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -68,9 +67,9 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ShowRuntimeExte
 class ExtensionsContributions implements IWorkbenchContribution {
 
 	constructor(
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
-		if (workbenchEnvironmentService.extensionsPath) {
+		if (environmentService.extensionsPath) {
 			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.from(OpenExtensionsFolderAction);
 			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
 		}

@@ -9,7 +9,6 @@ import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/c
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
@@ -23,7 +22,7 @@ export class SharedProcessService implements ISharedProcessService {
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INativeHostService nativeHostService: INativeHostService,
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		this.sharedProcessMainChannel = mainProcessService.getChannel('sharedProcess');
 

@@ -14,7 +14,6 @@ import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/commo
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -69,7 +68,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -264,7 +263,7 @@ export class TestNativePathService extends TestPathService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
+	constructor(@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
 		super(environmentService.userHome);
 	}
 }

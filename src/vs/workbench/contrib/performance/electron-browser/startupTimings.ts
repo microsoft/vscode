@@ -8,7 +8,6 @@ import { timeout } from 'vs/base/common/async';
 import { promisify } from 'util';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, StartupKind, StartupKindToString } from 'vs/platform/lifecycle/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -34,7 +33,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
-		@IWorkbenchEnvironmentService private readonly _envService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService
 	) {
 		//
@@ -47,7 +46,7 @@ export class StartupTimings implements IWorkbenchContribution {
 	}
 
 	private async _appendStartupTimes(standardStartupError: string | undefined) {
-		const appendTo = this._envService.args['prof-append-timers'];
+		const appendTo = this._environmentService.args['prof-append-timers'];
 		if (!appendTo) {
 			// nothing to do
 			return;

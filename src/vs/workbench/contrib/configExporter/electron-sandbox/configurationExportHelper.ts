@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
@@ -33,7 +32,7 @@ interface IConfigurationExport {
 export class DefaultConfigurationExportHelper {
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
