@@ -815,6 +815,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
 			provideCompletionItems(doc, pos) {
 				countB += 1;
+				if (!doc.getWordUntilPosition(pos).word.startsWith('a')) {
+					return;
+				}
 				return {
 					incomplete: false,
 					suggestions: [{
@@ -850,7 +853,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(event.completionModel.items[0].textLabel, 'Z aaa');
 				assert.equal(event.completionModel.items[1].textLabel, 'aaa');
 
-				assert.equal(countA, 2); // should we keep the suggestions from the "active" provider?
+				assert.equal(countA, 1); // should we keep the suggestions from the "active" provider?, Yes! See: #106573
 				assert.equal(countB, 2);
 			});
 		});

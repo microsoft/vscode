@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as os from 'os';
-
 import * as nls from 'vs/nls';
 import { Range } from 'vs/editor/common/core/range';
 import { Action } from 'vs/base/common/actions';
@@ -22,6 +20,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Constants } from 'vs/base/common/uint';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { join } from 'vs/base/common/path';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 class StartDebugTextMate extends Action {
 
@@ -37,7 +37,8 @@ class StartDebugTextMate extends Action {
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IHostService private readonly _hostService: IHostService
+		@IHostService private readonly _hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(id, label);
 	}
@@ -59,7 +60,7 @@ class StartDebugTextMate extends Action {
 	}
 
 	public async run(): Promise<any> {
-		const pathInTemp = join(os.tmpdir(), `vcode-tm-log-${generateUuid()}.txt`);
+		const pathInTemp = join(this._environmentService.tmpDir.fsPath, `vcode-tm-log-${generateUuid()}.txt`);
 		const logger = createRotatingLogger(`tm-log`, pathInTemp, 1024 * 1024 * 30, 1);
 		const model = this._getOrCreateModel();
 		const append = (str: string) => {

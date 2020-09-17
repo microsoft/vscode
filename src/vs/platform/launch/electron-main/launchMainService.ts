@@ -73,10 +73,18 @@ export class LaunchMainService implements ILaunchMainService {
 	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
-		// Since we now start to open a window, make sure the app has focus.
-		// Focussing a window will not ensure that the application itself
-		// has focus, so we use the `steal: true` hint to force focus.
-		app.focus({ steal: true });
+		// macOS: Electron > 7.x changed its behaviour to not
+		// bring the application to the foreground when a window
+		// is focused programmatically. Only via `app.focus` and
+		// the option `steal: true` can you get the previous
+		// behaviour back. The only reason to use this option is
+		// when a window is getting focused while the application
+		// is not in the foreground and since we got instructed
+		// to open a new window from another instance, we ensure
+		// that the app has focus.
+		if (isMacintosh) {
+			app.focus({ steal: true });
+		}
 
 		// Check early for open-url which is handled in URL service
 		const urlsToOpen = parseOpenUrl(args);

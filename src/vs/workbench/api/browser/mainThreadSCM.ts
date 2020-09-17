@@ -5,7 +5,6 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../common/extHost.protocol';
@@ -49,7 +48,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	}
 
 	$updateGroup(features: SCMGroupFeatures): void {
-		this.features = assign(this.features, features);
+		this.features = { ...this.features, ...features };
 		this._onDidChange.fire();
 	}
 
@@ -139,7 +138,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
-		this.features = assign(this.features, features);
+		this.features = { ...this.features, ...features };
 		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {

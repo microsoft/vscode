@@ -290,7 +290,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
 		let id = typeof options?.override === 'string' ? options.override : undefined;
-		if (id === undefined && originalInput.isUntitled()) {
+		if (id === undefined && originalInput.resource?.scheme === Schemas.untitled) {
 			return undefined;
 		}
 
@@ -446,12 +446,20 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!data) {
 			return null;
 		}
-		const info = getFirstNotebookInfo(this._notebookService, data.notebook);
-		if (!info) {
+
+		const documentAlreadyOpened = this._notebookService.listNotebookDocuments().find(document => document.uri.toString() === data.notebook.toString());
+		let viewType = documentAlreadyOpened?.viewType;
+
+		if (!viewType) {
+			const info = getFirstNotebookInfo(this._notebookService, data.notebook);
+			viewType = info?.id;
+		}
+
+		if (!viewType) {
 			return null;
 		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook, info.id);
+		const ref = await this._notebookModelResolverService.resolve(data.notebook, viewType);
 		let result: ITextModel | null = null;
 
 		for (const cell of ref.object.notebook.cells) {

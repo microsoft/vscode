@@ -115,11 +115,12 @@ export class ExtHostCell extends Disposable {
 			const that = this;
 			const document = this._extHostDocument.getDocument(this.uri)!.document;
 			this._cell = Object.freeze({
+				get index() { return that._notebook.getCellIndex(that); },
 				notebook: that._notebook.notebookDocument,
 				uri: that.uri,
 				cellKind: this._cellData.cellKind,
 				document,
-				language: document.languageId,
+				get language() { return document.languageId; },
 				get outputs() { return that._outputs; },
 				set outputs(value) { that._updateOutputs(value); },
 				get metadata() { return that._metadata; },
@@ -487,6 +488,9 @@ export class ExtHostNotebookDocument extends Disposable {
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}
 
+	getCellIndex(cell: ExtHostCell): number {
+		return this._cells.indexOf(cell);
+	}
 
 	addEdit(item: vscode.NotebookDocumentEditEvent): number {
 		return this._edits.add([item]);

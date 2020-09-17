@@ -309,3 +309,22 @@ export interface CrashReporterStartOptions {
 	 */
 	globalExtra?: Record<string, string>;
 }
+
+export interface ProcessMemoryInfo {
+	/**
+	 * The amount of memory not shared by other processes, such as JS heap or HTML
+	 * content in Kilobytes.
+	 */
+	private: number;
+	/**
+	 * The amount of memory currently pinned to actual physical RAM in Kilobytes.
+	 *
+	 * @platform linux,win32
+	 */
+	residentSet: number;
+	/**
+	 * The amount of memory shared between processes, typically memory consumed by the
+	 * Electron code itself in Kilobytes.
+	 */
+	shared: number;
+}

@@ -18,7 +18,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, DisplayOrderKey, ICellEditOperation, ICellRange, IEditor, IMainCellDto, INotebookDecorationRenderOptions, INotebookDocumentFilter, NotebookCellOutputsSplice, NotebookCellsChangeType, NOTEBOOK_DISPLAY_ORDER, TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IMainNotebookController, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -162,7 +162,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return false;
 		}
 		this._notebookService.transformEditsOutputs(textModel, cellEdits);
-		return textModel.applyEdit(modelVersionId, cellEdits, true, undefined, () => undefined);
+		return textModel.applyEdits(modelVersionId, cellEdits, true, undefined, () => undefined);
 	}
 
 	private _isDeltaEmpty(delta: INotebookDocumentsAndEditorsDelta) {
@@ -271,7 +271,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 
 		const notebookDocumentAddedHandler = (textModel: NotebookTextModel) => {
-			if (!this._editorEventListenersMapping.has(textModel.uri.toString())) {
+			if (!this._documentEventListenersMapping.has(textModel.uri)) {
 				const disposableStore = new DisposableStore();
 				disposableStore.add(textModel!.onDidChangeContent(event => {
 					const dto = event.rawEvents.map(e => {
@@ -316,7 +316,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 						this._proxy.$acceptDocumentPropertiesChanged(textModel.uri, { metadata: textModel.metadata });
 					}
 				}));
-				this._editorEventListenersMapping.set(textModel!.uri.toString(), disposableStore);
+				this._documentEventListenersMapping.set(textModel!.uri, disposableStore);
 			}
 		};
 
@@ -460,7 +460,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				this._notebookService.transformEditsOutputs(mainthreadTextModel, edits);
 				await new Promise(resolve => {
 					DOM.scheduleAtNextAnimationFrame(() => {
-						const ret = mainthreadTextModel!.applyEdit(mainthreadTextModel!.versionId, edits, true, undefined, () => undefined);
+						const ret = mainthreadTextModel!.applyEdits(mainthreadTextModel!.versionId, edits, true, undefined, () => undefined);
 						resolve(ret);
 					});
 				});
@@ -577,7 +577,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			return;
 		}
 
-		textModel.applyEdit(textModel.versionId, [
+		textModel.applyEdits(textModel.versionId, [
 			{
 				editType: CellEditType.OutputsSplice,
 				index: textModel.cells.indexOf(cell),
@@ -614,7 +614,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 
 		if (textModel) {
-			textModel.applyEdit(textModel.versionId, [
+			textModel.applyEdits(textModel.versionId, [
 				{
 					editType: CellEditType.Unknown
 				}
@@ -645,6 +645,22 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				default:
 					break;
 			}
+		}
+	}
+
+	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions) {
+		this._notebookService.registerEditorDecorationType(key, options);
+	}
+
+	$removeNotebookEditorDecorationType(key: string) {
+		this._notebookService.removeEditorDecorationType(key);
+	}
+
+	$trySetDecorations(id: string, range: ICellRange, key: string) {
+		const editor = this._notebookService.listNotebookEditors().find(editor => editor.getId() === id);
+		if (editor && editor.isNotebookEditor) {
+			const notebookEditor = editor as INotebookEditor;
+			notebookEditor.setEditorDecorations(key, range);
 		}
 	}
 

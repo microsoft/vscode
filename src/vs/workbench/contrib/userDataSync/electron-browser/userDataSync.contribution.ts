@@ -17,7 +17,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CONTEXT_SYNC_STATE, SHOW_SYNC_LOG_COMMAND_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';

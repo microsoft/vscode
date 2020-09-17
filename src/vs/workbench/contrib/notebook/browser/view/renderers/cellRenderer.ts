@@ -10,7 +10,7 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -340,11 +340,11 @@ abstract class AbstractCellRenderer {
 			}
 
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
 				], true, undefined, () => undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
 				], true, undefined, () => undefined);
 			}
@@ -352,7 +352,7 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement } {
-		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, ...renderCodiconsAsElement('$(unfold)')));
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, ...renderCodicons('$(unfold)')));
 		const expandButton = collapsedPart.querySelector('.codicon') as HTMLElement;
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_CONTENT_COMMAND_ID);
 		let title = localize('cellExpandButtonLabel', "Expand");
@@ -418,6 +418,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
+			rootContainer,
 			collapsedPart,
 			expandButton,
 			contextKeyService,
@@ -471,6 +472,17 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+		const removedClassNames: string[] = [];
+		templateData.rootContainer.classList.forEach(className => {
+			if (/^nb\-.*$/.test(className)) {
+				removedClassNames.push(className);
+			}
+		});
+
+		removedClassNames.forEach(className => {
+			templateData.rootContainer.classList.remove(className);
+		});
+
 		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
@@ -700,6 +712,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
+			rootContainer,
 			editorPart,
 			collapsedPart,
 			expandButton,
@@ -808,14 +821,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		const removedClassNames: string[] = [];
-		templateData.container.classList.forEach(className => {
+		templateData.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
 				removedClassNames.push(className);
 			}
 		});
 
 		removedClassNames.forEach(className => {
-			templateData.container.classList.remove(className);
+			templateData.rootContainer.classList.remove(className);
 		});
 
 		this.commonRenderElement(element, templateData);
@@ -960,11 +973,11 @@ export class RunStateRenderer {
 		}
 
 		if (runState === NotebookCellRunState.Success) {
-			DOM.reset(this.element, ...renderCodiconsAsElement('$(check)'));
+			DOM.reset(this.element, ...renderCodicons('$(check)'));
 		} else if (runState === NotebookCellRunState.Error) {
-			DOM.reset(this.element, ...renderCodiconsAsElement('$(error)'));
+			DOM.reset(this.element, ...renderCodicons('$(error)'));
 		} else if (runState === NotebookCellRunState.Running) {
-			DOM.reset(this.element, ...renderCodiconsAsElement('$(sync~spin)'));
+			DOM.reset(this.element, ...renderCodicons('$(sync~spin)'));
 
 			this.spinnerTimer = setTimeout(() => {
 				this.spinnerTimer = undefined;

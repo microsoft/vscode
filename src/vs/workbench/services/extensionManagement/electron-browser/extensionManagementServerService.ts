@@ -11,13 +11,15 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-browser/remoteExtensionManagementService';
+import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-sandbox/remoteExtensionManagementService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
@@ -36,13 +38,14 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 
 		this._localExtensionManagementServer = { extensionManagementService: localExtensionManagementService, id: 'local', label: localize('local', "Local") };
 		const remoteAgentConnection = remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const extensionManagementService = new NativeRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer, logService, galleryService, configurationService, productService);
+			const extensionManagementService = new NativeRemoteExtensionManagementService(remoteAgentConnection.getChannel<IChannel>('extensions'), this.localExtensionManagementServer, logService, galleryService, configurationService, productService, environmentService);
 			this.remoteExtensionManagementServer = {
 				id: 'remote',
 				extensionManagementService,

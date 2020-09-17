@@ -168,7 +168,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		});
 
 		test('Execution from onDidEndTaskProcess and onDidStartTaskProcess are equal to original', () => {
-			return new Promise(async (resolve) => {
+			return new Promise<void>(async (resolve) => {
 				const task = new Task({ type: 'testTask' }, TaskScope.Workspace, 'echo', 'testTask', new ShellExecution('echo', ['hello test']));
 				let taskExecution: TaskExecution | undefined;
 				const executeDoneEvent: EventEmitter<void> = new EventEmitter();
@@ -213,7 +213,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 
 		// https://github.com/microsoft/vscode/issues/100577
 		test('A CustomExecution task can be fetched and executed', () => {
-			return new Promise(async (resolve, reject) => {
+			return new Promise<void>(async (resolve, reject) => {
 				class CustomTerminal implements Pseudoterminal {
 					private readonly writeEmitter = new EventEmitter<string>();
 					public readonly onDidWrite: Event<string> = this.writeEmitter.event;

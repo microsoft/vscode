@@ -212,7 +212,7 @@ class NativeDialogService implements IDialogService {
 		}
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-		const os = await this.electronService.getOS();
+		const osProps = await this.electronService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
 			return nls.localize('aboutDetail',
@@ -224,7 +224,7 @@ class NativeDialogService implements IDialogService {
 				process.versions['chrome'],
 				process.versions['node'],
 				process.versions['v8'],
-				`${os.type} ${os.arch} ${os.release}${isSnap ? ' snap' : ''}`
+				`${osProps.type} ${osProps.arch} ${osProps.release}${isSnap ? ' snap' : ''}`
 			);
 		};
 

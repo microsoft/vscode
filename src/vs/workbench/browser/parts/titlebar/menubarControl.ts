@@ -674,9 +674,9 @@ export class CustomMenubarControl extends MenubarControl {
 
 		if (this.container) {
 			if (hasFocus) {
-				DOM.removeClass(this.container, 'inactive');
+				this.container.classList.remove('inactive');
 			} else {
-				DOM.addClass(this.container, 'inactive');
+				this.container.classList.add('inactive');
 				if (this.menubar) {
 					this.menubar.blur();
 				}

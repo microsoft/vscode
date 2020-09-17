@@ -536,7 +536,7 @@ suite('vscode API - workspace', () => {
 		assert.equal(callCount, 1);
 		assert.equal(doc.getText(), 'call0');
 
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 
 			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
 				assert.ok(event.document === doc);

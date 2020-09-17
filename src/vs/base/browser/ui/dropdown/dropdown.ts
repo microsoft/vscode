@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextViewProvider, IAnchor, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { EventHelper, EventType, removeClass, addClass, append, $, addDisposableListener, DOMEvent } from 'vs/base/browser/dom';
+import { EventHelper, EventType, append, $, addDisposableListener, DOMEvent } from 'vs/base/browser/dom';
 import { IContextMenuProvider } from 'vs/base/browser/contextmenu';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
@@ -162,7 +162,7 @@ export class Dropdown extends BaseDropdown {
 	show(): void {
 		super.show();
 
-		addClass(this.element, 'active');
+		this.element.classList.add('active');
 
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.getAnchor(),
@@ -184,7 +184,7 @@ export class Dropdown extends BaseDropdown {
 	}
 
 	protected onHide(): void {
-		removeClass(this.element, 'active');
+		this.element.classList.remove('active');
 	}
 
 	hide(): void {
@@ -253,7 +253,7 @@ export class DropdownMenu extends BaseDropdown {
 	show(): void {
 		super.show();
 
-		addClass(this.element, 'active');
+		this.element.classList.add('active');
 
 		this._contextMenuProvider.showContextMenu({
 			getAnchor: () => this.element,
@@ -275,6 +275,6 @@ export class DropdownMenu extends BaseDropdown {
 
 	private onHide(): void {
 		this.hide();
-		removeClass(this.element, 'active');
+		this.element.classList.remove('active');
 	}
 }

@@ -6,7 +6,7 @@ import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import * as os from 'os';
 import * as fs from 'fs';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
+import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-browser/workbenchCommonProperties';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IStorageService, StorageScope, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';

@@ -9,7 +9,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { DefaultConfigurationExportHelper } from 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper';
+import { DefaultConfigurationExportHelper } from 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

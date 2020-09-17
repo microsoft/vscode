@@ -365,7 +365,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		const calculatedTitle = this.calculateTitle(title);
-		this.titleContainer = append(container, $('h3.title', undefined, calculatedTitle));
+		this.titleContainer = append(container, $('h3.title', { title: calculatedTitle }, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
@@ -379,6 +379,7 @@ export abstract class ViewPane extends Pane implements IView {
 		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
 			this.titleContainer.textContent = calculatedTitle;
+			this.titleContainer.setAttribute('title', calculatedTitle);
 		}
 
 		if (this.iconContainer) {
@@ -393,9 +394,10 @@ export abstract class ViewPane extends Pane implements IView {
 	private setTitleDescription(description: string | undefined) {
 		if (this.titleDescriptionContainer) {
 			this.titleDescriptionContainer.textContent = description ?? '';
+			this.titleDescriptionContainer.setAttribute('title', description ?? '');
 		}
 		else if (description && this.titleContainer) {
-			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', undefined, description));
+			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', { title: description }, description));
 		}
 	}
 
