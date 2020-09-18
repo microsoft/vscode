@@ -83,7 +83,6 @@ export namespace Schemas {
 	 * Scheme used to load top level resources for the app
 	 */
 	export const vscodeFileResource = 'vscode-file';
-	export const vscodeFileAuthority = 'app';
 }
 
 class RemoteAuthoritiesImpl {
@@ -134,13 +133,23 @@ class RemoteAuthoritiesImpl {
 	}
 }
 
-export const RemoteAuthorities = new RemoteAuthoritiesImpl();
+class LocalFileAccessImpl {
+	rewrite(uri: URI): URI {
+		return uri.with({
+			scheme: Schemas.vscodeFileResource,
+			authority: 'app'
+		});
+	}
+}
 
-export function toCodeFileUri(path: string, query?: string, skipEncoding?: boolean): string {
+export const RemoteAuthorities = new RemoteAuthoritiesImpl();
+export const LocalFileAccess = new LocalFileAccessImpl();
+
+export function toCodeFileUri(path: string, query?: string): URI {
 	const url = require.toUrl(path);
 	return URI.parse(url).with({
 		scheme: Schemas.vscodeFileResource,
-		authority: Schemas.vscodeFileAuthority,
-		query: query
-	}).toString(skipEncoding);
+		authority: 'app',
+		query
+	});
 }

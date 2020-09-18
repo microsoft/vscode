@@ -98,6 +98,6 @@ export class ProxyAuthHandler extends Disposable {
 				win.close();
 			}
 		});
-		win.loadURL(fileUrl);
+		win.loadURL(fileUrl.toString());
 	}
 }

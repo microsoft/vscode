@@ -18,8 +18,15 @@ export class FileProtocolHandler extends Disposable {
 
 		const { defaultSession } = session;
 
-		const resourceHandler = this.handleResourceRequest.bind(this);
-		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, resourceHandler);
+		defaultSession.protocol.registerFileProtocol(
+			Schemas.vscodeFileResource,
+			(request, callback) => this.handleResourceRequest(request, callback));
+
+		defaultSession.protocol.interceptFileProtocol('file', (request: Electron.Request, callback: any) => {
+			const uri = URI.parse(request.url);
+			console.error(`Refused to load resource ${uri.path} from file: protocol`);
+			callback({ error: -3 /* ABORTED */ });
+		});
 
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);

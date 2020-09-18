@@ -838,9 +838,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		const fileUrl = toCodeFileUri(
 			workbench,
-			`config=${encodeURIComponent(JSON.stringify(config))}`, true);
+			`config=${encodeURIComponent(JSON.stringify(config))}`);
 
-		return fileUrl;
+		return fileUrl.toString(true);
 	}
 
 	private doGetPreloadUrl(): string {
