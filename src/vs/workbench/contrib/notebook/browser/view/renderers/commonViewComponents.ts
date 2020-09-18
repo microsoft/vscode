@@ -9,7 +9,7 @@ import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	constructor(
@@ -22,7 +22,7 @@ export class CodiconActionViewItem extends MenuEntryActionViewItem {
 	}
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			DOM.reset(this.label, ...renderCodiconsAsElement(this._commandAction.label ?? ''));
+			DOM.reset(this.label, ...renderCodicons(this._commandAction.label ?? ''));
 		}
 	}
 }

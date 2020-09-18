@@ -45,7 +45,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		data.text = dom.append(container, $('.option-text'));
 		data.decoratorRight = dom.append(container, $('.option-decorator-right'));
 		data.itemDescription = dom.append(container, $('.option-text-description'));
-		dom.addClass(data.itemDescription, 'visually-hidden');
+		data.itemDescription.classList.add('visually-hidden');
 
 		return data;
 	}
@@ -68,10 +68,10 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 
 		// pseudo-select disabled option
 		if (isDisabled) {
-			dom.addClass(data.root, 'option-disabled');
+			data.root.classList.add('option-disabled');
 		} else {
 			// Make sure we do class removal from prior template rendering
-			dom.removeClass(data.root, 'option-disabled');
+			data.root.classList.remove('option-disabled');
 		}
 	}
 
@@ -162,7 +162,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.contextViewProvider = contextViewProvider;
 		this.selectDropDownContainer = dom.$('.monaco-select-box-dropdown-container');
 		// Use custom CSS vars for padding calculation (shared with parent select)
-		dom.addClass(this.selectDropDownContainer, 'monaco-select-box-dropdown-padding');
+		this.selectDropDownContainer.classList.add('monaco-select-box-dropdown-padding');
 
 		// Setup container for select option details
 		this.selectionDetailsPane = dom.append(this.selectDropDownContainer, $('.select-box-details-pane'));
@@ -309,7 +309,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	public render(container: HTMLElement): void {
 		this.container = container;
-		dom.addClass(container, 'select-container');
+		container.classList.add('select-container');
 		container.appendChild(this.selectElement);
 		this.applyStyles();
 	}
@@ -367,7 +367,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
 		}
 
-		this.styleElement.innerHTML = content.join('\n');
+		this.styleElement.textContent = content.join('\n');
 
 		this.applyStyles();
 	}
@@ -440,8 +440,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 				this.layoutSelectDropDown();
 			},
 			onHide: () => {
-				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
-				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
+				this.selectDropDownContainer.classList.remove('visible');
+				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -455,8 +455,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			render: (container: HTMLElement) => this.renderSelectDropDown(container),
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
-				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
-				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
+				this.selectDropDownContainer.classList.remove('visible');
+				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -529,7 +529,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.selectList) {
 
 			// Make visible to enable measurements
-			dom.toggleClass(this.selectDropDownContainer, 'visible', true);
+			this.selectDropDownContainer.classList.add('visible');
 
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 			const styles = getComputedStyle(this.selectElement);
@@ -584,8 +584,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
-					dom.removeClass(this.selectionDetailsPane, 'border-top');
-					dom.addClass(this.selectionDetailsPane, 'border-bottom');
+					this.selectionDetailsPane.classList.remove('border-top');
+					this.selectionDetailsPane.classList.add('border-bottom');
 
 				} else {
 					this._dropDownPosition = AnchorPosition.BELOW;
@@ -594,8 +594,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 
-					dom.removeClass(this.selectionDetailsPane, 'border-bottom');
-					dom.addClass(this.selectionDetailsPane, 'border-top');
+					this.selectionDetailsPane.classList.remove('border-bottom');
+					this.selectionDetailsPane.classList.add('border-top');
 				}
 				// Do full layout on showSelectDropDown only
 				return true;
@@ -655,8 +655,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
-			dom.toggleClass(this.selectElement, 'synthetic-focus', true);
-			dom.toggleClass(this.selectDropDownContainer, 'synthetic-focus', true);
+			this.selectElement.classList.add('synthetic-focus');
+			this.selectDropDownContainer.classList.add('synthetic-focus');
 
 			return true;
 		} else {
@@ -680,7 +680,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			});
 
 
-			container.innerHTML = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
+			container.textContent = this.options[longest].text + (!!this.options[longest].decoratorRight ? (this.options[longest].decoratorRight + ' ') : '');
 			elementWidth = dom.getTotalWidth(container);
 		}
 

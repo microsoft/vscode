@@ -798,7 +798,7 @@ export class DebugService implements IDebugService {
 					const lineNumber = stackFrame.range.startLineNumber;
 					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
 						const lineContent = control.getModel().getLineContent(lineNumber);
-						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+						aria.alert(nls.localize('debuggingPaused', "{1}:{2}, debugging paused {0}, {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
 					}
 				}
 			}

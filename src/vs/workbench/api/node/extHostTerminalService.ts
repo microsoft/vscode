@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import product from 'vs/platform/product/common/product';
 import * as os from 'os';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
@@ -23,6 +22,7 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
+import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
@@ -37,7 +37,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		@IExtHostConfiguration private _extHostConfiguration: ExtHostConfiguration,
 		@IExtHostWorkspace private _extHostWorkspace: ExtHostWorkspace,
 		@IExtHostDocumentsAndEditors private _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		@ILogService private _logService: ILogService
+		@ILogService private _logService: ILogService,
+		@IExtHostInitDataService private _extHostInitDataService: IExtHostInitDataService
 	) {
 		super(true, extHostRpc);
 		this._updateLastActiveWorkspace();
@@ -187,7 +188,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			envFromConfig,
 			this._variableResolver,
 			isWorkspaceShellAllowed,
-			product.version,
+			this._extHostInitDataService.version,
 			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
 			baseEnv
 		);

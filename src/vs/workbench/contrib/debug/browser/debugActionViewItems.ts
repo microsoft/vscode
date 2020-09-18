@@ -67,7 +67,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		dom.addClass(container, 'start-debug-action-item');
+		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
@@ -80,14 +80,14 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (this.action.enabled && e.button === 0) {
-				dom.addClass(this.start, 'active');
+				this.start.classList.add('active');
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
-			dom.removeClass(this.start, 'active');
+			this.start.classList.remove('active');
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_OUT, () => {
-			dom.removeClass(this.start, 'active');
+			this.start.classList.remove('active');
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -106,7 +106,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			if (shouldBeSelected) {
 				this.selected = e.index;
 			} else {
-				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
 				this.selectBox.select(this.selected);
 			}
 		}));

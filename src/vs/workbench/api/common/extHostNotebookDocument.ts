@@ -115,11 +115,12 @@ export class ExtHostCell extends Disposable {
 			const that = this;
 			const document = this._extHostDocument.getDocument(this.uri)!.document;
 			this._cell = Object.freeze({
+				get index() { return that._notebook.getCellIndex(that); },
 				notebook: that._notebook.notebookDocument,
 				uri: that.uri,
 				cellKind: this._cellData.cellKind,
 				document,
-				language: document.languageId,
+				get language() { return document.languageId; },
 				get outputs() { return that._outputs; },
 				set outputs(value) { that._updateOutputs(value); },
 				get metadata() { return that._metadata; },
@@ -235,6 +236,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
+		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
 		metadata: Required<vscode.NotebookDocumentMetadata>,
 		public readonly uri: URI,
 		private readonly _storagePath: URI | undefined
@@ -277,7 +279,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		const edit: IWorkspaceCellEditDto = {
 			_type: WorkspaceEditType.Cell,
 			metadata: undefined,
-			notebookMetadata: this._metadata,
+			edit: { editType: CellEditType.DocumentMetadata, metadata: this._metadata },
 			resource: this.uri,
 			notebookVersionId: this.notebookDocument.version,
 		};
@@ -300,6 +302,7 @@ export class ExtHostNotebookDocument extends Disposable {
 				set languages(value: string[]) { that._trySetLanguages(value); },
 				get metadata() { return that._metadata; },
 				set metadata(value: Required<vscode.NotebookDocumentMetadata>) { that._updateMetadata(value); },
+				get contentOptions() { return that._contentOptions; }
 			});
 		}
 		return this._notebook;
@@ -350,19 +353,21 @@ export class ExtHostNotebookDocument extends Disposable {
 	acceptModelChanged(event: NotebookCellsChangedEventDto, isDirty: boolean): void {
 		this._versionId = event.versionId;
 		this._isDirty = isDirty;
-		if (event.kind === NotebookCellsChangeType.Initialize) {
-			this._spliceNotebookCells(event.changes, true);
-		} if (event.kind === NotebookCellsChangeType.ModelChange) {
-			this._spliceNotebookCells(event.changes, false);
-		} else if (event.kind === NotebookCellsChangeType.Move) {
-			this._moveCell(event.index, event.newIdx);
-		} else if (event.kind === NotebookCellsChangeType.Output) {
-			this._setCellOutputs(event.index, event.outputs);
-		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
-			this._changeCellLanguage(event.index, event.language);
-		} else if (event.kind === NotebookCellsChangeType.ChangeCellMetadata) {
-			this._changeCellMetadata(event.index, event.metadata);
-		}
+		event.rawEvents.forEach(e => {
+			if (e.kind === NotebookCellsChangeType.Initialize) {
+				this._spliceNotebookCells(e.changes, true);
+			} if (e.kind === NotebookCellsChangeType.ModelChange) {
+				this._spliceNotebookCells(e.changes, false);
+			} else if (e.kind === NotebookCellsChangeType.Move) {
+				this._moveCell(e.index, e.newIdx);
+			} else if (e.kind === NotebookCellsChangeType.Output) {
+				this._setCellOutputs(e.index, e.outputs);
+			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+				this._changeCellLanguage(e.index, e.language);
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				this._changeCellMetadata(e.index, e.metadata);
+			}
+		});
 	}
 
 	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
@@ -485,6 +490,9 @@ export class ExtHostNotebookDocument extends Disposable {
 		return this._cells.find(cell => cell.handle === cellHandle);
 	}
 
+	getCellIndex(cell: ExtHostCell): number {
+		return this._cells.indexOf(cell);
+	}
 
 	addEdit(item: vscode.NotebookDocumentEditEvent): number {
 		return this._edits.add([item]);

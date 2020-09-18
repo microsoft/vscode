@@ -15,7 +15,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
-import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IThemable } from 'vs/base/common/styler';
@@ -110,9 +109,9 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			addClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.add(...treeItemLoadingIcon.classNamesArray);
 		} else {
-			removeClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.remove(...treeItemLoadingIcon.classNamesArray);
 		}
 		return false;
 	}
@@ -1053,9 +1052,9 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
 		if (element.slow) {
-			addClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.add(...treeItemLoadingIcon.classNamesArray);
 		} else {
-			removeClasses(twistieElement, treeItemLoadingIcon.classNames);
+			twistieElement.classList.remove(...treeItemLoadingIcon.classNamesArray);
 		}
 		return false;
 	}

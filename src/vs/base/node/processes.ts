@@ -18,7 +18,7 @@ import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, Te
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
-export type ValueCallback<T> = (value?: T | Promise<T>) => void;
+export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 
@@ -98,7 +98,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	private childProcess: cp.ChildProcess | null;
 	protected childProcessPromise: Promise<cp.ChildProcess> | null;
-	private pidResolve?: ValueCallback<number>;
+	private pidResolve: ValueCallback<number> | undefined;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {

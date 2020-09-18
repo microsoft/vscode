@@ -12,7 +12,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -146,11 +145,11 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 			// If we are loading a file resource from a remote extension, rewrite the uri to go remote
 			let rewriteUri: undefined | ((uri: URI) => URI);
-			if (extensionLocation?.scheme === REMOTE_HOST_SCHEME) {
+			if (extensionLocation?.scheme === Schemas.vscodeRemote) {
 				rewriteUri = (uri) => {
-					if (uri.scheme === Schemas.file && extensionLocation?.scheme === REMOTE_HOST_SCHEME) {
+					if (uri.scheme === Schemas.file && extensionLocation?.scheme === Schemas.vscodeRemote) {
 						return URI.from({
-							scheme: REMOTE_HOST_SCHEME,
+							scheme: Schemas.vscodeRemote,
 							authority: extensionLocation.authority,
 							path: '/vscode-resource',
 							query: JSON.stringify({

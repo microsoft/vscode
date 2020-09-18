@@ -107,19 +107,23 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 	}
 
 	async requiresInitialization(): Promise<boolean> {
+		this.logService.trace(`UserDataInitializationService#requiresInitialization`);
 		const userDataSyncStoreClient = await this.createUserDataSyncStoreClient();
 		return !!userDataSyncStoreClient;
 	}
 
 	async initializeRequiredResources(): Promise<void> {
+		this.logService.trace(`UserDataInitializationService#initializeRequiredResources`);
 		return this.initialize([SyncResource.Settings, SyncResource.GlobalState]);
 	}
 
 	async initializeOtherResources(): Promise<void> {
+		this.logService.trace(`UserDataInitializationService#initializeOtherResources`);
 		return this.initialize([SyncResource.Keybindings, SyncResource.Snippets]);
 	}
 
 	async initializeExtensions(instantiationService: IInstantiationService): Promise<void> {
+		this.logService.trace(`UserDataInitializationService#initializeExtensions`);
 		return this.initialize([SyncResource.Extensions], instantiationService);
 	}
 

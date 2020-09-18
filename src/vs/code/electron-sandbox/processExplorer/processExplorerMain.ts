@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { localize } from 'vs/nls';
 import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
@@ -13,7 +14,7 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { addDisposableListener, addClass, $ } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -40,11 +41,11 @@ class ProcessExplorer {
 
 	private listeners = new DisposableStore();
 
-	private electronService: IElectronService;
+	private nativeHostService: INativeHostService;
 
 	constructor(windowId: number, private data: ProcessExplorerData) {
 		const mainProcessService = new MainProcessService(windowId);
-		this.electronService = new ElectronService(windowId, mainProcessService) as IElectronService;
+		this.nativeHostService = new NativeHostService(windowId, mainProcessService) as INativeHostService;
 
 		this.applyStyles(data.styles);
 
@@ -281,24 +282,25 @@ class ProcessExplorer {
 		container.innerText = '';
 		this.listeners.clear();
 
-		const tableHead = document.createElement('thead');
-		tableHead.innerHTML = `<tr>
-			<th scope="col" class="cpu">${localize('cpu', "CPU %")}</th>
-			<th scope="col" class="memory">${localize('memory', "Memory (MB)")}</th>
-			<th scope="col" class="pid">${localize('pid', "PID")}</th>
-			<th scope="col" class="nameLabel">${localize('name', "Name")}</th>
-		</tr>`;
+		const tableHead = $('thead', undefined);
+		const row = $('tr');
+		tableHead.append(row);
+
+		row.append($('th.cpu', { scope: 'col' }, localize('cpu', "CPU %")));
+		row.append($('th.memory', { scope: 'col' }, localize('memory', "Memory (MB)")));
+		row.append($('th.pid', { scope: 'col' }, localize('pid', "PID")));
+		row.append($('th.nameLabel', { scope: 'col' }, localize('name', "Name")));
 
 		container.append(tableHead);
 
 		const hasMultipleMachines = Object.keys(processLists).length > 1;
-		const totalMem = await this.electronService.getTotalMem();
+		const { totalmem } = await this.nativeHostService.getOSStatistics();
 		processLists.forEach((remote, i) => {
 			const isLocal = i === 0;
 			if (isRemoteDiagnosticError(remote.rootProcess)) {
 				this.renderProcessFetchError(remote.name, remote.rootProcess.errorMessage);
 			} else {
-				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalMem), hasMultipleMachines, isLocal);
+				this.renderTableSection(remote.name, this.getProcessList(remote.rootProcess, isLocal, totalmem), hasMultipleMachines, isLocal);
 			}
 		});
 	}
@@ -338,14 +340,14 @@ class ProcessExplorer {
 			items.push({
 				label: localize('killProcess', "Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, 'SIGTERM');
+					this.nativeHostService.killProcess(pid, 'SIGTERM');
 				}
 			});
 
 			items.push({
 				label: localize('forceKillProcess', "Force Kill Process"),
 				click: () => {
-					this.electronService.killProcess(pid, 'SIGKILL');
+					this.nativeHostService.killProcess(pid, 'SIGKILL');
 				}
 			});
 
@@ -359,7 +361,7 @@ class ProcessExplorer {
 			click: () => {
 				const row = document.getElementById(pid.toString());
 				if (row) {
-					this.electronService.writeClipboardText(row.innerText);
+					this.nativeHostService.writeClipboardText(row.innerText);
 				}
 			}
 		});
@@ -369,7 +371,7 @@ class ProcessExplorer {
 			click: () => {
 				const processList = document.getElementById('process-list');
 				if (processList) {
-					this.electronService.writeClipboardText(processList.innerText);
+					this.nativeHostService.writeClipboardText(processList.innerText);
 				}
 			}
 		});

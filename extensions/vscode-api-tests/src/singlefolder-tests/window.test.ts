@@ -85,7 +85,7 @@ suite('vscode API - window', () => {
 
 			let [one, two] = editors;
 
-			await new Promise(resolve => {
+			await new Promise<void>(resolve => {
 				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
 					actualEvent = event;
 					registration2.dispose();
@@ -120,7 +120,7 @@ suite('vscode API - window', () => {
 			let [, two] = editors;
 			two.show();
 
-			return new Promise(resolve => {
+			return new Promise<void>(resolve => {
 
 				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
 					actualEvents.push(event);
@@ -433,7 +433,7 @@ suite('vscode API - window', () => {
 		let i = 0;
 		const resolves: ((value: string) => void)[] = [];
 		let done: () => void;
-		const unexpected = new Promise((resolve, reject) => {
+		const unexpected = new Promise<void>((resolve, reject) => {
 			done = () => resolve();
 			resolves.push(reject);
 		});
@@ -466,7 +466,7 @@ suite('vscode API - window', () => {
 		return unexpected;
 	});
 
-	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	test('showQuickPick, keep selection (microsoft/vscode-azure-account#67)', async function () {
 		const picks = window.showQuickPick([
 			{ label: 'eins' },
 			{ label: 'zwei', picked: true },
@@ -594,7 +594,7 @@ suite('vscode API - window', () => {
 	function createQuickPickTracker<T extends string | QuickPickItem>() {
 		const resolves: ((value: T) => void)[] = [];
 		let done: () => void;
-		const unexpected = new Promise((resolve, reject) => {
+		const unexpected = new Promise<void>((resolve, reject) => {
 			done = () => resolve();
 			resolves.push(reject);
 		});
@@ -613,7 +613,7 @@ suite('vscode API - window', () => {
 		return workspace.openTextDocument(join(workspace.rootPath || '', './far.js')).then(doc => window.showTextDocument(doc)).then(editor => {
 
 
-			return new Promise((resolve, _reject) => {
+			return new Promise<void>((resolve, _reject) => {
 
 				let subscription = window.onDidChangeTextEditorSelection(e => {
 					assert.ok(e.textEditor === editor);

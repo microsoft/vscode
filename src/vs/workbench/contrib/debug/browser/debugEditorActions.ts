@@ -277,6 +277,10 @@ class StepIntoTargetsAction extends EditorAction {
 
 		if (session && frame && editor.hasModel() && editor.getModel().uri.toString() === frame.source.uri.toString()) {
 			const targets = await session.stepInTargets(frame.frameId);
+			if (!targets) {
+				return;
+			}
+
 			editor.revealLineInCenterIfOutsideViewport(frame.range.startLineNumber);
 			const cursorCoords = editor.getScrolledVisiblePosition({ lineNumber: frame.range.startLineNumber, column: frame.range.startColumn });
 			const editorCoords = getDomNodePagePosition(editor.getDomNode());

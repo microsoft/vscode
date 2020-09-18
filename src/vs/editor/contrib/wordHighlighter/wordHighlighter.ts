@@ -239,7 +239,7 @@ class WordHighlighter {
 
 	public moveNext() {
 		let highlights = this._getSortedHighlights();
-		let index = arrays.firstIndex(highlights, (range) => range.containsPosition(this.editor.getPosition()));
+		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
 		let newIndex = ((index + 1) % highlights.length);
 		let dest = highlights[newIndex];
 		try {
@@ -258,7 +258,7 @@ class WordHighlighter {
 
 	public moveBack() {
 		let highlights = this._getSortedHighlights();
-		let index = arrays.firstIndex(highlights, (range) => range.containsPosition(this.editor.getPosition()));
+		let index = highlights.findIndex((range) => range.containsPosition(this.editor.getPosition()));
 		let newIndex = ((index - 1 + highlights.length) % highlights.length);
 		let dest = highlights[newIndex];
 		try {

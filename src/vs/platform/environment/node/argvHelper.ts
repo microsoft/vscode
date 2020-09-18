@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { parseArgs, ErrorReporter, OPTIONS } from 'vs/platform/environment/node/argv';
@@ -33,7 +32,7 @@ function parseAndValidate(cmdLineArgs: string[], reportWarnings: boolean): Nativ
 }
 
 function stripAppPath(argv: string[]): string[] | undefined {
-	const index = firstIndex(argv, a => !/^-/.test(a));
+	const index = argv.findIndex(a => !/^-/.test(a));
 
 	if (index > -1) {
 		return [...argv.slice(0, index), ...argv.slice(index + 1)];
@@ -61,11 +60,7 @@ export function parseMainProcessArgv(processArgv: string[]): NativeParsedArgs {
  * Use this to parse raw code CLI process.argv such as: `Electron cli.js . --verbose --wait`
  */
 export function parseCLIProcessArgv(processArgv: string[]): NativeParsedArgs {
-	let [, , ...args] = processArgv;
-
-	if (process.env['VSCODE_DEV']) {
-		args = stripAppPath(args) || [];
-	}
+	let [, , ...args] = processArgv; // remove the first non-option argument: it's always the app location
 
 	return parseAndValidate(args, true);
 }

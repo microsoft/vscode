@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IProcessedOutput, NotebookCellMetadata, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
@@ -43,10 +43,10 @@ class MirrorCell {
 	constructor(
 		readonly handle: number,
 		private _source: string | string[],
-		readonly language: string,
-		readonly cellKind: CellKind,
-		readonly outputs: IProcessedOutput[],
-		readonly metadata?: NotebookCellMetadata
+		public language: string,
+		public cellKind: CellKind,
+		public outputs: IProcessedOutput[],
+		public metadata?: NotebookCellMetadata
 
 	) { }
 
@@ -87,10 +87,51 @@ class MirrorCell {
 class MirrorNotebookDocument {
 	constructor(
 		readonly uri: URI,
-		readonly cells: MirrorCell[],
-		readonly languages: string[],
-		readonly metadata: NotebookDocumentMetadata,
+		public cells: MirrorCell[],
+		public languages: string[],
+		public metadata: NotebookDocumentMetadata,
 	) {
+	}
+
+	acceptModelChanged(event: NotebookCellsChangedEventDto) {
+		// note that the cell content change is not applied to the MirrorCell
+		// but it's fine as if a cell content is modified after the first diff, its position will not change any more
+		// TODO@rebornix, but it might lead to interesting bugs in the future.
+		event.rawEvents.forEach(e => {
+			if (e.kind === NotebookCellsChangeType.ModelChange) {
+				this._spliceNotebookCells(e.changes);
+			} else if (e.kind === NotebookCellsChangeType.Move) {
+				const cells = this.cells.splice(e.index, 1);
+				this.cells.splice(e.newIdx, 0, ...cells);
+			} else if (e.kind === NotebookCellsChangeType.Output) {
+				const cell = this.cells[e.index];
+				cell.outputs = e.outputs;
+			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+				const cell = this.cells[e.index];
+				cell.language = e.language;
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				const cell = this.cells[e.index];
+				cell.metadata = e.metadata;
+			}
+		});
+	}
+
+	_spliceNotebookCells(splices: NotebookCellsSplice2[]) {
+		splices.reverse().forEach(splice => {
+			const cellDtos = splice[2];
+			const newCells = cellDtos.map(cell => {
+				return new MirrorCell(
+					(cell as unknown as IMainCellDto).handle,
+					cell.source,
+					cell.language,
+					cell.cellKind,
+					cell.outputs,
+					cell.metadata
+				);
+			});
+
+			this.cells.splice(splice[0], splice[1], ...newCells);
+		});
 	}
 }
 
@@ -135,6 +176,13 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.outputs,
 			dto.metadata
 		)), data.languages, data.metadata);
+	}
+
+	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
+		const model = this._models[strURL];
+		if (model) {
+			model.acceptModelChanged(event);
+		}
 	}
 
 	public acceptRemovedModel(strURL: string): void {

@@ -5,7 +5,6 @@
 
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
 import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 import * as DOM from 'vs/base/browser/dom';
@@ -42,7 +41,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		if (query && query !== '') {
 			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (strings.startsWith(f, '!')) {
+				if (f.startsWith('!')) {
 					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
 				} else {
 					this._parsedQueries.push({ type: 'include', query: f });
@@ -119,7 +118,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'repl-panel-filter-container');
+		this.container.classList.add('repl-panel-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;

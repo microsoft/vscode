@@ -21,7 +21,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
-import { addClass, EventHelper, createStyleSheet, addDisposableListener, addClasses, removeClass, EventType, hide, show, removeClasses, isAncestor } from 'vs/base/browser/dom';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, hide, show, isAncestor } from 'vs/base/browser/dom';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -319,7 +319,7 @@ class StatusbarViewModel extends Disposable {
 		for (const entry of entries) {
 
 			// Clear previous first
-			removeClasses(entry.container, 'first-visible-item', 'last-visible-item');
+			entry.container.classList.remove('first-visible-item', 'last-visible-item');
 
 			const isVisible = !this.isHidden(entry.id);
 			if (isVisible) {
@@ -333,12 +333,12 @@ class StatusbarViewModel extends Disposable {
 
 		// Mark: first visible item
 		if (firstVisibleItem) {
-			addClass(firstVisibleItem.container, 'first-visible-item');
+			firstVisibleItem.container.classList.add('first-visible-item');
 		}
 
 		// Mark: last visible item
 		if (lastVisibleItem) {
-			addClass(lastVisibleItem.container, 'last-visible-item');
+			lastVisibleItem.container.classList.add('last-visible-item');
 		}
 	}
 }
@@ -516,13 +516,13 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Left items container
 		this.leftItemsContainer = document.createElement('div');
-		addClasses(this.leftItemsContainer, 'left-items', 'items-container');
+		this.leftItemsContainer.classList.add('left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
 		this.element.tabIndex = -1;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
-		addClasses(this.rightItemsContainer, 'right-items', 'items-container');
+		this.rightItemsContainer.classList.add('right-items', 'items-container');
 		this.element.appendChild(this.rightItemsContainer);
 
 		// Context menu support
@@ -661,10 +661,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// Border color
 		const borderColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER) || this.getColor(contrastBorder);
 		if (borderColor) {
-			addClass(container, 'status-border-top');
+			container.classList.add('status-border-top');
 			container.style.setProperty('--status-border-top-color', borderColor.toString());
 		} else {
-			removeClass(container, 'status-border-top');
+			container.classList.remove('status-border-top');
 			container.style.removeProperty('--status-border-top-color');
 		}
 
@@ -680,15 +680,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const itemContainer = document.createElement('div');
 		itemContainer.id = id;
 
-		addClass(itemContainer, 'statusbar-item');
+		itemContainer.classList.add('statusbar-item');
 		if (extraClasses) {
-			addClasses(itemContainer, ...extraClasses);
+			itemContainer.classList.add(...extraClasses);
 		}
 
 		if (alignment === StatusbarAlignment.RIGHT) {
-			addClass(itemContainer, 'right');
+			itemContainer.classList.add('right');
 		} else {
-			addClass(itemContainer, 'left');
+			itemContainer.classList.add('left');
 		}
 
 		return itemContainer;
@@ -793,18 +793,18 @@ class StatusbarEntryItem extends Disposable {
 					}
 				});
 
-				removeClass(this.labelContainer, 'disabled');
+				this.labelContainer.classList.remove('disabled');
 			} else {
-				addClass(this.labelContainer, 'disabled');
+				this.labelContainer.classList.add('disabled');
 			}
 		}
 
 		// Update: Beak
 		if (!this.entry || entry.showBeak !== this.entry.showBeak) {
 			if (entry.showBeak) {
-				addClass(this.container, 'has-beak');
+				this.container.classList.add('has-beak');
 			} else {
-				removeClass(this.container, 'has-beak');
+				this.container.classList.remove('has-beak');
 			}
 		}
 
@@ -817,9 +817,9 @@ class StatusbarEntryItem extends Disposable {
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
 			if (entry.backgroundColor) {
 				this.applyColor(this.container, entry.backgroundColor, true);
-				addClass(this.container, 'has-background-color');
+				this.container.classList.add('has-background-color');
 			} else {
-				removeClass(this.container, 'has-background-color');
+				this.container.classList.remove('has-background-color');
 			}
 		}
 

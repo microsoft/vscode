@@ -74,7 +74,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
+		if (now > this.lastRun /* https://github.com/microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
 			return;
 		}
 		this.lastRun = now;
@@ -200,7 +200,10 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
 					});
 
-					const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+					const actions = [manageExtensionsAction];
+					if (!hasEmbedderAccountSession || authenticationSession?.canSignOut) {
+						actions.push(signOutAction);
+					}
 
 					const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
 					menus.push(menu);

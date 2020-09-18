@@ -137,7 +137,7 @@ export class CallStackView extends ViewPane {
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
@@ -156,9 +156,9 @@ export class CallStackView extends ViewPane {
 
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
-				this.pauseMessageLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+				this.pauseMessageLabel.textContent = thread.stateLabel;
 				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
-				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
+				this.pauseMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 				this.updateActions();
 			} else {
@@ -210,8 +210,8 @@ export class CallStackView extends ViewPane {
 
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-call-stack');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
@@ -547,7 +547,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		data.stateLabel.style.display = '';
 
 		if (thread && thread.stoppedDetails) {
-			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
+			data.stateLabel.textContent = thread.stateLabel;
 			if (thread.stoppedDetails.text) {
 				data.session.title = thread.stoppedDetails.text;
 			}
@@ -577,7 +577,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 	renderTemplate(container: HTMLElement): IThreadTemplateData {
 		const thread = dom.append(container, $('.thread'));
 		const name = dom.append(thread, $('.name'));
-		const stateLabel = dom.append(thread, $('span.state.label'));
+		const stateLabel = dom.append(thread, $('span.state.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(thread);
 
@@ -631,11 +631,11 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
 		const stackFrame = element.element;
-		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
-		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
-		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
+		data.stackFrame.classList.toggle('disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
+		data.stackFrame.classList.toggle('label', stackFrame.presentationHint === 'label');
+		data.stackFrame.classList.toggle('subtle', stackFrame.presentationHint === 'subtle');
 		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
-		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
+		data.stackFrame.classList.toggle('has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
 		if (stackFrame.source.raw.origin) {
@@ -648,9 +648,9 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 			if (stackFrame.range.startColumn) {
 				data.lineNumber.textContent += `:${stackFrame.range.startColumn}`;
 			}
-			dom.removeClass(data.lineNumber, 'unavailable');
+			data.lineNumber.classList.remove('unavailable');
 		} else {
-			dom.addClass(data.lineNumber, 'unavailable');
+			data.lineNumber.classList.add('unavailable');
 		}
 
 		data.actionBar.clear();

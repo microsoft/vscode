@@ -52,7 +52,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.fileDialogService.defaultWorkspacePath()
+			defaultUri: this.fileDialogService.defaultWorkspacePath(),
+			availableFileSystems: this.environmentService.configuration.remoteAuthority ? [Schemas.vscodeRemote] : undefined
 		});
 
 		if (!workspacePath) {
@@ -307,7 +308,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		);
 	}
 
-	abstract async enterWorkspace(path: URI): Promise<void>;
+	abstract enterWorkspace(path: URI): Promise<void>;
 
 	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!!this.environmentService.extensionTestsLocationURI) {

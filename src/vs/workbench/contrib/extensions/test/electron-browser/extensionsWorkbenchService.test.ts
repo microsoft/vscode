@@ -44,9 +44,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
-import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -1431,7 +1430,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				if (extension.location.scheme === Schemas.file) {
 					return localExtensionManagementServer;
 				}
-				if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+				if (extension.location.scheme === Schemas.vscodeRemote) {
 					return remoteExtensionManagementServer;
 				}
 				throw new Error('');

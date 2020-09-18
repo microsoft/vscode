@@ -114,10 +114,23 @@ export class UserDataAutoSyncService extends UserDataAutoSyncEnablementService i
 	) {
 		super(storageService, environmentService, userDataSyncStoreManagementService);
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
+
 		this.lastSyncUrl = this.syncUrl;
 		this.syncUrl = userDataSyncStoreManagementService.userDataSyncStore?.url;
 
-		if (userDataSyncStoreManagementService.userDataSyncStore) {
+		if (this.syncUrl) {
+
+			this.logService.info('Using settings sync service', this.syncUrl.toString());
+			this._register(userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => {
+				if (!isEqual(this.syncUrl, userDataSyncStoreManagementService.userDataSyncStore?.url)) {
+					this.lastSyncUrl = this.syncUrl;
+					this.syncUrl = userDataSyncStoreManagementService.userDataSyncStore?.url;
+					if (this.syncUrl) {
+						this.logService.info('Using settings sync service', this.syncUrl.toString());
+					}
+				}
+			}));
+
 			if (this.isEnabled()) {
 				this.logService.info('Auto Sync is enabled.');
 			} else {

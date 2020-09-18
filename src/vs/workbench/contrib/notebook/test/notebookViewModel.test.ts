@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellMetadata, diff, ICellRange, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook, TestCell, NotebookEditorTestModel, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { withTestNotebook, NotebookEditorTestModel, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -45,7 +45,7 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells[0].metadata?.editable, true);
 				assert.equal(viewModel.viewCells[1].metadata?.editable, false);
 
-				const cell = viewModel.insertCell(1, new TestCell(viewModel.viewType, 0, 'var c = 3;', 'javascript', CellKind.Code, [], textModelService), true);
+				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true, true, []);
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
 				assert.equal(viewModel.getCellIndex(cell), 1);
@@ -128,13 +128,13 @@ suite('NotebookViewModel', () => {
 				const lastViewCell = viewModel.viewCells[viewModel.viewCells.length - 1];
 
 				const insertIndex = viewModel.getCellIndex(firstViewCell) + 1;
-				const cell = viewModel.insertCell(insertIndex, new TestCell(viewModel.viewType, 3, 'var c = 3;', 'javascript', CellKind.Code, [], textModelService), true);
+				const cell = viewModel.createCell(insertIndex, 'var c = 3;', 'javascript', CellKind.Code, {}, [], true);
 
 				const addedCellIndex = viewModel.getCellIndex(cell);
 				viewModel.deleteCell(addedCellIndex, true);
 
 				const secondInsertIndex = viewModel.getCellIndex(lastViewCell) + 1;
-				const cell2 = viewModel.insertCell(secondInsertIndex, new TestCell(viewModel.viewType, 4, 'var d = 4;', 'javascript', CellKind.Code, [], textModelService), true);
+				const cell2 = viewModel.createCell(secondInsertIndex, 'var d = 4;', 'javascript', CellKind.Code, {}, [], true);
 
 				assert.equal(viewModel.viewCells.length, 3);
 				assert.equal(viewModel.notebookDocument.cells.length, 3);
@@ -261,7 +261,6 @@ function getVisibleCells<T>(cells: T[], hiddenRanges: ICellRange[]) {
 
 suite('NotebookViewModel Decorations', () => {
 	const instantiationService = setupInstantiationService();
-	const textModelService = instantiationService.get(ITextModelService);
 	const blukEditService = instantiationService.get(IBulkEditService);
 	const undoRedoService = instantiationService.get(IUndoRedoService);
 
@@ -285,7 +284,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2,
 				});
 
-				viewModel.insertCell(0, new TestCell(viewModel.viewType, 5, 'var d = 6;', 'javascript', CellKind.Code, [], textModelService), true);
+				viewModel.createCell(0, 'var d = 6;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
 
@@ -299,7 +298,7 @@ suite('NotebookViewModel Decorations', () => {
 					end: 2
 				});
 
-				viewModel.insertCell(3, new TestCell(viewModel.viewType, 6, 'var d = 7;', 'javascript', CellKind.Code, [], textModelService), true);
+				viewModel.createCell(3, 'var d = 7;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
@@ -345,14 +344,14 @@ suite('NotebookViewModel Decorations', () => {
 					end: 3
 				});
 
-				viewModel.insertCell(5, new TestCell(viewModel.viewType, 8, 'var d = 9;', 'javascript', CellKind.Code, [], textModelService), true);
+				viewModel.createCell(5, 'var d = 9;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 
 					end: 3
 				});
 
-				viewModel.insertCell(4, new TestCell(viewModel.viewType, 9, 'var d = 10;', 'javascript', CellKind.Code, [], textModelService), true);
+				viewModel.createCell(4, 'var d = 10;', 'javascript', CellKind.Code, {}, [], true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
 

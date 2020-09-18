@@ -43,6 +43,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -99,6 +100,9 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
+
+	private readonly _onDidChangeDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
+	readonly onDidChangeDescription: Event<string | undefined> = this._onDidChangeDescription.event;
 
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
@@ -218,6 +222,16 @@ export class TreeView extends Disposable implements ITreeView {
 	set title(name: string) {
 		this._title = name;
 		this._onDidChangeTitle.fire(this._title);
+	}
+
+	private _description: string | undefined;
+	get description(): string | undefined {
+		return this._description;
+	}
+
+	set description(description: string | undefined) {
+		this._description = description;
+		this._onDidChangeDescription.fire(this._description);
 	}
 
 	get canSelectMany(): boolean {
@@ -793,8 +807,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
-				if (node.iconColor) {
-					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.iconColor.id)?.toString() ?? '';
+				if (node.themeIcon.themeColor) {
+					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.themeColor.id)?.toString() ?? '';
 				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
@@ -843,10 +857,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 							targetElements: [this],
 							dispose: () => { }
 						};
-						hoverOptions = { text: tooltip, target };
+						hoverOptions = { text: tooltip, target, anchorPosition: AnchorPosition.BELOW };
 					}
 					if (mouseX !== undefined) {
-						(<IHoverTarget>hoverOptions.target).x = mouseX;
+						(<IHoverTarget>hoverOptions.target).x = mouseX + 10;
 					}
 					hoverService.showHover(hoverOptions);
 				}

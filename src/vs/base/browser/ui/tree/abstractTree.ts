@@ -7,7 +7,7 @@ import 'vs/css!./media/tree';
 import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IListStyles, MouseController, DefaultKeyboardNavigationDelegate, isInputElement, isMonacoEditor } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IKeyboardNavigationLabelProvider, IIdentityProvider, IKeyboardNavigationDelegate } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass, getDomNodePagePosition, removeClass, addClass, hasClass, hasParentWithClass, createStyleSheet, clearNode, addClasses, removeClasses } from 'vs/base/browser/dom';
+import { append, $, getDomNodePagePosition, hasParentWithClass, createStyleSheet, clearNode } from 'vs/base/browser/dom';
 import { Event, Relay, Emitter, EventBufferer } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -405,10 +405,10 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		}
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
-			addClasses(templateData.twistie, treeItemExpandedIcon.classNames, 'collapsible');
-			toggleClass(templateData.twistie, 'collapsed', node.collapsed);
+			templateData.twistie.classList.add(...treeItemExpandedIcon.classNamesArray, 'collapsible');
+			templateData.twistie.classList.toggle('collapsed', node.collapsed);
 		} else {
-			removeClasses(templateData.twistie, treeItemExpandedIcon.classNames, 'collapsible', 'collapsed');
+			templateData.twistie.classList.remove(...treeItemExpandedIcon.classNamesArray, 'collapsible', 'collapsed');
 		}
 
 		if (node.collapsible) {
@@ -443,7 +443,7 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 			const guide = $<HTMLDivElement>('.indent-guide', { style: `width: ${this.indent}px` });
 
 			if (this.activeIndentNodes.has(parent)) {
-				addClass(guide, 'active');
+				guide.classList.add('active');
 			}
 
 			if (templateData.indent.childElementCount === 0) {
@@ -486,13 +486,13 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 
 		this.activeIndentNodes.forEach(node => {
 			if (!set.has(node)) {
-				this.renderedIndentGuides.forEach(node, line => removeClass(line, 'active'));
+				this.renderedIndentGuides.forEach(node, line => line.classList.remove('active'));
 			}
 		});
 
 		set.forEach(node => {
 			if (!this.activeIndentNodes.has(node)) {
-				this.renderedIndentGuides.forEach(node, line => addClass(line, 'active'));
+				this.renderedIndentGuides.forEach(node, line => line.classList.add('active'));
 			}
 		});
 
@@ -833,10 +833,10 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		};
 
 		updatePosition();
-		removeClass(this.domNode, positionClassName);
+		this.domNode.classList.remove(positionClassName);
 
-		addClass(this.domNode, 'dragging');
-		disposables.add(toDisposable(() => removeClass(this.domNode, 'dragging')));
+		this.domNode.classList.add('dragging');
+		disposables.add(toDisposable(() => this.domNode.classList.remove('dragging')));
 
 		domEvent(document, 'dragover')(onDragOver, null, disposables);
 		domEvent(this.domNode, 'dragend')(onDragEnd, null, disposables);
@@ -864,12 +864,12 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 
 	private updateFilterOnTypeTitleAndIcon(): void {
 		if (this.filterOnType) {
-			removeClasses(this.filterOnTypeDomNode, treeFilterOnTypeOffIcon.classNames);
-			addClasses(this.filterOnTypeDomNode, treeFilterOnTypeOnIcon.classNames);
+			this.filterOnTypeDomNode.classList.remove(...treeFilterOnTypeOffIcon.classNamesArray);
+			this.filterOnTypeDomNode.classList.add(...treeFilterOnTypeOnIcon.classNamesArray);
 			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
-			removeClasses(this.filterOnTypeDomNode, treeFilterOnTypeOnIcon.classNames);
-			addClasses(this.filterOnTypeDomNode, treeFilterOnTypeOffIcon.classNames);
+			this.filterOnTypeDomNode.classList.remove(...treeFilterOnTypeOnIcon.classNamesArray);
+			this.filterOnTypeDomNode.classList.add(...treeFilterOnTypeOffIcon.classNamesArray);
 			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
 		}
 	}
@@ -885,7 +885,7 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 			this._empty = false;
 		}
 
-		toggleClass(this.domNode, 'no-matches', noMatches);
+		this.domNode.classList.toggle('no-matches', noMatches);
 		this.domNode.title = localize('found', "Matched {0} out of {1} elements", this.filter.matchCount, this.filter.totalCount);
 		this.labelDomNode.textContent = this.pattern.length > 16 ? '…' + this.pattern.substr(this.pattern.length - 16) : this.pattern;
 
@@ -1096,8 +1096,8 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		const target = e.browserEvent.target as HTMLElement;
-		const onTwistie = hasClass(target, 'monaco-tl-twistie')
-			|| (hasClass(target, 'monaco-icon-label') && hasClass(target, 'folder-icon') && e.browserEvent.offsetX < 16);
+		const onTwistie = target.classList.contains('monaco-tl-twistie')
+			|| (target.classList.contains('monaco-icon-label') && target.classList.contains('folder-icon') && e.browserEvent.offsetX < 16);
 
 		let expandOnlyOnTwistieClick = false;
 
@@ -1130,7 +1130,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 	}
 
 	protected onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
-		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+		const onTwistie = (e.browserEvent.target as HTMLElement).classList.contains('monaco-tl-twistie');
 
 		if (onTwistie) {
 			return;
@@ -1340,7 +1340,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		}
 
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
-		toggleClass(this.getHTMLElement(), 'always', this._options.renderIndentGuides === RenderIndentGuides.Always);
+		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
 
 	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
@@ -1363,7 +1363,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this._onDidUpdateOptions.fire(this._options);
 
-		toggleClass(this.getHTMLElement(), 'always', this._options.renderIndentGuides === RenderIndentGuides.Always);
+		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
