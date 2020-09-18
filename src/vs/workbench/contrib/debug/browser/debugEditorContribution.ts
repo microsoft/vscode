@@ -269,9 +269,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();
-							if (this.hoverRange && debugHoverWasVisible) {
-								this.showHover(this.hoverRange, false);
-							}
 						}
 					});
 				}
