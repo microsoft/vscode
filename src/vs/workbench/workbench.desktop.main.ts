@@ -35,7 +35,6 @@ import 'vs/workbench/electron-browser/desktop.main';
 //#region --- workbench services
 
 import 'vs/workbench/services/integrity/node/integrityService';
-import 'vs/workbench/services/textMate/electron-browser/textMateService';
 import 'vs/workbench/services/search/electron-browser/searchService';
 import 'vs/workbench/services/output/electron-browser/outputChannelModelService';
 import 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';

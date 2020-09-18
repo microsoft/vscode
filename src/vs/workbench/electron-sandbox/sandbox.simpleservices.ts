@@ -39,8 +39,6 @@ import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensio
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IGrammar, ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
@@ -55,7 +53,6 @@ import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
-import { Color, RGBA } from 'vs/base/common/color';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
@@ -591,25 +588,6 @@ class SimpleExtensionManagementServerService implements IExtensionManagementServ
 }
 
 registerSingleton(IExtensionManagementServerService, SimpleExtensionManagementServerService);
-
-//#endregion
-
-
-//#region Textmate
-
-TokenizationRegistry.setColorMap([null!, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
-
-class SimpleTextMateService implements ITextMateService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly onDidEncounterLanguage: Event<LanguageId> = Event.None;
-
-	async createGrammar(modeId: string): Promise<IGrammar | null> { return null; }
-	startDebugMode(printFn: (str: string) => void, onStop: () => void): void { }
-}
-
-registerSingleton(ITextMateService, SimpleTextMateService);
 
 //#endregion
 

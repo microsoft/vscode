@@ -21,6 +21,7 @@ import 'vs/workbench/workbench.common.main';
 
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
+import 'vs/workbench/services/textMate/electron-sandbox/textMateService';
 import 'vs/workbench/services/userDataSync/electron-sandbox/storageKeysSyncRegistryService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/dialogs/electron-sandbox/dialogService';
