@@ -229,7 +229,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	readonly isEmbedded: boolean;
 
-	private readonly contextKeyService: IContextKeyService;
+	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
 
 	constructor(
@@ -249,8 +249,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.isEmbedded = creationOptions.isEmbedded || false;
 
 		this._overlayContainer = document.createElement('div');
-		this.contextKeyService = contextKeyService.createScoped(this._overlayContainer);
-		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		this.scopedContextKeyService = contextKeyService.createScoped(this._overlayContainer);
+		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
 
 		this._memento = new Memento(NotebookEditorWidget.ID, storageService);
 		this._activeKernelMemento = new Memento(NotebookEditorActiveKernelCache, storageService);
@@ -391,15 +391,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.layoutService.container.appendChild(this._overlayContainer);
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
-		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
+		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._isVisible = true;
-		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.contextKeyService);
-		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
+		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
+		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
 		this._editorEditable.set(true);
-		this._editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(this.contextKeyService);
+		this._editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(this.scopedContextKeyService);
 		this._editorRunnable.set(true);
-		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.contextKeyService);
-		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(this.contextKeyService);
+		this._notebookExecuting = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.scopedContextKeyService);
+		this._notebookHasMultipleKernels = NOTEBOOK_HAS_MULTIPLE_KERNELS.bindTo(this.scopedContextKeyService);
 		this._notebookHasMultipleKernels.set(false);
 
 		let contributions: INotebookEditorContributionDescription[];
@@ -455,7 +455,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
 			renderers,
-			this.contextKeyService,
+			this.scopedContextKeyService,
 			{
 				setRowLineHeight: false,
 				setRowHeight: false,
@@ -563,7 +563,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.contextMenuService.showContextMenu({
 			getActions: () => {
 				const result: IAction[] = [];
-				const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.contextKeyService);
+				const menu = this.menuService.createMenu(MenuId.NotebookCellTitle, this.scopedContextKeyService);
 				const groups = menu.getActions();
 				menu.dispose();
 
@@ -642,7 +642,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void {
-		this.contextKeyService.updateParent(parentContextKeyService);
+		this.scopedContextKeyService.updateParent(parentContextKeyService);
 	}
 
 	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {
@@ -675,7 +675,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			const focused = this._list!.getFocusedElements()[0];
 			if (focused) {
 				if (!this._cellContextKeyManager) {
-					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.contextKeyService, this, textModel, focused as CellViewModel));
+					this._cellContextKeyManager = this._localStore.add(new CellContextKeyManager(this.scopedContextKeyService, this, textModel, focused as CellViewModel));
 				}
 
 				this._cellContextKeyManager.updateForElement(focused as CellViewModel);

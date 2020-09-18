@@ -11,7 +11,7 @@ import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -111,6 +111,12 @@ export interface IEditorPane extends IComposite {
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
+
+	/**
+	 * The context key service for this editor. Should be overridden by
+	 * editors that have their own ScopedContextKeyService
+	 */
+	readonly scopedContextKeyService: IContextKeyService | undefined;
 
 	/**
 	 * Returns the underlying control of this editor. Callers need to cast
