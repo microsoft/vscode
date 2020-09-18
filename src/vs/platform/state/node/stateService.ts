@@ -5,8 +5,7 @@
 
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
@@ -126,7 +125,7 @@ export class FileStorage {
 
 export class StateService implements IStateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly STATE_FILE = 'storage.json';
 

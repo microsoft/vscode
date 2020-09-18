@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as Proto from '../protocol';
-import { TypeScriptVersion } from '../utils/versionProvider';
+import { TypeScriptVersion } from './versionProvider';
 
 
 export class TypeScriptServerError extends Error {
@@ -18,7 +18,7 @@ export class TypeScriptServerError extends Error {
 	}
 
 	private constructor(
-		serverId: string,
+		public readonly serverId: string,
 		public readonly version: TypeScriptVersion,
 		private readonly response: Proto.Response,
 		public readonly serverMessage: string | undefined,
@@ -38,11 +38,13 @@ export class TypeScriptServerError extends Error {
 		/* __GDPR__FRAGMENT__
 			"TypeScriptRequestErrorProperties" : {
 				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"serverid" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		return {
 			command: this.serverCommand,
+			serverid: this.serverId,
 			sanitizedstack: this.sanitizedStack || '',
 		} as const;
 	}
@@ -79,7 +81,7 @@ export class TypeScriptServerError extends Error {
 		if (!message) {
 			return '';
 		}
-		const regex = /(tsserver)?(\.(?:ts|tsx|js|jsx)(?::\d+(?::\d+)?)?)\)?$/igm;
+		const regex = /(\btsserver)?(\.(?:ts|tsx|js|jsx)(?::\d+(?::\d+)?)?)\)?$/igm;
 		let serverStack = '';
 		while (true) {
 			const match = regex.exec(message);

@@ -78,7 +78,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			let lastUri: vscode.Uri | undefined;
 
 			// ensure stable-sort
-			mergeSort(first, DiagnosticCollection._compareIndexedTuplesByUri);
+			first = mergeSort([...first], DiagnosticCollection._compareIndexedTuplesByUri);
 
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;
@@ -88,17 +88,17 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 					lastUri = uri;
 					toSync.push(uri);
-					this._data.set(uri.toString(), []);
+					this._data.set(uri, []);
 				}
 
 				if (!diagnostics) {
 					// [Uri, undefined] means clear this
-					const currentDiagnostics = this._data.get(uri.toString());
+					const currentDiagnostics = this._data.get(uri);
 					if (currentDiagnostics) {
 						currentDiagnostics.length = 0;
 					}
 				} else {
-					const currentDiagnostics = this._data.get(uri.toString());
+					const currentDiagnostics = this._data.get(uri);
 					if (currentDiagnostics) {
 						currentDiagnostics.push(...diagnostics);
 					}
@@ -173,9 +173,9 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
 		this._checkDisposed();
-		this._data.forEach((value, uri) => {
+		for (let uri of this._data.keys()) {
 			callback.apply(thisArg, [uri, this.get(uri), this]);
-		});
+		}
 	}
 
 	get(uri: URI): ReadonlyArray<vscode.Diagnostic> {
@@ -198,7 +198,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		}
 	}
 
-	private static _compareIndexedTuplesByUri(a: [vscode.Uri, vscode.Diagnostic[]], b: [vscode.Uri, vscode.Diagnostic[]]): number {
+	private static _compareIndexedTuplesByUri(a: [vscode.Uri, readonly vscode.Diagnostic[]], b: [vscode.Uri, readonly vscode.Diagnostic[]]): number {
 		if (a[0].toString() < b[0].toString()) {
 			return -1;
 		} else if (a[0].toString() > b[0].toString()) {
@@ -307,7 +307,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		} else {
 			const index = new Map<string, number>();
 			const res: [vscode.Uri, vscode.Diagnostic[]][] = [];
-			this._collections.forEach(collection => {
+			for (const collection of this._collections.values()) {
 				collection.forEach((uri, diagnostics) => {
 					let idx = index.get(uri.toString());
 					if (typeof idx === 'undefined') {
@@ -317,18 +317,18 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 					}
 					res[idx][1] = res[idx][1].concat(...diagnostics);
 				});
-			});
+			}
 			return res;
 		}
 	}
 
 	private _getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		let res: vscode.Diagnostic[] = [];
-		this._collections.forEach(collection => {
+		for (let collection of this._collections.values()) {
 			if (collection.has(resource)) {
 				res = res.concat(collection.get(resource));
 			}
-		});
+		}
 		return res;
 	}
 

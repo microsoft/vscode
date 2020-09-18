@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -64,8 +64,8 @@ export abstract class ReferencesController implements IEditorContribution {
 	dispose(): void {
 		this._referenceSearchVisible.reset();
 		this._disposables.dispose();
-		dispose(this._widget);
-		dispose(this._model);
+		this._widget?.dispose();
+		this._model?.dispose();
 		this._widget = undefined;
 		this._model = undefined;
 	}
@@ -216,9 +216,18 @@ export abstract class ReferencesController implements IEditorContribution {
 		}
 	}
 
+	async revealReference(reference: OneReference): Promise<void> {
+		if (!this._editor.hasModel() || !this._model || !this._widget) {
+			// can be called while still resolving...
+			return;
+		}
+
+		await this._widget.revealReference(reference);
+	}
+
 	closeWidget(focusEditor = true): void {
-		dispose(this._widget);
-		dispose(this._model);
+		this._widget?.dispose();
+		this._model?.dispose();
 		this._referenceSearchVisible.reset();
 		this._disposables.clear();
 		this._widget = undefined;
@@ -364,6 +373,24 @@ KeybindingsRegistry.registerKeybindingRule({
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek'))
 });
 
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'revealReference',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Enter,
+	mac: {
+		primary: KeyCode.Enter,
+		secondary: [KeyMod.CtrlCmd | KeyCode.DownArrow]
+	},
+	when: ContextKeyExpr.and(ctxReferenceSearchVisible, WorkbenchListFocusContextKey),
+	handler(accessor: ServicesAccessor) {
+		const listService = accessor.get(IListService);
+		const focus = <any[]>listService.lastFocusedList?.getFocus();
+		if (Array.isArray(focus) && focus[0] instanceof OneReference) {
+			withController(accessor, controller => controller.revealReference(focus[0]));
+		}
+	}
+});
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'openReferenceToSide',

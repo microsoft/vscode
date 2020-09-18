@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codelensWidget';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { escape } from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
 import { IViewZone, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -15,6 +14,7 @@ import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegis
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 class CodeLensViewZone implements IViewZone {
 
@@ -79,7 +79,7 @@ class CodeLensContentWidget implements IContentWidget {
 	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
-		let innerHtml = '';
+		let children: HTMLElement[] = [];
 		let hasSymbol = false;
 		for (let i = 0; i < lenses.length; i++) {
 			const lens = lenses[i];
@@ -88,29 +88,26 @@ class CodeLensContentWidget implements IContentWidget {
 			}
 			hasSymbol = true;
 			if (lens.command) {
-				const title = renderCodicons(escape(lens.command.title));
+				const title = renderCodicons(lens.command.title.trim());
 				if (lens.command.id) {
-					innerHtml += `<a id=${i}>${title}</a>`;
+					children.push(dom.$('a', { id: String(i) }, ...title));
 					this._commands.set(String(i), lens.command);
 				} else {
-					innerHtml += `<span>${title}</span>`;
+					children.push(dom.$('span', undefined, ...title));
 				}
 				if (i + 1 < lenses.length) {
-					innerHtml += '<span>&#160;|&#160;</span>';
+					children.push(dom.$('span', undefined, '\u00a0|\u00a0'));
 				}
 			}
 		}
 
 		if (!hasSymbol) {
 			// symbols but no commands
-			this._domNode.innerHTML = '<span>no commands</span>';
+			dom.reset(this._domNode, dom.$('span', undefined, 'no commands'));
 
 		} else {
 			// symbols and commands
-			if (!innerHtml) {
-				innerHtml = '&#160;';
-			}
-			this._domNode.innerHTML = innerHtml;
+			dom.reset(this._domNode, ...children);
 			if (this._isEmpty && animate) {
 				this._domNode.classList.add('fadein');
 			}

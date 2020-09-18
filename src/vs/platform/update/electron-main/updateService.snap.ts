@@ -7,8 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as path from 'vs/base/common/path';
 import { realpath, watch } from 'fs';
@@ -18,7 +17,7 @@ import { UpdateNotAvailableClassification } from 'vs/platform/update/electron-ma
 
 abstract class AbstractUpdateService2 implements IUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _state: State = State.Uninitialized;
 
@@ -135,7 +134,7 @@ abstract class AbstractUpdateService2 implements IUpdateService {
 
 export class SnapUpdateService extends AbstractUpdateService2 {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		private snap: string,

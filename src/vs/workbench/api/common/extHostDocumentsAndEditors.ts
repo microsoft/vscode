@@ -4,16 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'vs/base/common/assert';
+import * as vscode from 'vscode';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, MainContext } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+import { Iterable } from 'vs/base/common/iterator';
+
+class Reference<T> {
+	private _count = 0;
+	constructor(readonly value: T) { }
+	ref() {
+		this._count++;
+	}
+	unref() {
+		return --this._count === 0;
+	}
+}
+
+export interface IExtHostModelAddedData extends IModelAddedData {
+	notebook?: vscode.NotebookDocument;
+}
+
+export interface IExtHostDocumentsAndEditorsDelta extends IDocumentsAndEditorsDelta {
+	addedDocuments?: IExtHostModelAddedData[];
+}
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -22,7 +45,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	private _activeEditorId: string | null = null;
 
 	private readonly _editors = new Map<string, ExtHostTextEditor>();
-	private readonly _documents = new Map<string, ExtHostDocumentData>();
+	private readonly _documents = new ResourceMap<Reference<ExtHostDocumentData>>();
 
 	private readonly _onDidAddDocuments = new Emitter<ExtHostDocumentData[]>();
 	private readonly _onDidRemoveDocuments = new Emitter<ExtHostDocumentData[]>();
@@ -40,6 +63,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	) { }
 
 	$acceptDocumentsAndEditorsDelta(delta: IDocumentsAndEditorsDelta): void {
+		this.acceptDocumentsAndEditorsDelta(delta);
+	}
+
+	acceptDocumentsAndEditorsDelta(delta: IExtHostDocumentsAndEditorsDelta): void {
 
 		const removedDocuments: ExtHostDocumentData[] = [];
 		const addedDocuments: ExtHostDocumentData[] = [];
@@ -48,11 +75,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		if (delta.removedDocuments) {
 			for (const uriComponent of delta.removedDocuments) {
 				const uri = URI.revive(uriComponent);
-				const id = uri.toString();
-				const data = this._documents.get(id);
-				this._documents.delete(id);
-				if (data) {
-					removedDocuments.push(data);
+				const data = this._documents.get(uri);
+				if (data?.unref()) {
+					this._documents.delete(uri);
+					removedDocuments.push(data.value);
 				}
 			}
 		}
@@ -60,19 +86,31 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		if (delta.addedDocuments) {
 			for (const data of delta.addedDocuments) {
 				const resource = URI.revive(data.uri);
-				assert.ok(!this._documents.has(resource.toString()), `document '${resource} already exists!'`);
+				let ref = this._documents.get(resource);
 
-				const documentData = new ExtHostDocumentData(
-					this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
-					resource,
-					data.lines,
-					data.EOL,
-					data.modeId,
-					data.versionId,
-					data.isDirty
-				);
-				this._documents.set(resource.toString(), documentData);
-				addedDocuments.push(documentData);
+				// double check -> only notebook cell documents should be
+				// referenced/opened more than once...
+				if (ref) {
+					if (resource.scheme !== Schemas.vscodeNotebookCell) {
+						throw new Error(`document '${resource} already exists!'`);
+					}
+				}
+				if (!ref) {
+					ref = new Reference(new ExtHostDocumentData(
+						this._extHostRpc.getProxy(MainContext.MainThreadDocuments),
+						resource,
+						data.lines,
+						data.EOL,
+						data.versionId,
+						data.modeId,
+						data.isDirty,
+						data.notebook
+					));
+					this._documents.set(resource, ref);
+					addedDocuments.push(ref.value);
+				}
+
+				ref.ref();
 			}
 		}
 
@@ -89,10 +127,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		if (delta.addedEditors) {
 			for (const data of delta.addedEditors) {
 				const resource = URI.revive(data.documentUri);
-				assert.ok(this._documents.has(resource.toString()), `document '${resource}' does not exist`);
+				assert.ok(this._documents.has(resource), `document '${resource}' does not exist`);
 				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
 
-				const documentData = this._documents.get(resource.toString())!;
+				const documentData = this._documents.get(resource)!.value;
 				const editor = new ExtHostTextEditor(
 					data.id,
 					this._extHostRpc.getProxy(MainContext.MainThreadTextEditors),
@@ -132,13 +170,11 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	}
 
 	getDocument(uri: URI): ExtHostDocumentData | undefined {
-		return this._documents.get(uri.toString());
+		return this._documents.get(uri)?.value;
 	}
 
-	allDocuments(): ExtHostDocumentData[] {
-		const result: ExtHostDocumentData[] = [];
-		this._documents.forEach(data => result.push(data));
-		return result;
+	allDocuments(): Iterable<ExtHostDocumentData> {
+		return Iterable.map(this._documents.values(), ref => ref.value);
 	}
 
 	getEditor(id: string): ExtHostTextEditor | undefined {
@@ -154,9 +190,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	}
 
 	allEditors(): ExtHostTextEditor[] {
-		const result: ExtHostTextEditor[] = [];
-		this._editors.forEach(data => result.push(data));
-		return result;
+		return [...this._editors.values()];
 	}
 }
 

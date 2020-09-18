@@ -5,7 +5,6 @@
 
 import 'vs/css!./watermark';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { isMacintosh, OS } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as nls from 'vs/nls';
@@ -15,7 +14,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { GlobalNewUntitledFileAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -28,6 +26,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { assertIsDefined } from 'vs/base/common/types';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileCommands';
 
 const $ = dom.$;
 
@@ -43,8 +42,8 @@ const openFileNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.openF
 const openFolderNonMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFolder', "Open Folder"), id: OpenFolderAction.ID, mac: false };
 const openFileOrFolderMacOnly: WatermarkEntry = { text: nls.localize('watermark.openFileFolder', "Open File or Folder"), id: OpenFileFolderAction.ID, mac: true };
 const openRecent: WatermarkEntry = { text: nls.localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: GlobalNewUntitledFileAction.ID };
-const newUntitledFileMacOnly: WatermarkEntry = assign({ mac: true }, newUntitledFile);
+const newUntitledFile: WatermarkEntry = { text: nls.localize('watermark.newUntitledFile', "New Untitled File"), id: NEW_UNTITLED_FILE_COMMAND_ID };
+const newUntitledFileMacOnly: WatermarkEntry = Object.assign({ mac: true }, newUntitledFile);
 const toggleTerminal: WatermarkEntry = { text: nls.localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: TERMINAL_COMMAND_ID.TOGGLE };
 const findInFiles: WatermarkEntry = { text: nls.localize('watermark.findInFiles', "Find in Files"), id: FindInFilesActionId };
 const startDebugging: WatermarkEntry = { text: nls.localize('watermark.startDebugging', "Start Debugging"), id: StartAction.ID };
@@ -141,7 +140,6 @@ export class WatermarkContribution extends Disposable implements IWorkbenchContr
 				const dd = dom.append(dl, $('dd'));
 				const keybinding = new KeybindingLabel(dd, OS, { renderUnboundKeybindings: true });
 				keybinding.set(this.keybindingService.lookupKeybinding(entry.id));
-				dd.innerHTML = keybinding.element.outerHTML;
 			});
 		};
 

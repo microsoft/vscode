@@ -60,9 +60,10 @@ export class ExtensionManagementChannel implements IServerChannel {
 		const uriTransformer: IURITransformer | null = this.getUriTransformer(context);
 		switch (command) {
 			case 'zip': return this.service.zip(transformIncomingExtension(args[0], uriTransformer)).then(uri => transformOutgoingURI(uri, uriTransformer));
-			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer), args[1]);
+			case 'unzip': return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
 			case 'install': return this.service.install(transformIncomingURI(args[0], uriTransformer));
 			case 'getManifest': return this.service.getManifest(transformIncomingURI(args[0], uriTransformer));
+			case 'canInstall': return this.service.canInstall(args[0]);
 			case 'installFromGallery': return this.service.installFromGallery(args[0]);
 			case 'uninstall': return this.service.uninstall(transformIncomingExtension(args[0], uriTransformer), args[1]);
 			case 'reinstallFromGallery': return this.service.reinstallFromGallery(transformIncomingExtension(args[0], uriTransformer));
@@ -77,7 +78,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 
 export class ExtensionManagementChannelClient implements IExtensionManagementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		private readonly channel: IChannel,
@@ -92,8 +93,8 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 		return Promise.resolve(this.channel.call('zip', [extension]).then(result => URI.revive(<UriComponents>result)));
 	}
 
-	unzip(zipLocation: URI, type: ExtensionType): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call('unzip', [zipLocation, type]));
+	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
+		return Promise.resolve(this.channel.call('unzip', [zipLocation]));
 	}
 
 	install(vsix: URI): Promise<ILocalExtension> {
@@ -102,6 +103,10 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 
 	getManifest(vsix: URI): Promise<IExtensionManifest> {
 		return Promise.resolve(this.channel.call<IExtensionManifest>('getManifest', [vsix]));
+	}
+
+	async canInstall(extension: IGalleryExtension): Promise<boolean> {
+		return true;
 	}
 
 	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension> {

@@ -9,8 +9,7 @@ import { IConfigurationService, getMigratedSettingValue } from 'vs/platform/conf
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import product from 'vs/platform/product/common/product';
 import { IUpdateService, State, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -25,7 +24,7 @@ export type UpdateNotAvailableClassification = {
 
 export abstract class AbstractUpdateService implements IUpdateService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected url: string | undefined;
 

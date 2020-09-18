@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { EventHelper, getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -18,8 +17,8 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as nls from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry, IConfigurationNode, OVERRIDE_PROPERTY_PATTERN, overrideIdentifierFromKey } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -32,7 +31,6 @@ import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfiguration
 import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { find } from 'vs/base/common/arrays';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -322,7 +320,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		const { key, overrideOf } = setting;
 		if (overrideOf) {
 			const setting = this.getSetting(overrideOf);
-			return find(setting!.overrides!, override => override.key === key);
+			return setting!.overrides!.find(override => override.key === key);
 		}
 		const settingsGroups = this.filterResult ? this.filterResult.filteredGroups : this.preferencesModel.settingsGroups;
 		return this.getPreference(key, settingsGroups);
@@ -651,7 +649,7 @@ class EditSettingRenderer extends Disposable {
 	private readonly _onUpdateSetting: Emitter<{ key: string, value: any, source: IIndexedSetting }> = new Emitter<{ key: string, value: any, source: IIndexedSetting }>();
 	readonly onUpdateSetting: Event<{ key: string, value: any, source: IIndexedSetting }> = this._onUpdateSetting.event;
 
-	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
+	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
@@ -683,7 +681,7 @@ class EditSettingRenderer extends Disposable {
 	}
 
 	private isDefaultSettings(): boolean {
-		return this.masterSettingsModel instanceof DefaultSettingsEditorModel;
+		return this.primarySettingsModel instanceof DefaultSettingsEditorModel;
 	}
 
 	private onConfigurationChanged(): void {
@@ -763,13 +761,13 @@ class EditSettingRenderer extends Disposable {
 			if (configurationNode) {
 				if (this.isDefaultSettings()) {
 					if (setting.key === 'launch') {
-						// Do not show because of https://github.com/Microsoft/vscode/issues/32593
+						// Do not show because of https://github.com/microsoft/vscode/issues/32593
 						return false;
 					}
 					return true;
 				}
 				if (configurationNode.type === 'boolean' || configurationNode.enum) {
-					if ((<SettingsEditorModel>this.masterSettingsModel).configurationTarget !== ConfigurationTarget.WORKSPACE_FOLDER) {
+					if ((<SettingsEditorModel>this.primarySettingsModel).configurationTarget !== ConfigurationTarget.WORKSPACE_FOLDER) {
 						return true;
 					}
 					if (configurationNode.scope === ConfigurationScope.RESOURCE || configurationNode.scope === ConfigurationScope.LANGUAGE_OVERRIDABLE) {
@@ -826,7 +824,7 @@ class EditSettingRenderer extends Disposable {
 
 		const anchor = { x: e.event.posx, y: e.event.posy + 10 };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
-			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
+			: editPreferenceWidget.preferences.map(setting => new SubmenuAction(`preferences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => actions

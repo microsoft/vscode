@@ -20,10 +20,12 @@ import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { pad } from 'vs/base/common/strings';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
+import { assertIsDefined } from 'vs/base/common/types';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const $ = dom.$;
 
@@ -193,8 +195,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
-		this.domNodes.signature.innerHTML = '';
-		this.domNodes.docs.innerHTML = '';
+		this.domNodes.signature.innerText = '';
+		this.domNodes.docs.innerText = '';
 
 		const signature = hints.signatures[hints.activeSignature];
 		if (!signature) {
@@ -263,16 +265,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
-		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+		if (activeParameter && typeof activeParameter.documentation === 'string' && assertIsDefined(activeParameter.documentation).length > 0) {
 			return true;
 		}
-		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+		if (activeParameter && typeof activeParameter.documentation === 'object' && assertIsDefined(activeParameter.documentation).value.length > 0) {
 			return true;
 		}
-		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+		if (signature.documentation && typeof signature.documentation === 'string' && assertIsDefined(signature.documentation).length > 0) {
 			return true;
 		}
-		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+		if (signature.documentation && typeof signature.documentation === 'object' && assertIsDefined(signature.documentation.value).length > 0) {
 			return true;
 		}
 		return false;
@@ -363,7 +365,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		const borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);

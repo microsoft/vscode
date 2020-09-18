@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderOutput, CellOutputKind, IErrorOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { IRenderOutput, CellOutputKind, IErrorOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
 import { RGBA, Color } from 'vs/base/common/color';
 import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
@@ -36,16 +36,14 @@ class ErrorTransform implements IOutputTransformContribution {
 		}
 		container.appendChild(traceback);
 		DOM.addClasses(container, 'error');
-		return {
-			hasDynamicHeight: false
-		};
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
 	dispose(): void {
 	}
 }
 
-registerOutputTransform('notebook.output.error', CellOutputKind.Error, ErrorTransform);
+NotebookRegistry.registerOutputTransform('notebook.output.error', CellOutputKind.Error, ErrorTransform);
 
 /**
  * @param text The content to stylize.
@@ -174,7 +172,7 @@ export function handleANSIOutput(text: string, themeService: IThemeService): HTM
 	 * @see {@link https://en.wikipedia.org/wiki/ANSI_escape_code }
 	 */
 	function setBasicFormatters(styleCodes: number[]): void {
-		for (let code of styleCodes) {
+		for (const code of styleCodes) {
 			switch (code) {
 				case 0: {
 					styleNames = [];

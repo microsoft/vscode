@@ -14,7 +14,7 @@ import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
+import { IMainProcessInfo } from 'vs/platform/launch/node/launch';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
@@ -23,7 +23,7 @@ export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
 
 export interface IDiagnosticsService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
 	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
@@ -223,7 +223,7 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 
 export class DiagnosticsService implements IDiagnosticsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(@ITelemetryService private readonly telemetryService: ITelemetryService) { }
 

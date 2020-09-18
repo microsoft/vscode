@@ -199,7 +199,7 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 */
 	filterValue: (value: string) => string;
 
-	ariaLabel: string;
+	ariaLabel: string | undefined;
 
 	placeholder: string | undefined;
 
@@ -275,6 +275,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * be presented.
 	 */
 	hideInput: boolean;
+
+	hideCheckAll: boolean;
 }
 
 export interface IInputBox extends IQuickInput {
@@ -307,7 +309,7 @@ export interface IQuickInputButton {
 	iconClass?: string;
 	tooltip?: string;
 	/**
-	 * Wether to always show the button. By default buttons
+	 * Whether to always show the button. By default buttons
 	 * are only visible when hovering over them with the mouse
 	 */
 	alwaysVisible?: boolean;

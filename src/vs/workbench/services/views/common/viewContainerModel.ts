@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState } from 'vs/workbench/common/views';
 import { IContextKeyService, IReadableSet } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -12,9 +12,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
-import { firstIndex, move } from 'vs/base/common/arrays';
+import { move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { values } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
 
 class CounterSet<T> implements IReadableSet<T> {
@@ -181,7 +180,7 @@ class ViewDescriptorsState extends Disposable {
 		const value = this.storageService.get(this.globalViewsStateStorageId, StorageScope.WORKSPACE, '[]');
 		const { state: workspaceVisibilityStates } = this.parseStoredGlobalState(value);
 		if (workspaceVisibilityStates.size > 0) {
-			for (const { id, isHidden } of values(workspaceVisibilityStates)) {
+			for (const { id, isHidden } of workspaceVisibilityStates.values()) {
 				let viewState = viewStates.get(id);
 				// Not migrated to `viewletStateStorageId`
 				if (viewState) {
@@ -204,7 +203,7 @@ class ViewDescriptorsState extends Disposable {
 		if (hasDuplicates) {
 			this.setStoredGlobalState(state);
 		}
-		for (const { id, isHidden, order } of values(state)) {
+		for (const { id, isHidden, order } of state.values()) {
 			let viewState = viewStates.get(id);
 			if (viewState) {
 				viewState.visibleGlobal = !isHidden;
@@ -229,7 +228,7 @@ class ViewDescriptorsState extends Disposable {
 	}
 
 	private setStoredGlobalState(storedGlobalState: Map<string, IStoredGlobalViewState>): void {
-		this.globalViewsStatesValue = JSON.stringify(values(storedGlobalState));
+		this.globalViewsStatesValue = JSON.stringify([...storedGlobalState.values()]);
 	}
 
 	private parseStoredGlobalState(value: string): { state: Map<string, IStoredGlobalViewState>, hasDuplicates: boolean } {
@@ -443,8 +442,8 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	move(from: string, to: string): void {
-		const fromIndex = firstIndex(this.viewDescriptorItems, v => v.viewDescriptor.id === from);
-		const toIndex = firstIndex(this.viewDescriptorItems, v => v.viewDescriptor.id === to);
+		const fromIndex = this.viewDescriptorItems.findIndex(v => v.viewDescriptor.id === from);
+		const toIndex = this.viewDescriptorItems.findIndex(v => v.viewDescriptor.id === to);
 
 		const fromViewDescriptor = this.viewDescriptorItems[fromIndex];
 		const toViewDescriptor = this.viewDescriptorItems[toIndex];
@@ -461,12 +460,13 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		});
 	}
 
-	add(viewDescriptors: IViewDescriptor[]): void {
+	add(addedViewDescriptorStates: IAddedViewDescriptorState[]): void {
 		const addedItems: IViewDescriptorItem[] = [];
 		const addedActiveDescriptors: IViewDescriptor[] = [];
 		const addedVisibleItems: { index: number, viewDescriptor: IViewDescriptor, size?: number, collapsed: boolean; }[] = [];
 
-		for (const viewDescriptor of viewDescriptors) {
+		for (const addedViewDescriptorState of addedViewDescriptorStates) {
+			const viewDescriptor = addedViewDescriptorState.viewDescriptor;
 
 			if (viewDescriptor.when) {
 				for (const key of viewDescriptor.when.keys()) {
@@ -478,17 +478,17 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			if (state) {
 				// set defaults if not set
 				if (viewDescriptor.workspace) {
-					state.visibleWorkspace = isUndefinedOrNull(state.visibleWorkspace) ? !viewDescriptor.hideByDefault : state.visibleWorkspace;
+					state.visibleWorkspace = isUndefinedOrNull(addedViewDescriptorState.visible) ? (isUndefinedOrNull(state.visibleWorkspace) ? !viewDescriptor.hideByDefault : state.visibleWorkspace) : addedViewDescriptorState.visible;
 				} else {
-					state.visibleGlobal = isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal;
+					state.visibleGlobal = isUndefinedOrNull(addedViewDescriptorState.visible) ? (isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal) : addedViewDescriptorState.visible;
 				}
-				state.collapsed = isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed;
+				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;
 			} else {
 				state = {
 					active: false,
-					visibleGlobal: !viewDescriptor.hideByDefault,
-					visibleWorkspace: !viewDescriptor.hideByDefault,
-					collapsed: !!viewDescriptor.collapsed,
+					visibleGlobal: isUndefinedOrNull(addedViewDescriptorState.visible) ? !viewDescriptor.hideByDefault : addedViewDescriptorState.visible,
+					visibleWorkspace: isUndefinedOrNull(addedViewDescriptorState.visible) ? !viewDescriptor.hideByDefault : addedViewDescriptorState.visible,
+					collapsed: isUndefinedOrNull(addedViewDescriptorState.collapsed) ? !!viewDescriptor.collapsed : addedViewDescriptorState.collapsed,
 				};
 			}
 			this.viewDescriptorsState.set(viewDescriptor.id, state);
@@ -531,7 +531,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					this.contextKeys.delete(key);
 				}
 			}
-			const index = firstIndex(this.viewDescriptorItems, i => i.viewDescriptor.id === viewDescriptor.id);
+			const index = this.viewDescriptorItems.findIndex(i => i.viewDescriptor.id === viewDescriptor.id);
 			if (index !== -1) {
 				removed.push(viewDescriptor);
 				const viewDescriptorItem = this.viewDescriptorItems[index];

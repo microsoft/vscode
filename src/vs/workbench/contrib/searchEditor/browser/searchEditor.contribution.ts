@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as objects from 'vs/base/common/objects';
-import { endsWith } from 'vs/base/common/strings';
+import { extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,7 +29,7 @@ import * as SearchConstants from 'vs/workbench/contrib/search/common/constants';
 import * as SearchEditorConstants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from 'vs/workbench/contrib/searchEditor/browser/searchEditorActions';
-import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
+import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -79,11 +78,11 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				const resource = editor.resource;
 				if (!resource) { return undefined; }
 
-				if (!endsWith(resource.path, '.code-search')) {
+				if (extname(resource) !== SEARCH_EDITOR_EXT) {
 					return undefined;
 				}
 
-				if (group.isOpened(editor) && editor instanceof SearchEditorInput) {
+				if (editor instanceof SearchEditorInput && group.isOpened(editor)) {
 					return undefined;
 				}
 
@@ -93,7 +92,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 					override: (async () => {
 						const { config } = await instantiationService.invokeFunction(parseSavedSearchEditor, resource);
 						const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { backingUri: resource, config });
-						return editorService.openEditor(input, { ...options, ignoreOverrides: true }, group);
+						return editorService.openEditor(input, { ...options, override: false }, group);
 					})()
 				};
 			}
@@ -109,7 +108,9 @@ workbenchContributionsRegistry.registerWorkbenchContribution(SearchEditorContrib
 type SerializedSearchEditor = { modelUri: string, dirty: boolean, config: SearchConfiguration, name: string, matchRanges: Range[], backingUri: string };
 class SearchEditorInputFactory implements IEditorInputFactory {
 
-	canSerialize() { return true; }
+	canSerialize(input: SearchEditorInput) {
+		return !input.isDisposed();
+	}
 
 	serialize(input: SearchEditorInput) {
 		let modelUri = undefined;
@@ -144,21 +145,21 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 //#endregion
 
 //#region Commands
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorCaseSensitiveCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
 	handler: toggleSearchEditorCaseSensitiveCommand
 }, ToggleCaseSensitiveKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
 	handler: toggleSearchEditorWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
@@ -209,8 +210,9 @@ CommandsRegistry.registerCommand(
 //#endregion
 
 //#region Actions
-const category = localize('search', "Search Editor");
+const category = { value: localize('search', "Search Editor"), original: 'Search Editor' };
 
+export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean, focusResults: boolean, location: 'reuse' | 'new' }>;
 const openArgDescription = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
@@ -226,6 +228,8 @@ const openArgDescription = {
 				regexp: { type: 'boolean' },
 				useIgnores: { type: 'boolean' },
 				showIncludesExcludes: { type: 'boolean' },
+				triggerSearch: { type: 'boolean' },
+				focusResults: { type: 'boolean' },
 			}
 		}
 	}]
@@ -234,15 +238,54 @@ const openArgDescription = {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'search.searchEditor.action.deleteFileResults',
+			title: { value: localize('searchEditor.deleteResultBlock', "Delete File Results"), original: 'Delete File Results' },
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				when: SearchEditorConstants.InSearchEditor,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
+			},
+			precondition: SearchEditorConstants.InSearchEditor,
+			category,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
+			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: localize('search.openNewSearchEditor', "Open new Search Editor"),
+			title: { value: localize('search.openNewSearchEditor', "New Search Editor"), original: 'New Search Editor' },
 			category,
 			f1: true,
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
-		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args);
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'new' });
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: SearchEditorConstants.OpenEditorCommandId,
+			title: { value: localize('search.openSearchEditor', "Open Search Editor"), original: 'Open Search Editor' },
+			category,
+			f1: true,
+			description: openArgDescription
+		});
+	}
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
+		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, { ...args, location: 'reuse' });
 	}
 });
 
@@ -250,13 +293,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenNewEditorToSideCommandId,
-			title: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"),
+			title: { value: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
 			category,
 			f1: true,
 			description: openArgDescription
 		});
 	}
-	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
+	async run(accessor: ServicesAccessor, args: OpenSearchEditorArgs) {
 		await accessor.get(IInstantiationService).invokeFunction(openNewSearchEditor, args, true);
 	}
 });
@@ -265,13 +308,16 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: OpenInEditorCommandId,
-			title: localize('search.openResultsInEditor', "Open Results in Editor"),
+			title: { value: localize('search.openResultsInEditor', "Open Results in Editor"), original: 'Open Results in Editor' },
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				primary: KeyMod.Alt | KeyCode.Enter,
 				when: ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey),
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter
+				}
 			},
 		});
 	}
@@ -289,7 +335,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: RerunSearchEditorSearchCommandId,
-			title: localize('search.rerunSearchInEditor', "Search Again"),
+			title: { value: localize('search.rerunSearchInEditor', "Search Again"), original: 'Search Again' },
 			category,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R,
@@ -321,7 +367,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: FocusQueryEditorWidgetCommandId,
-			title: localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input"),
+			title: { value: localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input"), original: 'Focus Search Editor Input' },
 			category,
 			menu: {
 				id: MenuId.CommandPalette,

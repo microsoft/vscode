@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BrowserWindow, ipcMain, WebContents, Event as ElectronEvent } from 'electron';
 import { ISharedProcess } from 'vs/platform/ipc/electron-main/sharedProcessMainService';
 import { Barrier } from 'vs/base/common/async';
@@ -13,7 +14,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -32,7 +32,7 @@ export class SharedProcess implements ISharedProcess {
 		@IThemeMainService private readonly themeMainService: IThemeMainService
 	) {
 		// overall ready promise when shared process signals initialization is done
-		this._whenReady = new Promise<void>(c => ipcMain.once('shared-process->electron-main: init-done', () => c(undefined)));
+		this._whenReady = new Promise<void>(c => ipcMain.once('vscode:shared-process->electron-main=init-done', () => c(undefined)));
 	}
 
 	@memoize
@@ -41,8 +41,13 @@ export class SharedProcess implements ISharedProcess {
 			show: false,
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
-				images: false,
+				preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
 				nodeIntegration: true,
+				enableWebSQL: false,
+				enableRemoteModule: false,
+				spellcheck: false,
+				nativeWindowOpen: true,
+				images: false,
 				webgl: false,
 				disableBlinkFeatures: 'Auxclick' // do NOT change, allows us to identify this window as shared-process in the process explorer
 			}
@@ -104,18 +109,18 @@ export class SharedProcess implements ISharedProcess {
 
 		return new Promise<void>(c => {
 			// send payload once shared process is ready to receive it
-			disposables.add(Event.once(Event.fromNodeEventEmitter(ipcMain, 'shared-process->electron-main: ready-for-payload', ({ sender }: { sender: WebContents }) => sender))(sender => {
-				sender.send('electron-main->shared-process: payload', {
+			disposables.add(Event.once(Event.fromNodeEventEmitter(ipcMain, 'vscode:shared-process->electron-main=ready-for-payload', ({ sender }: { sender: WebContents }) => sender))(sender => {
+				sender.send('vscode:electron-main->shared-process=payload', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args,
 					logLevel: this.logService.getLevel()
 				});
 
 				// signal exit to shared process when we get disposed
-				disposables.add(toDisposable(() => sender.send('electron-main->shared-process: exit')));
+				disposables.add(toDisposable(() => sender.send('vscode:electron-main->shared-process=exit')));
 
 				// complete IPC-ready promise when shared process signals this to us
-				ipcMain.once('shared-process->electron-main: ipc-ready', () => c(undefined));
+				ipcMain.once('vscode:shared-process->electron-main=ipc-ready', () => c(undefined));
 			}));
 		});
 	}

@@ -7,7 +7,7 @@ import 'vs/css!./welcomePage';
 import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
 import * as strings from 'vs/base/common/strings';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -31,7 +31,7 @@ import { splitName } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -46,6 +46,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
@@ -77,7 +78,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								.then(folder => {
 									const files = folder.children ? folder.children.map(child => child.name) : [];
 
-									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									const file = files.sort().find(file => strings.startsWith(file.toLowerCase(), 'readme'));
 									if (file) {
 										return joinPath(folderUri, file);
 									}
@@ -162,7 +163,7 @@ interface ExtensionSuggestion {
 const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
 	{ name: localize('welcomePage.python', "Python"), id: 'ms-python.python' },
-	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
+	{ name: localize('welcomePage.java', "Java"), id: 'vscjava.vscode-java-pack' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
 	{ name: localize('welcomePage.docker', "Docker"), id: 'ms-azuretools.vscode-docker' },
@@ -220,6 +221,16 @@ const extensionPackStrings: Strings = {
 	installing: localize('welcomePage.installingExtensionPack', "Installing additional support for {0}..."),
 	extensionNotFound: localize('welcomePage.extensionPackNotFound', "Support for {0} with id {1} could not be found."),
 };
+
+CommandsRegistry.registerCommand('workbench.extensions.action.showAzureExtensions', accessor => {
+	const viewletService = accessor.get(IViewletService);
+	return viewletService.openViewlet(VIEWLET_ID, true)
+		.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
+		.then(viewlet => {
+			viewlet.search('@sort:installs azure ');
+			viewlet.focus();
+		});
+});
 
 /* __GDPR__
 	"installKeymap" : {
@@ -317,7 +328,7 @@ class WelcomePage extends Disposable {
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
 		if (prodName) {
-			prodName.innerHTML = this.productService.nameLong;
+			prodName.textContent = this.productService.nameLong;
 		}
 
 		recentlyOpened.then(({ workspaces }) => {
@@ -451,7 +462,7 @@ class WelcomePage extends Disposable {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = arrays.first(extensions, extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
+			const installedExtension = extensions.find(extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {

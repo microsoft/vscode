@@ -8,7 +8,7 @@ import * as platform from 'vs/base/common/platform';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, IShellLaunchConfig } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalFont, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, LinuxDistro, IShellLaunchConfig, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
 import { IBrowserTerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -35,13 +35,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	private _charMeasureElement: HTMLElement | undefined;
 	private _lastFontMeasurement: ITerminalFont | undefined;
+	private _linuxDistro: LinuxDistro = LinuxDistro.Unknown;
 	public config!: ITerminalConfiguration;
 
 	private readonly _onWorkspacePermissionsChanged = new Emitter<boolean>();
 	public get onWorkspacePermissionsChanged(): Event<boolean> { return this._onWorkspacePermissionsChanged.event; }
 
 	public constructor(
-		private readonly _linuxDistro: LinuxDistro,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly _extensionManagementService: IExtensionManagementService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -62,8 +62,16 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		storageKeysSyncRegistryService.registerStorageKey({ key: 'terminalConfigHelper/launchRecommendationsIgnore', version: 1 });
 	}
 
+	public setLinuxDistro(linuxDistro: LinuxDistro) {
+		this._linuxDistro = linuxDistro;
+	}
+
 	private _updateConfig(): void {
-		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+		const configValues = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
+		configValues.fontWeight = this._normalizeFontWeight(configValues.fontWeight, DEFAULT_FONT_WEIGHT);
+		configValues.fontWeightBold = this._normalizeFontWeight(configValues.fontWeightBold, DEFAULT_BOLD_FONT_WEIGHT);
+
+		this.config = configValues;
 	}
 
 	public configFontIsMonospace(): boolean {
@@ -153,7 +161,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
-		let fontSize = this._toInteger(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		let fontSize = this._clampInt(this.config.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 
 		// Work around bad font on Fedora/Ubuntu
 		if (!this.config.fontFamily) {
@@ -164,7 +172,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 				fontFamily = '\'Ubuntu Mono\', monospace';
 
 				// Ubuntu mono is somehow smaller, so set fontSize a bit larger to get the same perceived size.
-				fontSize = this._toInteger(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+				fontSize = this._clampInt(fontSize + 2, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 			}
 		}
 
@@ -214,7 +222,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		const shellArgsConfigValue = this._configurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 		const envConfigValue = this._configurationService.inspect<{ [key: string]: string }>(`terminal.integrated.env.${platformKey}`);
 
-		// Check if workspace setting exists and whether it's whitelisted
+		// Check if workspace setting exists and whether it's allowed
 		let isWorkspaceShellAllowed: boolean | undefined = false;
 		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
 			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
@@ -226,7 +234,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			isWorkspaceShellAllowed = true;
 		}
 
-		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
+		// Check if the value is neither on the blocklist (false) or allowlist (true) and ask for
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
 			let shellString: string | undefined;
@@ -267,7 +275,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		return !!isWorkspaceShellAllowed;
 	}
 
-	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
+	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
 			return fallback;
@@ -294,7 +302,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			if (!exeBasedExtensionTips || !exeBasedExtensionTips.wsl) {
 				return;
 			}
-			const extId = exeBasedExtensionTips.wsl.recommendations[0];
+			const extId = Object.keys(exeBasedExtensionTips.wsl.recommendations).find(extId => exeBasedExtensionTips.wsl.recommendations[extId].important);
 			if (extId && ! await this.isExtensionInstalled(extId)) {
 				this._notificationService.prompt(
 					Severity.Info,
@@ -335,5 +343,12 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 	private async isExtensionInstalled(id: string): Promise<boolean> {
 		const extensions = await this._extensionManagementService.getInstalled(ExtensionType.User);
 		return extensions.some(e => e.identifier.id === id);
+	}
+
+	private _normalizeFontWeight(input: any, defaultWeight: FontWeight): FontWeight {
+		if (input === 'normal' || input === 'bold') {
+			return input;
+		}
+		return this._clampInt(input, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, defaultWeight);
 	}
 }

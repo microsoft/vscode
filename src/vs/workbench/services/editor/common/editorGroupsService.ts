@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -140,7 +141,7 @@ export const enum GroupsOrder {
 
 export interface IEditorGroupsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -359,6 +360,7 @@ export const enum GroupChangeKind {
 	EDITOR_ACTIVE,
 	EDITOR_LABEL,
 	EDITOR_PIN,
+	EDITOR_STICKY,
 	EDITOR_DIRTY
 }
 
@@ -366,6 +368,12 @@ export interface IGroupChangeEvent {
 	kind: GroupChangeKind;
 	editor?: IEditorInput;
 	editorIndex?: number;
+}
+
+export const enum OpenEditorContext {
+	NEW_EDITOR = 1,
+	MOVE_EDITOR = 2,
+	COPY_EDITOR = 3
 }
 
 export interface IEditorGroup {
@@ -379,6 +387,11 @@ export interface IEditorGroup {
 	 * An event that is fired when the group gets disposed.
 	 */
 	readonly onWillDispose: Event<void>;
+
+	/**
+	 * An event that is fired when an editor is about to close.
+	 */
+	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * A unique identifier of this group that remains identical even if the
@@ -439,6 +452,11 @@ export interface IEditorGroup {
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
+	 * The scoped context key service for this group.
+	 */
+	readonly scopedContextKeyService: IContextKeyService;
+
+	/**
 	 * Get all editors that are currently opened in the group.
 	 *
 	 * @param order the order of the editors to use
@@ -462,7 +480,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditorPane | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null>;
 
 	/**
 	 * Opens editors in this group.
@@ -576,9 +594,4 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
-
-	/**
-	 * Invoke a function in the context of the services of this group.
-	 */
-	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }

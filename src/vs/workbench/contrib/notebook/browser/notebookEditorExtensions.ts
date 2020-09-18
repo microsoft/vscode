@@ -3,16 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrandedService, IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BrandedService } from 'vs/platform/instantiation/common/instantiation';
+import { INotebookEditor, INotebookEditorContribution, INotebookEditorContributionCtor, INotebookEditorContributionDescription } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
-
-
-export interface INotebookEditorContributionDescription {
-	id: string;
-	ctor: INotebookEditorContributionCtor;
-}
 
 class EditorContributionRegistry {
 	public static readonly INSTANCE = new EditorContributionRegistry();

@@ -7,7 +7,7 @@ import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -49,6 +49,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -69,7 +70,7 @@ interface IEditorsZones {
 	modified: IMyViewZone[];
 }
 
-interface IDiffEditorWidgetStyle {
+export interface IDiffEditorWidgetStyle {
 	getEditorsDiffDecorations(lineChanges: editorCommon.ILineChange[], ignoreTrimWhitespace: boolean, renderIndicators: boolean, originalWhitespaces: IEditorWhitespace[], modifiedWhitespaces: IEditorWhitespace[], originalEditor: editorBrowser.ICodeEditor, modifiedEditor: editorBrowser.ICodeEditor): IEditorsDiffDecorationsWithZones;
 	setEnableSplitViewResizing(enableSplitViewResizing: boolean): void;
 	applyColors(theme: IColorTheme): boolean;
@@ -174,6 +175,9 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 	private readonly _onDidUpdateDiff: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateDiff: Event<void> = this._onDidUpdateDiff.event;
 
+	private readonly _onDidContentSizeChange: Emitter<editorCommon.IContentSizeChangedEvent> = this._register(new Emitter<editorCommon.IContentSizeChangedEvent>());
+	public readonly onDidContentSizeChange: Event<editorCommon.IContentSizeChangedEvent> = this._onDidContentSizeChange.event;
+
 	private readonly id: number;
 	private _state: editorBrowser.DiffEditorState;
 	private _updatingDiffProgress: IProgressRunner | null;
@@ -205,6 +209,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	private _ignoreTrimWhitespace: boolean;
 	private _originalIsEditable: boolean;
+	private _originalCodeLens: boolean;
+	private _modifiedCodeLens: boolean;
 
 	private _renderSideBySide: boolean;
 	private _maxComputationTime: number;
@@ -224,7 +230,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	constructor(
 		domElement: HTMLElement,
-		options: IDiffEditorOptions,
+		options: editorBrowser.IDiffEditorConstructionOptions,
 		@IClipboardService clipboardService: IClipboardService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -278,6 +284,16 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._originalIsEditable = false;
 		if (typeof options.originalEditable !== 'undefined') {
 			this._originalIsEditable = Boolean(options.originalEditable);
+		}
+
+		this._originalCodeLens = false;
+		if (typeof options.originalCodeLens !== 'undefined') {
+			this._originalCodeLens = Boolean(options.originalCodeLens);
+		}
+
+		this._modifiedCodeLens = false;
+		if (typeof options.modifiedCodeLens !== 'undefined') {
+			this._modifiedCodeLens = Boolean(options.modifiedCodeLens);
 		}
 
 		this._updateDecorationsRunner = this._register(new RunOnceScheduler(() => this._updateDecorations(), 0));
@@ -335,21 +351,19 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._diffComputationResult = null;
 
 		const leftContextKeyService = this._contextKeyService.createScoped();
-		leftContextKeyService.createKey('isInDiffLeftEditor', true);
 
 		const leftServices = new ServiceCollection();
 		leftServices.set(IContextKeyService, leftContextKeyService);
 		const leftScopedInstantiationService = instantiationService.createChild(leftServices);
 
 		const rightContextKeyService = this._contextKeyService.createScoped();
-		rightContextKeyService.createKey('isInDiffRightEditor', true);
 
 		const rightServices = new ServiceCollection();
 		rightServices.set(IContextKeyService, rightContextKeyService);
 		const rightScopedInstantiationService = instantiationService.createChild(rightServices);
 
-		this.originalEditor = this._createLeftHandSideEditor(options, leftScopedInstantiationService);
-		this.modifiedEditor = this._createRightHandSideEditor(options, rightScopedInstantiationService);
+		this.originalEditor = this._createLeftHandSideEditor(options, leftScopedInstantiationService, leftContextKeyService);
+		this.modifiedEditor = this._createRightHandSideEditor(options, rightScopedInstantiationService, rightContextKeyService);
 
 		this._originalOverviewRuler = null;
 		this._modifiedOverviewRuler = null;
@@ -358,8 +372,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._containerDomElement.appendChild(this._reviewPane.domNode.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.shadow.domNode);
 		this._containerDomElement.appendChild(this._reviewPane.actionBarContainer.domNode);
-
-
 
 		// enableSplitViewResizing
 		this._enableSplitViewResizing = true;
@@ -406,6 +418,10 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 	public get renderIndicators(): boolean {
 		return this._renderIndicators;
+	}
+
+	public getContentHeight(): number {
+		return this.modifiedEditor.getContentHeight();
 	}
 
 	private _setState(newState: editorBrowser.DiffEditorState): void {
@@ -467,8 +483,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._layoutOverviewRulers();
 	}
 
-	private _createLeftHandSideEditor(options: IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable));
+	private _createLeftHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
+		const editor = this._createInnerEditor(instantiationService, this._originalDomNode, this._adjustOptionsForLeftHandSide(options, this._originalIsEditable, this._originalCodeLens));
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -497,11 +513,27 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			}
 		}));
 
+		const isInDiffLeftEditorKey = contextKeyService.createKey<boolean>('isInDiffLeftEditor', undefined);
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffLeftEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffLeftEditorKey.set(false)));
+
+		this._register(editor.onDidContentSizeChange(e => {
+			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
+			const height = Math.max(this.modifiedEditor.getContentHeight(), this.originalEditor.getContentHeight());
+
+			this._onDidContentSizeChange.fire({
+				contentHeight: height,
+				contentWidth: width,
+				contentHeightChanged: e.contentHeightChanged,
+				contentWidthChanged: e.contentWidthChanged
+			});
+		}));
+
 		return editor;
 	}
 
-	private _createRightHandSideEditor(options: IDiffEditorOptions, instantiationService: IInstantiationService): CodeEditorWidget {
-		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options));
+	private _createRightHandSideEditor(options: editorBrowser.IDiffEditorConstructionOptions, instantiationService: IInstantiationService, contextKeyService: IContextKeyService): CodeEditorWidget {
+		const editor = this._createInnerEditor(instantiationService, this._modifiedDomNode, this._adjustOptionsForRightHandSide(options, this._modifiedCodeLens));
 
 		this._register(editor.onDidScrollChange((e) => {
 			if (this._isHandlingScrollEvent) {
@@ -540,6 +572,22 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			if (e.tabSize) {
 				this._updateDecorationsRunner.schedule();
 			}
+		}));
+
+		const isInDiffRightEditorKey = contextKeyService.createKey<boolean>('isInDiffRightEditor', undefined);
+		this._register(editor.onDidFocusEditorWidget(() => isInDiffRightEditorKey.set(true)));
+		this._register(editor.onDidBlurEditorWidget(() => isInDiffRightEditorKey.set(false)));
+
+		this._register(editor.onDidContentSizeChange(e => {
+			const width = this.originalEditor.getContentWidth() + this.modifiedEditor.getContentWidth() + DiffEditorWidget.ONE_OVERVIEW_WIDTH;
+			const height = Math.max(this.modifiedEditor.getContentHeight(), this.originalEditor.getContentHeight());
+
+			this._onDidContentSizeChange.fire({
+				contentHeight: height,
+				contentWidth: width,
+				contentHeightChanged: e.contentHeightChanged,
+				contentWidthChanged: e.contentWidthChanged
+			});
 		}));
 
 		return editor;
@@ -661,9 +709,15 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		if (typeof newOptions.originalEditable !== 'undefined') {
 			this._originalIsEditable = Boolean(newOptions.originalEditable);
 		}
+		if (typeof newOptions.originalCodeLens !== 'undefined') {
+			this._originalCodeLens = Boolean(newOptions.originalCodeLens);
+		}
+		if (typeof newOptions.modifiedCodeLens !== 'undefined') {
+			this._modifiedCodeLens = Boolean(newOptions.modifiedCodeLens);
+		}
 
-		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions));
-		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable));
+		this.modifiedEditor.updateOptions(this._adjustOptionsForRightHandSide(newOptions, this._modifiedCodeLens));
+		this.originalEditor.updateOptions(this._adjustOptionsForLeftHandSide(newOptions, this._originalIsEditable, this._originalCodeLens));
 
 		// enableSplitViewResizing
 		if (typeof newOptions.enableSplitViewResizing !== 'undefined') {
@@ -887,7 +941,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._cleanViewZonesAndDecorations();
 	}
 
-	public trigger(source: string, handlerId: string, payload: any): void {
+	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
 		this.modifiedEditor.trigger(source, handlerId, payload);
 	}
 
@@ -1039,8 +1093,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		}
 	}
 
-	private _adjustOptionsForSubEditor(options: IDiffEditorOptions): IDiffEditorOptions {
-		let clonedOptions: IDiffEditorOptions = objects.deepClone(options || {});
+	private _adjustOptionsForSubEditor(options: editorBrowser.IDiffEditorConstructionOptions): editorBrowser.IDiffEditorConstructionOptions {
+		let clonedOptions: editorBrowser.IDiffEditorConstructionOptions = objects.deepClone(options || {});
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.wordWrap = 'off';
 		clonedOptions.wordWrapMinified = false;
@@ -1050,6 +1104,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		clonedOptions.folding = false;
 		clonedOptions.codeLens = false;
 		clonedOptions.fixedOverflowWidgets = true;
+		clonedOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		// clonedOptions.lineDecorationsWidth = '2ch';
 		if (!clonedOptions.minimap) {
 			clonedOptions.minimap = {};
@@ -1058,15 +1113,21 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return clonedOptions;
 	}
 
-	private _adjustOptionsForLeftHandSide(options: IDiffEditorOptions, isEditable: boolean): IEditorOptions {
+	private _adjustOptionsForLeftHandSide(options: editorBrowser.IDiffEditorConstructionOptions, isEditable: boolean, isCodeLensEnabled: boolean): editorBrowser.IEditorConstructionOptions {
 		let result = this._adjustOptionsForSubEditor(options);
+		if (isCodeLensEnabled) {
+			result.codeLens = true;
+		}
 		result.readOnly = !isEditable;
 		result.extraEditorClassName = 'original-in-monaco-diff-editor';
 		return result;
 	}
 
-	private _adjustOptionsForRightHandSide(options: IDiffEditorOptions): IEditorOptions {
+	private _adjustOptionsForRightHandSide(options: editorBrowser.IDiffEditorConstructionOptions, isCodeLensEnabled: boolean): editorBrowser.IEditorConstructionOptions {
 		let result = this._adjustOptionsForSubEditor(options);
+		if (isCodeLensEnabled) {
+			result.codeLens = true;
+		}
 		result.revealHorizontalRightPadding = EditorOptions.revealHorizontalRightPadding.defaultValue + DiffEditorWidget.ENTIRE_DIFF_OVERVIEW_WIDTH;
 		result.scrollbar!.verticalHasArrows = false;
 		result.extraEditorClassName = 'modified-in-monaco-diff-editor';
@@ -1585,14 +1646,14 @@ abstract class ViewZonesComputer {
 	protected abstract _produceModifiedFromDiff(lineChange: editorCommon.ILineChange, lineChangeOriginalLength: number, lineChangeModifiedLength: number): IMyViewZone | null;
 }
 
-function createDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, options: ModelDecorationOptions) {
+export function createDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, options: ModelDecorationOptions) {
 	return {
 		range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 		options: options
 	};
 }
 
-const DECORATIONS = {
+export const DECORATIONS = {
 
 	charDelete: ModelDecorationOptions.register({
 		className: 'char-delete'
@@ -1640,7 +1701,7 @@ const DECORATIONS = {
 
 };
 
-class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
+export class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEditorWidgetStyle, IVerticalSashLayoutProvider {
 
 	static readonly MINIMUM_EDITOR_WIDTH = 100;
 
@@ -1657,7 +1718,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 		this._sashRatio = null;
 		this._sashPosition = null;
 		this._startSashPosition = null;
-		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this));
+		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this, { orientation: Orientation.VERTICAL }));
 
 		if (this._disableSash) {
 			this._sash.state = SashState.Disabled;
@@ -2095,7 +2156,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
 		let domNode = document.createElement('div');
-		domNode.className = 'view-lines line-delete';
+		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
 		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
 
@@ -2168,11 +2229,11 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 	}
 }
 
-function isChangeOrInsert(lineChange: editorCommon.IChange): boolean {
+export function isChangeOrInsert(lineChange: editorCommon.IChange): boolean {
 	return lineChange.modifiedEndLineNumber > 0;
 }
 
-function isChangeOrDelete(lineChange: editorCommon.IChange): boolean {
+export function isChangeOrDelete(lineChange: editorCommon.IChange): boolean {
 	return lineChange.originalEndLineNumber > 0;
 }
 

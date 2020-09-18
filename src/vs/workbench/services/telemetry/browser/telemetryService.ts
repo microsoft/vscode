@@ -13,7 +13,7 @@ import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } fro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/browser/workbenchCommonProperties';
+import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
@@ -33,9 +33,10 @@ export class WebTelemetryAppender implements ITelemetryAppender {
 
 export class TelemetryService extends Disposable implements ITelemetryService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private impl: ITelemetryService;
+	public readonly sendErrorTelemetry = false;
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
@@ -62,6 +63,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 	setEnabled(value: boolean): void {
 		return this.impl.setEnabled(value);
+	}
+
+	setExperimentProperty(name: string, value: string): void {
+		return this.impl.setExperimentProperty(name, value);
 	}
 
 	get isOptedIn(): boolean {

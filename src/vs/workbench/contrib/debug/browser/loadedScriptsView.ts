@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -28,7 +27,7 @@ import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TreeResourceNavigator, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
@@ -40,6 +39,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -56,6 +56,10 @@ class BaseTreeItem {
 
 	constructor(private _parent: BaseTreeItem | undefined, private _label: string, public readonly isIncompressible = false) {
 		this._showedMoreThanOne = false;
+	}
+
+	updateLabel(label: string) {
+		this._label = label;
 	}
 
 	isLeaf(): boolean {
@@ -310,7 +314,7 @@ class SessionTreeItem extends BaseTreeItem {
 		return 999;
 	}
 
-	addPath(source: Source): void {
+	async addPath(source: Source): Promise<void> {
 
 		let folder: IWorkspaceFolder | null;
 		let url: string;
@@ -347,9 +351,8 @@ class SessionTreeItem extends BaseTreeItem {
 				} else {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
-					const userHome = this._pathService.resolvedUserHome;
-					if (userHome && !isWindows) {
-						path = tildify(path, userHome.fsPath);
+					if (!isWindows) {
+						path = tildify(path, (await this._pathService.userHome()).fsPath);
 					}
 				}
 			}
@@ -430,6 +433,7 @@ export class LoadedScriptsView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
@@ -438,9 +442,9 @@ export class LoadedScriptsView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(this.element, 'debug-pane');
-		dom.addClass(container, 'debug-loaded-scripts');
-		dom.addClass(container, 'show-file-icons');
+		this.element.classList.add('debug-pane');
+		container.classList.add('debug-loaded-scripts');
+		container.classList.add('show-file-icons');
 
 		this.treeContainer = renderViewTree(container);
 
@@ -491,14 +495,12 @@ export class LoadedScriptsView extends ViewPane {
 		}, 300);
 		this._register(this.changeScheduler);
 
-		const loadedScriptsNavigator = new TreeResourceNavigator(this.tree);
-		this._register(loadedScriptsNavigator);
-		this._register(loadedScriptsNavigator.onDidOpenResource(e => {
+		this._register(this.tree.onDidOpen(e => {
 			if (e.element instanceof BaseTreeItem) {
 				const source = e.element.getSource();
 				if (source && source.available) {
 					const nullRange = { startLineNumber: 0, startColumn: 0, endLineNumber: 0, endColumn: 0 };
-					source.openInEditor(this.editorService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
+					source.openInEditor(this.editorService, this.uriIdentityService, nullRange, e.editorOptions.preserveFocus, e.sideBySide, e.editorOptions.pinned);
 				}
 			}
 		}));
@@ -520,27 +522,30 @@ export class LoadedScriptsView extends ViewPane {
 			}
 		};
 
-		const addSourcePathsToSession = (session: IDebugSession) => {
+		const addSourcePathsToSession = async (session: IDebugSession) => {
 			const sessionNode = root.add(session);
-			return session.getLoadedSources().then(paths => {
-				paths.forEach(path => sessionNode.addPath(path));
-				scheduleRefreshOnVisible();
-			});
+			const paths = await session.getLoadedSources();
+			for (const path of paths) {
+				await sessionNode.addPath(path);
+			}
+			scheduleRefreshOnVisible();
 		};
 
 		const registerSessionListeners = (session: IDebugSession) => {
-			this._register(session.onDidChangeName(() => {
-				// Re-add session, this will trigger proper sorting and id recalculation.
-				root.remove(session.getId());
-				addSourcePathsToSession(session);
+			this._register(session.onDidChangeName(async () => {
+				const sessionRoot = root.find(session);
+				if (sessionRoot) {
+					sessionRoot.updateLabel(session.getLabel());
+					scheduleRefreshOnVisible();
+				}
 			}));
-			this._register(session.onDidLoadedSource(event => {
+			this._register(session.onDidLoadedSource(async event => {
 				let sessionRoot: SessionTreeItem;
 				switch (event.reason) {
 					case 'new':
 					case 'changed':
 						sessionRoot = root.add(session);
-						sessionRoot.addPath(event.source);
+						await sessionRoot.addPath(event.source);
 						scheduleRefreshOnVisible();
 						if (event.reason === 'changed') {
 							DebugContentProvider.refreshDebugContent(event.source.uri);

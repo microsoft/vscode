@@ -20,12 +20,14 @@ import { ExtensionHostProfileService } from 'vs/workbench/contrib/extensions/ele
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsInput';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron-browser/extensionsAutoProfiler';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsActions';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
 import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 
 // Singletons
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService); // TODO@sandbox TODO@ben move back into common/extensions.contribution.ts when 'semver-umd' can be loaded
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
@@ -50,7 +52,7 @@ class RuntimeExtensionsInputFactory implements IEditorInputFactory {
 		return '';
 	}
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
-		return new RuntimeExtensionsInput();
+		return RuntimeExtensionsInput.instance;
 	}
 }
 
@@ -60,14 +62,14 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Global actions
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
 
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ShowRuntimeExtensionsAction), 'Show Running Extensions', localize('developer', "Developer"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ShowRuntimeExtensionsAction), 'Show Running Extensions', localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"));
 
 class ExtensionsContributions implements IWorkbenchContribution {
 
 	constructor(
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
-		if (workbenchEnvironmentService.extensionsPath) {
+		if (environmentService.extensionsPath) {
 			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.from(OpenExtensionsFolderAction);
 			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);
 		}

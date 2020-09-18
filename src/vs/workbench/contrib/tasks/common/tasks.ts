@@ -12,13 +12,14 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 
 import { ProblemMatcher } from 'vs/workbench/contrib/tasks/common/problemMatcher';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false);
+export const TASKS_CATEGORY = { value: nls.localize('tasksCategory', "Tasks"), original: 'Tasks' };
 
 export enum ShellQuoting {
 	/**
@@ -601,7 +602,7 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
-		return this.fromObject(Objects.assign({}, <any>this));
+		return this.fromObject(Object.assign({}, <any>this));
 	}
 
 	protected abstract fromObject(object: any): Task;
@@ -1002,6 +1003,7 @@ export interface TaskDefinition {
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;
+	when?: ContextKeyExpression;
 }
 
 export class TaskSorter {
@@ -1065,6 +1067,7 @@ export interface TaskEvent {
 	exitCode?: number;
 	terminalId?: number;
 	__task?: Task;
+	resolvedVariables?: Map<string, string>;
 }
 
 export const enum TaskRunSource {
@@ -1076,10 +1079,10 @@ export const enum TaskRunSource {
 
 export namespace TaskEvent {
 	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, processIdOrExitCode?: number): TaskEvent;
-	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent;
 	export function create(kind: TaskEventKind.DependsOnStarted | TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
 	export function create(kind: TaskEventKind.Changed): TaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number): TaskEvent {
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCodeOrTerminalId?: number, resolvedVariables?: Map<string, string>): TaskEvent {
 		if (task) {
 			let result: TaskEvent = {
 				kind: kind,
@@ -1094,6 +1097,7 @@ export namespace TaskEvent {
 			};
 			if (kind === TaskEventKind.Start) {
 				result.terminalId = processIdOrExitCodeOrTerminalId;
+				result.resolvedVariables = resolvedVariables;
 			} else if (kind === TaskEventKind.ProcessStarted) {
 				result.processId = processIdOrExitCodeOrTerminalId;
 			} else if (kind === TaskEventKind.ProcessEnded) {
@@ -1124,7 +1128,7 @@ export namespace KeyedTaskIdentifier {
 	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
 		const resultKey = sortedStringify(value);
 		let result = { _key: resultKey, type: value.taskType };
-		Objects.assign(result, value);
+		Object.assign(result, value);
 		return result;
 	}
 }

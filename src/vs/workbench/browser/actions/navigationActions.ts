@@ -12,10 +12,13 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -202,9 +205,9 @@ class NavigateDownAction extends BaseNavigationAction {
 }
 
 function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
-	const neighbour = part === Parts.EDITOR_PART ? (next ? Parts.STATUSBAR_PART : Parts.PANEL_PART) : part === Parts.STATUSBAR_PART ? (next ? Parts.ACTIVITYBAR_PART : Parts.EDITOR_PART) :
-		part === Parts.ACTIVITYBAR_PART ? (next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART) : part === Parts.SIDEBAR_PART ? (next ? Parts.PANEL_PART : Parts.ACTIVITYBAR_PART) :
-			part === Parts.PANEL_PART ? (next ? Parts.EDITOR_PART : Parts.SIDEBAR_PART) : Parts.EDITOR_PART;
+	const neighbour = part === Parts.EDITOR_PART ? (next ? Parts.PANEL_PART : Parts.SIDEBAR_PART) : part === Parts.PANEL_PART ? (next ? Parts.STATUSBAR_PART : Parts.EDITOR_PART) :
+		part === Parts.STATUSBAR_PART ? (next ? Parts.ACTIVITYBAR_PART : Parts.PANEL_PART) : part === Parts.ACTIVITYBAR_PART ? (next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART) :
+			part === Parts.SIDEBAR_PART ? (next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART) : Parts.EDITOR_PART;
 	if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
 		return neighbour;
 	}
@@ -257,12 +260,38 @@ export class FocusPreviousPart extends Action {
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
+class GoHomeContributor implements IWorkbenchContribution {
+
+	constructor(
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+	) {
+		const homeIndicator = environmentService.options?.homeIndicator;
+		if (homeIndicator) {
+			registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.actions.goHome`,
+						title: nls.localize('goHome', "Go Home"),
+						menu: { id: MenuId.MenubarWebNavigationMenu }
+					});
+				}
+				async run(): Promise<void> {
+					window.location.href = homeIndicator.href;
+				}
+			});
+		}
+	}
+}
+
+const actionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', viewCategory);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', viewCategory);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', viewCategory);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', viewCategory);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', viewCategory);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', viewCategory);
+actionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', viewCategory);
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(GoHomeContributor, LifecyclePhase.Ready);

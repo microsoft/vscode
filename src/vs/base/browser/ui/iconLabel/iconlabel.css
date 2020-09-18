@@ -28,7 +28,7 @@
 	-moz-osx-font-smoothing: grayscale;
 	vertical-align: top;
 
-	flex-shrink: 0; /* fix for https://github.com/Microsoft/vscode/issues/13787 */
+	flex-shrink: 0; /* fix for https://github.com/microsoft/vscode/issues/13787 */
 }
 
 .monaco-icon-label > .monaco-icon-label-container {
@@ -53,6 +53,10 @@
 	margin-left: 0.5em;
 	font-size: 0.9em;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
+}
+
+.vs .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	opacity: .95;
 }
 
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,

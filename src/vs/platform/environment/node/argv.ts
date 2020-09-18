@@ -4,93 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as minimist from 'minimist';
-import * as os from 'os';
 import { localize } from 'vs/nls';
-
-export interface ParsedArgs {
-	_: string[];
-	'folder-uri'?: string[]; // undefined or array of 1 or more
-	'file-uri'?: string[]; // undefined or array of 1 or more
-	_urls?: string[];
-	help?: boolean;
-	version?: boolean;
-	telemetry?: boolean;
-	status?: boolean;
-	wait?: boolean;
-	waitMarkerFilePath?: string;
-	diff?: boolean;
-	add?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	'prof-startup'?: boolean;
-	'prof-startup-prefix'?: string;
-	'prof-append-timers'?: string;
-	verbose?: boolean;
-	trace?: boolean;
-	'trace-category-filter'?: string;
-	'trace-options'?: string;
-	log?: string;
-	logExtensionHostCommunication?: boolean;
-	'extensions-dir'?: string;
-	'extensions-download-dir'?: string;
-	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
-	extensionTestsPath?: string; // either a local path or a URI
-	'inspect-extensions'?: string;
-	'inspect-brk-extensions'?: string;
-	debugId?: string;
-	'inspect-search'?: string;
-	'inspect-brk-search'?: string;
-	'disable-extensions'?: boolean;
-	'disable-extension'?: string[]; // undefined or array of 1 or more
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'category'?: string;
-	'install-extension'?: string[]; // undefined or array of 1 or more
-	'uninstall-extension'?: string[]; // undefined or array of 1 or more
-	'locate-extension'?: string[]; // undefined or array of 1 or more
-	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
-	'open-url'?: boolean;
-	'skip-release-notes'?: boolean;
-	'disable-restore-windows'?: boolean;
-	'disable-telemetry'?: boolean;
-	'export-default-configuration'?: string;
-	'install-source'?: string;
-	'disable-updates'?: boolean;
-	'disable-crash-reporter'?: boolean;
-	'crash-reporter-directory'?: string;
-	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: string;
-	'file-write'?: boolean;
-	'file-chmod'?: boolean;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
-	remote?: string;
-	'disable-user-env-probe'?: boolean;
-	'force'?: boolean;
-	'force-user-env'?: boolean;
-	'sync'?: 'on' | 'off';
-
-	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
-	'no-proxy-server'?: boolean;
-	'proxy-server'?: string;
-	'proxy-bypass-list'?: string;
-	'proxy-pac-url'?: string;
-	'inspect'?: string;
-	'inspect-brk'?: string;
-	'js-flags'?: string;
-	'disable-gpu'?: boolean;
-	'nolazy'?: boolean;
-	'force-device-scale-factor'?: string;
-	'force-renderer-accessibility'?: boolean;
-	'ignore-certificate-errors'?: boolean;
-	'allow-insecure-localhost'?: boolean;
-	'log-net-log'?: string;
-}
+import { isWindows } from 'vs/base/common/platform';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -121,7 +37,7 @@ type OptionTypeName<T> =
 	T extends undefined ? 'undefined' :
 	'unknown';
 
-export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
+export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'add': { type: 'boolean', cat: 'o', alias: 'a', args: 'folder', description: localize('add', "Add folder(s) to the last active window.") },
 	'goto': { type: 'boolean', cat: 'o', alias: 'g', args: 'file:line[:character]', description: localize('goto', "Open a file at the path on the specified line and character position.") },
@@ -141,7 +57,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
 	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
-	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts.") },
+	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. Use `--force` argument to avoid prompts. The identifier of an extension is always `${publisher}.${name}`. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
 	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
 
@@ -179,6 +95,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'disable-updates': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
+	'crash-reporter-id': { type: 'string' },
 	'disable-user-env-probe': { type: 'boolean' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'unity-launch': { type: 'boolean' },
@@ -187,10 +104,13 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
 	'force': { type: 'boolean' },
+	'do-not-sync': { type: 'boolean' },
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
 	'force-user-env': { type: 'boolean' },
+	'open-devtools': { type: 'boolean' },
+	'__sandbox': { type: 'boolean' },
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },
@@ -253,8 +173,8 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const cleanedArgs: any = {};
 	const remainingArgs: any = parsedArgs;
 
-	// https://github.com/microsoft/vscode/issues/58177
-	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
+	// https://github.com/microsoft/vscode/issues/58177, https://github.com/microsoft/vscode/issues/106617
+	cleanedArgs._ = parsedArgs._.map(arg => String(arg)).filter(arg => arg.length > 0);
 
 	delete remainingArgs._;
 
@@ -362,7 +282,7 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 	help.push(`${localize('usage', "Usage")}: ${executableName} [${localize('options', "options")}][${localize('paths', 'paths')}...]`);
 	help.push('');
 	if (isPipeSupported) {
-		if (os.platform() === 'win32') {
+		if (isWindows) {
 			help.push(localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", executableName));
 		} else {
 			help.push(localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", executableName));

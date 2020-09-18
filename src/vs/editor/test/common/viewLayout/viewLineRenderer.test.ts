@@ -448,7 +448,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
 	});
 
-	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
+	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
 		let lineParts = createViewLineTokens([
@@ -703,6 +703,36 @@ suite('viewLineRenderer.renderLine', () => {
 		assert.equal(actual.containsRTL, true);
 	});
 
+	test('issue #95685: Uses unicode replacement character for Paragraph Separator', () => {
+		const lineText = 'var ftext = [\u2029"Und", "dann", "eines"];';
+		const lineParts = createViewLineTokens([createPart(lineText.length, 1)]);
+		const expectedOutput = [
+			'<span class="mtk1">var\u00a0ftext\u00a0=\u00a0[\uFFFD"Und",\u00a0"dann",\u00a0"eines"];</span>'
+		];
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			true,
+			lineText,
+			false,
+			false,
+			false,
+			0,
+			lineParts,
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			-1,
+			'none',
+			false,
+			false,
+			null
+		));
+		assert.equal(actual.html, '<span>' + expectedOutput.join('') + '</span>');
+	});
+
 	test('issue #19673: Monokai Theme bad-highlighting in line wrap', () => {
 		let lineText = '    MongoCallback<string>): void {';
 
@@ -839,7 +869,7 @@ suite('viewLineRenderer.renderLine', () => {
 
 suite('viewLineRenderer.renderLine 2', () => {
 
-	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'all', selections: LineRange[] | null, expected: string): void {
+	function testCreateLineParts(fontIsMonospace: boolean, lineContent: string, tokens: ViewLineToken[], fauxIndentLength: number, renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all', selections: LineRange[] | null, expected: string): void {
 		let actual = renderViewLine(new RenderLineInput(
 			fontIsMonospace,
 			true,
@@ -1320,6 +1350,95 @@ suite('viewLineRenderer.renderLine 2', () => {
 				'<span class="mtk0">*</span>',
 				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'<span class="mtk0">S</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with leading, inner, and without trailing whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world!',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(14, 2)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with leading, inner, and trailing whitespace', () => {
+		testCreateLineParts(
+			false,
+			' Hello world! \t',
+			[
+				createPart(4, 0),
+				createPart(6, 1),
+				createPart(15, 2)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk0">\u00a0Hel</span>',
+				'<span class="mtk1">lo</span>',
+				'<span class="mtk2">\u00a0world!</span>',
+				'<span class="mtkz" style="width:30px">\u00b7\u2192\u00a0</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with 8 leading and 8 trailing whitespaces', () => {
+		testCreateLineParts(
+			false,
+			'        Hello world!        ',
+			[
+				createPart(8, 1),
+				createPart(10, 2),
+				createPart(28, 3)
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtk1">\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0</span>',
+				'<span class="mtk2">He</span>',
+				'<span class="mtk3">llo\u00a0world!</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u00b7\u00b7\u00b7</span>',
+				'</span>',
+			].join('')
+		);
+	});
+
+	test('createLineParts render whitespace for trailing with line containing only whitespaces', () => {
+		testCreateLineParts(
+			false,
+			' \t ',
+			[
+				createPart(2, 0),
+				createPart(3, 1),
+			],
+			0,
+			'trailing',
+			null,
+			[
+				'<span>',
+				'<span class="mtkz" style="width:40px">\u00b7\u2192\u00a0\u00a0</span>',
+				'<span class="mtkz" style="width:10px">\u00b7</span>',
 				'</span>',
 			].join('')
 		);

@@ -9,12 +9,9 @@
 
 .monaco-workbench .screencast-mouse {
 	position: absolute;
-	border: 2px solid red;
-	border-radius: 20px;
-	width: 20px;
-	height: 20px;
-	top: 0;
-	left: 0;
+	border-width: 2px;
+	border-style: solid;
+	border-radius: 50%;
 	z-index: 100000;
 	content: ' ';
 	pointer-events: none;
@@ -25,15 +22,12 @@
 	position: absolute;
 	background-color: rgba(0, 0, 0 ,0.5);
 	width: 100%;
-	height: 100px;
-	bottom: 20%;
 	left: 0;
 	z-index: 100000;
 	pointer-events: none;
 	color: #eee;
-	line-height: 100px;
+	line-height: 1.75em;
 	text-align: center;
-	font-size: 56px;
 	transition: opacity 0.3s ease-out;
 	white-space: nowrap;
 	overflow: hidden;

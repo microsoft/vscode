@@ -43,9 +43,10 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { flatten, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction } from 'vs/base/common/actions';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const expandSuggestionDocsByDefault = false;
 
@@ -159,7 +160,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
 		data.readMore = append(data.right, $('span.readMore' + suggestMoreInfoIcon.cssSelector));
-		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
+		data.readMore.title = nls.localize('readMore', "Read More ({0})", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
 			const options = this.editor.getOptions();
@@ -321,7 +322,7 @@ class SuggestionDetails {
 
 		this.header = append(this.body, $('.header'));
 		this.close = append(this.header, $('span' + Codicon.close.cssSelector));
-		this.close.title = nls.localize('readLess', "Read less...{0}", this.kbToggleDetails);
+		this.close.title = nls.localize('readLess', "Read Less ({0})", this.kbToggleDetails);
 		this.type = append(this.header, $('p.type'));
 
 		this.docs = append(this.body, $('p.docs'));
@@ -372,7 +373,7 @@ class SuggestionDetails {
 			this.docs.textContent = documentation;
 		} else {
 			this.docs.classList.add('markdown-docs');
-			this.docs.innerHTML = '';
+			this.docs.innerText = '';
 			const renderedContents = this.markdownRenderer.render(documentation);
 			this.renderDisposeable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
@@ -380,7 +381,7 @@ class SuggestionDetails {
 
 		// --- details
 		if (detail) {
-			this.type.innerText = detail;
+			this.type.innerText = detail.length > 100_000 ? `${detail.substr(0, 100_000)}…` : detail;
 			show(this.type);
 		} else {
 			this.type.innerText = '';
@@ -605,7 +606,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
 			useShadows: false,
-			openController: { shouldOpen: () => false },
 			mouseSupport: false,
 			accessibilityProvider: {
 				getRole: () => 'option',
@@ -618,7 +618,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 							detail || '',
 							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "Item {0}, docs: {1}", textLabel, docs);
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
 					} else {
 						return textLabel;
 					}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, InputBoxOptions, Uri, OutputChannel, Disposable } from 'vscode';
+import { window, InputBoxOptions, Uri, OutputChannel, Disposable, workspace } from 'vscode';
 import { IDisposable, EmptyDisposable, toDisposable } from './util';
 import * as path from 'path';
 import { IIPCHandler, IIPCServer, createIPCServer } from './ipc/ipcServer';
@@ -31,6 +31,13 @@ export class Askpass implements IIPCHandler {
 	}
 
 	async handle({ request, host }: { request: string, host: string }): Promise<string> {
+		const config = workspace.getConfiguration('git', null);
+		const enabled = config.get<boolean>('enabled');
+
+		if (!enabled) {
+			return '';
+		}
+
 		const uri = Uri.parse(host);
 		const authority = uri.authority.replace(/^.*@/, '');
 		const password = /password/i.test(request);

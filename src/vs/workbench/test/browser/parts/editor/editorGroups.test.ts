@@ -79,6 +79,8 @@ interface GroupEvents {
 	closed: EditorCloseEvent[];
 	pinned: EditorInput[];
 	unpinned: EditorInput[];
+	sticky: EditorInput[];
+	unsticky: EditorInput[];
 	moved: EditorInput[];
 	disposed: EditorInput[];
 }
@@ -90,6 +92,8 @@ function groupListener(group: EditorGroup): GroupEvents {
 		activated: [],
 		pinned: [],
 		unpinned: [],
+		sticky: [],
+		unsticky: [],
 		moved: [],
 		disposed: []
 	};
@@ -98,6 +102,7 @@ function groupListener(group: EditorGroup): GroupEvents {
 	group.onDidCloseEditor(e => groupEvents.closed.push(e));
 	group.onDidActivateEditor(e => groupEvents.activated.push(e));
 	group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
+	group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
 	group.onDidMoveEditor(e => groupEvents.moved.push(e));
 	group.onDidDisposeEditor(e => groupEvents.disposed.push(e));
 
@@ -145,11 +150,14 @@ class NonSerializableTestEditorInput extends EditorInput {
 
 class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 
+	readonly preferredResource = this.resource;
+
 	constructor(public id: string, public resource: URI) {
 		super();
 	}
 	getTypeId() { return 'testFileEditorInputForGroups'; }
 	resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+	setPreferredResource(resource: URI): void { }
 	setEncoding(encoding: string) { }
 	getEncoding() { return undefined; }
 	setPreferredEncoding(encoding: string) { }
@@ -271,9 +279,11 @@ suite('Workbench editor groups', () => {
 		group.openEditor(input1, { pinned: true, active: true });
 
 		assert.equal(group.contains(input1), true);
-		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input1, { strictEquals: true }), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, true), false);
+		assert.equal(group.contains(input2, { strictEquals: true }), false);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), false);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), false);
 
@@ -301,7 +311,7 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input1);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), true);
 		assert.equal(group.contains(diffInput1), true);
 		assert.equal(group.contains(diffInput2), true);
@@ -309,27 +319,27 @@ suite('Workbench editor groups', () => {
 		group.closeEditor(input2);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, true), true);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), true);
 		assert.equal(group.contains(diffInput1), true);
 		assert.equal(group.contains(diffInput2), true);
 
 		group.closeEditor(diffInput1);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, true), true);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), true);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, true), true);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), true);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), true);
 
 		group.closeEditor(diffInput2);
 
 		assert.equal(group.contains(input1), false);
-		assert.equal(group.contains(input1, true), false);
+		assert.equal(group.contains(input1, { supportSideBySide: true }), false);
 		assert.equal(group.contains(input2), false);
-		assert.equal(group.contains(input2, true), false);
+		assert.equal(group.contains(input2, { supportSideBySide: true }), false);
 		assert.equal(group.contains(diffInput1), false);
 		assert.equal(group.contains(diffInput2), false);
 
@@ -454,8 +464,9 @@ suite('Workbench editor groups', () => {
 
 		// Active && Pinned
 		const input1 = input();
-		const openedEditor = group.openEditor(input1, { active: true, pinned: true });
+		const { editor: openedEditor, isNew } = group.openEditor(input1, { active: true, pinned: true });
 		assert.equal(openedEditor, input1);
+		assert.equal(isNew, true);
 
 		assert.equal(group.count, 1);
 		assert.equal(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 1);
@@ -565,11 +576,13 @@ suite('Workbench editor groups', () => {
 		const input3 = input('3');
 
 		// Pinned and Active
-		let openedEditor = group.openEditor(input1, { pinned: true, active: true });
-		assert.equal(openedEditor, input1);
+		let openedEditorResult = group.openEditor(input1, { pinned: true, active: true });
+		assert.equal(openedEditorResult.editor, input1);
+		assert.equal(openedEditorResult.isNew, true);
 
-		openedEditor = group.openEditor(input1Copy, { pinned: true, active: true }); // opening copy of editor should still return existing one
-		assert.equal(openedEditor, input1);
+		openedEditorResult = group.openEditor(input1Copy, { pinned: true, active: true }); // opening copy of editor should still return existing one
+		assert.equal(openedEditorResult.editor, input1);
+		assert.equal(openedEditorResult.isNew, false);
 
 		group.openEditor(input2, { pinned: true, active: true });
 		group.openEditor(input3, { pinned: true, active: true });
@@ -608,6 +621,12 @@ suite('Workbench editor groups', () => {
 
 		group.pin(sameInput1);
 		assert.equal(events.pinned[0], input1);
+
+		group.stick(sameInput1);
+		assert.equal(events.sticky[0], input1);
+
+		group.unstick(sameInput1);
+		assert.equal(events.unsticky[0], input1);
 
 		group.moveEditor(sameInput1, 1);
 		assert.equal(events.moved[0], input1);
@@ -1129,7 +1148,7 @@ suite('Workbench editor groups', () => {
 
 		// [] -> /index.html/
 		const indexHtml = input('index.html');
-		let openedEditor = group.openEditor(indexHtml);
+		let openedEditor = group.openEditor(indexHtml).editor;
 		assert.equal(openedEditor, indexHtml);
 		assert.equal(group.activeEditor, indexHtml);
 		assert.equal(group.previewEditor, indexHtml);
@@ -1138,7 +1157,7 @@ suite('Workbench editor groups', () => {
 
 		// /index.html/ -> /index.html/
 		const sameIndexHtml = input('index.html');
-		openedEditor = group.openEditor(sameIndexHtml);
+		openedEditor = group.openEditor(sameIndexHtml).editor;
 		assert.equal(openedEditor, indexHtml);
 		assert.equal(group.activeEditor, indexHtml);
 		assert.equal(group.previewEditor, indexHtml);
@@ -1147,7 +1166,7 @@ suite('Workbench editor groups', () => {
 
 		// /index.html/ -> /style.css/
 		const styleCss = input('style.css');
-		openedEditor = group.openEditor(styleCss);
+		openedEditor = group.openEditor(styleCss).editor;
 		assert.equal(openedEditor, styleCss);
 		assert.equal(group.activeEditor, styleCss);
 		assert.equal(group.previewEditor, styleCss);
@@ -1156,7 +1175,7 @@ suite('Workbench editor groups', () => {
 
 		// /style.css/ -> [/style.css/, test.js]
 		const testJs = input('test.js');
-		openedEditor = group.openEditor(testJs, { active: true, pinned: true });
+		openedEditor = group.openEditor(testJs, { active: true, pinned: true }).editor;
 		assert.equal(openedEditor, testJs);
 		assert.equal(group.previewEditor, styleCss);
 		assert.equal(group.activeEditor, testJs);
@@ -1494,7 +1513,7 @@ suite('Workbench editor groups', () => {
 		assert.ok(group1Listener.disposed[1].matches(input3));
 	});
 
-	test('Preview tab does not have a stable position (https://github.com/Microsoft/vscode/issues/8245)', function () {
+	test('Preview tab does not have a stable position (https://github.com/microsoft/vscode/issues/8245)', function () {
 		const group1 = createGroup();
 
 		const input1 = input();

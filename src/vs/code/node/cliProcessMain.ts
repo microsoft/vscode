@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
-import * as semver from 'semver-umd';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -35,7 +35,7 @@ import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { URI } from 'vs/base/common/uri';
 import { getManifest } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
-import { IExtensionManifest, ExtensionType, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionType, isLanguagePackExtension, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
 import { Schemas } from 'vs/base/common/network';
@@ -79,13 +79,13 @@ export class Main {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
-	async run(argv: ParsedArgs): Promise<void> {
+	async run(argv: NativeParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
 		} else if (argv['install-extension']) {
-			await this.installExtensions(argv['install-extension'], !!argv['force']);
+			await this.installExtensions(argv['install-extension'], !!argv['force'], !!argv['do-not-sync']);
 		} else if (argv['uninstall-extension']) {
 			await this.uninstallExtension(argv['uninstall-extension']);
 		} else if (argv['locate-extension']) {
@@ -101,8 +101,7 @@ export class Main {
 
 	private async listExtensions(showVersions: boolean, category?: string): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
-		// TODO: we should save this array in a common place so that the command and extensionQuery can use it that way changing it is easier
-		const categories = ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'];
+		const categories = EXTENSION_CATEGORIES.map(c => c.toLowerCase());
 		if (category && category !== '') {
 			if (categories.indexOf(category.toLowerCase()) < 0) {
 				console.log('Invalid category please enter a valid category. To list valid categories run --category without a category specified');
@@ -125,7 +124,7 @@ export class Main {
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
+	private async installExtensions(extensions: string[], force: boolean, doNotSync: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -134,7 +133,7 @@ export class Main {
 
 		for (const extension of extensions) {
 			try {
-				const manifest = await this.installExtension(extension, force);
+				const manifest = await this.installExtension(extension, force, doNotSync);
 				if (manifest) {
 					installedExtensionsManifests.push(manifest);
 				}
@@ -149,7 +148,7 @@ export class Main {
 		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
 	}
 
-	private async installExtension(extension: string, force: boolean): Promise<IExtensionManifest | null> {
+	private async installExtension(extension: string, force: boolean, doNotSync: boolean): Promise<IExtensionManifest | null> {
 		if (/\.vsix$/i.test(extension)) {
 			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 
@@ -157,7 +156,7 @@ export class Main {
 			const valid = await this.validate(manifest, force);
 
 			if (valid) {
-				return this.extensionManagementService.install(URI.file(extension)).then(id => {
+				return this.extensionManagementService.install(URI.file(extension), doNotSync).then(id => {
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
 					return manifest;
 				}, error => {
@@ -204,7 +203,7 @@ export class Main {
 						}
 						console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, extension.version));
 					}
-					await this.installFromGallery(id, extension);
+					await this.installFromGallery(id, extension, doNotSync);
 					return manifest;
 				}));
 	}
@@ -213,6 +212,8 @@ export class Main {
 		if (!manifest) {
 			throw new Error('Invalid vsix');
 		}
+
+		const semver = await import('semver-umd');
 
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
 		const installedExtensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
@@ -226,11 +227,11 @@ export class Main {
 		return true;
 	}
 
-	private async installFromGallery(id: string, extension: IGalleryExtension): Promise<void> {
+	private async installFromGallery(id: string, extension: IGalleryExtension, doNotSync: boolean): Promise<void> {
 		console.log(localize('installing', "Installing extension '{0}' v{1}...", id, extension.version));
 
 		try {
-			await this.extensionManagementService.installFromGallery(extension);
+			await this.extensionManagementService.installFromGallery(extension, doNotSync);
 			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, extension.version));
 		} catch (error) {
 			if (isPromiseCanceledError(error)) {
@@ -294,11 +295,11 @@ export class Main {
 
 const eventPrefix = 'monacoworkbench';
 
-export async function main(argv: ParsedArgs): Promise<void> {
+export async function main(argv: NativeParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 	const disposables = new DisposableStore();
 
-	const environmentService = new EnvironmentService(argv, process.execPath);
+	const environmentService = new EnvironmentService(argv);
 	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
@@ -361,8 +362,10 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 		try {
 			await main.run(argv);
+
 			// Flush the remaining data in AI adapter.
-			await combinedAppender(...appenders).flush();
+			// If it does not complete in 1 second, exit the process.
+			await raceTimeout(combinedAppender(...appenders).flush(), 1000);
 		} finally {
 			disposables.dispose();
 		}

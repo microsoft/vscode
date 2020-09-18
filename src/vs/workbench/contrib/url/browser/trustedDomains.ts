@@ -15,6 +15,8 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -45,10 +47,13 @@ type ConfigureTrustedDomainsChoiceClassification = {
 export async function configureOpenerTrustedDomainsHandler(
 	trustedDomains: string[],
 	domainToConfigure: string,
+	resource: URI,
 	quickInputService: IQuickInputService,
 	storageService: IStorageService,
 	editorService: IEditorService,
-	telemetryService: ITelemetryService
+	telemetryService: ITelemetryService,
+	notificationService: INotificationService,
+	clipboardService: IClipboardService,
 ) {
 	const parsedDomainToConfigure = URI.parse(domainToConfigure);
 	const toplevelDomainSegements = parsedDomainToConfigure.authority.split('.');
@@ -92,10 +97,12 @@ export async function configureOpenerTrustedDomainsHandler(
 
 		switch (pickedResult.id) {
 			case 'manage':
-				editorService.openEditor({
+				await editorService.openEditor({
 					resource: TRUSTED_DOMAINS_URI,
 					mode: 'jsonc'
 				});
+				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
+					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
 				return trustedDomains;
 			case 'trustDomain':
 			case 'trustSubdomain':
@@ -112,7 +119,7 @@ export async function configureOpenerTrustedDomainsHandler(
 						StorageScope.GLOBAL
 					);
 
-					return [...trustedDomains, pickedResult.id];
+					return [...trustedDomains, itemToTrust];
 				}
 		}
 	}
@@ -120,28 +127,35 @@ export async function configureOpenerTrustedDomainsHandler(
 	return [];
 }
 
+// Exported for testing.
+export function extractGitHubRemotesFromGitConfig(gitConfig: string): string[] {
+	const domains = new Set<string>();
+	let match: RegExpExecArray | null;
+
+	const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\s*$/mg;
+	while (match = RemoteMatcher.exec(gitConfig)) {
+		const repo = match[1].replace(/\.git$/, '');
+		if (repo) {
+			domains.add(`https://github.com/${repo}/`);
+		}
+	}
+	return [...domains];
+}
+
 async function getRemotes(fileService: IFileService, textFileService: ITextFileService, contextService: IWorkspaceContextService): Promise<string[]> {
 	const workspaceUris = contextService.getWorkspace().folders.map(folder => folder.uri);
-	const domains = await Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
-		const path = workspaceUri.path;
-		const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-		const exists = await fileService.exists(uri);
-		if (!exists) {
-			return [];
-		}
-		const content = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-		const domains = new Set<string>();
-		let match: RegExpExecArray | null;
-
-		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)([^.]*)\.git\s*$/mg;
-		while (match = RemoteMatcher.exec(content)) {
-			const [domain, repo] = [match[1], match[2]];
-			if (domain && repo) {
-				domains.add(`https://github.com/${repo}/`);
+	const domains = await Promise.race([
+		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
+		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
+			const path = workspaceUri.path;
+			const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
+			const exists = await fileService.exists(uri);
+			if (!exists) {
+				return [];
 			}
-		}
-		return [...domains];
-	}));
+			const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
+			return extractGitHubRemotesFromGitConfig(gitConfig);
+		}))]);
 
 	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
 	return [...set];
@@ -168,9 +182,13 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 		}
 	} catch (err) { }
 
-	const userDomains = ((await authenticationService.getSessions('github')) ?? [])
-		.map(session => session.account.displayName)
-		.map(username => `https://github.com/${username}/`);
+	const userDomains =
+		authenticationService.isAuthenticationProviderRegistered('github')
+			? ((await authenticationService.getSessions('github')) ?? [])
+				.map(session => session.account.label)
+				.filter((v, i, a) => a.indexOf(v) === i)
+				.map(username => `https://github.com/${username}/`)
+			: [];
 
 	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);
 

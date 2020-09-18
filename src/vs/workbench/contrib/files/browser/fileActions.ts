@@ -10,12 +10,11 @@ import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
@@ -47,11 +46,9 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
-import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
+import { trim, rtrim } from 'vs/base/common/strings';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -119,24 +116,6 @@ export class NewFolderAction extends Action {
 
 	run(): Promise<void> {
 		return this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
-	}
-}
-
-/* Create new file from anywhere: Open untitled */
-export class GlobalNewUntitledFileAction extends Action {
-	static readonly ID = 'workbench.action.files.newUntitledFile';
-	static readonly LABEL = nls.localize('newUntitledFile', "New Untitled File");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		await this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 	}
 }
 
@@ -243,7 +222,7 @@ async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dial
 
 	// Call function
 	try {
-		await Promise.all(distinctElements.map(e => workingCopyFileService.delete(e.resource, { useTrash: useTrash, recursive: true })));
+		await workingCopyFileService.delete(distinctElements.map(e => e.resource), { useTrash, recursive: true });
 	} catch (error) {
 
 		// Handle error to delete file(s) from a modal confirmation dialog
@@ -396,8 +375,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g2);
 			return number < maxNumber
-				? g1 + strings.pad(number + 1, g2.length) + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+				? g1 + String(number + 1).padStart(g2.length, '0') + g3
+				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
@@ -407,8 +386,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2 + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+				? String(number + 1).padStart(g1.length, '0') + g2 + g3
+				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
@@ -418,15 +397,15 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2
-				: strings.format('{0}.1{1}', g1, g2);
+				? String(number + 1).padStart(g1.length, '0') + g2
+				: `${g1}.1${g2}`;
 		});
 	}
 
 	// file.txt=>file.1.txt
 	const lastIndexOfDot = name.lastIndexOf('.');
 	if (!isFolder && lastIndexOfDot >= 0) {
-		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
+		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
 	}
 
 	// folder.1=>folder.2
@@ -434,8 +413,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/(\d+)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length)
-				: strings.format('{0}.1', groups[0]);
+				? String(number + 1).padStart(groups[0].length, '0')
+				: `${groups[0]}.1`;
 		});
 	}
 
@@ -444,13 +423,13 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length) + groups[1]
-				: strings.format('{0}{1}.1', groups[0], groups[1]);
+				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
+				: `${groups[0]}${groups[1]}.1`;
 		});
 	}
 
 	// file/folder=>file.1/folder.1
-	return strings.format('{0}.1', name);
+	return `${name}.1`;
 }
 
 // Global Compare with
@@ -465,6 +444,7 @@ export class GlobalCompareResourcesAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@ITextModelService private readonly textModelService: ITextModelService
 	) {
 		super(id, label);
 	}
@@ -472,29 +452,35 @@ export class GlobalCompareResourcesAction extends Action {
 	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.resource : undefined;
-		if (activeResource) {
+		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
 			// Compare with next editor that opens
 			const toDispose = this.editorService.overrideOpenEditor({
-				getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-					return [];
-				},
 				open: editor => {
+
 					// Only once!
 					toDispose.dispose();
 
 					// Open editor as diff
 					const resource = editor.resource;
-					if (resource) {
+					if (resource && this.textModelService.canHandleResource(resource)) {
 						return {
 							override: this.editorService.openEditor({
 								leftResource: activeResource,
-								rightResource: resource
+								rightResource: resource,
+								options: { override: false }
 							})
 						};
 					}
 
-					return undefined;
+					// Otherwise stay on current resource
+					this.notificationService.info(nls.localize('fileToCompareNoFile', "Please select a file to compare with."));
+					return {
+						override: this.editorService.openEditor({
+							resource: activeResource,
+							options: { override: false }
+						})
+					};
 				}
 			});
 
@@ -508,75 +494,6 @@ export class GlobalCompareResourcesAction extends Action {
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
-	}
-}
-
-export class ReopenResourcesAction extends Action {
-
-	static readonly ID = 'workbench.files.action.reopenWithEditor';
-	static readonly LABEL = nls.localize('workbench.files.action.reopenWithEditor', "Reopen With...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const activeInput = this.editorService.activeEditor;
-		if (!activeInput) {
-			return;
-		}
-
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
-	}
-}
-
-export class ToggleEditorTypeCommand extends Action {
-
-	static readonly ID = 'workbench.files.action.toggleEditorType';
-	static readonly LABEL = nls.localize('workbench.files.action.toggleEditorType', "Toggle Editor Type");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		const activeEditorPane = this.editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const input = activeEditorPane.input;
-		if (!input.resource) {
-			return;
-		}
-
-		const options = activeEditorPane.options;
-		const group = activeEditorPane.group;
-
-		const overrides = getAllAvailableEditors(input.resource, options, group, this.editorService);
-		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
-		if (!firstNonActiveOverride) {
-			return;
-		}
-
-		await firstNonActiveOverride[0].open(input, options, group, firstNonActiveOverride[1].id)?.override;
 	}
 }
 
@@ -716,7 +633,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -784,7 +701,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	async run(): Promise<void> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
@@ -864,12 +781,12 @@ export function getWellFormedFileName(filename: string): string {
 	}
 
 	// Trim tabs
-	filename = strings.trim(filename, '\t');
+	filename = trim(filename, '\t');
 
 	// Remove trailing dots and slashes
-	filename = strings.rtrim(filename, '.');
-	filename = strings.rtrim(filename, '/');
-	filename = strings.rtrim(filename, '\\');
+	filename = rtrim(filename, '.');
+	filename = rtrim(filename, '/');
+	filename = rtrim(filename, '\\');
 
 	return filename;
 }
@@ -896,7 +813,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -1030,7 +947,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
-						await workingCopyFileService.move(stat.resource, targetResource);
+						await workingCopyFileService.move([{ source: stat.resource, target: targetResource }]);
 						await refreshIfSeparator(value, explorerService);
 					} catch (e) {
 						notificationService.error(e);
@@ -1060,20 +977,20 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 };
 
 let pasteShouldMove = false;
-export const copyFileHandler = (accessor: ServicesAccessor) => {
+export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
-		explorerService.setToCopy(stats, false);
+		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
 	}
 };
 
-export const cutFileHandler = (accessor: ServicesAccessor) => {
+export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
-		explorerService.setToCopy(stats, true);
+		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;
 	}
 };
@@ -1116,7 +1033,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await workingCopyFileService.copy(s.resource, destination, true);
+				await workingCopyFileService.copy([{ source: s.resource, target: destination }], { overwrite: true });
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;
@@ -1140,17 +1057,16 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const configurationService = accessor.get(IConfigurationService);
 
 	const context = explorerService.getContext(true);
-	const toPaste = resources.distinctParents(clipboardService.readResources(), r => r);
+	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
-	// Check if target is ancestor of pasted folder
-	const stats = await Promise.all(toPaste.map(async fileToPaste => {
+	try {
+		// Check if target is ancestor of pasted folder
+		const sourceTargetPairs = await Promise.all(toPaste.map(async fileToPaste => {
 
-		if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
-			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
-		}
-
-		try {
+			if (element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(element.resource, fileToPaste)) {
+				throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
+			}
 			const fileToPasteStat = await fileService.resolve(fileToPaste);
 
 			// Find target
@@ -1164,30 +1080,33 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 			const targetFile = findValidPasteFileTarget(explorerService, target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory, allowOverwrite: pasteShouldMove }, incrementalNaming);
 
-			// Move/Copy File
-			if (pasteShouldMove) {
-				return await workingCopyFileService.move(fileToPaste, targetFile);
-			} else {
-				return await workingCopyFileService.copy(fileToPaste, targetFile);
-			}
-		} catch (e) {
-			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
-			return undefined;
-		}
-	}));
+			return { source: fileToPaste, target: targetFile };
+		}));
 
-	if (pasteShouldMove) {
-		// Cut is done. Make sure to clear cut state.
-		explorerService.setToCopy([], false);
-		pasteShouldMove = false;
-	}
-	if (stats.length >= 1) {
-		const stat = stats[0];
-		if (stat && !stat.isDirectory && stats.length === 1) {
-			await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+		// Move/Copy File
+		let stats: IFileStatWithMetadata[] = [];
+		if (pasteShouldMove) {
+			stats = await workingCopyFileService.move(sourceTargetPairs);
+		} else {
+			stats = await workingCopyFileService.copy(sourceTargetPairs);
 		}
-		if (stat) {
-			await explorerService.select(stat.resource);
+
+		if (stats.length >= 1) {
+			const stat = stats[0];
+			if (stat && !stat.isDirectory && stats.length === 1) {
+				await editorService.openEditor({ resource: stat.resource, options: { pinned: true, preserveFocus: true } });
+			}
+			if (stat) {
+				await explorerService.select(stat.resource);
+			}
+		}
+	} catch (e) {
+		onError(notificationService, new Error(nls.localize('fileDeleted', "The file(s) to paste have been deleted or moved since you copied them. {0}", getErrorMessage(e))));
+	} finally {
+		if (pasteShouldMove) {
+			// Cut is done. Make sure to clear cut state.
+			await explorerService.setToCopy([], false);
+			pasteShouldMove = false;
 		}
 	}
 };

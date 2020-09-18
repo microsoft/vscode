@@ -18,7 +18,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
@@ -166,7 +166,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.move(groupId, target)?.editor;
+		return this.rename(groupId, target)?.editor;
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -196,7 +196,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+	rename(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
 		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {

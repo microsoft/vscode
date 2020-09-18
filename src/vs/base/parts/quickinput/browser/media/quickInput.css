@@ -49,6 +49,10 @@
 	margin: 6px;
 }
 
+.quick-input-header .quick-input-description {
+	margin: 4px 2px;
+}
+
 .quick-input-header {
 	display: flex;
 	padding: 6px 6px 0px 6px;
@@ -105,6 +109,8 @@
 	vertical-align: middle;
 	padding: 2px 4px;
 	border-radius: 2px;
+	min-height: auto;
+	line-height: normal;
 }
 
 .quick-input-action {
