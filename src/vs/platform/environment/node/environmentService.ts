@@ -17,7 +17,7 @@ import { isWindows, Platform, platform } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
 
-export class EnvironmentService implements INativeEnvironmentService {
+export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -231,7 +231,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 }
 
 // Read this before there's any chance it is overwritten
-// Related to https://github.com/Microsoft/vscode/issues/30624
+// Related to https://github.com/microsoft/vscode/issues/30624
 export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {

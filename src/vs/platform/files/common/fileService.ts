@@ -19,6 +19,7 @@ import { Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
+import { Iterable } from 'vs/base/common/iterator';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -99,6 +100,10 @@ export class FileService extends Disposable implements IFileService {
 		const provider = this.provider.get(resource.scheme);
 
 		return !!(provider && (provider.capabilities & capability));
+	}
+
+	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }> {
+		return Iterable.map(this.provider, ([scheme, provider]) => ({ scheme, capabilities: provider.capabilities }));
 	}
 
 	protected async withProvider(resource: URI): Promise<IFileSystemProvider> {

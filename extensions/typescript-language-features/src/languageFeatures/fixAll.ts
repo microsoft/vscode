@@ -120,7 +120,7 @@ async function buildCombinedFix(
 // #region Source Actions
 
 abstract class SourceAction extends vscode.CodeAction {
-	abstract async build(
+	abstract build(
 		client: ITypeScriptServiceClient,
 		file: string,
 		diagnostics: readonly vscode.Diagnostic[],

@@ -925,6 +925,38 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('resolving code action', async function () {
+
+		let didCallResolve = 0;
+		class MyAction extends types.CodeAction { }
+
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [new MyAction('title', types.CodeActionKind.Empty.append('foo'))];
+			},
+			resolveCodeAction(action): vscode.CodeAction {
+				assert.ok(action instanceof MyAction);
+
+				didCallResolve += 1;
+				action.title = 'resolved title';
+				action.edit = new types.WorkspaceEdit();
+				return action;
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection, undefined, 1000);
+		assert.equal(didCallResolve, 1);
+		assert.equal(value.length, 1);
+
+		const [first] = value;
+		assert.equal(first.title, 'title'); // does NOT change
+		assert.ok(first.edit); // is set
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {

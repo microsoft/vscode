@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+export const INativeEnvironmentService = createDecorator<INativeEnvironmentService>('nativeEnvironmentService');
 
 export interface IDebugParams {
 	port: number | null;

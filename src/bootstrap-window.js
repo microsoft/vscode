@@ -104,8 +104,23 @@
 		const loaderConfig = {
 			baseUrl: `${uriFromPath(configuration.appRoot)}/out`,
 			'vs/nls': nlsConfig,
-			amdModulesPattern: /^vs\//,
 		};
+
+		if (sandbox) {
+			loaderConfig.paths = {
+				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
+				'vscode-oniguruma': `../node_modules/vscode-oniguruma/release/main`,
+				'xterm': `../node_modules/xterm/lib/xterm.js`,
+				'xterm-addon-search': `../node_modules/xterm-addon-search/lib/xterm-addon-search.js`,
+				'xterm-addon-unicode11': `../node_modules/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
+				'xterm-addon-webgl': `../node_modules/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'semver-umd': `../node_modules/semver-umd/lib/semver-umd.js`,
+				'iconv-lite-umd': `../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js`,
+				'jschardet': `../node_modules/jschardet/dist/jschardet.min.js`,
+			};
+		} else {
+			loaderConfig.amdModulesPattern = /^vs\//;
+		}
 
 		// cached data config
 		if (configuration.nodeCachedDataDir) {

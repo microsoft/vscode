@@ -144,7 +144,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	}
 
 	private fsPath(displayUri: uri): string {
-		return this._labelService ? this._labelService.getUriLabel(displayUri) : displayUri.fsPath;
+		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
 	private evaluateSingleVariable(match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {

@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);

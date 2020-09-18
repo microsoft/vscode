@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
 import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -16,6 +15,7 @@ import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callS
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
 import { isWindows } from 'vs/base/common/platform';
+import { MockSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {

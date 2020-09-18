@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -48,11 +48,13 @@ import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { NativeLogService } from 'vs/workbench/services/log/electron-browser/logService';
-import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration);
+	private readonly productService: IProductService = { _serviceBrand: undefined, ...product };
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.productService);
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
@@ -162,10 +164,19 @@ class DesktopMain extends Disposable {
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		// Main Process
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
@@ -173,10 +184,10 @@ class DesktopMain extends Disposable {
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
+		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
-		const productService: IProductService = { _serviceBrand: undefined, ...product };
-		serviceCollection.set(IProductService, productService);
+		serviceCollection.set(IProductService, this.productService);
 
 		// Log
 		const logService = this._register(new NativeLogService(this.configuration.windowId, mainProcessService, this.environmentService));
@@ -186,27 +197,55 @@ class DesktopMain extends Disposable {
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 		// Sign
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, productService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, this.productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-		// Electron
-		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
-		serviceCollection.set(IElectronService, electronService);
+		// Native Host
+		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
+		serviceCollection.set(INativeHostService, nativeHostService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, electronService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, nativeHostService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
 		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.configuration.backupPath ? URI.file(this.environmentService.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -239,6 +278,20 @@ class DesktopMain extends Disposable {
 				return service;
 			})
 		]);
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		return { serviceCollection, logService, storageService: services[1] };
 	}
@@ -287,7 +340,7 @@ class DesktopMain extends Disposable {
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.configuration.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService);
+		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.configuration.remoteAuthority, configurationCache: new ConfigurationCache(this.environmentService) }, this.environmentService, fileService, remoteAgentService, logService);
 
 		try {
 			await workspaceService.initialize(payload);

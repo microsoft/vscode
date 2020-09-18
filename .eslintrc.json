@@ -522,7 +522,8 @@
                     "vscode-oniguruma",
                     "iconv-lite-umd",
                     "semver-umd",
-                    "tas-client-umd"
+                    "tas-client-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -551,7 +552,10 @@
                     "**/vs/workbench/api/{common,browser}/**",
                     "**/vs/workbench/services/**/{common,browser}/**",
                     "vscode-textmate",
-                    "vscode-oniguruma"
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "semver-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -577,7 +581,12 @@
                     "**/vs/editor/**",
                     "**/vs/workbench/{common,browser,electron-sandbox}/**",
                     "**/vs/workbench/api/{common,browser,electron-sandbox}/**",
-                    "**/vs/workbench/services/**/{common,browser,electron-sandbox}/**"
+                    "**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
+                    "vscode-textmate",
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "semver-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -693,7 +702,12 @@
                     "**/vs/workbench/{common,browser}/**",
                     "**/vs/workbench/api/{common,browser}/**",
                     "**/vs/workbench/services/**/{common,browser}/**",
-                    "**/vs/workbench/contrib/**/{common,browser}/**"
+                    "**/vs/workbench/contrib/**/{common,browser}/**",
+                    "vscode-textmate",
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "semver-umd",
+                    "jschardet"
                 ]
             },
             {
@@ -722,7 +736,12 @@
                     "**/vs/workbench/{common,browser,electron-sandbox}/**",
                     "**/vs/workbench/api/{common,browser,electron-sandbox}/**",
                     "**/vs/workbench/services/**/{common,browser,electron-sandbox}/**",
-                    "**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**"
+                    "**/vs/workbench/contrib/**/{common,browser,electron-sandbox}/**",
+                    "vscode-textmate",
+                    "vscode-oniguruma",
+                    "iconv-lite-umd",
+                    "semver-umd",
+                    "jschardet"
                 ]
             },
             {

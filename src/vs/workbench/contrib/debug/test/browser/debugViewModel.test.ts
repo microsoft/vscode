@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import { StackFrame, Expression, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
-import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockSession, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 
@@ -26,7 +26,7 @@ suite('Debug - View Model', () => {
 			name: 'internalModule.js',
 			sourceReference: 11,
 			presentationHint: 'deemphasize'
-		}, 'aDebugSessionId');
+		}, 'aDebugSessionId', mockUriIdentityService);
 		const frame = new StackFrame(thread, 1, source, 'app.js', 'normal', { startColumn: 1, startLineNumber: 1, endColumn: 1, endLineNumber: 1 }, 0);
 		model.setFocus(frame, thread, session, false);
 

@@ -99,6 +99,8 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 	readonly onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
+	private _hasDecorationsForKey: { [key: string]: boolean; } = Object.create(null);
+
 	constructor(
 		readonly id: string,
 		private readonly _viewType: string,
@@ -212,6 +214,25 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		}
 
 		return this._proxy.$tryApplyEdits(this._viewType, this.document.uri, editData.documentVersionId, compressedEdits);
+	}
+
+	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookCellRange): void {
+		const willBeEmpty = (range.start === range.end);
+		if (willBeEmpty && !this._hasDecorationsForKey[decorationType.key]) {
+			// avoid no-op call to the renderer
+			return;
+		}
+		if (willBeEmpty) {
+			delete this._hasDecorationsForKey[decorationType.key];
+		} else {
+			this._hasDecorationsForKey[decorationType.key] = true;
+		}
+
+		return this._proxy.$trySetDecorations(
+			this.id,
+			range,
+			decorationType.key
+		);
 	}
 
 	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {

@@ -19,7 +19,7 @@
 		]
 	},
 	{
-		// Reason: The license at https://github.com/Microsoft/TypeScript/blob/master/LICENSE.txt
+		// Reason: The license at https://github.com/microsoft/TypeScript/blob/master/LICENSE.txt
 		// does not include a clear Copyright statement.
 		"name": "typescript",
 		"prependLicenseText": [

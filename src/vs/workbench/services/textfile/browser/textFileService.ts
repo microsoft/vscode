@@ -347,7 +347,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Confirm to overwrite if we have an untitled file with associated file where
 		// the file actually exists on disk and we are instructed to save to that file
 		// path. This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/Microsoft/vscode/issues/67946
+		// See https://github.com/microsoft/vscode/issues/67946
 		let write: boolean;
 		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme))) {
 			write = await this.confirmOverwrite(target);
