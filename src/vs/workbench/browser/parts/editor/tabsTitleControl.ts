@@ -1331,11 +1331,20 @@ export class TabsTitleControl extends TitleControl {
 		// - enabled: only add class if tabs wrap
 		// - disabled: remove class
 		if (this.accessor.partOptions.multiLineTabs) {
+
+			// tabs exceed the tabs container width, so we start to wrap multi-line
 			if (allTabsWidth > visibleTabsContainerWidth) {
 				tabsAndActionsContainer.classList.add('multi-line');
-			} else if (allTabsWidth === visibleTabsContainerWidth) {
-				const allTabsHeight = tabsContainer.offsetHeight;
-				if (allTabsHeight === EDITOR_TITLE_HEIGHT) {
+			}
+
+			// if we do not exceed the tabs container width, we cannot simply remove
+			// the multi-line class because by wrapping tabs, they reduce their size
+			// and we would otherwise constantly add and remove the class. As such
+			// we need to check if the height of the tabs container is back to normal
+			// and then remove the multi-line class.
+			else if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('multi-line')) {
+				const visibleTabsContainerHeight = tabsContainer.offsetHeight;
+				if (visibleTabsContainerHeight === EDITOR_TITLE_HEIGHT) {
 					tabsAndActionsContainer.classList.remove('multi-line');
 				}
 			}
