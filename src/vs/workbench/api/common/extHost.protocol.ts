@@ -738,7 +738,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: {
 		transientOutputs: boolean;
 		transientMetadata: TransientMetadata;
-		viewOptions?: { displayName: string; filenamePattern: string | IRelativePattern | INotebookExclusiveDocumentFilter; exclusive: boolean; };
+		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	}): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;

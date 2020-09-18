@@ -1764,9 +1764,11 @@ declare module 'vscode' {
 		cancelAllCellsExecution(document: NotebookDocument): void;
 	}
 
+	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
-		filenamePattern?: GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+		filenamePattern?: NotebookFilenamePattern;
 	}
 
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
@@ -1824,7 +1826,11 @@ declare module 'vscode' {
 				/**
 				 * Not ready for production or development use yet.
 				 */
-				viewOptions?: { displayName: string; filenamePattern: GlobPattern | { include: GlobPattern; exclude: GlobPattern; }; exclusive?: boolean; };
+				viewOptions?: {
+					displayName: string;
+					filenamePattern: NotebookFilenamePattern[];
+					exclusive?: boolean;
+				};
 			}
 		): Disposable;
 
