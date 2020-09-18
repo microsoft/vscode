@@ -527,6 +527,21 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#endregion
 
+	//#region Registry (windows)
+
+	async windowsGetStringRegKey(windowId: number | undefined, hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> {
+		if (!isWindows) {
+			return undefined;
+		}
+
+		const Registry = await import('vscode-windows-registry');
+		try {
+			return Registry.GetStringRegKey(hive, path, name);
+		} catch {
+			return undefined;
+		}
+	}
+
 	private windowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
