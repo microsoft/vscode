@@ -469,7 +469,7 @@ export class RemoteAuthorityResolverError extends Error {
 		this._detail = detail;
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 		}
@@ -2172,9 +2172,15 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 
-	constructor(id: string) {
+	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
+		this.themeColor = color;
+	}
+
+	with(color: ThemeColor): ThemeIcon {
+		return new ThemeIcon(this.id, color);
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2403,7 +2409,7 @@ export class FileSystemError extends Error {
 		markAsFileSystemProviderError(this, code);
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
 		}

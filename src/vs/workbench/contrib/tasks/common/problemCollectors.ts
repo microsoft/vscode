@@ -398,7 +398,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	private problemMatchers: ProblemMatcher[];
 	private backgroundPatterns: BackgroundPatterns[];
 
-	// workaround for https://github.com/Microsoft/vscode/issues/44018
+	// workaround for https://github.com/microsoft/vscode/issues/44018
 	private _activeBackgroundMatchers: Set<string>;
 
 	// Current State

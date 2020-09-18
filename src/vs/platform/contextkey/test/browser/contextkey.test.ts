@@ -23,7 +23,7 @@ suite('ContextKeyService', () => {
 
 		let complete: () => void;
 		let reject: (err: Error) => void;
-		const p = new Promise((_complete, _reject) => {
+		const p = new Promise<void>((_complete, _reject) => {
 			complete = _complete;
 			reject = _reject;
 		});

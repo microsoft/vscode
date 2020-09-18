@@ -884,6 +884,10 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 			}
 		}
 
+		if (expr.length === 1) {
+			return expr[0];
+		}
+
 		return new ContextKeyAndExpr(expr);
 	}
 

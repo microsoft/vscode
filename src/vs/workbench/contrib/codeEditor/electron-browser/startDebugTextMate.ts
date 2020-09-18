@@ -21,7 +21,6 @@ import { Constants } from 'vs/base/common/uint';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { join } from 'vs/base/common/path';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 class StartDebugTextMate extends Action {
 
@@ -38,7 +37,7 @@ class StartDebugTextMate extends Action {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IHostService private readonly _hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(id, label);
 	}

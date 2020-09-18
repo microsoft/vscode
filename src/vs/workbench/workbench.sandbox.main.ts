@@ -41,6 +41,12 @@ import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
 
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
+
+registerSingleton(ITimerService, TimerService);
+
 //#endregion
 
 
@@ -76,5 +82,8 @@ import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
 
 // Remote
 import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
+
+// Configuration Exporter
+import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper.contribution';
 
 //#endregion

@@ -467,7 +467,7 @@ class WindowIndicator implements IWindowIndicator {
 
 	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
-		href: 'https://github.com/Microsoft/vscode',
+		href: 'https://github.com/microsoft/vscode',
 		icon: 'code',
 		title: localize('home', "Home")
 	};

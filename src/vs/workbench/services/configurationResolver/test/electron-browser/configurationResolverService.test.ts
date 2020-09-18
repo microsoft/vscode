@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as path from 'path';
+import { normalize } from 'vs/base/common/path';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
@@ -13,7 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import { Workspace, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -655,7 +655,7 @@ class MockQuickInputService implements IQuickInputService {
 class MockLabelService implements ILabelService {
 	_serviceBrand: undefined;
 	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined; }): string {
-		return path.normalize(resource.fsPath);
+		return normalize(resource.fsPath);
 	}
 	getUriBasenameLabel(resource: uri): string {
 		throw new Error('Method not implemented.');
@@ -719,6 +719,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWorkbenchConfiguration, userEnv });
+		super({ ...TestWorkbenchConfiguration, userEnv }, TestProductService);
 	}
 }

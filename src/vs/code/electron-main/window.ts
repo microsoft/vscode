@@ -573,7 +573,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
 			if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
-				// TODO@Ben Workaround for https://github.com/Microsoft/vscode/issues/56994
+				// TODO@Ben Workaround for https://github.com/microsoft/vscode/issues/56994
 				// In certain cases the window can report unresponsiveness because a breakpoint was hit
 				// and the process is stopped executing. The most typical cases are:
 				// - devtools are opened and debugging happens
@@ -872,7 +872,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// Still carry over window dimensions from previous sessions
 				// if we can compute it in fullscreen state.
 				// does not seem possible in all cases on Linux for example
-				// (https://github.com/Microsoft/vscode/issues/58218) so we
+				// (https://github.com/microsoft/vscode/issues/58218) so we
 				// fallback to the defaults in that case.
 				width: this.windowState.width || defaultState.width,
 				height: this.windowState.height || defaultState.height,
@@ -1058,7 +1058,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private getWorkingArea(display: Display): Rectangle | undefined {
 
 		// Prefer the working area of the display to account for taskbars on the
-		// desktop being positioned somewhere (https://github.com/Microsoft/vscode/issues/50830).
+		// desktop being positioned somewhere (https://github.com/microsoft/vscode/issues/50830).
 		//
 		// Linux X11 sessions sometimes report wrong display bounds, so we validate
 		// the reported sizes are positive.
@@ -1160,7 +1160,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		if (visibility === 'hidden') {
 			// for some weird reason that I have no explanation for, the menu bar is not hiding when calling
-			// this without timeout (see https://github.com/Microsoft/vscode/issues/19777). there seems to be
+			// this without timeout (see https://github.com/microsoft/vscode/issues/19777). there seems to be
 			// a timing issue with us opening the first window and the menu bar getting created. somehow the
 			// fact that we want to hide the menu without being able to bring it back via Alt key makes Electron
 			// still show the menu. Unable to reproduce from a simple Hello World application though...

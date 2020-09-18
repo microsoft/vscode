@@ -324,12 +324,6 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
-	 * Service end-point hosting builtin extensions
-	 */
-	readonly builtinExtensionsServiceUrl?: string;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to false on serverful and true on serverless.
 	 */

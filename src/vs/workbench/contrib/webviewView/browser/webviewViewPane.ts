@@ -89,6 +89,8 @@ export class WebviewViewPane extends ViewPane {
 	dispose() {
 		this._onDispose.fire();
 
+		this._webview?.dispose();
+
 		super.dispose();
 	}
 

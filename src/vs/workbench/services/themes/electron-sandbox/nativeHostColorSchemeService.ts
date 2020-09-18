@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -16,7 +16,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
@@ -27,7 +27,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	private registerListeners(): void {
 
 		// Color Scheme
-		this._register(this.electronService.onColorSchemeChange(scheme => {
+		this._register(this.nativeHostService.onColorSchemeChange(scheme => {
 			this._colorScheme = scheme;
 
 			this._onDidChangeColorScheme.fire();

@@ -24,6 +24,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IRange } from 'vs/editor/common/core/range';
+import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export enum CellKind {
 	Markdown = 1,
@@ -777,7 +778,7 @@ export interface INotebookDocumentFilter {
 
 //TODO@rebornix test
 
-function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
+export function isDocumentExcludePattern(filenamePattern: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter): filenamePattern is { include: string | glob.IRelativePattern; exclude: string | glob.IRelativePattern; } {
 	const arg = filenamePattern as INotebookExclusiveDocumentFilter;
 
 	if ((typeof arg.include === 'string' || glob.isRelativePattern(arg.include))
@@ -882,4 +883,10 @@ export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const enum CellStatusbarAlignment {
 	LEFT,
 	RIGHT
+}
+
+export interface INotebookDecorationRenderOptions {
+	backgroundColor?: string | ThemeColor;
+	borderColor?: string | ThemeColor;
+	top?: editorCommon.IContentDecorationRenderOptions;
 }

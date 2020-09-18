@@ -556,7 +556,7 @@ class ExtHostTreeView<T> extends Disposable {
 		const disposable = new DisposableStore();
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
-		const item = {
+		const item: ITreeItem = {
 			handle,
 			parentHandle: parent ? parent.item.handle : undefined,
 			label: toTreeItemLabel(extensionTreeItem.label, this.extension),
@@ -567,7 +567,7 @@ class ExtHostTreeView<T> extends Disposable {
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
-			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : undefined,
+			themeIcon: this.getThemeIcon(extensionTreeItem),
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation
 		};
@@ -579,6 +579,13 @@ class ExtHostTreeView<T> extends Disposable {
 			children: undefined,
 			dispose(): void { disposable.dispose(); }
 		};
+	}
+
+	private getThemeIcon(extensionTreeItem: vscode.TreeItem2): ThemeIcon | undefined {
+		if ((extensionTreeItem.iconPath instanceof ThemeIcon) && extensionTreeItem.iconPath.themeColor) {
+			checkProposedApiEnabled(this.extension);
+		}
+		return extensionTreeItem.iconPath instanceof ThemeIcon ? extensionTreeItem.iconPath : undefined;
 	}
 
 	private createHandle(element: T, { id, label, resourceUri }: vscode.TreeItem, parent: TreeNode | Root, returnFirst?: boolean): TreeItemHandle {

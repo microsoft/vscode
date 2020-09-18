@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { writeFile } from 'vs/base/node/pfs';
-import product from 'vs/platform/product/common/product';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { URI } from 'vs/base/common/uri';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IExportedConfigurationNode {
 	name: string;
@@ -31,26 +32,32 @@ interface IConfigurationExport {
 export class DefaultConfigurationExportHelper {
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@ICommandService private readonly commandService: ICommandService) {
-		if (environmentService.args['export-default-configuration']) {
-			this.writeConfigModelAndQuit(environmentService.args['export-default-configuration']);
+		@ICommandService private readonly commandService: ICommandService,
+		@IFileService private readonly fileService: IFileService,
+		@IProductService private readonly productService: IProductService
+	) {
+		const exportDefaultConfigurationPath = environmentService.args['export-default-configuration'];
+		if (exportDefaultConfigurationPath) {
+			this.writeConfigModelAndQuit(URI.file(exportDefaultConfigurationPath));
 		}
 	}
 
-	private writeConfigModelAndQuit(targetPath: string): Promise<void> {
-		return Promise.resolve(this.extensionService.whenInstalledExtensionsRegistered())
-			.then(() => this.writeConfigModel(targetPath))
-			.finally(() => this.commandService.executeCommand('workbench.action.quit'))
-			.then(() => { });
+	private async writeConfigModelAndQuit(target: URI): Promise<void> {
+		try {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			await this.writeConfigModel(target);
+		} finally {
+			this.commandService.executeCommand('workbench.action.quit');
+		}
 	}
 
-	private writeConfigModel(targetPath: string): Promise<void> {
+	private async writeConfigModel(target: URI): Promise<void> {
 		const config = this.getConfigModel();
 
 		const resultString = JSON.stringify(config, undefined, '  ');
-		return writeFile(targetPath, resultString);
+		await this.fileService.writeFile(target, VSBuffer.fromString(resultString));
 	}
 
 	private getConfigModel(): IConfigurationExport {
@@ -106,8 +113,8 @@ export class DefaultConfigurationExportHelper {
 		const result: IConfigurationExport = {
 			settings: settings.sort((a, b) => a.name.localeCompare(b.name)),
 			buildTime: Date.now(),
-			commit: product.commit,
-			buildNumber: product.settingsSearchBuildId
+			commit: this.productService.commit,
+			buildNumber: this.productService.settingsSearchBuildId
 		};
 
 		return result;

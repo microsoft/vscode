@@ -3,16 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonElectronService } from 'vs/platform/electron/common/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
-export const IElectronService = createDecorator<IElectronService>('electronService');
-
-export interface IElectronService extends ICommonElectronService { }
-
-export class ElectronService {
+// @ts-ignore: interface is implemented via proxy
+export class NativeHostService implements INativeHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -20,7 +16,7 @@ export class ElectronService {
 		readonly windowId: number,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		return createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), {
+		return createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), {
 			context: windowId,
 			properties: (() => {
 				const properties = new Map<string, unknown>();

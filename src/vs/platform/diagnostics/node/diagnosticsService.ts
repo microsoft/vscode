@@ -14,7 +14,7 @@ import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
-import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
+import { IMainProcessInfo } from 'vs/platform/launch/node/launch';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';

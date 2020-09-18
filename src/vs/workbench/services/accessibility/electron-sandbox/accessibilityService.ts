@@ -31,7 +31,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 	private didSendTelemetry = false;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService

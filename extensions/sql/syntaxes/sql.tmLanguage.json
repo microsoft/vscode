@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/Microsoft/vscode-mssql/blob/master/syntaxes/SQL.plist",
+		"This file has been converted from https://github.com/microsoft/vscode-mssql/blob/master/syntaxes/SQL.plist",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/vscode-mssql/commit/61ae0eb21ac53883a23e09913a5ae77a59126ff9",
+	"version": "https://github.com/microsoft/vscode-mssql/commit/61ae0eb21ac53883a23e09913a5ae77a59126ff9",
 	"name": "SQL",
 	"scopeName": "source.sql",
 	"patterns": [

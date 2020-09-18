@@ -2190,7 +2190,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let wrappingColumn = -1;
 
 		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
-			// See https://github.com/Microsoft/vscode/issues/27766
+			// See https://github.com/microsoft/vscode/issues/27766
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
@@ -3786,7 +3786,7 @@ export const EditorOptions = {
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
 				''
 			],
-			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
+			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
 	codeLens: register(new EditorBooleanOption(
@@ -3830,7 +3830,7 @@ export const EditorOptions = {
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
+		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
 	)),
 	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
 		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',

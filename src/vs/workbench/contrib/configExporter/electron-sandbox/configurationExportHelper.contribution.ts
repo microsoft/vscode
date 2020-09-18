@@ -7,15 +7,14 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { DefaultConfigurationExportHelper } from 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper';
+import { DefaultConfigurationExportHelper } from 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		// Config Exporter
 		if (environmentService.configuration['export-default-configuration']) {

@@ -624,7 +624,7 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R | undefined> {
-		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
+		return new Promise<DebugProtocol.Response | undefined>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				if (this.inShutdown) {
 					// We are in shutdown silently complete

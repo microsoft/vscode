@@ -10,14 +10,26 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
+export interface ICPUProperties {
+	model: string;
+	speed: number;
+}
+
 export interface IOSProperties {
 	type: string;
 	release: string;
 	arch: string;
 	platform: string;
+	cpus: ICPUProperties[];
 }
 
-export interface ICommonElectronService {
+export interface IOSStatistics {
+	totalmem: number;
+	freemem: number;
+	loadavg: number[];
+}
+
+export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
 
@@ -82,8 +94,10 @@ export interface ICommonElectronService {
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 	isAdmin(): Promise<boolean>;
-	getTotalMem(): Promise<number>;
-	getOS(): Promise<IOSProperties>;
+
+	getOSProperties(): Promise<IOSProperties>;
+	getOSStatistics(): Promise<IOSStatistics>;
+	getOSVirtualMachineHint(): Promise<number>;
 
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;

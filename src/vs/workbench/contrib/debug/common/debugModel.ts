@@ -23,6 +23,7 @@ import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 interface IDebugProtocolVariableWithContext extends DebugProtocol.Variable {
 	__vscodeVariableMenuContext?: string;
@@ -374,9 +375,9 @@ export class StackFrame implements IStackFrame {
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
+	async openInEditor(editorService: IEditorService, uriIdentityService: IUriIdentityService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
 		if (this.source.available) {
-			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
+			return this.source.openInEditor(editorService, uriIdentityService, this.range, preserveFocus, sideBySide, pinned);
 		}
 		return undefined;
 	}
