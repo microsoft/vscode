@@ -86,4 +86,7 @@ import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/electron-sandbox/configurationExportHelper.contribution';
 
+// Themes Support
+import 'vs/workbench/contrib/themes/browser/themes.test.contribution';
+
 //#endregion

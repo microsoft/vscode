@@ -109,9 +109,6 @@ import 'vs/workbench/contrib/performance/electron-browser/performance.contributi
 // CLI
 import 'vs/workbench/contrib/cli/node/cli.contribution';
 
-// Themes Support
-import 'vs/workbench/contrib/themes/test/electron-browser/themes.test.contribution';
-
 // Tasks
 import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
