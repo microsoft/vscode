@@ -1,0 +1,16 @@
+image:
+  file: .gitpod.Dockerfile
+
+ports:
+  - port: 6080
+    onOpen: open-browser
+  - port: 5870
+    onOpen: ignore
+  - port: 5900
+    onOpen: ignore
+
+tasks:
+  - init: |
+      yarn
+      yarn compile
+    command: ./scripts/code.sh
