@@ -235,9 +235,14 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.panel.opensMaximized': {
 				'type': 'string',
-				'enum': ['always', 'never', 'rememberLast'],
-				'default': 'rememberLast',
-				'description': nls.localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open maximized depending on whether or not it was maximized when last closed.")
+				'enum': ['always', 'never', 'preserve'],
+				'default': 'preserve',
+				'description': nls.localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
+				'enumDescriptions': [
+					nls.localize('workbench.panel.opensMaximized.always', "Always maximize the panel when opening it."),
+					nls.localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it. The panel will open un-maximized."),
+					nls.localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
+				]
 			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',

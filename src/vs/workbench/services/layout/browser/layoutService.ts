@@ -57,7 +57,8 @@ export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedO
 	switch (setting) {
 		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
 		case PanelOpensMaximizedOptions.NEVER: return 'never';
-		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'rememberLast';
+		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
+		default: return 'preserve';
 	}
 }
 
