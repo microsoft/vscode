@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { join, } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
@@ -31,7 +31,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	private readonly allOtherExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRequestService requestService: IRequestService,
