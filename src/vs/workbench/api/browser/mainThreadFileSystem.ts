@@ -39,7 +39,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._fileProvider.clear();
 	}
 
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void {
+	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
 		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
 	}
 

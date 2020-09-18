@@ -11,7 +11,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/edi
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
-import { getAuthenticationProviderActivationEvent, getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -134,23 +134,22 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async waitAndInitialize(): Promise<void> {
+		/* wait */
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		this.updateAuthenticationProviders();
-
-		/* activate unregistered providers */
-		const unregisteredProviders = this.authenticationProviders.filter(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id));
-		if (unregisteredProviders.length) {
-			await Promise.all(unregisteredProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
-		}
-
-		/* wait until all providers are registered */
-		if (this.authenticationProviders.some(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id))) {
-			await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, () => this.authenticationProviders.every(({ id }) => this.authenticationService.isAuthenticationProviderRegistered(id))));
-		}
-
 		/* initialize */
-		await this.initialize();
+		try {
+			this.logService.trace('Settings Sync: Initializing accounts');
+			await this.initialize();
+		} catch (error) {
+			this.logService.error(error);
+		}
+
+		if (this.accountStatus === AccountStatus.Uninitialized) {
+			this.logService.warn('Settings Sync: Accounts are not initialized');
+		} else {
+			this.logService.trace('Settings Sync: Accounts are initialized');
+		}
 	}
 
 	private async initialize(): Promise<void> {
@@ -185,8 +184,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
 		for (const { id } of this.authenticationProviders) {
+			this.logService.trace('Settings Sync: Getting accounts for', id);
 			const accounts = await this.getAccounts(id);
 			allAccounts.set(id, accounts);
+			this.logService.trace('Settings Sync: Updated accounts for', id);
 		}
 
 		this._all = allAccounts;
@@ -234,7 +235,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.debug('Sync account status changed', previous, accountStatus);
+			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
