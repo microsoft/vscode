@@ -10,6 +10,7 @@ import * as nls from 'vscode-nls';
 import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { coalesce, flatten } from '../utils/arrays';
+import { exists } from '../utils/fs';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -24,15 +25,6 @@ enum AutoDetect {
 	watch = 'watch'
 }
 
-const exists = async (resource: vscode.Uri): Promise<boolean> => {
-	try {
-		const stat = await vscode.workspace.fs.stat(resource);
-		// stat.type is an enum flag
-		return !!(stat.type & vscode.FileType.File);
-	} catch {
-		return false;
-	}
-};
 
 interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 	tsconfig: string;
