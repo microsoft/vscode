@@ -202,7 +202,7 @@ class MonacoGenerator {
 		fs.writeFileSync(path.join(REPO_SRC_FOLDER, 'vs/editor/common/standalone/standaloneEnums.ts'), result.enums);
 		this._log(`monaco.d.ts is changed - total time took ${Date.now() - startTime} ms`);
 		if (!this._isWatch) {
-			this.stream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.');
+			this.stream.emit('error', 'monaco.d.ts is no longer up to date. Please run gulp watch and commit the new file.', result.one, result.other);
 		}
 	}
 }

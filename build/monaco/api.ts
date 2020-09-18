@@ -569,6 +569,8 @@ export interface IMonacoDeclarationResult {
 	enums: string;
 	filePath: string;
 	isTheSame: boolean;
+	one: string;
+	other: string
 }
 
 function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | null {
@@ -592,7 +594,9 @@ function _run(sourceFileGetter: SourceFileGetter): IMonacoDeclarationResult | nu
 		usageContent: usageContent,
 		enums: enums,
 		filePath: DECLARATION_PATH,
-		isTheSame
+		isTheSame,
+		one,
+		other
 	};
 }
 

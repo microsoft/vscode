@@ -497,7 +497,9 @@ function _run(sourceFileGetter) {
         usageContent: usageContent,
         enums: enums,
         filePath: DECLARATION_PATH,
-        isTheSame
+        isTheSame,
+        one,
+        other
     };
 }
 class FSProvider {
