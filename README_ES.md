@@ -4,7 +4,7 @@
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
 
-## The Repository
+## Este Repositorio
 
 Este repositorio ("`Code - OSS`") es donde nosotros (Microsoft) desarrollamos [Visual Studio Code](https://code.visualstudio.com). Aquí no solo trabajamos en código y problemas, también publicamos nuestros [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [planes de iteración mensuales](https://github.com/microsoft/vscode/wiki/Iteration-Plans), Y nuestro [planes finales](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). Este código fuente está disponible para todos bajo el estándar de [MIT license](https://github.com/microsoft/vscode/blob/master/LICENSE.txt).
 
