@@ -5,7 +5,6 @@
 
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -74,7 +73,7 @@ class LinuxAccessibilityContribution implements IWorkbenchContribution {
 	constructor(
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		const forceRendererAccessibility = () => {
 			if (accessibilityService.isScreenReaderOptimized()) {

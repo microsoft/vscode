@@ -34,7 +34,6 @@ import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -596,7 +595,7 @@ class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
