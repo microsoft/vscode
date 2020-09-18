@@ -6,7 +6,7 @@
 import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
-import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -500,13 +500,13 @@ class DropOverlay extends Themable {
 	}
 
 	private getOverlayOffsetHeight(): number {
+
+		// With tabs and opened editors: use the area below tabs as drop target
 		if (!this.groupView.isEmpty && this.accessor.partOptions.showTabs) {
-			if (this.accessor.partOptions.multiLineTabs) {
-				return this.groupView.titleHeight;
-			}
-			return EDITOR_TITLE_HEIGHT; // show overlay below title if group shows tabs
+			return this.groupView.titleHeight;
 		}
 
+		// Without tabs or empty group: use entire editor area as drop target
 		return 0;
 	}
 

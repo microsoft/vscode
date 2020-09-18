@@ -1177,17 +1177,6 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_INACTIVE_BACKGROUND : TAB_UNFOCUSED_INACTIVE_BACKGROUND) || '';
 			tabContainer.style.boxShadow = '';
 
-			// bottom border when wrapping to multi-line tabs
-			if (this.accessor.partOptions.multiLineTabs) {
-				tabContainer.classList.add('multi-line');
-				tabContainer.classList.add('tab-border-bottom');
-				const borderBottom = (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) || '';
-				tabContainer.style.setProperty('--tab-border-bottom-color', borderBottom.toString());
-			} else {
-				tabContainer.classList.remove('multi-line');
-				tabContainer.classList.remove('tab-border-bottom');
-			}
-
 			// Label
 			tabContainer.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND) || '';
 		}
@@ -1303,7 +1292,6 @@ export class TabsTitleControl extends TitleControl {
 
 		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
 		const allTabsWidth = tabsContainer.scrollWidth;
-		const allTabsHeight = tabsContainer.offsetHeight;
 
 		// Compute width of sticky tabs depending on pinned tab sizing
 		// - compact: sticky-tabs * TAB_SIZES.compact
@@ -1339,10 +1327,19 @@ export class TabsTitleControl extends TitleControl {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
 
-		// Add the multi-line tabs class after first row is filled out and wraps
-		if (allTabsWidth > visibleTabsContainerWidth && this.accessor.partOptions.multiLineTabs) {
-			tabsAndActionsContainer.classList.add('multi-line');
-		} else if ((allTabsWidth === visibleTabsContainerWidth && allTabsHeight === EDITOR_TITLE_HEIGHT) || !this.accessor.partOptions.multiLineTabs) {
+		// Handle multi-line tabs according to setting:
+		// - enabled: only add class if tabs wrap
+		// - disabled: remove class
+		if (this.accessor.partOptions.multiLineTabs) {
+			if (allTabsWidth > visibleTabsContainerWidth) {
+				tabsAndActionsContainer.classList.add('multi-line');
+			} else if (allTabsWidth === visibleTabsContainerWidth) {
+				const allTabsHeight = tabsContainer.offsetHeight;
+				if (allTabsHeight === EDITOR_TITLE_HEIGHT) {
+					tabsAndActionsContainer.classList.remove('multi-line');
+				}
+			}
+		} else {
 			tabsAndActionsContainer.classList.remove('multi-line');
 		}
 

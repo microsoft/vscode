@@ -111,13 +111,6 @@ export interface IEditorGroupsAccessor {
 }
 
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
-	readonly group: EditorGroup;
-	readonly whenRestored: Promise<void>;
-	readonly disposed: boolean;
-
-	readonly isEmpty: boolean;
-	readonly isMinimized: boolean;
-	readonly titleHeight: number;
 
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
@@ -125,6 +118,16 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onDidOpenEditorFail: Event<IEditorInput>;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	readonly group: EditorGroup;
+	readonly whenRestored: Promise<void>;
+
+	readonly titleHeight: number;
+
+	readonly isEmpty: boolean;
+	readonly isMinimized: boolean;
+
+	readonly disposed: boolean;
 
 	setActive(isActive: boolean): void;
 
