@@ -17,7 +17,12 @@ import { TSConfig, TsConfigProvider } from './tsconfigProvider';
 
 const localize = nls.loadMessageBundle();
 
-type AutoDetect = 'on' | 'off' | 'build' | 'watch';
+enum AutoDetect {
+	on = 'on',
+	off = 'off',
+	build = 'build',
+	watch = 'watch'
+}
 
 const exists = async (resource: vscode.Uri): Promise<boolean> => {
 	try {
@@ -42,7 +47,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	private readonly projectInfoRequestTimeout = 2000;
 	private readonly findConfigFilesTimeout = 5000;
 
-	private autoDetect: AutoDetect = 'on';
+	private autoDetect = AutoDetect.on;
 	private readonly tsconfigProvider: TsConfigProvider;
 	private readonly disposables: vscode.Disposable[] = [];
 
@@ -61,7 +66,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
 		const folders = vscode.workspace.workspaceFolders;
-		if ((this.autoDetect === 'off') || !folders || !folders.length) {
+		if ((this.autoDetect === AutoDetect.off) || !folders || !folders.length) {
 			return [];
 		}
 
@@ -245,11 +250,11 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 		const tasks: vscode.Task[] = [];
 
-		if (this.autoDetect === 'build' || this.autoDetect === 'on') {
+		if (this.autoDetect === AutoDetect.build || this.autoDetect === AutoDetect.on) {
 			tasks.push(this.getBuildTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label }));
 		}
 
-		if (this.autoDetect === 'watch' || this.autoDetect === 'on') {
+		if (this.autoDetect === AutoDetect.watch || this.autoDetect === AutoDetect.on) {
 			tasks.push(this.getWatchTask(project.workspaceFolder, label, command, args, { type: 'typescript', tsconfig: label, option: 'watch' }));
 		}
 
@@ -298,7 +303,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 
 	private onConfigurationChanged(): void {
 		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
-		this.autoDetect = typeof type === 'undefined' ? 'on' : type;
+		this.autoDetect = typeof type === 'undefined' ? AutoDetect.on : type;
 	}
 }
 
