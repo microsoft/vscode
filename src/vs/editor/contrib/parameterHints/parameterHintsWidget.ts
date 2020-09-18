@@ -22,7 +22,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { pad } from 'vs/base/common/strings';
+import { pad, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -312,7 +312,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (Array.isArray(param.label)) {
 			return param.label;
 		} else {
-			const regex = new RegExp(`\\b${param.label}\\b`, 'g');
+			const regex = new RegExp(`\\b${escapeRegExpCharacters(param.label)}\\b`, 'g');
 			regex.test(signature.label);
 			const idx = regex.lastIndex - param.label.length;
 			return idx >= 0
