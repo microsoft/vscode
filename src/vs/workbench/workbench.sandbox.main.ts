@@ -45,8 +45,13 @@ import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionMana
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { TimerService } from 'vs/workbench/services/timer/electron-sandbox/timerService';
+import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
 
 registerSingleton(ITimerService, TimerService);
+registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
+registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 
 //#endregion
 

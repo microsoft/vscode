@@ -60,14 +60,9 @@ import { ICredentialsService } from 'vs/platform/credentials/common/credentials'
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
-import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
-import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 registerSingleton(ITunnelService, TunnelService);
-registerSingleton(IUserDataSyncResourceEnablementService, UserDataSyncResourceEnablementService);
-registerSingleton(IUserDataInitializationService, UserDataInitializationService);
 
 //#endregion
 
