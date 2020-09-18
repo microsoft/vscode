@@ -368,29 +368,19 @@ class ApplyCompletionCodeActionCommand implements Command {
 			return applyCodeAction(this.client, codeActions[0], nulToken);
 		}
 
-		interface MyQuickPickItem extends vscode.QuickPickItem {
-			index: number;
-		}
-
-		const selection = await vscode.window.showQuickPick<MyQuickPickItem>(
-			codeActions.map((action, i): MyQuickPickItem => ({
+		const selection = await vscode.window.showQuickPick(
+			codeActions.map(action => ({
 				label: action.description,
 				description: '',
-				index: i
+				action,
 			})), {
 			placeHolder: localize('selectCodeAction', 'Select code action to apply')
-		}
-		);
+		});
 
-		if (!selection) {
-			return false;
+		if (selection) {
+			return applyCodeAction(this.client, selection.action, nulToken);
 		}
-
-		const action = codeActions[selection.index];
-		if (!action) {
-			return false;
-		}
-		return applyCodeAction(this.client, action, nulToken);
+		return false;
 	}
 }
 
