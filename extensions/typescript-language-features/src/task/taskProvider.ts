@@ -10,6 +10,7 @@ import * as nls from 'vscode-nls';
 import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { coalesce, flatten } from '../utils/arrays';
+import { Disposable } from '../utils/dispose';
 import { exists } from '../utils/fs';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
@@ -34,26 +35,22 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 /**
  * Provides tasks for building `tsconfig.json` files in a project.
  */
-class TscTaskProvider implements vscode.TaskProvider {
+class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 
 	private readonly projectInfoRequestTimeout = 2000;
 	private readonly findConfigFilesTimeout = 5000;
 
 	private autoDetect = AutoDetect.on;
 	private readonly tsconfigProvider: TsConfigProvider;
-	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
 		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
+		super();
 		this.tsconfigProvider = new TsConfigProvider();
 
-		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
+		this._register(vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this));
 		this.onConfigurationChanged();
-	}
-
-	dispose() {
-		this.disposables.forEach(x => x.dispose());
 	}
 
 	public async provideTasks(token: vscode.CancellationToken): Promise<vscode.Task[]> {
