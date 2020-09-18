@@ -312,15 +312,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (Array.isArray(param.label)) {
 			return param.label;
 		} else {
-			const idx = Math.max(
-				signature.label.lastIndexOf(`(${param.label})`),
-				signature.label.lastIndexOf(`(${param.label},`),
-				signature.label.lastIndexOf(`,${param.label},`),
-				signature.label.lastIndexOf(` ${param.label},`),
-				signature.label.lastIndexOf(` ${param.label})`),
-				signature.label.lastIndexOf(`,${param.label})`)) + 1;
-			return idx > 0
-				? [idx, idx + param.label.length]
+			const regex = new RegExp(`\\b${param.label}\\b`, 'g');
+			regex.test(signature.label);
+			const idx = regex.lastIndex;
+			return idx >= 0
+				? [idx - param.label.length, idx]
 				: [0, 0];
 		}
 	}
