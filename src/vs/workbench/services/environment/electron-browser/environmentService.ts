@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
@@ -12,7 +12,7 @@ import { dirname, join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 
-export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
+export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 

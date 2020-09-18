@@ -24,7 +24,7 @@ import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -149,7 +149,7 @@ class CodeMain {
 	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
 		const services = new ServiceCollection();
 
-		const environmentService = new EnvironmentService(args);
+		const environmentService = new NativeEnvironmentService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentService, environmentService);
 		services.set(INativeEnvironmentService, environmentService);
