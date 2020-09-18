@@ -1017,6 +1017,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Ensure the active tab is always revealed
 		this.layout(this.dimension);
+
+		// When multi-line tabs are enabled, the title height grows beyond the default
+		// Thus, the editor container height needs to relayout
+		if (this.accessor.partOptions.multiLineTabs) {
+			this.group.relayout();
+		}
 	}
 
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
@@ -1224,7 +1230,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+		return this.group.titleHeight + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
 	}
 
 	layout(dimension: Dimension | undefined): void {
