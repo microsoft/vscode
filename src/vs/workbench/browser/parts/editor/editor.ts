@@ -123,6 +123,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly whenRestored: Promise<void>;
 
 	readonly titleHeight: number;
+	readonly editorHeight: number;
 
 	readonly isEmpty: boolean;
 	readonly isMinimized: boolean;

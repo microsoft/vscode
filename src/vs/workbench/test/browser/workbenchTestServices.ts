@@ -603,6 +603,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	minimumHeight!: number;
 	maximumHeight!: number;
 	titleHeight!: number;
+	editorHeight!: number;
 
 	isEmpty = true;
 	isMinimized = false;

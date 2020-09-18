@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -1337,6 +1337,10 @@ export class TabsTitleControl extends TitleControl {
 		// - enabled: only add class if tabs wrap
 		// - disabled: remove class
 		if (this.accessor.partOptions.multiLineTabs) {
+
+			if (this.group.editorHeight < DEFAULT_EDITOR_MIN_DIMENSIONS.height) {
+				tabsAndActionsContainer.classList.remove('multi-line');
+			}
 
 			// tabs exceed the tabs container width, so we start to wrap multi-line
 			if (allTabsWidth > visibleTabsContainerWidth) {
