@@ -21,6 +21,7 @@ export interface IRelaxedTextModelCreationOptions {
 	tabSize?: number;
 	indentSize?: number;
 	insertSpaces?: boolean;
+	atomicSoftTabs?: boolean;
 	detectIndentation?: boolean;
 	trimAutoWhitespace?: boolean;
 	defaultEOL?: DefaultEndOfLine;
@@ -33,6 +34,7 @@ export function createTextModel(text: string, _options: IRelaxedTextModelCreatio
 		tabSize: (typeof _options.tabSize === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.tabSize : _options.tabSize),
 		indentSize: (typeof _options.indentSize === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.indentSize : _options.indentSize),
 		insertSpaces: (typeof _options.insertSpaces === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.insertSpaces : _options.insertSpaces),
+		atomicSoftTabs: (typeof _options.atomicSoftTabs === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.atomicSoftTabs : _options.atomicSoftTabs),
 		detectIndentation: (typeof _options.detectIndentation === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.detectIndentation : _options.detectIndentation),
 		trimAutoWhitespace: (typeof _options.trimAutoWhitespace === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.trimAutoWhitespace : _options.trimAutoWhitespace),
 		defaultEOL: (typeof _options.defaultEOL === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.defaultEOL : _options.defaultEOL),

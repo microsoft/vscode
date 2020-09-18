@@ -14,6 +14,7 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
+import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -128,24 +129,35 @@ export class ViewController {
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
+		let position = data.position;
+		if (this.viewModel.getTextModelOptions().atomicSoftTabs) {
+			const minColumn = this.viewModel.getLineMinColumn(position.lineNumber);
+			const lineContent = this.viewModel.getLineContent(position.lineNumber);
+			const { tabSize } = this.viewModel.getTextModelOptions();
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - minColumn, tabSize, Direction.Nearest);
+			if (newPosition !== -1) {
+				position = new Position(position.lineNumber, newPosition + minColumn);
+			}
+		}
+
 		const options = this.configuration.options;
 		const selectionClipboardIsOn = (platform.isLinux && options.get(EditorOption.selectionClipboard));
 		const columnSelection = options.get(EditorOption.columnSelection);
 		if (data.middleButton && !selectionClipboardIsOn) {
-			this._columnSelect(data.position, data.mouseColumn, data.inSelectionMode);
+			this._columnSelect(position, data.mouseColumn, data.inSelectionMode);
 		} else if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
 			if (this._hasMulticursorModifier(data)) {
 				if (data.inSelectionMode) {
-					this._lastCursorLineSelect(data.position);
+					this._lastCursorLineSelect(position);
 				} else {
-					this._createCursor(data.position, true);
+					this._createCursor(position, true);
 				}
 			} else {
 				if (data.inSelectionMode) {
-					this._lineSelectDrag(data.position);
+					this._lineSelectDrag(position);
 				} else {
-					this._lineSelect(data.position);
+					this._lineSelect(position);
 				}
 			}
 		} else if (data.mouseDownCount >= 4) {
@@ -153,54 +165,54 @@ export class ViewController {
 		} else if (data.mouseDownCount === 3) {
 			if (this._hasMulticursorModifier(data)) {
 				if (data.inSelectionMode) {
-					this._lastCursorLineSelectDrag(data.position);
+					this._lastCursorLineSelectDrag(position);
 				} else {
-					this._lastCursorLineSelect(data.position);
+					this._lastCursorLineSelect(position);
 				}
 			} else {
 				if (data.inSelectionMode) {
-					this._lineSelectDrag(data.position);
+					this._lineSelectDrag(position);
 				} else {
-					this._lineSelect(data.position);
+					this._lineSelect(position);
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
 			if (this._hasMulticursorModifier(data)) {
-				this._lastCursorWordSelect(data.position);
+				this._lastCursorWordSelect(position);
 			} else {
 				if (data.inSelectionMode) {
-					this._wordSelectDrag(data.position);
+					this._wordSelectDrag(position);
 				} else {
-					this._wordSelect(data.position);
+					this._wordSelect(position);
 				}
 			}
 		} else {
 			if (this._hasMulticursorModifier(data)) {
 				if (!this._hasNonMulticursorModifier(data)) {
 					if (data.shiftKey) {
-						this._columnSelect(data.position, data.mouseColumn, true);
+						this._columnSelect(position, data.mouseColumn, true);
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
 						if (data.inSelectionMode) {
-							this._lastCursorMoveToSelect(data.position);
+							this._lastCursorMoveToSelect(position);
 						} else {
-							this._createCursor(data.position, false);
+							this._createCursor(position, false);
 						}
 					}
 				}
 			} else {
 				if (data.inSelectionMode) {
 					if (data.altKey) {
-						this._columnSelect(data.position, data.mouseColumn, true);
+						this._columnSelect(position, data.mouseColumn, true);
 					} else {
 						if (columnSelection) {
-							this._columnSelect(data.position, data.mouseColumn, true);
+							this._columnSelect(position, data.mouseColumn, true);
 						} else {
-							this._moveToSelect(data.position);
+							this._moveToSelect(position);
 						}
 					}
 				} else {
-					this.moveTo(data.position);
+					this.moveTo(position);
 				}
 			}
 		}

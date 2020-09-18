@@ -100,6 +100,7 @@ interface IRawEditorConfig {
 	tabSize?: any;
 	indentSize?: any;
 	insertSpaces?: any;
+	atomicSoftTabs?: any;
 	detectIndentation?: any;
 	trimAutoWhitespace?: any;
 	creationOptions?: any;
@@ -213,6 +214,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			insertSpaces = (config.editor.insertSpaces === 'false' ? false : Boolean(config.editor.insertSpaces));
 		}
 
+		let atomicSoftTabs = EDITOR_MODEL_DEFAULTS.atomicSoftTabs;
+		if (config.editor && typeof config.editor.atomicSoftTabs !== 'undefined') {
+			atomicSoftTabs = (config.editor.atomicSoftTabs === 'false' ? false : Boolean(config.editor.atomicSoftTabs));
+		}
+
 		let newDefaultEOL = DEFAULT_EOL;
 		const eol = config.eol;
 		if (eol === '\r\n') {
@@ -241,6 +247,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
+			atomicSoftTabs: atomicSoftTabs,
 			detectIndentation: detectIndentation,
 			defaultEOL: newDefaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace,

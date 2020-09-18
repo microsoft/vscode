@@ -8,6 +8,8 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as strings from 'vs/base/common/strings';
 import { Constants } from 'vs/base/common/uint';
+import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
+
 
 export class CursorPosition {
 	_cursorPositionBrand: void;
@@ -29,14 +31,34 @@ export class MoveOperations {
 		if (column > model.getLineMinColumn(lineNumber)) {
 			column = column - strings.prevCharLength(model.getLineContent(lineNumber), column - 1);
 		} else if (lineNumber > 1) {
-			lineNumber = lineNumber - 1;
+			lineNumber -= 1;
+			column = model.getLineMaxColumn(lineNumber);
+		}
+		return new Position(lineNumber, column);
+	}
+
+	public static leftPositionatomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number): Position {
+		const minColumn = model.getLineMinColumn(lineNumber);
+		if (column > minColumn) {
+			const lineContent = model.getLineContent(lineNumber);
+
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - minColumn, tabSize, Direction.Left);
+			if (newPosition !== -1) {
+				column = minColumn + newPosition;
+			} else {
+				column -= strings.prevCharLength(model.getLineContent(lineNumber), column - 1);
+			}
+		} else if (lineNumber > 1) {
+			lineNumber -= 1;
 			column = model.getLineMaxColumn(lineNumber);
 		}
 		return new Position(lineNumber, column);
 	}
 
 	public static left(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
-		const pos = MoveOperations.leftPosition(model, lineNumber, column);
+		const pos = config.atomicSoftTabs
+			? MoveOperations.leftPositionatomicSoftTabs(model, lineNumber, column, config.tabSize)
+			: MoveOperations.leftPosition(model, lineNumber, column);
 		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 
@@ -61,14 +83,34 @@ export class MoveOperations {
 		if (column < model.getLineMaxColumn(lineNumber)) {
 			column = column + strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
 		} else if (lineNumber < model.getLineCount()) {
-			lineNumber = lineNumber + 1;
+			lineNumber += 1;
 			column = model.getLineMinColumn(lineNumber);
 		}
 		return new Position(lineNumber, column);
 	}
 
+	public static rightPositionatomicSoftTabs(model: ICursorSimpleModel, lineNumber: number, column: number, tabSize: number, indentSize: number): Position {
+		const minColumn = model.getLineMinColumn(lineNumber);
+		if (column < model.getLineMaxColumn(lineNumber)) {
+			const lineContent = model.getLineContent(lineNumber);
+
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, column - minColumn, tabSize, Direction.Right);
+			if (newPosition !== -1) {
+				column = minColumn + newPosition;
+			} else {
+				column += strings.nextCharLength(model.getLineContent(lineNumber), column - 1);
+			}
+		} else if (lineNumber < model.getLineCount()) {
+			lineNumber += 1;
+			column = minColumn;
+		}
+		return new Position(lineNumber, column);
+	}
+
 	public static right(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number): CursorPosition {
-		const pos = MoveOperations.rightPosition(model, lineNumber, column);
+		const pos = config.atomicSoftTabs
+			? MoveOperations.rightPositionatomicSoftTabs(model, lineNumber, column, config.tabSize, config.indentSize)
+			: MoveOperations.rightPosition(model, lineNumber, column);
 		return new CursorPosition(pos.lineNumber, pos.column, 0);
 	}
 

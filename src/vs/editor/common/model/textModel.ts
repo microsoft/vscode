@@ -197,6 +197,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
 		indentSize: EDITOR_MODEL_DEFAULTS.indentSize,
 		insertSpaces: EDITOR_MODEL_DEFAULTS.insertSpaces,
+		atomicSoftTabs: EDITOR_MODEL_DEFAULTS.atomicSoftTabs,
 		detectIndentation: false,
 		defaultEOL: model.DefaultEndOfLine.LF,
 		trimAutoWhitespace: EDITOR_MODEL_DEFAULTS.trimAutoWhitespace,
@@ -210,6 +211,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				tabSize: guessedIndentation.tabSize,
 				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
+				atomicSoftTabs: options.atomicSoftTabs,
 				trimAutoWhitespace: options.trimAutoWhitespace,
 				defaultEOL: options.defaultEOL
 			});
@@ -219,6 +221,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			tabSize: options.tabSize,
 			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
+			atomicSoftTabs: options.atomicSoftTabs,
 			trimAutoWhitespace: options.trimAutoWhitespace,
 			defaultEOL: options.defaultEOL
 		});
@@ -619,12 +622,14 @@ export class TextModel extends Disposable implements model.ITextModel {
 		let tabSize = (typeof _newOpts.tabSize !== 'undefined') ? _newOpts.tabSize : this._options.tabSize;
 		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
+		let atomicSoftTabs = (typeof _newOpts.atomicSoftTabs !== 'undefined') ? _newOpts.atomicSoftTabs : this._options.atomicSoftTabs;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
+			atomicSoftTabs: atomicSoftTabs,
 			defaultEOL: this._options.defaultEOL,
 			trimAutoWhitespace: trimAutoWhitespace
 		});

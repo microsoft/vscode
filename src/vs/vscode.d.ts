@@ -656,6 +656,12 @@ declare module 'vscode' {
 		insertSpaces?: boolean | string;
 
 		/**
+		 * When navigating treat soft tabs like hard tabs. This means you can't position
+		 * the cursor in the middle of an indentation, even if it is made of space.
+		 */
+		atomicSoftTabs?: boolean;
+
+		/**
 		 * The rendering style of the cursor in this editor.
 		 * When getting a text editor's options, this property will always be present.
 		 * When setting a text editor's options, this property is optional.

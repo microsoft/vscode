@@ -1096,6 +1096,11 @@ declare namespace monaco.editor {
 		 */
 		insertSpaces?: boolean;
 		/**
+		 * Treat soft tabs like hard tabs.
+		 * Defaults to false.
+		 */
+		atomicSoftTabs?: boolean;
+		/**
 		 * Controls whether `tabSize` and `insertSpaces` will be automatically detected when a file is opened based on the file contents.
 		 * Defaults to true.
 		 */
@@ -1575,6 +1580,7 @@ declare namespace monaco.editor {
 		readonly tabSize: number;
 		readonly indentSize: number;
 		readonly insertSpaces: boolean;
+		readonly atomicSoftTabs: boolean;
 		readonly defaultEOL: DefaultEndOfLine;
 		readonly trimAutoWhitespace: boolean;
 	}
@@ -1583,6 +1589,7 @@ declare namespace monaco.editor {
 		tabSize?: number;
 		indentSize?: number;
 		insertSpaces?: boolean;
+		atomicSoftTabs?: boolean;
 		trimAutoWhitespace?: boolean;
 	}
 
@@ -2452,6 +2459,7 @@ declare namespace monaco.editor {
 		readonly tabSize: boolean;
 		readonly indentSize: boolean;
 		readonly insertSpaces: boolean;
+		readonly atomicSoftTabs: boolean;
 		readonly trimAutoWhitespace: boolean;
 	}
 

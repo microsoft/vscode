@@ -143,6 +143,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 	private _tabSize!: number;
 	private _indentSize!: number;
 	private _insertSpaces!: boolean;
+	private _atomicSoftTabs!: boolean;
 	private _cursorStyle!: TextEditorCursorStyle;
 	private _lineNumbers!: TextEditorLineNumbersStyle;
 
@@ -157,6 +158,7 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		this._tabSize = source.tabSize;
 		this._indentSize = source.indentSize;
 		this._insertSpaces = source.insertSpaces;
+		this._atomicSoftTabs = source.atomicSoftTabs;
 		this._cursorStyle = source.cursorStyle;
 		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
 	}
@@ -266,6 +268,23 @@ export class ExtHostTextEditorOptions implements vscode.TextEditorOptions {
 		}
 		this._warnOnError(this._proxy.$trySetOptions(this._id, {
 			insertSpaces: insertSpaces
+		}));
+	}
+
+	public get atomicSoftTabs(): boolean {
+		return this._atomicSoftTabs;
+	}
+
+	public set atomicSoftTabs(value: boolean) {
+		const atomicSoftTabs = value;
+		if (this._atomicSoftTabs === atomicSoftTabs) {
+			// nothing to do
+			return;
+		}
+		// reflect the new atomicSoftTabs value immediately
+		this._atomicSoftTabs = atomicSoftTabs;
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+			atomicSoftTabs
 		}));
 	}
 
@@ -659,4 +678,3 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 		});
 	}
 }
-

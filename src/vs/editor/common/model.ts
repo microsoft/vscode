@@ -400,6 +400,7 @@ export class TextModelResolvedOptions {
 	readonly tabSize: number;
 	readonly indentSize: number;
 	readonly insertSpaces: boolean;
+	readonly atomicSoftTabs: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
 
@@ -410,12 +411,14 @@ export class TextModelResolvedOptions {
 		tabSize: number;
 		indentSize: number;
 		insertSpaces: boolean;
+		atomicSoftTabs: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
+		this.atomicSoftTabs = Boolean(src.atomicSoftTabs);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
 	}
@@ -428,6 +431,7 @@ export class TextModelResolvedOptions {
 			this.tabSize === other.tabSize
 			&& this.indentSize === other.indentSize
 			&& this.insertSpaces === other.insertSpaces
+			&& this.atomicSoftTabs === other.atomicSoftTabs
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
 		);
@@ -441,6 +445,7 @@ export class TextModelResolvedOptions {
 			tabSize: this.tabSize !== newOpts.tabSize,
 			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
+			atomicSoftTabs: this.atomicSoftTabs !== newOpts.atomicSoftTabs,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
 		};
 	}
@@ -453,6 +458,7 @@ export interface ITextModelCreationOptions {
 	tabSize: number;
 	indentSize: number;
 	insertSpaces: boolean;
+	atomicSoftTabs: boolean;
 	detectIndentation: boolean;
 	trimAutoWhitespace: boolean;
 	defaultEOL: DefaultEndOfLine;
@@ -464,6 +470,7 @@ export interface ITextModelUpdateOptions {
 	tabSize?: number;
 	indentSize?: number;
 	insertSpaces?: boolean;
+	atomicSoftTabs?: boolean;
 	trimAutoWhitespace?: boolean;
 }
 
