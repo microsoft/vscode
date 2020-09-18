@@ -522,6 +522,7 @@
                     "vscode-oniguruma",
                     "iconv-lite-umd",
                     "semver-umd",
+                    "tas-client-umd",
                     "jschardet"
                 ]
             },
