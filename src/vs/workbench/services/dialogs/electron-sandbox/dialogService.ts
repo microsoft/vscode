@@ -59,7 +59,7 @@ export class DialogService implements IDialogService {
 	}
 
 	private get useCustomDialog(): boolean {
-		return this.configurationService.getValue('workbench.dialogs.customEnabled') === true;
+		return this.configurationService.getValue('window.dialogStyle') === 'custom';
 	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
