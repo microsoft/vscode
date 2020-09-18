@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
+import { coalesce, flatten } from '../utils/arrays';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
@@ -103,17 +104,14 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {
-		const out = new Set<TSConfig>();
-		const configs = [
-			...await this.getTsConfigForActiveFile(token),
-			...await this.getTsConfigsInWorkspace(token)
-		];
-		for (const config of configs) {
-			if (await exists(config.uri)) {
-				out.add(config);
-			}
-		}
-		return Array.from(out);
+		const configs = flatten(await Promise.all([
+			this.getTsConfigForActiveFile(token),
+			this.getTsConfigsInWorkspace(token),
+		]));
+
+		return Promise.all(
+			configs.map(async config => await exists(config.uri) ? config : undefined),
+		).then(coalesce);
 	}
 
 	private async getTsConfigForActiveFile(token: vscode.CancellationToken): Promise<TSConfig[]> {
