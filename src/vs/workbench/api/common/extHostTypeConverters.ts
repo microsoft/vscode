@@ -32,6 +32,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface PositionLike {
 	line: number;
@@ -1346,5 +1347,15 @@ export namespace NotebookExclusiveDocumentPattern {
 	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
 		const rp = obj as vscode.RelativePattern;
 		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+}
+
+export namespace NotebookDecorationRenderOptions {
+	export function from(options: vscode.NotebookDecorationRenderOptions): INotebookDecorationRenderOptions {
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
 	}
 }

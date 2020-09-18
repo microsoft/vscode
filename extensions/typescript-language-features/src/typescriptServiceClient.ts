@@ -1028,7 +1028,7 @@ class ServerInitializingIndicator extends Disposable {
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
 			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise((resolve, reject) => {
+		}, () => new Promise<void>((resolve, reject) => {
 			this._task = { project: projectName, resolve, reject };
 		}));
 	}

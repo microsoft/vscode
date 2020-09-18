@@ -1295,7 +1295,7 @@ class IndentRulesMode extends MockMode {
 
 suite('Editor Controller - Regression tests', () => {
 
-	test('issue Microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
+	test('issue microsoft/monaco-editor#443: Indentation of a single row deletes selected text in some cases', () => {
 		let model = createTextModel(
 			[
 				'Hello world!',
@@ -3572,7 +3572,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
-	test('issue Microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
+	test('issue microsoft/monaco-editor#108 part 1/2: Auto indentation on Enter with selection is half broken', () => {
 		usingCursor({
 			text: [
 				'function baz() {',
@@ -3595,7 +3595,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		});
 	});
 
-	test('issue Microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
+	test('issue microsoft/monaco-editor#108 part 2/2: Auto indentation on Enter with selection is half broken', () => {
 		usingCursor({
 			text: [
 				'function baz() {',

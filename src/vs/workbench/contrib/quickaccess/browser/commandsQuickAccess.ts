@@ -10,7 +10,6 @@ import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction, Action2 } from
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { timeout } from 'vs/base/common/async';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { DisposableStore, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { AbstractEditorCommandsQuickAccessProvider } from 'vs/editor/contrib/quickAccess/commandsQuickAccess';
 import { IEditor } from 'vs/editor/common/editorCommon';
@@ -28,6 +27,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -59,7 +59,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService notificationService: INotificationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super({
 			showAlias: !Language.isDefaultVariant(),
@@ -95,11 +96,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	private getGlobalCommandPicks(disposables: DisposableStore): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
-
-		const globalCommandsMenu = this.editorService.invokeWithinEditorContext(accessor =>
-			this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService))
-		);
-
+		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
+		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
 		const globalCommandsMenuActions = globalCommandsMenu.getActions()
 			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
 			.filter(action => action instanceof MenuItemAction) as MenuItemAction[];

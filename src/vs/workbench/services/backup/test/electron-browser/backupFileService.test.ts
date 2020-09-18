@@ -27,6 +27,7 @@ import { hashPath, BackupFileService } from 'vs/workbench/services/backup/node/b
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backupfileservice');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -47,7 +48,7 @@ const untitledBackupPath = path.join(workspaceBackupPath, 'untitled', hashPath(u
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(backupPath: string) {
-		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir });
+		super({ ...TestWorkbenchConfiguration, backupPath, 'user-data-dir': userdataDir }, TestProductService);
 	}
 }
 

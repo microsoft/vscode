@@ -22,7 +22,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { createSlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchContribution {
 
@@ -37,7 +36,7 @@ export class ExtensionsAutoProfiler extends Disposable implements IWorkbenchCont
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly _environmentServie: INativeWorkbenchEnvironmentService
 	) {
 		super();
 		this._register(_extensionService.onDidChangeResponsiveChange(this._onDidChangeResponsiveChange, this));

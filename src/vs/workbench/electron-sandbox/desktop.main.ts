@@ -30,14 +30,15 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
-import { IElectronService, ElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
-import { INativeWorkbenchConfiguration } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { SimpleConfigurationService, simpleFileSystemProvider, SimpleLogService, SimpleRemoteAgentService, SimpleResourceIdentityService, SimpleSignService, SimpleStorageService, SimpleNativeWorkbenchEnvironmentService, SimpleWorkspaceService } from 'vs/workbench/electron-sandbox/sandbox.simpleservices';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-sandbox/remoteAuthorityResolverService';
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService = new SimpleWorkbenchEnvironmentService(this.configuration);
+	private readonly environmentService = new SimpleNativeWorkbenchEnvironmentService(this.configuration);
 
 	constructor(private configuration: INativeWorkbenchConfiguration) {
 		super();
@@ -150,6 +151,7 @@ class DesktopMain extends Disposable {
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
+		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
 
 		// Product
 		const productService: IProductService = { _serviceBrand: undefined, ...product };
@@ -171,9 +173,9 @@ class DesktopMain extends Disposable {
 		const remoteAgentService = new SimpleRemoteAgentService();
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
-		// Electron
-		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
-		serviceCollection.set(IElectronService, electronService);
+		// Native Host
+		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
+		serviceCollection.set(INativeHostService, nativeHostService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));

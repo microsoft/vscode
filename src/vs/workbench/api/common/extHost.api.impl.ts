@@ -629,7 +629,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					retainContextWhenHidden?: boolean
 				}
 			}) {
-				checkProposedApiEnabled(extension);
 				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
 			}
 		};
@@ -965,6 +964,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookKernelProvider: (selector: vscode.NotebookDocumentFilter, provider: vscode.NotebookKernelProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookKernelProvider(extension, selector, provider);
+			},
+			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
+				return extHostNotebook.createNotebookEditorDecorationType(options);
 			},
 			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
 				checkProposedApiEnabled(extension);

@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -735,7 +735,11 @@ export enum NotebookEditorRevealType {
 export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void>;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: {
+		transientOutputs: boolean;
+		transientMetadata: TransientMetadata;
+		viewOptions?: { displayName: string; filenamePattern: string | IRelativePattern | INotebookExclusiveDocumentFilter; exclusive: boolean; };
+	}): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
 	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
@@ -746,6 +750,9 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
+	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	$removeNotebookEditorDecorationType(key: string): void;
+	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$onUndoableContentChange(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
 }
@@ -1660,6 +1667,7 @@ export interface INotebookModelAddedData {
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
 	attachedEditor?: { id: string; selections: number[]; visibleRanges: ICellRange[] }
+	contentOptions: { transientOutputs: boolean; transientMetadata: TransientMetadata; }
 }
 
 export interface INotebookEditorAddData {
