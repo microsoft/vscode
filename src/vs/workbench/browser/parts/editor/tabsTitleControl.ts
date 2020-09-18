@@ -1055,8 +1055,8 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.classList.remove('has-icon');
 		}
 
-		['compact', 'shrink', 'normal'].forEach(option => {
-			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && !!options.pinnedTabSizing);
+		['normal', 'compact', 'shrink'].forEach(option => {
+			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		});
 
 		// Sticky compact/shrink tabs need a position to remain at their location
