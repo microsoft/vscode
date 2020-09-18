@@ -314,9 +314,9 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else {
 			const regex = new RegExp(`\\b${param.label}\\b`, 'g');
 			regex.test(signature.label);
-			const idx = regex.lastIndex;
+			const idx = regex.lastIndex - param.label.length;
 			return idx >= 0
-				? [idx - param.label.length, idx]
+				? [idx, regex.lastIndex]
 				: [0, 0];
 		}
 	}
