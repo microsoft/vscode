@@ -15,7 +15,7 @@ import { TestThemeService, TestColorTheme } from 'vs/platform/theme/test/common/
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 
 suite('Debug - ANSI Handling', () => {
