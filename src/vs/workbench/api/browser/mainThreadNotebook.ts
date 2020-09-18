@@ -105,6 +105,7 @@ class DocumentAndEditorState {
 						outputs: cell.outputs,
 						metadata: cell.metadata
 					})),
+					contentOptions: e.transientOptions,
 					// attachedEditor: editorId ? {
 					// 	id: editorId,
 					// 	selections: document.textModel.selections
