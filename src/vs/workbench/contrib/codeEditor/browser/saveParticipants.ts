@@ -344,7 +344,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
 			try {
 				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.title) });
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await this.instantiationService.invokeFunction(applyCodeAction, action);
 				}
 			} catch {
