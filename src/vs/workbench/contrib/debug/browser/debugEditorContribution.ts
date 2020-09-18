@@ -279,6 +279,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 			this.editor.updateOptions({ hover: { enabled: false } });
 		} else {
+			this.altListener?.dispose();
 			this.enableEditorHover();
 		}
 	}
