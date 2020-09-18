@@ -131,7 +131,4 @@ import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.con
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 
-// Extensions Management (// TODO@sandbox TODO@ben move back into common/extensions.contribution.ts when 'semver-umd' can be loaded)
-import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
-
 //#endregion
