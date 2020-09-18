@@ -7,6 +7,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { isTsConfigFileName } from '../utils/languageDescription';
 import { Lazy } from '../utils/lazy';
@@ -105,7 +106,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		const out = new Set<TSConfig>();
 		const configs = [
 			...await this.getTsConfigForActiveFile(token),
-			...await this.getTsConfigsInWorkspace()
+			...await this.getTsConfigsInWorkspace(token)
 		];
 		for (const config of configs) {
 			if (await exists(config.uri)) {
@@ -161,8 +162,17 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return [];
 	}
 
-	private async getTsConfigsInWorkspace(): Promise<TSConfig[]> {
-		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace({ timeout: this.findConfigFilesTimeout }));
+	private async getTsConfigsInWorkspace(token: vscode.CancellationToken): Promise<TSConfig[]> {
+		const getConfigsTimeout = new vscode.CancellationTokenSource();
+		token.onCancellationRequested(() => getConfigsTimeout.cancel());
+
+		return Promise.race([
+			this.tsconfigProvider.getConfigsForWorkspace(getConfigsTimeout.token).then(x => Array.from(x)),
+			wait(this.findConfigFilesTimeout).then(() => {
+				getConfigsTimeout.cancel();
+				return [];
+			}),
+		]);
 	}
 
 	private static async getCommand(project: TSConfig): Promise<string> {
