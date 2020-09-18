@@ -162,12 +162,12 @@ suite('EditorGroupsService', () => {
 		assert.equal(mru[0], rightGroup);
 		assert.equal(mru[1], rootGroup);
 
-		const rightGroupCKS = part.activeGroup.scopedContextKeyService;
-		const rootGroupCKS = rootGroup.scopedContextKeyService;
+		const rightGroupContextKeyService = part.activeGroup.scopedContextKeyService;
+		const rootGroupContextKeyService = rootGroup.scopedContextKeyService;
 
-		assert.ok(rightGroupCKS);
-		assert.ok(rootGroupCKS);
-		assert.ok(rightGroupCKS !== rootGroupCKS);
+		assert.ok(rightGroupContextKeyService);
+		assert.ok(rootGroupContextKeyService);
+		assert.ok(rightGroupContextKeyService !== rootGroupContextKeyService);
 
 		part.removeGroup(rightGroup);
 		assert.equal(groupRemovedCounter, 2);

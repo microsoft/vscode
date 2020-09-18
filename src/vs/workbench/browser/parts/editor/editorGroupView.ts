@@ -71,6 +71,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#endregion
 
+	/**
+	 * Access to the context key service scoped to this editor group.
+	 */
+	readonly scopedContextKeyService: IContextKeyService;
+
 	//#region events
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -97,26 +102,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#endregion
 
 	private readonly _group: EditorGroup;
-	private _disposed = false;
 
 	private active: boolean | undefined;
 	private dimension: Dimension | undefined;
 
-	private _whenRestored: Promise<void>;
+	private readonly _whenRestored: Promise<void>;
 	private isRestored = false;
 
 	private readonly scopedInstantiationService: IInstantiationService;
 
-	private readonly _scopedContextKeyService: IContextKeyService;
-	get scopedContextKeyService(): IContextKeyService { return this._scopedContextKeyService; }
-
-	private titleContainer: HTMLElement;
+	private readonly titleContainer: HTMLElement;
 	private titleAreaControl: TitleControl;
 
-	private progressBar: ProgressBar;
+	private readonly progressBar: ProgressBar;
 
-	private editorContainer: HTMLElement;
-	private editorControl: EditorControl;
+	private readonly editorContainer: HTMLElement;
+	private readonly editorControl: EditorControl;
 
 	private readonly disposedEditorsWorker = this._register(new RunOnceWorker<EditorInput>(editors => this.handleDisposedEditors(editors), 0));
 
@@ -175,14 +176,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.progressBar.hide();
 
 			// Scoped services
-			this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
+			this.scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this._scopedContextKeyService],
+				[IContextKeyService, this.scopedContextKeyService],
 				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
 			));
 
 			// Context keys
-			this.handleGroupContextKeys(this._scopedContextKeyService);
+			this.handleGroupContextKeys();
 
 			// Title container
 			this.titleContainer = document.createElement('div');
@@ -219,13 +220,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.registerListeners();
 	}
 
-	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
-		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(contextKeyService);
-		const deprecatedGroupActiveEditorDirtyContext = Deprecated_EditorDirtyContext.bindTo(contextKeyService);
-		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
-		const deprecatedGroupActiveEditorPinnedContext = Deprecated_EditorPinnedContext.bindTo(contextKeyService);
-		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
-		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyService);
+	private handleGroupContextKeys(): void {
+		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
+		const deprecatedGroupActiveEditorDirtyContext = Deprecated_EditorDirtyContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
+		const deprecatedGroupActiveEditorPinnedContext = Deprecated_EditorPinnedContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
 
 		const activeEditorListener = new MutableDisposable();
 
@@ -703,6 +704,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return localize('groupAriaLabel', "Editor Group {0}", this._index + 1);
 	}
 
+	private _disposed = false;
 	get disposed(): boolean {
 		return this._disposed;
 	}

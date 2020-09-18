@@ -39,7 +39,6 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'v
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -427,10 +426,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return activeCodeEditor?.getModel()?.getLanguageIdentifier().language;
-	}
-
-	get activeEditorContextKeyService(): IContextKeyService | undefined {
-		return this.activeEditorPane?.scopedContextKeyService;
 	}
 
 	get count(): number {
@@ -1316,7 +1311,6 @@ export class DelegatingEditorService implements IEditorService {
 	get visibleTextEditorControls(): ReadonlyArray<ICodeEditor | IDiffEditor> { return this.editorService.visibleTextEditorControls; }
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
-	get activeEditorContextKeyService(): IContextKeyService | undefined { return this.editorService.activeEditorContextKeyService; }
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> { return this.editorService.getEditors(order, options); }
 

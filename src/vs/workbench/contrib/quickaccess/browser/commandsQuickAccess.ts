@@ -96,8 +96,8 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 
 	private getGlobalCommandPicks(disposables: DisposableStore): ICommandQuickPick[] {
 		const globalCommandPicks: ICommandQuickPick[] = [];
-		const menuContextKeyService = this.editorService.activeEditorContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, menuContextKeyService);
+		const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
+		const globalCommandsMenu = this.menuService.createMenu(MenuId.CommandPalette, scopedContextKeyService);
 		const globalCommandsMenuActions = globalCommandsMenu.getActions()
 			.reduce((r, [, actions]) => [...r, ...actions], <Array<MenuItemAction | SubmenuItemAction | string>>[])
 			.filter(action => action instanceof MenuItemAction) as MenuItemAction[];

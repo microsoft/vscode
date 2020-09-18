@@ -65,9 +65,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	/**
 	 * Should be overridden by editors that have their own ScopedContextKeyService
 	 */
-	get scopedContextKeyService(): IContextKeyService | undefined {
-		return undefined;
-	}
+	get scopedContextKeyService(): IContextKeyService | undefined { return undefined; }
 
 	constructor(
 		id: string,

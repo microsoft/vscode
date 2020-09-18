@@ -52,6 +52,10 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
 	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
 
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
+	}
+
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -199,10 +203,6 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 
 	protected onWillCloseEditorInGroup(editor: IEditorInput): void {
 		// Subclasses can override
-	}
-
-	get scopedContextKeyService(): IContextKeyService | undefined {
-		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
 	}
 
 	focus(): void {

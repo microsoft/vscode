@@ -11,7 +11,6 @@ import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -131,12 +130,6 @@ export interface IEditorService {
 	 * @see `IEditorService.activeEditor`
 	 */
 	readonly activeTextEditorControl: IEditor | IDiffEditor | undefined;
-
-	/**
-	 * Get the context key service for the active editor or `undefined` if there is currently no
-	 * active editor
-	 */
-	readonly activeEditorContextKeyService: IContextKeyService | undefined;
 
 	/**
 	 * The currently active text editor mode or `undefined` if there is currently no active

@@ -459,8 +459,8 @@ export class NativeWindow extends Disposable {
 
 	private doUpdateTouchbarMenu(scheduler: RunOnceScheduler): void {
 		if (!this.touchBarMenu) {
-			const menuContextKeyService = this.editorService.activeEditorContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
-			this.touchBarMenu = this.menuService.createMenu(MenuId.TouchBarContext, menuContextKeyService);
+			const scopedContextKeyService = this.editorService.activeEditorPane?.scopedContextKeyService || this.editorGroupService.activeGroup.scopedContextKeyService;
+			this.touchBarMenu = this.menuService.createMenu(MenuId.TouchBarContext, scopedContextKeyService);
 			this.touchBarDisposables.add(this.touchBarMenu);
 			this.touchBarDisposables.add(this.touchBarMenu.onDidChange(() => scheduler.schedule()));
 		}

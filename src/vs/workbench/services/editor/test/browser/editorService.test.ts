@@ -1026,7 +1026,7 @@ suite('EditorService', () => {
 		part.dispose();
 	});
 
-	test('activeEditorContextKeyService', async function () {
+	test('activeEditorPane scopedContextKeyService', async function () {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
 		const [part, service] = createEditorService(instantiationService);
 
@@ -1037,9 +1037,9 @@ suite('EditorService', () => {
 
 		await service.openEditor(input1, { pinned: true });
 
-		const editorCKS = service.activeEditorContextKeyService;
-		assert.ok(!!editorCKS);
-		assert.strictEqual(editorCKS, part.activeGroup.activeEditorPane?.scopedContextKeyService);
+		const editorContextKeyService = service.activeEditorPane?.scopedContextKeyService;
+		assert.ok(!!editorContextKeyService);
+		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
 
 		part.dispose();
 	});
