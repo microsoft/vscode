@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { wait } from '../test/testUtils';
 
 export interface TSConfig {
 	readonly uri: vscode.Uri;
@@ -13,12 +14,13 @@ export interface TSConfig {
 }
 
 export class TsConfigProvider {
-	public async getConfigsForWorkspace(): Promise<Iterable<TSConfig>> {
+	public async getConfigsForWorkspace(options?: { timeout: number }): Promise<Iterable<TSConfig>> {
 		if (!vscode.workspace.workspaceFolders) {
 			return [];
 		}
+
 		const configs = new Map<string, TSConfig>();
-		for (const config of await vscode.workspace.findFiles('**/tsconfig*.json', '**/{node_modules,.*}/**')) {
+		for (const config of await this.findConfigFiles(options)) {
 			const root = vscode.workspace.getWorkspaceFolder(config);
 			if (root) {
 				configs.set(config.fsPath, {
@@ -30,5 +32,23 @@ export class TsConfigProvider {
 			}
 		}
 		return configs.values();
+	}
+
+	private async findConfigFiles(options?: { timeout: number }): Promise<vscode.Uri[]> {
+		const timeout = options?.timeout;
+		const task = (token?: vscode.CancellationToken) => vscode.workspace.findFiles('**/tsconfig*.json', '**/{node_modules,.*}/**', undefined, token);
+
+		if (typeof timeout === 'number') {
+			const cancel = new vscode.CancellationTokenSource();
+			return Promise.race([
+				task(cancel.token),
+				wait(timeout).then(() => {
+					cancel.cancel();
+					return [];
+				}),
+			]);
+		} else {
+			return task();
+		}
 	}
 }

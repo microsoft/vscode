@@ -38,6 +38,8 @@ interface TypeScriptTaskDefinition extends vscode.TaskDefinition {
 class TscTaskProvider implements vscode.TaskProvider {
 
 	private readonly projectInfoRequestTimeout = 2000;
+	private readonly findConfigFilesTimeout = 5000;
+
 	private autoDetect: AutoDetect = 'on';
 	private readonly tsconfigProvider: TsConfigProvider;
 	private readonly disposables: vscode.Disposable[] = [];
@@ -160,7 +162,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private async getTsConfigsInWorkspace(): Promise<TSConfig[]> {
-		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace());
+		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace({ timeout: this.findConfigFilesTimeout }));
 	}
 
 	private static async getCommand(project: TSConfig): Promise<string> {
