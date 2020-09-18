@@ -428,7 +428,7 @@ export class Thread implements IThread {
 	get stateLabel(): string {
 		if (this.stoppedDetails) {
 			return this.stoppedDetails.description ||
-				this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused");
+				(this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused"));
 		}
 
 		return nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
