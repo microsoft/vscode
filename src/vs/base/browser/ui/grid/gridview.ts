@@ -136,8 +136,6 @@ interface ILayoutContext {
 	readonly orthogonalSize: number;
 	readonly absoluteOffset: number;
 	readonly absoluteOrthogonalOffset: number;
-	readonly absoluteSize: number;
-	readonly absoluteOrthogonalSize: number;
 }
 
 function toAbsoluteBoundarySashes(sashes: IRelativeBoundarySashes, orientation: Orientation): IBoundarySashes {
@@ -288,7 +286,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		if (!childDescriptors) {
 			// Normal behavior, we have no children yet, just set up the splitview
 			this.splitview = new SplitView(this.element, { orientation, styles, proportionalLayout });
-			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
+			this.splitview.layout(size, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0 });
 		} else {
 			// Reconstruction behavior, we want to reconstruct a splitview
 			const descriptor = {
@@ -360,13 +358,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			orthogonalSize: size,
 			absoluteOffset: this.absoluteOrthogonalOffset,
 			absoluteOrthogonalOffset: this.absoluteOffset,
-			absoluteSize: ctx.absoluteOrthogonalSize,
-			absoluteOrthogonalSize: ctx.absoluteSize
 		});
 
-		// Disable snapping on views which sit on the edges of the grid
-		this.splitview.startSnappingEnabled = this.absoluteOrthogonalOffset > 0;
-		this.splitview.endSnappingEnabled = this.absoluteOrthogonalOffset + ctx.orthogonalSize < ctx.absoluteOrthogonalSize;
 	}
 
 	setVisible(visible: boolean): void {
@@ -841,7 +834,7 @@ export class GridView implements IDisposable {
 
 		const { size, orthogonalSize } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
-		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
+		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0 });
 		this.boundarySashes = this.boundarySashes;
 	}
 
@@ -905,7 +898,7 @@ export class GridView implements IDisposable {
 		this.firstLayoutController.isLayoutEnabled = true;
 
 		const [size, orthogonalSize] = this.root.orientation === Orientation.HORIZONTAL ? [height, width] : [width, height];
-		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
+		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: 0, absoluteOrthogonalOffset: 0 });
 	}
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
