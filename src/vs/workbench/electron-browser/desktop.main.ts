@@ -164,10 +164,19 @@ class DesktopMain extends Disposable {
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		// Main Process
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
@@ -187,6 +196,20 @@ class DesktopMain extends Disposable {
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService();
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		// Sign
 		const signService = new SignService();
@@ -209,6 +232,20 @@ class DesktopMain extends Disposable {
 
 		// User Data Provider
 		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.configuration.backupPath ? URI.file(this.environmentService.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
@@ -241,6 +278,20 @@ class DesktopMain extends Disposable {
 				return service;
 			})
 		]);
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		return { serviceCollection, logService, storageService: services[1] };
 	}

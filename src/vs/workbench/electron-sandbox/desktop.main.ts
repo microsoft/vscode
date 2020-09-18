@@ -140,10 +140,18 @@ class DesktopMain extends Disposable {
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: SimpleStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-		// NOTE: DO NOT ADD ANY OTHER SERVICE INTO THE COLLECTION HERE.
-		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
-		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		// Main Process
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
@@ -173,6 +181,20 @@ class DesktopMain extends Disposable {
 		const remoteAgentService = new SimpleRemoteAgentService();
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 		// Native Host
 		const nativeHostService = new NativeHostService(this.configuration.windowId, mainProcessService) as INativeHostService;
 		serviceCollection.set(INativeHostService, nativeHostService);
@@ -195,6 +217,20 @@ class DesktopMain extends Disposable {
 		const resourceIdentityService = new SimpleResourceIdentityService();
 		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
 
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 		const services = await Promise.all([
 			this.createWorkspaceService().then(service => {
 
@@ -215,6 +251,20 @@ class DesktopMain extends Disposable {
 				return service;
 			})
 		]);
+
+
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		//
+		// NOTE: Please do NOT register services here. Use `registerSingleton()`
+		//       from `workbench.common.main.ts` if the service is shared between
+		//       desktop and web or `workbench.sandbox.main.ts` if the service
+		//       is desktop only.
+		//
+		//       DO NOT add services to `workbench.desktop.main.ts`, always add
+		//       to `workbench.sandbox.main.ts` to support our Electron sandbox
+		//
+		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 		return { serviceCollection, logService, storageService: services[1] };
 	}
