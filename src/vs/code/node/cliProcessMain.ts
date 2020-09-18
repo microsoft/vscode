@@ -321,6 +321,8 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(INativeEnvironmentService, environmentService);
+
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));
