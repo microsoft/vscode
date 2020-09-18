@@ -54,6 +54,10 @@ export interface IEditorOptions {
 	 */
 	ariaLabel?: string;
 	/**
+	 * The `tabindex` property of the editor's textarea
+	 */
+	tabIndex?: number;
+	/**
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
@@ -3656,6 +3660,7 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	tabIndex,
 	unusualLineTerminators,
 	useTabStops,
 	wordSeparators,
@@ -4214,6 +4219,10 @@ export const EditorOptions = {
 			],
 			description: nls.localize('tabCompletion', "Enables tab completions.")
 		}
+	)),
+	tabIndex: register(new EditorIntOption(
+		EditorOption.tabIndex, 'tabIndex',
+		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
 	)),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
