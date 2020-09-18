@@ -19,7 +19,6 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -306,7 +305,6 @@ class GoToBreakpointAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
-		const uriIdentityService = accessor.get(IUriIdentityService);
 		if (editor.hasModel()) {
 			const currentUri = editor.getModel().uri;
 			const currentLine = editor.getPosition().lineNumber;
@@ -333,7 +331,7 @@ class GoToBreakpointAction extends EditorAction {
 			}
 
 			if (moveBreakpoint) {
-				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService, uriIdentityService);
+				return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
 			}
 		}
 	}

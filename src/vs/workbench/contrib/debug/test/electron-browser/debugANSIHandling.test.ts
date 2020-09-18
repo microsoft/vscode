@@ -15,8 +15,8 @@ import { TestThemeService, TestColorTheme } from 'vs/platform/theme/test/common/
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
-import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 
 suite('Debug - ANSI Handling', () => {
 
@@ -30,7 +30,7 @@ suite('Debug - ANSI Handling', () => {
 	 */
 	setup(() => {
 		model = createMockDebugModel();
-		session = new DebugSession(generateUuid(), { resolved: { name: 'test', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
+		session = createMockSession(model);
 
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		linkDetector = instantiationService.createInstance(LinkDetector);
