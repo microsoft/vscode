@@ -34,6 +34,8 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { basename } from 'vs/base/common/path';
 import { domEvent } from 'vs/base/browser/event';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
@@ -252,14 +254,24 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
 				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
 					this.altPressed = true;
+					const debugHoverWasVisible = this.hoverWidget.isVisible();
 					this.hoverWidget.hide();
 					this.enableEditorHover();
+					if (debugHoverWasVisible && this.hoverRange) {
+						// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
+						const hoverController = this.editor.getContribution<ModesHoverController>(ModesHoverController.ID);
+						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
+					}
+
 					const listener = domEvent(document, 'keyup')(keyupEvent => {
 						const standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
 						if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();
+							if (this.hoverRange && debugHoverWasVisible) {
+								this.showHover(this.hoverRange, false);
+							}
 						}
 					});
 				}
