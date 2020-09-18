@@ -351,7 +351,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Setup Protocol Handler
-		this._register(new FileProtocolHandler(this.environmentService));
+		this._register(new FileProtocolHandler(this.environmentService, this.logService));
 
 		// Create Electron IPC Server
 		const electronIpcServer = new ElectronIPCServer();

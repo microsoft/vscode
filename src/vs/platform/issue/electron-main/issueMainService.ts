@@ -450,8 +450,5 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		}
 	}
 
-	const fileUrl = toCodeFileUri(
-		pathToHtml,
-		`config=${encodeURIComponent(JSON.stringify(config))}`);
-	return fileUrl.toString(true);
+	return toCodeFileUri(pathToHtml, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
 }

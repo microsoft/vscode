@@ -6,25 +6,29 @@
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { session } from 'electron';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileProtocolHandler extends Disposable {
 
 	constructor(
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
+		private readonly environmentService: INativeEnvironmentService,
+		private readonly logService: ILogService
 	) {
 		super();
 
 		const { defaultSession } = session;
 
+		// Register vscode-file:// handler
 		defaultSession.protocol.registerFileProtocol(
 			Schemas.vscodeFileResource,
 			(request, callback) => this.handleResourceRequest(request, callback));
 
-		defaultSession.protocol.interceptFileProtocol('file', (request: Electron.Request, callback: any) => {
+		// Block any file:// access
+		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback: any /* TODO@deepak TODO@electron electron typing */) => {
 			const uri = URI.parse(request.url);
-			console.error(`Refused to load resource ${uri.path} from file: protocol`);
+			this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
 			callback({ error: -3 /* ABORTED */ });
 		});
 
@@ -35,7 +39,7 @@ export class FileProtocolHandler extends Disposable {
 
 	private async handleResourceRequest(
 		request: Electron.Request,
-		callback: any) {
+		callback: any /* TODO@deepak TODO@electron electron typing */) {
 		const uri = URI.parse(request.url);
 		const appRoot = this.environmentService.appRoot;
 		const extensionsPath = this.environmentService.extensionsPath;
@@ -45,7 +49,7 @@ export class FileProtocolHandler extends Disposable {
 				path: decodeURIComponent(uri.path)
 			});
 		}
-		console.error(`vscode-file: Refused to load resource ${uri.path}`);
+		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${uri.path}`);
 		callback({ error: -3 /* ABORTED */ });
 	}
 }

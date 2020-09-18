@@ -836,11 +836,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		const fileUrl = toCodeFileUri(
-			workbench,
-			`config=${encodeURIComponent(JSON.stringify(config))}`);
-
-		return fileUrl.toString(true);
+		return toCodeFileUri(workbench, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
 	}
 
 	private doGetPreloadUrl(): string {

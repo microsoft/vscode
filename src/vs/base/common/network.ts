@@ -133,11 +133,13 @@ class RemoteAuthoritiesImpl {
 	}
 }
 
+const vscodeFileResourceAuthority = 'app';
+
 class LocalFileAccessImpl {
 	rewrite(uri: URI): URI {
 		return uri.with({
 			scheme: Schemas.vscodeFileResource,
-			authority: 'app'
+			authority: vscodeFileResourceAuthority
 		});
 	}
 }
@@ -149,7 +151,7 @@ export function toCodeFileUri(path: string, query?: string): URI {
 	const url = require.toUrl(path);
 	return URI.parse(url).with({
 		scheme: Schemas.vscodeFileResource,
-		authority: 'app',
+		authority: vscodeFileResourceAuthority,
 		query
 	});
 }
