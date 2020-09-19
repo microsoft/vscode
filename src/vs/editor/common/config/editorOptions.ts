@@ -96,7 +96,7 @@ export interface IEditorOptions {
 	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * Defaults to 'prompt'.
 	 */
-	unusualLineTerminators?: 'off' | 'prompt' | 'auto';
+	unusualLineTerminators?: 'auto' | 'off' | 'prompt';
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -4217,8 +4217,8 @@ export const EditorOptions = {
 	)),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
-		'prompt' as 'off' | 'prompt' | 'auto',
-		['off', 'prompt', 'auto'] as const,
+		'prompt' as 'auto' | 'off' | 'prompt',
+		['auto', 'off', 'prompt'] as const,
 		{
 			enumDescriptions: [
 				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
