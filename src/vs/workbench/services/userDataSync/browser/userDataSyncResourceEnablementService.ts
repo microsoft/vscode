@@ -7,23 +7,22 @@ import { IUserDataSyncResourceEnablementService, SyncResource } from 'vs/platfor
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { UserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSyncResourceEnablementService';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { isWeb } from 'vs/base/common/platform';
 
 export class WebUserDataSyncResourceEnablementService extends UserDataSyncResourceEnablementService implements IUserDataSyncResourceEnablementService {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 	) {
 		super(storageService, telemetryService);
 	}
 
 	protected getDefaultResourceEnablementValue(resource: SyncResource): boolean {
-		if (resource === SyncResource.Extensions) {
-			// In Web, disable syncing extensions by default when there is a remote server
-			return !this.extensionManagementServerService.remoteExtensionManagementServer;
+		// disable syncing extensions by default in web
+		if (resource === SyncResource.Extensions && isWeb) {
+			return false;
 		}
 		return super.getDefaultResourceEnablementValue(resource);
 	}
