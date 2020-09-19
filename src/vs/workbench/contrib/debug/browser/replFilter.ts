@@ -91,8 +91,14 @@ export class ReplFilterState {
 		return this._onDidStatsChange.event;
 	}
 
+	private readonly _onDidLayoutChange: Emitter<void> = new Emitter<void>();
+	get onDidLayoutChange(): Event<void> {
+		return this._onDidLayoutChange.event;
+	}
+
 	private _filterText = '';
 	private _stats = { total: 0, filtered: 0 };
+	private _layout = new DOM.Dimension(0, 0);
 
 	get filterText(): string {
 		return this._filterText;
@@ -114,6 +120,17 @@ export class ReplFilterState {
 		if (this._filterText !== filterText) {
 			this._filterText = filterText;
 			this._onDidChange.fire();
+		}
+	}
+
+	get layout(): DOM.Dimension {
+		return this._layout;
+	}
+
+	set layout(layout: DOM.Dimension) {
+		if (this._layout.width !== layout.width || this._layout.height !== layout.height) {
+			this._layout = layout;
+			this._onDidLayoutChange.fire();
 		}
 	}
 }
@@ -168,6 +185,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		this._register(this.filters.onDidChange(() => {
 			this.filterInputBox.value = this.filters.filterText;
 		}));
+		this._register(this.filters.onDidLayoutChange(() => { this.updateClass(); }));
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
@@ -232,7 +250,18 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		}
 	}
 
+	protected updateClass(): void {
+		if (this.element && this.container) {
+			this.element.className = this.class;
+			this.container.classList.toggle('grow', this.element.classList.contains('grow'));
+		}
+	}
+
 	protected get class(): string {
-		return 'panel-action-tree-filter';
+		if (this.filters.layout.width > 600) {
+			return 'panel-action-tree-filter grow';
+		} else {
+			return 'panel-action-tree-filter';
+		}
 	}
 }
