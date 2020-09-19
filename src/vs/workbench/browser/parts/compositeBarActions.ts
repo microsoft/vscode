@@ -299,8 +299,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 
 			if (clazz) {
-				dom.addClasses(this.badge, clazz);
-				this.badgeDisposable.value = toDisposable(() => dom.removeClasses(this.badge, clazz));
+				this.badge.classList.add(...clazz.split(' '));
+				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...clazz.split(' ')));
 			}
 		}
 
@@ -323,7 +323,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClasses(this.label, this.activity.cssClass);
+			this.label.classList.add(...this.activity.cssClass.split(' '));
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {

@@ -28,7 +28,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, append, $, hide, show, addClasses } from 'vs/base/browser/dom';
+import { Dimension, append, $, hide, show } from 'vs/base/browser/dom';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 
@@ -213,7 +213,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 			// Build Container off-DOM
 			compositeContainer = $('.composite');
-			addClasses(compositeContainer, this.compositeCSSClass);
+			compositeContainer.classList.add(...this.compositeCSSClass.split(' '));
 			compositeContainer.id = composite.getId();
 
 			composite.create(compositeContainer);
