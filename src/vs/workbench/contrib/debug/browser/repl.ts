@@ -251,6 +251,22 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}));
 	}
 
+	private computeFilterStats(): { total: number, filtered: number } {
+		let filtered = 0;
+		let total = 0;
+		if (this.tree) {
+			total = this.tree.getNode().children.length;
+			for (const child of this.tree.getNode().children) {
+				if (child.visible) {
+					++filtered;
+				}
+			}
+		}
+		return {
+			total, filtered
+		};
+	}
+
 	get isReadonly(): boolean {
 		// Do not allow to edit inactive sessions
 		const session = this.tree.getInput();
@@ -574,6 +590,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 			lastSelectedString = selection ? selection.toString() : '';
 		}));
+		this._register(this.tree.onDidChangeContentHeight(() => this.refreshReplElements(false)));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
@@ -665,6 +682,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 
 			this.refreshScheduler.schedule(noDelay ? 0 : undefined);
+			this.filterState.filterStats = this.computeFilterStats();
 		}
 	}
 
