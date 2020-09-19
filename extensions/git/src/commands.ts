@@ -2506,7 +2506,7 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await this.getStashMessage();
+		const message = await this.getStashMessage(repository.inputBox.value));
 
 		if (typeof message === 'undefined') {
 			return;
@@ -2515,8 +2515,9 @@ export class CommandCenter {
 		await repository.createStash(message, includeUntracked);
 	}
 
-	private async getStashMessage(): Promise<string | undefined> {
+	private async getStashMessage(message: string): Promise<string | undefined> {
 		return await window.showInputBox({
+			value: message,
 			prompt: localize('provide stash message', "Optionally provide a stash message"),
 			placeHolder: localize('stash message', "Stash message")
 		});
