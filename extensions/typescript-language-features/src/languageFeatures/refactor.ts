@@ -25,12 +25,6 @@ namespace Experimental {
 	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
 		readonly notApplicableReason?: string;
 	}
-
-	export type RefactorTriggerReason = 'implicit' | 'invoked';
-
-	export interface GetApplicableRefactorsRequestArgs extends Proto.FileRangeRequestArgs {
-		readonly triggerReason?: RefactorTriggerReason;
-	}
 }
 
 
@@ -255,7 +249,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Experimental.GetApplicableRefactorsRequestArgs = {
+			const args: Proto.GetApplicableRefactorsRequestArgs = {
 				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
 				triggerReason: this.toTsTriggerReason(context),
 			};
@@ -272,7 +266,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
 	}
 
-	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorTriggerReason | undefined {
+	private toTsTriggerReason(context: vscode.CodeActionContext): Proto.RefactorTriggerReason | undefined {
 		if (!context.only) {
 			return;
 		}
