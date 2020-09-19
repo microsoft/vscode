@@ -465,7 +465,7 @@ class CodeActionAdapter {
 		if (!this._provider.resolveCodeAction) {
 			return; // this should not happen...
 		}
-		const resolvedItem = await this._provider.resolveCodeAction(item, token);
+		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
 		return resolvedItem?.edit
 			? typeConvert.WorkspaceEdit.from(resolvedItem.edit)
 			: undefined;
