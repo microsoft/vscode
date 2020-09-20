@@ -18,7 +18,6 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
@@ -38,7 +37,7 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
 

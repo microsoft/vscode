@@ -130,8 +130,12 @@ export abstract class BackupTracker extends Disposable {
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[backup tracker] running backup`, workingCopy.resource.toString());
 
-				const backup = await workingCopy.backup();
-				this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
+				try {
+					const backup = await workingCopy.backup();
+					await this.backupFileService.backup(workingCopy.resource, backup.content, this.getContentVersion(workingCopy), backup.meta);
+				} catch (error) {
+					this.logService.error(error);
+				}
 			}
 		}, BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY);
 

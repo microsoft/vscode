@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { URI as uri } from 'vs/base/common/uri';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { isWindows } from 'vs/base/common/platform';
+import { mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 
 suite('Debug - Source', () => {
 
@@ -16,7 +17,7 @@ suite('Debug - Source', () => {
 			path: '/xx/yy/zz',
 			sourceReference: 0,
 			presentationHint: 'emphasize'
-		}, 'aDebugSessionId');
+		}, 'aDebugSessionId', mockUriIdentityService);
 
 		assert.equal(source.presentationHint, 'emphasize');
 		assert.equal(source.name, 'zz');
@@ -30,7 +31,7 @@ suite('Debug - Source', () => {
 			name: 'internalModule.js',
 			sourceReference: 11,
 			presentationHint: 'deemphasize'
-		}, 'aDebugSessionId');
+		}, 'aDebugSessionId', mockUriIdentityService);
 
 		assert.equal(source.presentationHint, 'deemphasize');
 		assert.equal(source.name, 'internalModule.js');

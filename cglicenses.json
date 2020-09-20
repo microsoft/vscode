@@ -19,7 +19,7 @@
 		]
 	},
 	{
-		// Reason: The license at https://github.com/Microsoft/TypeScript/blob/master/LICENSE.txt
+		// Reason: The license at https://github.com/microsoft/TypeScript/blob/master/LICENSE.txt
 		// does not include a clear Copyright statement.
 		"name": "typescript",
 		"prependLicenseText": [
@@ -348,7 +348,7 @@
 	},
 	{
 		// Reason: The license cannot be found by the tool due to access controls on the repository
-		"name": "tas-client",
+		"name": "tas-client-umd",
 		"fullLicenseText": [
 			"MIT License",
 			"Copyright (c) 2020 - present Microsoft Corporation",

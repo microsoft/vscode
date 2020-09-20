@@ -18,7 +18,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IsDevelopmentContext, IsMacContext } from 'vs/platform/contextkey/common/contextkeys';
 import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import product from 'vs/platform/product/common/product';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -48,8 +48,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			when: ContextKeyExpr.and(EditorsVisibleContext.toNegated(), SingleEditorGroupsContext),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 			handler: accessor => {
-				const electronService = accessor.get(IElectronService);
-				electronService.closeWindow();
+				const nativeHostService = accessor.get(INativeHostService);
+				nativeHostService.closeWindow();
 			}
 		});
 
@@ -57,8 +57,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 			id: 'workbench.action.quit',
 			weight: KeybindingWeight.WorkbenchContrib,
 			handler(accessor: ServicesAccessor) {
-				const electronService = accessor.get(IElectronService);
-				electronService.quit();
+				const nativeHostService = accessor.get(INativeHostService);
+				nativeHostService.quit();
 			},
 			when: undefined,
 			mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q },
@@ -267,6 +267,13 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
+			},
+			'window.dialogStyle': {
+				'type': 'string',
+				'enum': ['native', 'custom'],
+				'default': 'native',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': nls.localize('dialogStyle', "Adjust the appearance of dialog windows.")
 			},
 			'window.nativeTabs': {
 				'type': 'boolean',

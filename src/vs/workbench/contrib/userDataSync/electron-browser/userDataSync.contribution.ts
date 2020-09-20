@@ -14,7 +14,7 @@ import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
@@ -84,13 +84,13 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const syncHome = accessor.get(IEnvironmentService).userDataSyncHome;
-		const electronService = accessor.get(IElectronService);
+		const nativeHostService = accessor.get(INativeHostService);
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
 		if (await fileService.exists(syncHome)) {
 			const folderStat = await fileService.resolve(syncHome);
 			const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
-			return electronService.showItemInFolder(item.fsPath);
+			return nativeHostService.showItemInFolder(item.fsPath);
 		} else {
 			notificationService.info(localize('no backups', "Local backups folder does not exist"));
 		}

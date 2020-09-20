@@ -148,7 +148,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		}
 
 		if (!provider.matches(target)) {
-			const patterns = provider.selector.map(pattern => {
+			const patterns = provider.selectors.map(pattern => {
 				if (pattern.excludeFileNamePattern) {
 					return `${pattern.filenamePattern} (exclude: ${pattern.excludeFileNamePattern})`;
 				}

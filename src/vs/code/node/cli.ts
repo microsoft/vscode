@@ -95,9 +95,9 @@ export async function main(argv: string[]): Promise<any> {
 				// On Windows we use a different strategy of saving the file
 				// by first truncating the file and then writing with r+ mode.
 				// This helps to save hidden files on Windows
-				// (see https://github.com/Microsoft/vscode/issues/931) and
+				// (see https://github.com/microsoft/vscode/issues/931) and
 				// prevent removing alternate data streams
-				// (see https://github.com/Microsoft/vscode/issues/6363)
+				// (see https://github.com/microsoft/vscode/issues/6363)
 				fs.truncateSync(target, 0);
 				writeFileSync(target, data, { flag: 'r+' });
 			} else {
@@ -154,7 +154,7 @@ export async function main(argv: string[]): Promise<any> {
 
 			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
 			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
-			// checking for stdin being connected to a TTY is not enough (https://github.com/Microsoft/vscode/issues/40351)
+			// checking for stdin being connected to a TTY is not enough (https://github.com/microsoft/vscode/issues/40351)
 
 			if (args._.length === 0) {
 				if (hasReadStdinArg) {

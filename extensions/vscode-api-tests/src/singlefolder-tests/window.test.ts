@@ -466,7 +466,7 @@ suite('vscode API - window', () => {
 		return unexpected;
 	});
 
-	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+	test('showQuickPick, keep selection (microsoft/vscode-azure-account#67)', async function () {
 		const picks = window.showQuickPick([
 			{ label: 'eins' },
 			{ label: 'zwei', picked: true },

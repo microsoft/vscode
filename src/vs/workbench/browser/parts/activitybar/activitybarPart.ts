@@ -472,7 +472,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.homeBarContainer) {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.homeBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.DownArrow)) {
+				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					if (this.menuBar) {
 						this.menuBar.toggleFocus();
 					} else if (this.compositeBar) {
@@ -486,11 +486,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.menuBarContainer) {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.menuBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.DownArrow)) {
+				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					if (this.compositeBar) {
 						this.compositeBar.focus();
 					}
-				} else if (kbEvent.equals(KeyCode.UpArrow)) {
+				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
 					if (this.homeBar) {
 						this.homeBar.focus();
 					}
@@ -502,11 +502,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.compositeBarContainer) {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.compositeBarContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.DownArrow)) {
+				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					if (this.globalActivityActionBar) {
 						this.globalActivityActionBar.focus(true);
 					}
-				} else if (kbEvent.equals(KeyCode.UpArrow)) {
+				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
 					if (this.menuBar) {
 						this.menuBar.toggleFocus();
 					} else if (this.homeBar) {
@@ -520,7 +520,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.globalActivitiesContainer) {
 			this.keyboardNavigationDisposables.add(addDisposableListener(this.globalActivitiesContainer, EventType.KEY_DOWN, e => {
 				const kbEvent = new StandardKeyboardEvent(e);
-				if (kbEvent.equals(KeyCode.UpArrow)) {
+				if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
 					if (this.compositeBar) {
 						this.compositeBar.focus(this.getVisibleViewContainerIds().length - 1);
 					}

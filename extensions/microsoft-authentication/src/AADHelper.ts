@@ -13,8 +13,11 @@ import { v4 as uuid } from 'uuid';
 import { keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -500,16 +503,17 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		try {
-			Logger.info('Refreshing token...');
-			const postData = querystring.stringify({
-				refresh_token: refreshToken,
-				client_id: clientId,
-				grant_type: 'refresh_token',
-				scope: scope
-			});
+		Logger.info('Refreshing token...');
+		const postData = querystring.stringify({
+			refresh_token: refreshToken,
+			client_id: clientId,
+			grant_type: 'refresh_token',
+			scope: scope
+		});
 
-			const result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+		let result: Response;
+		try {
+			result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -517,7 +521,12 @@ export class AzureActiveDirectoryService {
 				},
 				body: postData
 			});
+		} catch (e) {
+			Logger.error('Refreshing token failed');
+			throw new Error(REFRESH_NETWORK_FAILURE);
+		}
 
+		try {
 			if (result.ok) {
 				const json = await result.json();
 				const token = this.getTokenFromResponse(json, scope, sessionId);
@@ -525,12 +534,12 @@ export class AzureActiveDirectoryService {
 				Logger.info('Token refresh success');
 				return token;
 			} else {
-				Logger.error(`Refreshing token failed: ${result.statusText}`);
-				throw new Error('Refreshing token failed.');
+				throw new Error('Bad request.');
 			}
 		} catch (e) {
-			Logger.error('Refreshing token failed');
-			throw new Error(REFRESH_NETWORK_FAILURE);
+			vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+			Logger.error(`Refreshing token failed: ${result.statusText}`);
+			throw new Error('Refreshing token failed');
 		}
 	}
 
