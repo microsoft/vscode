@@ -1076,8 +1076,10 @@ export class ChangeModeAction extends Action {
 
 		// All languages are valid picks
 		const languages = this.modeService.getRegisteredLanguageNames();
+
 		const picks: QuickPickInput[] = languages.sort().map((lang, index) => {
 			const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+
 			let description: string;
 			if (currentLanguageId === lang) {
 				description = nls.localize('languageDescription', "({0}) - Configured Language", modeId);
@@ -1095,6 +1097,16 @@ export class ChangeModeAction extends Action {
 		if (hasLanguageSupport) {
 			picks.unshift({ type: 'separator', label: nls.localize('languagesPicks', "languages (identifier)") });
 		}
+
+		// Offer action to show extensions
+		const showExtensions: IQuickPickItem = {
+			label: nls.localize('showExtensions', "Show Extensions")
+		};
+
+		if (hasLanguageSupport) {
+			picks.unshift(showExtensions);
+		}
+
 
 		// Offer action to configure via settings
 		let configureModeAssociations: IQuickPickItem | undefined;
@@ -1123,7 +1135,36 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		const pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		let pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+
+		if (pick === showExtensions) {
+			const replacements: QuickPickInput[] = languages.sort().map((lang, index) => {
+				const modeId = this.modeService.getModeIdForLanguageName(lang.toLowerCase()) || 'unknown';
+				const ext = this.modeService.getExtensions(lang);
+				let description: string;
+				if (currentLanguageId === lang) {
+					// eslint-disable-next-line code-no-unexternalized-strings
+					description = nls.localize('languageDescription', "({0}) {1} - Configured Language", modeId, ext.join(' '));
+				} else {
+					// eslint-disable-next-line code-no-unexternalized-strings
+					description = nls.localize('languageDescriptionConfigured', "({0}) {1}", modeId, ext.join(' '));
+				}
+
+				return {
+					label: lang,
+					iconClasses: getIconClassesForModeId(modeId),
+					description
+				};
+			});
+
+			const replaceIdx = picks.length - languages.length - 1;
+			picks.splice(replaceIdx, languages.length, ...replacements);
+			// Remove last option after seperator
+			picks.splice(replaceIdx - 1, 1, { type: 'separator', label: nls.localize('languagesPicks', "languages (identifier)") });
+
+			pick = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		}
+
 		if (!pick) {
 			return;
 		}
