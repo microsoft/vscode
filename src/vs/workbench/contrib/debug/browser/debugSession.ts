@@ -37,6 +37,7 @@ import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
 import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class DebugSession implements IDebugSession {
 
@@ -82,7 +83,8 @@ export class DebugSession implements IDebugSession {
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
@@ -1026,12 +1028,12 @@ export class DebugSession implements IDebugSession {
 	//---- sources
 
 	getSourceForUri(uri: URI): Source | undefined {
-		return this.sources.get(this.getUriKey(uri));
+		return this.sources.get(this.uriIdentityService.asCanonicalUri(uri).toString());
 	}
 
 	getSource(raw?: DebugProtocol.Source): Source {
-		let source = new Source(raw, this.getId());
-		const uriKey = this.getUriKey(source.uri);
+		let source = new Source(raw, this.getId(), this.uriIdentityService);
+		const uriKey = source.uri.toString();
 		const found = this.sources.get(uriKey);
 		if (found) {
 			source = found;
@@ -1070,11 +1072,6 @@ export class DebugSession implements IDebugSession {
 	private cancelAllRequests(): void {
 		this.cancellationMap.forEach(tokens => tokens.forEach(t => t.cancel()));
 		this.cancellationMap.clear();
-	}
-
-	private getUriKey(uri: URI): string {
-		// TODO: the following code does not make sense if uri originates from a different platform
-		return platform.isLinux ? uri.toString() : uri.toString().toLowerCase();
 	}
 
 	// REPL

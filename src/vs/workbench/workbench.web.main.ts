@@ -51,6 +51,7 @@ import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
+import 'vs/workbench/services/userDataSync/browser/userDataSyncResourceEnablementService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -129,8 +130,5 @@ import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.con
 
 // Issues
 import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
-
-// Extensions Management (// TODO@sandbox TODO@ben move back into common/extensions.contribution.ts when 'semver-umd' can be loaded)
-import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
 
 //#endregion

@@ -43,6 +43,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -856,10 +857,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 							targetElements: [this],
 							dispose: () => { }
 						};
-						hoverOptions = { text: tooltip, target };
+						hoverOptions = { text: tooltip, target, anchorPosition: AnchorPosition.BELOW };
 					}
 					if (mouseX !== undefined) {
-						(<IHoverTarget>hoverOptions.target).x = mouseX;
+						(<IHoverTarget>hoverOptions.target).x = mouseX + 10;
 					}
 					hoverService.showHover(hoverOptions);
 				}

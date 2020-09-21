@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockDebugAdapter } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 import { timeout } from 'vs/base/common/async';
 
 suite('Debug - AbstractDebugAdapter', () => {

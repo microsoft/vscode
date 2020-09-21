@@ -448,7 +448,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: {
 		transientOutputs: boolean;
 		transientMetadata: TransientMetadata;
-		viewOptions?: { displayName: string; filenamePattern: string | IRelativePattern | INotebookExclusiveDocumentFilter; exclusive: boolean; };
+		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	}): Promise<void> {
 		const controller: IMainNotebookController = {
 			supportBackup,

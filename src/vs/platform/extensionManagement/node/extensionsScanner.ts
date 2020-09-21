@@ -13,7 +13,7 @@ import { ExtensionType, IExtensionManifest, IExtensionIdentifier } from 'vs/plat
 import { areSameExtensions, ExtensionIdentifierWithVersion, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Limiter, Queue } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
@@ -43,7 +43,7 @@ export class ExtensionsScanner extends Disposable {
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
