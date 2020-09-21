@@ -21,6 +21,9 @@ interface IRenderedEditorLabel {
 }
 
 export class NoTabsTitleControl extends TitleControl {
+
+	private static readonly HEIGHT = 35;
+
 	private titleContainer: HTMLElement | undefined;
 	private editorLabel: IResourceLabel | undefined;
 	private activeLabel: IRenderedEditorLabel = Object.create(null);
@@ -110,10 +113,6 @@ export class NoTabsTitleControl extends TitleControl {
 		// editorGroupView will focus on the editor again when there are mouse/pointer/touch down events
 		// we need to wait a bit as `GesureEvent.Tap` is generated from `touchstart` and then `touchend` evnets, which are not an atom event.
 		setTimeout(() => this.quickInputService.quickAccess.show(), 50);
-	}
-
-	getPreferredHeight(): number {
-		return this.group.titleHeight;
 	}
 
 	openEditor(editor: IEditorInput): void {
@@ -314,6 +313,10 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Group inactive: only show close action
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
+	}
+
+	getPreferredHeight(): number {
+		return NoTabsTitleControl.HEIGHT;
 	}
 
 	layout(dimension: Dimension): void {

@@ -16,8 +16,6 @@ import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
-export const EDITOR_TITLE_HEIGHT = 35;
-
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
 }

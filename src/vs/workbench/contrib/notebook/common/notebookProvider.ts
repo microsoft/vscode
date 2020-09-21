@@ -54,7 +54,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	}
 
 	matches(resource: URI): boolean {
-		return this.selectors.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
+		return this.selectors?.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
 	}
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
