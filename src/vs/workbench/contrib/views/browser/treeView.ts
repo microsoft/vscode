@@ -164,6 +164,7 @@ export class TreeView extends Disposable implements ITreeView {
 		}
 
 		if (dataProvider) {
+			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				private _isEmpty: boolean = true;
 				private _onDidChangeEmpty: Emitter<void> = new Emitter();
@@ -173,11 +174,12 @@ export class TreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					let children: ITreeItem[];
 					if (node && node.children) {
 						children = node.children;
 					} else {
+						node = node ?? self.root;
 						children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
 						node.children = children;
 					}
