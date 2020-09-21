@@ -2506,7 +2506,14 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await this.getStashMessage(repository.inputBox.value));
+		let defaultStashMessage: string;
+		const commitTemplate = repository.sourceControl.commitTemplate;
+		if (commitTemplate === undefined) {
+			defaultStashMessage = repository.inputBox.value;
+		} else {
+			defaultStashMessage = repository.inputBox.value.replace(commitTemplate, '');
+		}
+		const message = await this.getStashMessage(defaultStashMessage);
 
 		if (typeof message === 'undefined') {
 			return;
@@ -2515,9 +2522,9 @@ export class CommandCenter {
 		await repository.createStash(message, includeUntracked);
 	}
 
-	private async getStashMessage(message: string): Promise<string | undefined> {
+	private async getStashMessage(defaultStashMessage: string): Promise<string | undefined> {
 		return await window.showInputBox({
-			value: message,
+			value: defaultStashMessage,
 			prompt: localize('provide stash message', "Optionally provide a stash message"),
 			placeHolder: localize('stash message', "Stash message")
 		});
