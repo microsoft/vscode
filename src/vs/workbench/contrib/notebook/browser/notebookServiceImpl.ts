@@ -560,9 +560,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			await this._extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
-
-			// TODO@jrieken deprecated, remove this
-			await this._extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
 		}
 		return this._notebookProviders.has(viewType);
 	}
