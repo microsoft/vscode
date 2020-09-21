@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.50.0",
-  "distro": "adae9f8fbaaab615a6f3b965732f2a871c3143a4",
+  "distro": "d8b93c2c95b2eafe8cf400363793498205b5da08",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -48,7 +48,6 @@
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
-    "vscode-encrypt": "https://github.com/microsoft/vscode-encrypt.git#4aa2f6f993b808baaff2ca7423c0630cfe3987ec",
     "chokidar": "3.4.2",
     "graceful-fs": "4.2.3",
     "http-proxy-agent": "^2.1.0",

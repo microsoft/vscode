@@ -18,12 +18,20 @@ export class EncryptionMainService implements ICommonEncryptionService {
 	}
 
 	async encrypt(value: string): Promise<string> {
-		const encryption = await import('vscode-encrypt');
-		return encryption.encrypt(this.machineId, value);
+		try {
+			const encryption = await require('vscode-encrypt');
+			return encryption.encrypt(this.machineId, value);
+		} catch (_) {
+			return value;
+		}
 	}
 
 	async decrypt(value: string): Promise<string> {
-		const encryption = await import('vscode-encrypt');
-		return encryption.decrypt(this.machineId, value);
+		try {
+			const encryption = await require('vscode-encrypt');
+			return encryption.decrypt(this.machineId, value);
+		} catch (_) {
+			return value;
+		}
 	}
 }
