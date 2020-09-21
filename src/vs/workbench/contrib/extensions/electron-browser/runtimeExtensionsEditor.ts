@@ -23,7 +23,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
@@ -127,7 +127,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IProductService private readonly _productService: IProductService,
-		@IElectronService private readonly _electronService: IElectronService
+		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -353,7 +353,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService, this._electronService), { icon: true, label: true });
+					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService, this._nativeHostService), { icon: true, label: true });
 				}
 
 				let title: string;
@@ -468,7 +468,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 
 			const actions: IAction[] = [];
 
-			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService, this._electronService));
+			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService, this._nativeHostService));
 			actions.push(new Separator());
 
 			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
@@ -535,7 +535,7 @@ export class ReportExtensionIssueAction extends Action {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IProductService private readonly productService: IProductService,
-		@IElectronService private readonly electronService: IElectronService
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
@@ -568,7 +568,7 @@ export class ReportExtensionIssueAction extends Action {
 		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
 		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 
-		const os = await this.electronService.getOSProperties();
+		const os = await this.nativeHostService.getOSProperties();
 		const osVersion = `${os.type} ${os.arch} ${os.release}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
@@ -590,7 +590,7 @@ export class DebugExtensionHostAction extends Action {
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService
@@ -610,7 +610,7 @@ export class DebugExtensionHostAction extends Action {
 				secondaryButton: nls.localize('cancel', "Cancel")
 			});
 			if (res.confirmed) {
-				await this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				await this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 			}
 
 			return;
@@ -666,7 +666,7 @@ export class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 		@IFileService private readonly _fileService: IFileService
@@ -682,7 +682,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._electronService.showSaveDialog({
+		let picked = await this._nativeHostService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,

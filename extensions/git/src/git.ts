@@ -1887,7 +1887,7 @@ export class Repository {
 				remote.pushUrl = url;
 			}
 
-			// https://github.com/Microsoft/vscode/issues/45271
+			// https://github.com/microsoft/vscode/issues/45271
 			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
 		}
 

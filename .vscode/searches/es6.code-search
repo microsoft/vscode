@@ -4,7 +4,7 @@
 
 10 results - 2 files
 
-monaco • src/vs/base/browser/dom.ts:
+src/vs/base/browser/dom.ts:
   83  };
   84  
   85: /** @deprecated ES6 - use classList*/
@@ -21,7 +21,7 @@ monaco • src/vs/base/browser/dom.ts:
   96  export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
   97  
 
-monaco • src/vs/base/common/strings.ts:
+src/vs/base/common/strings.ts:
    15  
    16  /**
    17:  * @deprecated ES6: use `String.padStart`

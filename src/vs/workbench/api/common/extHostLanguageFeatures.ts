@@ -413,7 +413,8 @@ class CodeActionAdapter {
 			this._disposables.set(cacheId, disposables);
 
 			const actions: CustomCodeAction[] = [];
-			for (const candidate of commandsOrActions) {
+			for (let i = 0; i < commandsOrActions.length; i++) {
+				const candidate = commandsOrActions[i];
 				if (!candidate) {
 					continue;
 				}
@@ -439,6 +440,7 @@ class CodeActionAdapter {
 
 					// new school: convert code action
 					actions.push({
+						cacheId: [cacheId, i],
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command, disposables),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
@@ -452,6 +454,21 @@ class CodeActionAdapter {
 
 			return { cacheId, actions };
 		});
+	}
+
+	public async resolveCodeAction(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+		const [sessionId, itemId] = id;
+		const item = this._cache.get(sessionId, itemId);
+		if (!item || CodeActionAdapter._isCommand(item)) {
+			return undefined; // code actions only!
+		}
+		if (!this._provider.resolveCodeAction) {
+			return; // this should not happen...
+		}
+		const resolvedItem = (await this._provider.resolveCodeAction(item, token)) ?? item;
+		return resolvedItem?.edit
+			? typeConvert.WorkspaceEdit.from(resolvedItem.edit)
+			: undefined;
 	}
 
 	public releaseCodeActions(cachedId: number): void {
@@ -1595,7 +1612,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension));
+		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
 		store.add(this._createDisposable(handle));
 		return store;
 	}
@@ -1603,6 +1620,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<extHostProtocol.ICodeActionListDto | undefined> {
 		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context, token), undefined);
+	}
+
+	$resolveCodeAction(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.resolveCodeAction(id, token), undefined);
 	}
 
 	$releaseCodeActions(handle: number, cacheId: number): void {

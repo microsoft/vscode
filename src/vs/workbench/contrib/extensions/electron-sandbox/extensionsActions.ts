@@ -7,9 +7,8 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Schemas } from 'vs/base/common/network';
 
 export class OpenExtensionsFolderAction extends Action {
@@ -20,9 +19,9 @@ export class OpenExtensionsFolderAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IFileService private readonly fileService: IFileService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(id, label, undefined, true);
 	}
@@ -40,7 +39,7 @@ export class OpenExtensionsFolderAction extends Action {
 			}
 
 			if (itemToShow.scheme === Schemas.file) {
-				return this.electronService.showItemInFolder(itemToShow.fsPath);
+				return this.nativeHostService.showItemInFolder(itemToShow.fsPath);
 			}
 		}
 	}

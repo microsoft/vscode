@@ -375,9 +375,9 @@ export class StackFrame implements IStackFrame {
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	async openInEditor(editorService: IEditorService, uriIdentityService: IUriIdentityService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
+	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
 		if (this.source.available) {
-			return this.source.openInEditor(editorService, uriIdentityService, this.range, preserveFocus, sideBySide, pinned);
+			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 		}
 		return undefined;
 	}
@@ -428,7 +428,7 @@ export class Thread implements IThread {
 	get stateLabel(): string {
 		if (this.stoppedDetails) {
 			return this.stoppedDetails.description ||
-				this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused");
+				(this.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", this.stoppedDetails.reason) : nls.localize('paused', "Paused"));
 		}
 
 		return nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
@@ -662,7 +662,8 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		hitCondition: string | undefined,
 		logMessage: string | undefined,
 		private _adapterData: any,
-		private textFileService: ITextFileService,
+		private readonly textFileService: ITextFileService,
+		private readonly uriIdentityService: IUriIdentityService,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
@@ -681,7 +682,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	get uri(): uri {
-		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId) : this._uri;
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId, this.uriIdentityService) : this._uri;
 	}
 
 	get column(): number | undefined {
@@ -888,7 +889,8 @@ export class DebugModel implements IDebugModel {
 
 	constructor(
 		debugStorage: DebugStorage,
-		@ITextFileService private readonly textFileService: ITextFileService
+		@ITextFileService private readonly textFileService: ITextFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.breakpoints = debugStorage.loadBreakpoints();
 		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
@@ -1070,7 +1072,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
-		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, rawBp.id));
+		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled === false ? false : true, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, this.textFileService, this.uriIdentityService, rawBp.id));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();

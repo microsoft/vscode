@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -64,11 +64,13 @@ export class TabsTitleControl extends TitleControl {
 		large: 10
 	};
 
-	private static readonly TAB_SIZES = {
+	private static readonly TAB_WIDTH = {
 		compact: 38,
 		shrink: 80,
 		fit: 120
 	};
+
+	private static readonly TAB_HEIGHT = 35;
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
@@ -238,7 +240,7 @@ export class TabsTitleControl extends TitleControl {
 			}));
 		});
 
-		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault();
@@ -254,7 +256,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if the target is not on the tabs container
 				if (e.target !== tabsContainer) {
-					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
+					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/microsoft/vscode/issues/52093
 					return;
 				}
 
@@ -509,6 +511,11 @@ export class TabsTitleControl extends TitleControl {
 			this.computeTabLabels();
 		}
 
+		// Update tabs scrollbar sizing
+		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
+			this.updateTabsScrollbarSizing();
+		}
+
 		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
@@ -520,11 +527,6 @@ export class TabsTitleControl extends TitleControl {
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs
 		) {
 			this.redraw();
-		}
-
-		// Udate tabs scrollbar sizing
-		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
-			this.updateTabsScrollbarSizing();
 		}
 	}
 
@@ -610,7 +612,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
 				return undefined; // only for left mouse click
@@ -657,7 +659,7 @@ export class TabsTitleControl extends TitleControl {
 		// Close on mouse middle click
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
 			if (e.button === 1 /* Middle Button*/) {
-				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
 				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
@@ -748,7 +750,7 @@ export class TabsTitleControl extends TitleControl {
 			if (input) {
 				this.onContextMenu(input, e, tab);
 			}
-		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
+		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
 		// Drag support
 		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
@@ -766,7 +768,7 @@ export class TabsTitleControl extends TitleControl {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.doFillResourceDataTransfers(editor, e);
 
-			// Fixes https://github.com/Microsoft/vscode/issues/18733
+			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
 			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
 		}));
@@ -857,7 +859,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-			return true; // optimistically allow external data (// see https://github.com/Microsoft/vscode/issues/25789)
+			return true; // optimistically allow external data (// see https://github.com/microsoft/vscode/issues/25789)
 		}
 
 		return false;
@@ -1055,8 +1057,8 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.classList.remove('has-icon');
 		}
 
-		['compact', 'shrink', 'normal'].forEach(option => {
-			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && !!options.pinnedTabSizing);
+		['normal', 'compact', 'shrink'].forEach(option => {
+			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		});
 
 		// Sticky compact/shrink tabs need a position to remain at their location
@@ -1065,10 +1067,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1221,7 +1223,12 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+		let height = TabsTitleControl.TAB_HEIGHT;
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			height += BreadcrumbsControl.HEIGHT;
+		}
+
+		return height;
 	}
 
 	layout(dimension: Dimension | undefined): void {
@@ -1299,10 +1306,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (this.accessor.partOptions.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1314,7 +1321,7 @@ export class TabsTitleControl extends TitleControl {
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
-		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_SIZES.fit) {
+		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
 			tabsContainer.classList.add('disable-sticky-tabs');
 
 			availableTabsContainerWidth = visibleTabsContainerWidth;

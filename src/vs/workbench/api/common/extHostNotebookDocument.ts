@@ -236,6 +236,7 @@ export class ExtHostNotebookDocument extends Disposable {
 		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _viewType: string,
+		private readonly _contentOptions: vscode.NotebookDocumentContentOptions,
 		metadata: Required<vscode.NotebookDocumentMetadata>,
 		public readonly uri: URI,
 		private readonly _storagePath: URI | undefined
@@ -301,6 +302,7 @@ export class ExtHostNotebookDocument extends Disposable {
 				set languages(value: string[]) { that._trySetLanguages(value); },
 				get metadata() { return that._metadata; },
 				set metadata(value: Required<vscode.NotebookDocumentMetadata>) { that._updateMetadata(value); },
+				get contentOptions() { return that._contentOptions; }
 			});
 		}
 		return this._notebook;

@@ -235,6 +235,14 @@ interface IProductQualityChangeHandler {
 	(newQuality: 'insider' | 'stable'): void;
 }
 
+interface ISettingsSyncEnablementHandler {
+
+	/**
+	 * Handler is being called when the user changes Settings Sync enablement.
+	 */
+	(enablement: boolean): void;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -309,8 +317,20 @@ interface IWorkbenchConstructionOptions {
 	 * Enables Settings Sync by default.
 	 *
 	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
+	 *
+	 * @deprecated Instead use [enableSettingsSync](#enableSettingsSync) to enable/disable settings sync in the workbench.
 	 */
 	readonly enableSyncByDefault?: boolean;
+
+	/**
+	 * Enable or disable the Settings Sync
+	 */
+	readonly enableSettingsSync?: boolean;
+
+	/**
+	 * Support for Settings Sync enablement change
+	 */
+	readonly settingsSyncEnablementHandler?: ISettingsSyncEnablementHandler;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.

@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService, TestEncodingOracle, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { NativeTextFileService, } from 'vs/workbench/services/textfile/electron-browser/nativeTextFileService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { FileOperationError, IFileService } from 'vs/platform/files/common/files';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IDialogService, IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
@@ -40,8 +39,9 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IOSProperties, IOSStatistics } from 'vs/platform/electron/common/electron';
+import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { homedir } from 'os';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
@@ -58,7 +58,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	...parseArgs(process.argv, OPTIONS)
 };
 
-export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration);
+export const TestEnvironmentService = new NativeWorkbenchEnvironmentService(TestWorkbenchConfiguration, TestProductService);
 
 export class TestTextFileService extends NativeTextFileService {
 	private resolveTextContentError!: FileOperationError | null;
@@ -69,7 +69,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
-		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -81,7 +81,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@INativeHostService nativeHostService: INativeHostService
 	) {
 		super(
 			fileService,
@@ -93,15 +94,14 @@ export class TestTextFileService extends NativeTextFileService {
 			dialogService,
 			fileDialogService,
 			textResourceConfigurationService,
-			productService,
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
 			athService,
 			workingCopyFileService,
-			logService,
 			uriIdentityService,
-			modeService
+			modeService,
+			nativeHostService
 		);
 	}
 
@@ -155,7 +155,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 	async whenSharedProcessReady(): Promise<void> { }
 }
 
-export class TestElectronService implements IElectronService {
+export class TestNativeHostService implements INativeHostService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -198,6 +198,7 @@ export class TestElectronService implements IElectronService {
 	async showItemInFolder(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
+	async writeElevated(source: URI, target: URI, options?: { overwriteReadonly?: boolean | undefined; }): Promise<void> { }
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
@@ -230,6 +231,7 @@ export class TestElectronService implements IElectronService {
 	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
+	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {
@@ -238,7 +240,8 @@ export function workbenchInstantiationService(): ITestInstantiationService {
 		pathService: insta => <IPathService>insta.createInstance(TestNativePathService)
 	});
 
-	instantiationService.stub(IElectronService, new TestElectronService());
+	instantiationService.stub(INativeHostService, new TestNativeHostService());
+	instantiationService.stub(INativeWorkbenchEnvironmentService, TestEnvironmentService);
 
 	return instantiationService;
 }
@@ -251,7 +254,7 @@ export class TestServiceAccessor {
 		@IWorkspaceContextService public contextService: TestContextService,
 		@IModelService public modelService: ModelServiceImpl,
 		@IFileService public fileService: TestFileService,
-		@IElectronService public electronService: TestElectronService,
+		@INativeHostService public nativeHostService: TestNativeHostService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
 		@IBackupFileService public backupFileService: NodeTestBackupFileService,
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
@@ -264,7 +267,7 @@ export class TestNativePathService extends TestPathService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
-		super(environmentService.userHome);
+	constructor() {
+		super(URI.file(homedir()));
 	}
 }

@@ -25,6 +25,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -50,6 +51,10 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	private _instantiationService: IInstantiationService;
 	protected get instantiationService(): IInstantiationService { return this._instantiationService; }
 	protected set instantiationService(value: IInstantiationService) { this._instantiationService = value; }
+
+	get scopedContextKeyService(): IContextKeyService | undefined {
+		return isCodeEditor(this.editorControl) ? this.editorControl.invokeWithinContext(accessor => accessor.get(IContextKeyService)) : undefined;
+	}
 
 	constructor(
 		id: string,

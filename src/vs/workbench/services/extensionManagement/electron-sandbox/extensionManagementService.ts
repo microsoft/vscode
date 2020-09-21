@@ -13,7 +13,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDownloadService } from 'vs/platform/download/common/download';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { joinPath } from 'vs/base/common/resources';
 
@@ -25,7 +24,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@IDownloadService downloadService: IDownloadService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService);
 	}

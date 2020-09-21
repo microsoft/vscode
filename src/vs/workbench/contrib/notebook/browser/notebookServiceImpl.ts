@@ -116,12 +116,14 @@ export class NotebookProviderInfoStore extends Disposable {
 				this.add(new NotebookProviderInfo({
 					id: notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
-					selector: notebookContribution.selector || [],
+					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
 					providerExtensionId: extension.description.identifier.value,
 					providerDescription: extension.description.description,
 					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
-					providerExtensionLocation: extension.description.extensionLocation
+					providerExtensionLocation: extension.description.extensionLocation,
+					dynamicContribution: false,
+					exclusive: false
 				}));
 			}
 		}
@@ -175,6 +177,10 @@ export class NotebookProviderInfoStore extends Disposable {
 			return;
 		}
 		this._contributedEditors.set(info.id, info);
+
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+		this._memento.saveMemento();
 	}
 
 	getContributedNotebook(resource: URI): readonly NotebookProviderInfo[] {
@@ -550,18 +556,39 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		if (!this._notebookProviders.has(viewType)) {
 			await this._extensionService.whenInstalledExtensionsRegistered();
 			// notebook providers/kernels/renderers might use `*` as activation event.
+			// TODO, only activate by `*` if this._notebookProviders.get(viewType).dynamicContribution === true
 			await this._extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
-
-			// TODO@jrieken deprecated, remove this
-			await this._extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
 		}
 		return this._notebookProviders.has(viewType);
 	}
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): IDisposable {
 		this._notebookProviders.set(viewType, { extensionData, controller });
+
+		if (controller.viewOptions && !this.notebookProviderInfoStore.get(viewType)) {
+			// register this content provider to the static contribution, if it does not exist
+			const info = new NotebookProviderInfo({
+				displayName: controller.viewOptions.displayName,
+				id: viewType,
+				priority: NotebookEditorPriority.default,
+				selectors: [],
+				providerExtensionId: extensionData.id.value,
+				providerDescription: extensionData.description,
+				providerDisplayName: extensionData.id.value,
+				providerExtensionLocation: URI.revive(extensionData.location),
+				dynamicContribution: true,
+				exclusive: controller.viewOptions.exclusive
+			});
+
+			info.update({ selectors: controller.viewOptions.filenamePattern });
+			info.update({ options: controller.options });
+			this.notebookProviderInfoStore.add(info);
+		}
+
+		this.notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
+
 		this._onDidChangeViewTypes.fire();
 		return toDisposable(() => {
 			this._notebookProviders.delete(viewType);
@@ -785,8 +812,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 
-	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[] {
-		return this.notebookProviderInfoStore.getContributedNotebook(resource);
+	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[] {
+		if (resource) {
+			return this.notebookProviderInfoStore.getContributedNotebook(resource);
+		}
+
+		return [...this.notebookProviderInfoStore];
 	}
 
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined {

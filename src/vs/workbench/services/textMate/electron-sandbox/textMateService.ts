@@ -15,7 +15,7 @@ import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webW
 import { IModelService } from 'vs/editor/common/services/modelService';
 import type { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
-import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
+import { TextMateWorker } from 'vs/workbench/services/textMate/electron-sandbox/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { UriComponents, URI } from 'vs/base/common/uri';

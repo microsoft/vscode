@@ -19,7 +19,6 @@ import { WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/w
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { join } from 'vs/base/common/path';
 import { equals } from 'vs/base/common/objects';
-import { Schemas } from 'vs/base/common/network';
 import { IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { hash } from 'vs/base/common/hash';
@@ -402,11 +401,10 @@ export class WorkspaceConfiguration extends Disposable {
 	private readonly _onDidUpdateConfiguration: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidUpdateConfiguration: Event<void> = this._onDidUpdateConfiguration.event;
 
-	private _loaded: boolean = false;
-	get loaded(): boolean { return this._loaded; }
-
+	private _initialized: boolean = false;
+	get initialized(): boolean { return this._initialized; }
 	constructor(
-		configurationCache: IConfigurationCache,
+		private readonly configurationCache: IConfigurationCache,
 		fileService: IFileService
 	) {
 		super();
@@ -414,21 +412,23 @@ export class WorkspaceConfiguration extends Disposable {
 		this._workspaceConfiguration = this._cachedConfiguration = new CachedWorkspaceConfiguration(configurationCache);
 	}
 
-	async load(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+	async initialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		this._workspaceIdentifier = workspaceIdentifier;
-		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
-			if (this._workspaceIdentifier.configPath.scheme === Schemas.file) {
-				this.switch(new FileServiceBasedWorkspaceConfiguration(this._fileService));
+		if (!this._initialized) {
+			if (this.configurationCache.needsCaching(this._workspaceIdentifier.configPath)) {
+				this._workspaceConfiguration = this._cachedConfiguration;
+				this.waitAndInitialize(this._workspaceIdentifier);
 			} else {
-				this.waitAndSwitch(this._workspaceIdentifier);
+				this.doInitialize(new FileServiceBasedWorkspaceConfiguration(this._fileService));
 			}
 		}
-		this._loaded = this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration;
-		await this._workspaceConfiguration.load(this._workspaceIdentifier);
+		await this.reload();
 	}
 
-	reload(): Promise<void> {
-		return this._workspaceIdentifier ? this.load(this._workspaceIdentifier) : Promise.resolve();
+	async reload(): Promise<void> {
+		if (this._workspaceIdentifier) {
+			await this._workspaceConfiguration.load(this._workspaceIdentifier);
+		}
 	}
 
 	getFolders(): IStoredWorkspaceFolder[] {
@@ -452,22 +452,22 @@ export class WorkspaceConfiguration extends Disposable {
 		return this.getConfiguration();
 	}
 
-	private async waitAndSwitch(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
+	private async waitAndInitialize(workspaceIdentifier: IWorkspaceIdentifier): Promise<void> {
 		await whenProviderRegistered(workspaceIdentifier.configPath, this._fileService);
 		if (!(this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration)) {
 			const fileServiceBasedWorkspaceConfiguration = this._register(new FileServiceBasedWorkspaceConfiguration(this._fileService));
 			await fileServiceBasedWorkspaceConfiguration.load(workspaceIdentifier);
-			this.switch(fileServiceBasedWorkspaceConfiguration);
-			this._loaded = true;
+			this.doInitialize(fileServiceBasedWorkspaceConfiguration);
 			this.onDidWorkspaceConfigurationChange(false);
 		}
 	}
 
-	private switch(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
+	private doInitialize(fileServiceBasedWorkspaceConfiguration: FileServiceBasedWorkspaceConfiguration): void {
 		this._workspaceConfiguration.dispose();
 		this._workspaceConfigurationChangeDisposable.dispose();
 		this._workspaceConfiguration = this._register(fileServiceBasedWorkspaceConfiguration);
 		this._workspaceConfigurationChangeDisposable = this._register(this._workspaceConfiguration.onDidChange(e => this.onDidWorkspaceConfigurationChange(true)));
+		this._initialized = true;
 	}
 
 	private async onDidWorkspaceConfigurationChange(reload: boolean): Promise<void> {
@@ -479,7 +479,7 @@ export class WorkspaceConfiguration extends Disposable {
 	}
 
 	private updateCache(): Promise<void> {
-		if (this._workspaceIdentifier && this._workspaceIdentifier.configPath.scheme !== Schemas.file && this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration) {
+		if (this._workspaceIdentifier && this.configurationCache.needsCaching(this._workspaceIdentifier.configPath) && this._workspaceConfiguration instanceof FileServiceBasedWorkspaceConfiguration) {
 			return this._workspaceConfiguration.load(this._workspaceIdentifier)
 				.then(() => this._cachedConfiguration.updateWorkspace(this._workspaceIdentifier!, this._workspaceConfiguration.getConfigurationModel()));
 		}
@@ -720,16 +720,14 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 		configFolderRelativePath: string,
 		private readonly workbenchState: WorkbenchState,
 		fileService: IFileService,
-		configurationCache: IConfigurationCache
+		private readonly configurationCache: IConfigurationCache
 	) {
 		super();
 
 		this.configurationFolder = resources.joinPath(workspaceFolder.uri, configFolderRelativePath);
-		this.folderConfiguration = this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, configurationCache);
-		if (workspaceFolder.uri.scheme === Schemas.file) {
-			this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService);
-			this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
-		} else {
+		this.cachedFolderConfiguration = new CachedFolderConfiguration(workspaceFolder.uri, configFolderRelativePath, configurationCache);
+		if (this.configurationCache.needsCaching(workspaceFolder.uri)) {
+			this.folderConfiguration = this.cachedFolderConfiguration;
 			whenProviderRegistered(workspaceFolder.uri, fileService)
 				.then(() => {
 					this.folderConfiguration.dispose();
@@ -738,6 +736,9 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 					this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 					this.onDidFolderConfigurationChange();
 				});
+		} else {
+			this.folderConfiguration = this.createFileServiceBasedConfiguration(fileService);
+			this.folderConfigurationDisposable = this._register(this.folderConfiguration.onDidChange(e => this.onDidFolderConfigurationChange()));
 		}
 	}
 
@@ -761,7 +762,7 @@ export class FolderConfiguration extends Disposable implements IFolderConfigurat
 	}
 
 	private updateCache(): Promise<void> {
-		if (this.configurationFolder.scheme !== Schemas.file && this.folderConfiguration instanceof FileServiceBasedConfiguration) {
+		if (this.configurationCache.needsCaching(this.configurationFolder) && this.folderConfiguration instanceof FileServiceBasedConfiguration) {
 			return this.folderConfiguration.loadConfiguration()
 				.then(configurationModel => this.cachedFolderConfiguration.updateConfiguration(configurationModel));
 		}

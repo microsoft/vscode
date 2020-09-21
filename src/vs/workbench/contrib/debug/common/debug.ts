@@ -25,7 +25,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -348,7 +347,7 @@ export interface IStackFrame extends ITreeElement {
 	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
-	openInEditor(editorService: IEditorService, uriIdentityService: IUriIdentityService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditorPane | undefined>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): Promise<ITextEditorPane | undefined>;
 	equals(other: IStackFrame): boolean;
 }
 
@@ -438,12 +437,14 @@ export interface IViewModel extends ITreeElement {
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
 	setSelectedExpression(expression: IExpression | undefined): void;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
+	updateViews(): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression | undefined>;
+	onWillUpdateViews: Event<void>;
 }
 
 export interface IEvaluate {
@@ -803,7 +804,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): Promise<IBreakpoint[]>;
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string, ariaAnnounce?: boolean): Promise<IBreakpoint[]>;
 
 	/**
 	 * Updates the breakpoints.

@@ -60,7 +60,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				if (!fileResource) {
 					return undefined;
 				}
-				return this.labelService.getUriLabel(fileResource);
+				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;

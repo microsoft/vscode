@@ -109,7 +109,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 			interval: pollingInterval, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
 			binaryInterval: pollingInterval,
 			usePolling: usePolling,
-			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
+			disableGlobbing: true // fix https://github.com/microsoft/vscode/issues/4586
 		};
 
 		const excludes: string[] = [];
@@ -269,7 +269,7 @@ export class ChokidarWatcherService extends Disposable implements IWatcherServic
 				// the watcher consumes so many file descriptors that
 				// we are running into a limit. We only want to warn
 				// once in this case to avoid log spam.
-				// See https://github.com/Microsoft/vscode/issues/7950
+				// See https://github.com/microsoft/vscode/issues/7950
 				if (error.code === 'ENOSPC') {
 					if (!this.enospcErrorLogged) {
 						this.enospcErrorLogged = true;

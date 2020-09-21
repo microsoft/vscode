@@ -52,7 +52,8 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
-			defaultUri: this.fileDialogService.defaultWorkspacePath()
+			defaultUri: this.fileDialogService.defaultWorkspacePath(),
+			availableFileSystems: this.environmentService.configuration.remoteAuthority ? [Schemas.vscodeRemote] : undefined
 		});
 
 		if (!workspacePath) {

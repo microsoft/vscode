@@ -1137,6 +1137,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private hide(): void {
+		// let the editor know that the widget is hidden
+		this.editor.layoutContentWidget(this);
 		this.ctxSuggestWidgetVisible.reset();
 		this.ctxSuggestWidgetMultipleSuggestions.reset();
 		this.element.classList.remove('visible');

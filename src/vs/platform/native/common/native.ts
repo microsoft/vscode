@@ -9,6 +9,7 @@ import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOpt
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { URI } from 'vs/base/common/uri';
 
 export interface ICPUProperties {
 	model: string;
@@ -29,7 +30,7 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
-export interface ICommonElectronService {
+export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
 
@@ -91,9 +92,10 @@ export interface ICommonElectronService {
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
-	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
+
 	isAdmin(): Promise<boolean>;
+	writeElevated(source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
@@ -102,7 +104,7 @@ export interface ICommonElectronService {
 	// Process
 	killProcess(pid: number, code: string): Promise<void>;
 
-	// clipboard
+	// Clipboard
 	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
 	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardFindText(): Promise<string>;
@@ -118,6 +120,7 @@ export interface ICommonElectronService {
 	moveWindowTabToNewWindow(): Promise<void>;
 	mergeAllWindowTabs(): Promise<void>;
 	toggleWindowTabsBar(): Promise<void>;
+	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
 	// Lifecycle
 	notifyReady(): Promise<void>
@@ -135,4 +138,7 @@ export interface ICommonElectronService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
+
+	// Registry (windows only)
+	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -11,7 +11,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/edi
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
-import { getAuthenticationProviderActivationEvent, getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -29,8 +29,6 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isNative } from 'vs/base/common/platform';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 type UserAccountClassification = {
@@ -108,7 +106,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IHostService private readonly hostService: IHostService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -137,23 +134,22 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async waitAndInitialize(): Promise<void> {
+		/* wait */
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		this.updateAuthenticationProviders();
-
-		/* activate unregistered providers */
-		const unregisteredProviders = this.authenticationProviders.filter(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id));
-		if (unregisteredProviders.length) {
-			await Promise.all(unregisteredProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
-		}
-
-		/* wait until all providers are registered */
-		if (this.authenticationProviders.some(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id))) {
-			await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, () => this.authenticationProviders.every(({ id }) => this.authenticationService.isAuthenticationProviderRegistered(id))));
-		}
-
 		/* initialize */
-		await this.initialize();
+		try {
+			this.logService.trace('Settings Sync: Initializing accounts');
+			await this.initialize();
+		} catch (error) {
+			this.logService.error(error);
+		}
+
+		if (this.accountStatus === AccountStatus.Uninitialized) {
+			this.logService.warn('Settings Sync: Accounts are not initialized');
+		} else {
+			this.logService.trace('Settings Sync: Accounts are initialized');
+		}
 	}
 
 	private async initialize(): Promise<void> {
@@ -188,8 +184,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
 		for (const { id } of this.authenticationProviders) {
+			this.logService.trace('Settings Sync: Getting accounts for', id);
 			const accounts = await this.getAccounts(id);
 			allAccounts.set(id, accounts);
+			this.logService.trace('Settings Sync: Updated accounts for', id);
 		}
 
 		this._all = allAccounts;
@@ -237,7 +235,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.debug('Sync account status changed', previous, accountStatus);
+			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -444,29 +442,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
 	}
 
-	async switchSyncService(type: UserDataSyncStoreType): Promise<void> {
-		if (!this.userDataSyncStoreManagementService.userDataSyncStore
-			|| !this.userDataSyncStoreManagementService.userDataSyncStore.canSwitch) {
-			return;
-		}
-		await this.userDataSyncStoreManagementService.switch(type);
-		const res = await this.dialogService.confirm({
-			type: 'info',
-			message: isNative ?
-				localize('relaunchMessage', "Switching settings sync service requires a restart to take effect.") :
-				localize('relaunchMessageWeb', "Switching settings sync service requires a reload to take effect."),
-			detail: isNative ?
-				localize('relaunchDetail', "Press the restart button to restart {0} and switch.", this.productService.nameLong) :
-				localize('relaunchDetailWeb', "Press the reload button to reload {0} and switch.", this.productService.nameLong),
-			primaryButton: isNative ?
-				localize('restart', "&&Restart") :
-				localize('restartWeb', "&&Reload"),
-		});
-		if (res.confirmed) {
-			this.hostService.restart();
-		}
-	}
-
 	private async waitForActiveSyncViews(): Promise<void> {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(SYNC_VIEW_CONTAINER_ID);
 		if (viewContainer) {
@@ -525,7 +500,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 			quickPick.title = SYNC_TITLE;
 			quickPick.ok = false;
-			quickPick.placeholder = localize('choose account placeholder', "Select an account");
+			quickPick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 			quickPick.ignoreFocusOut = true;
 			quickPick.items = this.createQuickpickItems();
 

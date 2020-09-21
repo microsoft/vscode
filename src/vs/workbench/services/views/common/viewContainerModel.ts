@@ -16,6 +16,8 @@ import { move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 
+export function getViewsStateStorageId(viewContainerStorageId: string): string { return `${viewContainerStorageId}.hidden`; }
+
 class CounterSet<T> implements IReadableSet<T> {
 
 	private map = new Map<T, number>();
@@ -86,7 +88,7 @@ class ViewDescriptorsState extends Disposable {
 	) {
 		super();
 
-		this.globalViewsStateStorageId = `${viewContainerStorageId}.hidden`;
+		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
 		storageKeysSyncRegistryService.registerStorageKey({ key: this.globalViewsStateStorageId, version: 1 });
 		this._register(this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e)));

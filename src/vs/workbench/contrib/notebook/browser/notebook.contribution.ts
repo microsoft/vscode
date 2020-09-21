@@ -31,7 +31,6 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/noteb
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -201,10 +200,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	NotebookDiffEditorFactory
 );
 
-function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
-	return notebookService.getContributedNotebookProviders(uri)[0];
-}
-
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -349,7 +344,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const infos = this.notebookService.getContributedNotebookProviders(notebookUri);
-		let info = infos.find(info => !id || info.id === id);
+		let info = infos.find(info => (!id || info.id === id) && info.exclusive) || infos.find(info => !id || info.id === id);
 
 		if (!info && id !== undefined) {
 			info = this.notebookService.getContributedNotebookProvider(id);
@@ -426,7 +421,6 @@ class CellContentProvider implements ITextModelContentProvider {
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
 		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
@@ -447,19 +441,7 @@ class CellContentProvider implements ITextModelContentProvider {
 			return null;
 		}
 
-		const documentAlreadyOpened = this._notebookService.listNotebookDocuments().find(document => document.uri.toString() === data.notebook.toString());
-		let viewType = documentAlreadyOpened?.viewType;
-
-		if (!viewType) {
-			const info = getFirstNotebookInfo(this._notebookService, data.notebook);
-			viewType = info?.id;
-		}
-
-		if (!viewType) {
-			return null;
-		}
-
-		const ref = await this._notebookModelResolverService.resolve(data.notebook, viewType);
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
 		for (const cell of ref.object.notebook.cells) {

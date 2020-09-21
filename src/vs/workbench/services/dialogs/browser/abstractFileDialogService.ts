@@ -78,7 +78,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && !isUntitledWorkspace(configuration, this.environmentService)) {
+			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
 				return resources.dirname(configuration) || undefined;
 			}
 		}

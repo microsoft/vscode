@@ -158,6 +158,7 @@ export type UserDataSyncStoreType = 'insiders' | 'stable';
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
 export interface IUserDataSyncStoreManagementService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeUserDataSyncStore: Event<void>;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	switch(type: UserDataSyncStoreType): Promise<void>;
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;

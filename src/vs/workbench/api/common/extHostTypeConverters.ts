@@ -1329,6 +1329,24 @@ export namespace NotebookExclusiveDocumentPattern {
 
 	}
 
+	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		if (isRelativePattern(pattern)) {
+			return {
+				base: pattern.base,
+				pattern: pattern.pattern
+			};
+		}
+
+		return {
+			include: pattern.include,
+			exclude: pattern.exclude
+		};
+	}
+
 	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
 		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
 		const include = GlobPattern.from(ep.include);

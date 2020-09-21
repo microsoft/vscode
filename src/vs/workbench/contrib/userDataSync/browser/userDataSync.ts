@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncResourceEnablementService,
-	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType
+	getSyncResourceFromLocalPreview, IResourcePreview, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStore
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -54,7 +54,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
 import { IUserDataSyncWorkbenchService, getSyncAreaLabel, AccountStatus, CONTEXT_SYNC_STATE, CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
-import { isNative } from 'vs/base/common/platform';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -443,6 +442,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (!turnOn) {
 				return;
 			}
+			if (this.userDataSyncStoreManagementService.userDataSyncStore?.canSwitch) {
+				await this.selectSettingsSyncService(this.userDataSyncStoreManagementService.userDataSyncStore);
+			}
 			await this.userDataSyncWorkbenchService.turnOn();
 			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 		} catch (e) {
@@ -513,19 +515,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.title = SYNC_TITLE;
 			quickPick.ok = false;
 			quickPick.customButton = true;
-			if (this.userDataSyncWorkbenchService.all.length) {
-				quickPick.customLabel = localize('turn on', "Turn On");
-			} else {
-				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
-				const displayName = this.userDataSyncWorkbenchService.authenticationProviders.length === 1
-					? this.authenticationService.getLabel(this.userDataSyncWorkbenchService.authenticationProviders[0].id)
-					: this.userDataSyncWorkbenchService.authenticationProviders.map(({ id }) => this.authenticationService.getLabel(id)).join(` ${orTerm} `);
-				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
-				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
-			}
-			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
+			quickPick.customLabel = localize('sign in and turn on', "Sign in & Turn on");
+			quickPick.description = localize('configure and turn on sync detail', "Please sign in to synchronize your data across devices.");
 			quickPick.canSelectMany = true;
 			quickPick.ignoreFocusOut = true;
+			quickPick.hideInput = true;
+			quickPick.hideCheckAll = true;
+
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.userDataSyncResourceEnablementService.isResourceEnabled(item.id));
@@ -674,52 +670,46 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return this.outputService.showChannel(Constants.userDataSyncLogChannelId);
 	}
 
-	private async switchSyncService(): Promise<void> {
-		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (userDataSyncStore?.canSwitch && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
-			return new Promise<void>((c, e) => {
-				const disposables: DisposableStore = new DisposableStore();
-				const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
-				quickPick.title = localize('switchSyncService.title', "Select Settings Sync Service...");
-				quickPick.placeholder = localize('choose sync service', "Choose settings sync Service to use");
-				quickPick.description = isNative ?
-					localize('choose sync service description', "Switching settings sync service requires restarting {0}", this.productService.nameLong) :
-					localize('choose sync service description web', "Switching settings sync service requires reloading {0}", this.productService.nameLong);
-				quickPick.hideInput = true;
-				const getDescription = (url: URI): string | undefined => {
-					const isCurrent = isEqual(url, userDataSyncStore.url);
-					const isDefault = isEqual(url, userDataSyncStore.defaultUrl);
-					if (isCurrent && isDefault) {
-						return localize('default and current', "Default & Current");
-					}
-					if (isDefault) {
-						return localize('default', "Default");
-					}
-					if (isCurrent) {
-						return localize('current', "Current");
-					}
-					return undefined;
-				};
-				quickPick.items = [
-					{
-						id: 'insiders',
-						label: localize('insiders', "Insiders"),
-						description: getDescription(userDataSyncStore.insidersUrl!)
-					},
-					{
-						id: 'stable',
-						label: localize('stable', "Stable"),
-						description: getDescription(userDataSyncStore.stableUrl!)
-					}
-				];
-				disposables.add(quickPick.onDidAccept(() => {
-					this.userDataSyncWorkbenchService.switchSyncService(quickPick.selectedItems[0].id);
+	private async selectSettingsSyncService(userDataSyncStore: IUserDataSyncStore): Promise<void> {
+		return new Promise<void>((c, e) => {
+			const disposables: DisposableStore = new DisposableStore();
+			const quickPick = disposables.add(this.quickInputService.createQuickPick<{ id: UserDataSyncStoreType, label: string, description?: string }>());
+			quickPick.title = localize('switchSyncService.title', "{0}: Select Service", SYNC_TITLE);
+			quickPick.description = localize('switchSyncService.description', "Ensure you are using the same settings sync service when syncing with multiple environments");
+			quickPick.hideInput = true;
+			quickPick.ignoreFocusOut = true;
+			const getDescription = (url: URI): string | undefined => {
+				const isDefault = isEqual(url, userDataSyncStore.defaultUrl);
+				if (isDefault) {
+					return localize('default', "Default");
+				}
+				return undefined;
+			};
+			quickPick.items = [
+				{
+					id: 'insiders',
+					label: localize('insiders', "Insiders"),
+					description: getDescription(userDataSyncStore.insidersUrl)
+				},
+				{
+					id: 'stable',
+					label: localize('stable', "Stable"),
+					description: getDescription(userDataSyncStore.stableUrl)
+				}
+			];
+			disposables.add(quickPick.onDidAccept(async () => {
+				try {
+					await this.userDataSyncStoreManagementService.switch(quickPick.selectedItems[0].id);
+					c();
+				} catch (error) {
+					e(error);
+				} finally {
 					quickPick.hide();
-				}));
-				disposables.add(quickPick.onDidHide(() => disposables.dispose()));
-				quickPick.show();
-			});
-		}
+				}
+			}));
+			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
+			quickPick.show();
+		});
 	}
 
 	private registerActions(): void {
@@ -738,7 +728,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.registerSyncNowAction();
 		this.registerConfigureSyncAction();
 		this.registerShowSettingsAction();
-		this.registerSwitchSyncServiceAction();
 		this.registerShowLogAction();
 	}
 
@@ -1115,28 +1104,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				accessor.get(IPreferencesService).openGlobalSettings(false, { query: '@tag:sync' });
 			}
 		}));
-	}
-
-	private registerSwitchSyncServiceAction(): void {
-		const that = this;
-		const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
-		if (userDataSyncStore?.canSwitch && ![userDataSyncStore.insidersUrl, userDataSyncStore.stableUrl].includes(userDataSyncStore.url)) {
-			this._register(registerAction2(class ShowSyncSettingsAction extends Action2 {
-				constructor() {
-					super({
-						id: 'workbench.userDataSync.actions.switchSyncService',
-						title: { value: localize('workbench.userDataSync.actions.switchSyncService', "{0}: Select Service...", SYNC_TITLE), original: 'Settings Sync: Select Service...' },
-						menu: {
-							id: MenuId.CommandPalette,
-							when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),
-						},
-					});
-				}
-				run(accessor: ServicesAccessor): any {
-					return that.switchSyncService();
-				}
-			}));
-		}
 	}
 
 	private registerViews(): void {
