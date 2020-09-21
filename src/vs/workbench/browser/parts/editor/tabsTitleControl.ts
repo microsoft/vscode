@@ -1232,7 +1232,20 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getPreferredHeight(): number {
-		return this.group.titleHeight + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+		let height = TabsTitleControl.TAB_HEIGHT;
+
+		// Multi-line: we need to ask `offsetHeight` to get
+		// the real height of the title area with wrapping.
+		if (this.accessor.partOptions.multiLineTabs) {
+			const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
+			height = tabsAndActionsContainer.offsetHeight;
+		}
+
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			height += BreadcrumbsControl.HEIGHT;
+		}
+
+		return height;
 	}
 
 	layout(dimension: Dimension | undefined): void {
