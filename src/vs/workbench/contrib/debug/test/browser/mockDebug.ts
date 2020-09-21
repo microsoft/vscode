@@ -15,6 +15,11 @@ import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { ExceptionBreakpoint, Expression, DataBreakpoint, FunctionBreakpoint, Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { TestFileService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+
+const fileService = new TestFileService();
+export const mockUriIdentityService = new UriIdentityService(fileService);
 
 export class MockDebugService implements IDebugService {
 
@@ -564,7 +569,7 @@ export class MockDebugAdapter extends AbstractDebugAdapter {
 class MockDebugStorage extends DebugStorage {
 
 	constructor() {
-		super(undefined as any, undefined as any);
+		super(undefined as any, undefined as any, undefined as any);
 	}
 
 	loadBreakpoints(): Breakpoint[] {
@@ -596,5 +601,5 @@ class MockDebugStorage extends DebugStorage {
 }
 
 export function createMockDebugModel(): DebugModel {
-	return new DebugModel(new MockDebugStorage(), <any>{ isDirty: (e: any) => false });
+	return new DebugModel(new MockDebugStorage(), <any>{ isDirty: (e: any) => false }, mockUriIdentityService);
 }

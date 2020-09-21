@@ -475,24 +475,7 @@ export class ResetViewLocationsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		this.viewDescriptorService.viewContainers.forEach(viewContainer => {
-			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-
-			viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
-				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
-				const currentContainer = this.viewDescriptorService.getViewContainerByViewId(viewDescriptor.id);
-
-				if (defaultContainer && currentContainer !== defaultContainer) {
-					this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
-				}
-			});
-
-			const defaultContainerLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
-			const currentContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			if (defaultContainerLocation !== null && currentContainerLocation !== defaultContainerLocation) {
-				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultContainerLocation);
-			}
-		});
+		this.viewDescriptorService.reset();
 	}
 }
 

@@ -602,6 +602,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	maximumWidth!: number;
 	minimumHeight!: number;
 	maximumHeight!: number;
+	preferredTitleHeight!: number;
 
 	isEmpty = true;
 	isMinimized = false;

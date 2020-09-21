@@ -48,7 +48,6 @@ import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -93,8 +92,7 @@ export class DebugService implements IDebugService {
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		this.toDispose = [];
 
@@ -792,7 +790,7 @@ export class DebugService implements IDebugService {
 		const { stackFrame, thread, session } = getStackFrameThreadAndSessionToFocus(this.model, _stackFrame, _thread, _session);
 
 		if (stackFrame) {
-			const editor = await stackFrame.openInEditor(this.editorService, this.uriIdentityService, true);
+			const editor = await stackFrame.openInEditor(this.editorService, true);
 			if (editor) {
 				const control = editor.getControl();
 				if (stackFrame && isCodeEditor(control) && control.hasModel()) {

@@ -38,9 +38,7 @@ import { isWindows, OS } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { EnablementState, ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IGrammar, ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
@@ -55,10 +53,8 @@ import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
-import { Color, RGBA } from 'vs/base/common/color';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
@@ -113,7 +109,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	args: NativeParsedArgs = Object.create(null);
 
 	execPath: string = undefined!;
-	cliPath: string = undefined!;
 	appRoot: string = undefined!;
 	userHome: URI = undefined!;
 	appSettingsHome: URI = undefined!;
@@ -486,36 +481,6 @@ registerSingleton(IExtensionService, SimpleExtensionService);
 //#endregion
 
 
-//#region Extensions Workbench (TODO@sandbox TODO@ben remove when 'semver-umd' can be loaded)
-
-class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onChange = Event.None;
-
-	local = [];
-	installed = [];
-	outdated = [];
-
-	queryGallery(...args: any[]): any { throw new Error('Method not implemented.'); }
-	install(...args: any[]): any { throw new Error('Method not implemented.'); }
-	queryLocal(server?: IExtensionManagementServer): Promise<any[]> { throw new Error('Method not implemented.'); }
-	canInstall(extension: any): boolean { throw new Error('Method not implemented.'); }
-	uninstall(extension: any): Promise<void> { throw new Error('Method not implemented.'); }
-	installVersion(extension: any, version: string): Promise<any> { throw new Error('Method not implemented.'); }
-	reinstall(extension: any): Promise<any> { throw new Error('Method not implemented.'); }
-	setEnablement(extensions: any | any[], enablementState: EnablementState): Promise<void> { throw new Error('Method not implemented.'); }
-	open(extension: any, options?: { sideByside?: boolean | undefined; preserveFocus?: boolean | undefined; pinned?: boolean | undefined; }): Promise<any> { throw new Error('Method not implemented.'); }
-	checkForUpdates(): Promise<void> { throw new Error('Method not implemented.'); }
-	isExtensionIgnoredToSync(extension: any): boolean { throw new Error('Method not implemented.'); }
-	toggleExtensionIgnoredToSync(extension: any): Promise<void> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService);
-
-//#endregion
-
 //#region Telemetry
 
 class SimpleTelemetryService implements ITelemetryService {
@@ -622,25 +587,6 @@ class SimpleExtensionManagementServerService implements IExtensionManagementServ
 }
 
 registerSingleton(IExtensionManagementServerService, SimpleExtensionManagementServerService);
-
-//#endregion
-
-
-//#region Textmate
-
-TokenizationRegistry.setColorMap([null!, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
-
-class SimpleTextMateService implements ITextMateService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly onDidEncounterLanguage: Event<LanguageId> = Event.None;
-
-	async createGrammar(modeId: string): Promise<IGrammar | null> { return null; }
-	startDebugMode(printFn: (str: string) => void, onStop: () => void): void { }
-}
-
-registerSingleton(ITextMateService, SimpleTextMateService);
 
 //#endregion
 

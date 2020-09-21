@@ -52,9 +52,10 @@ import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { MultiCommand } from 'vs/editor/browser/editorExtensions';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 
 // Singletons
-// registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService); // TODO@sandbox TODO@ben uncomment when 'semver-umd' can be loaded
+registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
 registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)

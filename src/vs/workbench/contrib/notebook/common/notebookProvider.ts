@@ -16,7 +16,7 @@ export interface NotebookSelector {
 export interface NotebookEditorDescriptor {
 	readonly id: string;
 	readonly displayName: string;
-	readonly selector: readonly NotebookSelector[];
+	readonly selectors: readonly NotebookSelector[];
 	readonly priority: NotebookEditorPriority;
 	readonly providerExtensionId?: string;
 	readonly providerDescription?: string;
@@ -30,7 +30,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 
 	readonly id: string;
 	readonly displayName: string;
-	readonly selector: readonly NotebookSelector[];
+	readonly selectors: readonly NotebookSelector[];
 	readonly priority: NotebookEditorPriority;
 	// it's optional as the memento might not have it
 	readonly providerExtensionId?: string;
@@ -43,7 +43,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	constructor(descriptor: NotebookEditorDescriptor) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
-		this.selector = descriptor.selector;
+		this.selectors = descriptor.selectors;
 		this.priority = descriptor.priority;
 		this.providerExtensionId = descriptor.providerExtensionId;
 		this.providerDescription = descriptor.providerDescription;
@@ -54,7 +54,7 @@ export class NotebookProviderInfo implements NotebookEditorDescriptor {
 	}
 
 	matches(resource: URI): boolean {
-		return this.selector.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
+		return this.selectors?.some(selector => NotebookProviderInfo.selectorMatches(selector, resource));
 	}
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {

@@ -81,7 +81,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@INativeHostService nativeHostService: INativeHostService
 	) {
 		super(
 			fileService,
@@ -93,15 +94,14 @@ export class TestTextFileService extends NativeTextFileService {
 			dialogService,
 			fileDialogService,
 			textResourceConfigurationService,
-			productService,
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
 			athService,
 			workingCopyFileService,
-			logService,
 			uriIdentityService,
-			modeService
+			modeService,
+			nativeHostService
 		);
 	}
 
@@ -198,6 +198,7 @@ export class TestNativeHostService implements INativeHostService {
 	async showItemInFolder(path: string): Promise<void> { }
 	async setRepresentedFilename(path: string): Promise<void> { }
 	async isAdmin(): Promise<boolean> { return false; }
+	async writeElevated(source: URI, target: URI, options?: { overwriteReadonly?: boolean | undefined; }): Promise<void> { }
 	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
 	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
@@ -230,6 +231,7 @@ export class TestNativeHostService implements INativeHostService {
 	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
+	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {

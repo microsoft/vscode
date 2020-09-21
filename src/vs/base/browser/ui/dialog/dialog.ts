@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClasses, removeNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -234,23 +234,23 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			removeClasses(this.iconElement, dialogErrorIcon.classNames, dialogWarningIcon.classNames, dialogInfoIcon.classNames, Codicon.loading.classNames);
+			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray);
 
 			switch (this.options.type) {
 				case 'error':
-					addClasses(this.iconElement, dialogErrorIcon.classNames);
+					this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
 					break;
 				case 'warning':
-					addClasses(this.iconElement, dialogWarningIcon.classNames);
+					this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
 					break;
 				case 'pending':
-					addClasses(this.iconElement, Codicon.loading.classNames, 'codicon-animation-spin');
+					this.iconElement.classList.add(...Codicon.loading.classNamesArray, 'codicon-animation-spin');
 					break;
 				case 'none':
 				case 'info':
 				case 'question':
 				default:
-					addClasses(this.iconElement, dialogInfoIcon.classNames);
+					this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
 					break;
 			}
 
@@ -334,7 +334,7 @@ export class Dialog extends Disposable {
 	dispose(): void {
 		super.dispose();
 		if (this.modal) {
-			removeNode(this.modal);
+			this.modal.remove();
 			this.modal = undefined;
 		}
 

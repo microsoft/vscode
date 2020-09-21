@@ -17,7 +17,7 @@ import { isWindows, Platform, platform } from 'vs/base/common/platform';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { URI } from 'vs/base/common/uri';
 
-export class EnvironmentService implements INativeEnvironmentService {
+export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 

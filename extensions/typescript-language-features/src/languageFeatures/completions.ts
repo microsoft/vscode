@@ -368,29 +368,19 @@ class ApplyCompletionCodeActionCommand implements Command {
 			return applyCodeAction(this.client, codeActions[0], nulToken);
 		}
 
-		interface MyQuickPickItem extends vscode.QuickPickItem {
-			index: number;
-		}
-
-		const selection = await vscode.window.showQuickPick<MyQuickPickItem>(
-			codeActions.map((action, i): MyQuickPickItem => ({
+		const selection = await vscode.window.showQuickPick(
+			codeActions.map(action => ({
 				label: action.description,
 				description: '',
-				index: i
+				action,
 			})), {
 			placeHolder: localize('selectCodeAction', 'Select code action to apply')
-		}
-		);
+		});
 
-		if (!selection) {
-			return false;
+		if (selection) {
+			return applyCodeAction(this.client, selection.action, nulToken);
 		}
-
-		const action = codeActions[selection.index];
-		if (!action) {
-			return false;
-		}
-		return applyCodeAction(this.client, action, nulToken);
+		return false;
 	}
 }
 
@@ -444,7 +434,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionList<MyCompletionItem> | null> {
+	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
 				label: localize(
@@ -458,14 +448,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
-			return null;
+			return undefined;
 		}
 
 		const line = document.lineAt(position.line);
 		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
 
 		if (!this.shouldTrigger(context, line, position)) {
-			return null;
+			return undefined;
 		}
 
 		const wordRange = document.getWordRangeAtPosition(position);
@@ -497,7 +487,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 			if (response.type !== 'response' || !response.body) {
 				this.logCompletionsTelemetry(duration, response);
-				return null;
+				return undefined;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
 			isMemberCompletion = response.body.isMemberCompletion;
@@ -515,7 +505,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		} else {
 			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {
-				return null;
+				return undefined;
 			}
 
 			entries = response.body;

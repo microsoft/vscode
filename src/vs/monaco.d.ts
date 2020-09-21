@@ -2593,6 +2593,10 @@ declare namespace monaco.editor {
 		 */
 		ariaLabel?: string;
 		/**
+		 * The `tabindex` property of the editor's textarea
+		 */
+		tabIndex?: number;
+		/**
 		 * Render vertical lines at the specified columns.
 		 * Defaults to empty array.
 		 */
@@ -2635,7 +2639,7 @@ declare namespace monaco.editor {
 		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 		 * Defaults to 'prompt'.
 		 */
-		unusualLineTerminators?: 'off' | 'prompt' | 'auto';
+		unusualLineTerminators?: 'auto' | 'off' | 'prompt';
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3954,22 +3958,23 @@ declare namespace monaco.editor {
 		suggestOnTriggerCharacters = 99,
 		suggestSelection = 100,
 		tabCompletion = 101,
-		unusualLineTerminators = 102,
-		useTabStops = 103,
-		wordSeparators = 104,
-		wordWrap = 105,
-		wordWrapBreakAfterCharacters = 106,
-		wordWrapBreakBeforeCharacters = 107,
-		wordWrapColumn = 108,
-		wordWrapMinified = 109,
-		wrappingIndent = 110,
-		wrappingStrategy = 111,
-		showDeprecated = 112,
-		editorClassName = 113,
-		pixelRatio = 114,
-		tabFocusMode = 115,
-		layoutInfo = 116,
-		wrappingInfo = 117
+		tabIndex = 102,
+		unusualLineTerminators = 103,
+		useTabStops = 104,
+		wordSeparators = 105,
+		wordWrap = 106,
+		wordWrapBreakAfterCharacters = 107,
+		wordWrapBreakBeforeCharacters = 108,
+		wordWrapColumn = 109,
+		wordWrapMinified = 110,
+		wrappingIndent = 111,
+		wrappingStrategy = 112,
+		showDeprecated = 113,
+		editorClassName = 114,
+		pixelRatio = 115,
+		tabFocusMode = 116,
+		layoutInfo = 117,
+		wrappingInfo = 118
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4075,6 +4080,7 @@ declare namespace monaco.editor {
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;
 		suggestSelection: IEditorOption<EditorOption.suggestSelection, 'first' | 'recentlyUsed' | 'recentlyUsedByPrefix'>;
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
+		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
@@ -4499,6 +4505,11 @@ declare namespace monaco.editor {
 		 * An event emitted after composition has ended.
 		 */
 		onDidCompositionEnd(listener: () => void): IDisposable;
+		/**
+		 * An event emitted when editing failed because the editor is read-only.
+		 * @event
+		 */
+		onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 		/**
 		 * An event emitted when users paste text in the editor.
 		 * @event

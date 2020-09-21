@@ -43,6 +43,7 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -163,6 +164,7 @@ export class TreeView extends Disposable implements ITreeView {
 		}
 
 		if (dataProvider) {
+			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				private _isEmpty: boolean = true;
 				private _onDidChangeEmpty: Emitter<void> = new Emitter();
@@ -172,11 +174,12 @@ export class TreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					let children: ITreeItem[];
 					if (node && node.children) {
 						children = node.children;
 					} else {
+						node = node ?? self.root;
 						children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
 						node.children = children;
 					}
@@ -856,10 +859,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 							targetElements: [this],
 							dispose: () => { }
 						};
-						hoverOptions = { text: tooltip, target };
+						hoverOptions = { text: tooltip, target, anchorPosition: AnchorPosition.BELOW };
 					}
 					if (mouseX !== undefined) {
-						(<IHoverTarget>hoverOptions.target).x = mouseX;
+						(<IHoverTarget>hoverOptions.target).x = mouseX + 10;
 					}
 					hoverService.showHover(hoverOptions);
 				}

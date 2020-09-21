@@ -10,9 +10,9 @@ import { serve, Server, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ExtensionManagementChannel, ExtensionTipsChannel } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
 import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -115,7 +115,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	disposables.add(server);
 
-	const environmentService = new EnvironmentService(initData.args);
+	const environmentService = new NativeEnvironmentService(initData.args);
 
 	const mainRouter = new StaticRouter(ctx => ctx === 'main');
 	const loggerClient = new LoggerChannelClient(server.getChannel('logger', mainRouter));
@@ -148,6 +148,8 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	services.set(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryChannelClient(mainProcessService.getChannel('storageKeysSyncRegistryService')));
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(INativeEnvironmentService, environmentService);
+
 	services.set(IProductService, { _serviceBrand: undefined, ...product });
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);

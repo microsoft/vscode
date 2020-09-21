@@ -17,12 +17,13 @@ import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePa
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
-import { addIdToOutput, CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookKernelInfoDto2, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellStatusbarAlignment, CellUri, INotebookCellStatusBarEntry, INotebookDisplayOrder, INotebookExclusiveDocumentFilter, INotebookKernelInfoDto2, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookDataDto, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ResourceMap } from 'vs/base/common/map';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IRelativePattern } from 'vs/base/common/glob';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -304,7 +305,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		options?: {
 			transientOutputs: boolean;
 			transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
-			viewOptions?: { displayName: string; filenamePattern: vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern }; exclusive?: boolean; };
+			viewOptions?: {
+				displayName: string;
+				filenamePattern: (vscode.GlobPattern | { include: vscode.GlobPattern; exclude: vscode.GlobPattern })[];
+				exclusive?: boolean;
+			};
 		}
 	): vscode.Disposable {
 
@@ -333,7 +338,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		const supportBackup = !!provider.backupNotebook;
 
-		const viewOptionsFilenamePattern = typeConverters.NotebookExclusiveDocumentPattern.from(options?.viewOptions?.filenamePattern);
+		const viewOptionsFilenamePattern = options?.viewOptions?.filenamePattern
+			.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.from(pattern))
+			.filter(pattern => pattern !== undefined) as (string | IRelativePattern | INotebookExclusiveDocumentFilter)[];
+
 		if (!viewOptionsFilenamePattern) {
 			console.warn(`Notebook content provider view options file name pattern is invalid ${options?.viewOptions?.filenamePattern}`);
 		}

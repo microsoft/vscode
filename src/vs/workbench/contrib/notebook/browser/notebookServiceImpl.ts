@@ -116,7 +116,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				this.add(new NotebookProviderInfo({
 					id: notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
-					selector: notebookContribution.selector || [],
+					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
 					providerExtensionId: extension.description.identifier.value,
 					providerDescription: extension.description.description,
@@ -560,9 +560,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			await this._extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this._extensionService.activateByEvent(`onNotebook:${viewType}`);
-
-			// TODO@jrieken deprecated, remove this
-			await this._extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
 		}
 		return this._notebookProviders.has(viewType);
 	}
@@ -576,7 +573,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 				displayName: controller.viewOptions.displayName,
 				id: viewType,
 				priority: NotebookEditorPriority.default,
-				selector: [{ filenamePattern: controller.viewOptions.filenamePattern }],
+				selectors: controller.viewOptions.filenamePattern.map(pattern => ({ filenamePattern: pattern })),
 				providerExtensionId: extensionData.id.value,
 				providerDescription: extensionData.description,
 				providerDisplayName: extensionData.id.value,
