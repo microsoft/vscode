@@ -17,6 +17,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IFindInputCheckboxOpts } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IReplaceInputOptions extends IReplaceInputStyles {
 	readonly placeholder?: string;
@@ -32,6 +33,7 @@ export interface IReplaceInputOptions extends IReplaceInputStyles {
 
 export interface IReplaceInputStyles extends IInputBoxStyles {
 	inputActiveOptionBorder?: Color;
+	inputActiveOptionForeground?: Color;
 	inputActiveOptionBackground?: Color;
 }
 
@@ -42,10 +44,11 @@ export class PreserveCaseCheckbox extends Checkbox {
 	constructor(opts: IFindInputCheckboxOpts) {
 		super({
 			// TODO: does this need its own icon?
-			actionClassName: 'codicon-preserve-case',
+			icon: Codicon.preserveCase,
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
+			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
 	}
@@ -62,6 +65,7 @@ export class ReplaceInput extends Widget {
 	private fixFocusOnOptionClickEnabled = true;
 
 	private inputActiveOptionBorder?: Color;
+	private inputActiveOptionForeground?: Color;
 	private inputActiveOptionBackground?: Color;
 	private inputBackground?: Color;
 	private inputForeground?: Color;
@@ -108,6 +112,7 @@ export class ReplaceInput extends Widget {
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
 		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
+		this.inputActiveOptionForeground = options.inputActiveOptionForeground;
 		this.inputActiveOptionBackground = options.inputActiveOptionBackground;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
@@ -129,7 +134,7 @@ export class ReplaceInput extends Widget {
 		const flexibleMaxHeight = options.flexibleMaxHeight;
 
 		this.domNode = document.createElement('div');
-		dom.addClass(this.domNode, 'monaco-findInput');
+		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
 			ariaLabel: this.label || '',
@@ -159,6 +164,7 @@ export class ReplaceInput extends Widget {
 			appendTitle: '',
 			isChecked: false,
 			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionForeground: this.inputActiveOptionForeground,
 			inputActiveOptionBackground: this.inputActiveOptionBackground,
 		}));
 		this._register(this.preserveCase.onChange(viaKeyboard => {
@@ -225,13 +231,13 @@ export class ReplaceInput extends Widget {
 	}
 
 	public enable(): void {
-		dom.removeClass(this.domNode, 'disabled');
+		this.domNode.classList.remove('disabled');
 		this.inputBox.enable();
 		this.preserveCase.enable();
 	}
 
 	public disable(): void {
-		dom.addClass(this.domNode, 'disabled');
+		this.domNode.classList.add('disabled');
 		this.inputBox.disable();
 		this.preserveCase.disable();
 	}
@@ -270,6 +276,7 @@ export class ReplaceInput extends Widget {
 
 	public style(styles: IReplaceInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+		this.inputActiveOptionForeground = styles.inputActiveOptionForeground;
 		this.inputActiveOptionBackground = styles.inputActiveOptionBackground;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
@@ -292,6 +299,7 @@ export class ReplaceInput extends Widget {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
+				inputActiveOptionForeground: this.inputActiveOptionForeground,
 				inputActiveOptionBackground: this.inputActiveOptionBackground,
 			};
 			this.preserveCase.style(checkBoxStyles);
@@ -336,9 +344,9 @@ export class ReplaceInput extends Widget {
 
 	private _lastHighlightFindOptions: number = 0;
 	public highlightFindOptions(): void {
-		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this.domNode.classList.remove('highlight-' + (this._lastHighlightFindOptions));
 		this._lastHighlightFindOptions = 1 - this._lastHighlightFindOptions;
-		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this.domNode.classList.add('highlight-' + (this._lastHighlightFindOptions));
 	}
 
 	public validate(): void {

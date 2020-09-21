@@ -16,6 +16,7 @@ import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXT
 import { ILabelService } from 'vs/platform/label/common/label';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { URI } from 'vs/base/common/uri';
+import { OvertypingCapturer } from 'vs/editor/contrib/suggest/suggestOvertypingCapturer';
 
 export const KnownSnippetVariableNames: { [key: string]: true } = Object.freeze({
 	'CURRENT_YEAR': true,
@@ -71,7 +72,9 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _model: ITextModel,
-		private readonly _selection: Selection
+		private readonly _selection: Selection,
+		private readonly _selectionIdx: number,
+		private readonly _overtypingCapturer: OvertypingCapturer | undefined
 	) {
 		//
 	}
@@ -82,7 +85,18 @@ export class SelectionBasedVariableResolver implements VariableResolver {
 
 		if (name === 'SELECTION' || name === 'TM_SELECTED_TEXT') {
 			let value = this._model.getValueInRange(this._selection) || undefined;
-			if (value && this._selection.startLineNumber !== this._selection.endLineNumber && variable.snippet) {
+			let isMultiline = this._selection.startLineNumber !== this._selection.endLineNumber;
+
+			// If there was no selected text, try to get last overtyped text
+			if (!value && this._overtypingCapturer) {
+				const info = this._overtypingCapturer.getLastOvertypedInfo(this._selectionIdx);
+				if (info) {
+					value = info.value;
+					isMultiline = info.multiline;
+				}
+			}
+
+			if (value && isMultiline && variable.snippet) {
 				// Selection is a multiline string which we indentation we now
 				// need to adjust. We compare the indentation of this variable
 				// with the indentation at the editor position and add potential
@@ -208,14 +222,15 @@ export class ClipboardBasedVariableResolver implements VariableResolver {
 }
 export class CommentBasedVariableResolver implements VariableResolver {
 	constructor(
-		private readonly _model: ITextModel
+		private readonly _model: ITextModel,
+		private readonly _selection: Selection
 	) {
 		//
 	}
 	resolve(variable: Variable): string | undefined {
 		const { name } = variable;
-		const language = this._model.getLanguageIdentifier();
-		const config = LanguageConfigurationRegistry.getComments(language.id);
+		const langId = this._model.getLanguageIdAtPosition(this._selection.selectionStartLineNumber, this._selection.selectionStartColumn);
+		const config = LanguageConfigurationRegistry.getComments(langId);
 		if (!config) {
 			return undefined;
 		}

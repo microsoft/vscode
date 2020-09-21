@@ -30,14 +30,13 @@ import { NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { ignoreBracketsInToken } from 'vs/editor/common/modes/supports';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
-import { withUndefinedAsNull } from 'vs/base/common/types';
 import { VSBufferReadableStream, VSBuffer } from 'vs/base/common/buffer';
 import { TokensStore, MultilineTokens, countEOL, MultilineTokens2, TokensStore2 } from 'vs/editor/common/model/tokensStore';
 import { Color } from 'vs/base/common/color';
-import { Constants } from 'vs/base/common/uint';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { Constants } from 'vs/base/common/uint';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -172,6 +171,21 @@ const enum StringOffsetValidationType {
 	SurrogatePairs = 1,
 }
 
+type ContinueBracketSearchPredicate = null | (() => boolean);
+
+class BracketSearchCanceled {
+	public static INSTANCE = new BracketSearchCanceled();
+	_searchCanceledBrand = undefined;
+	private constructor() { }
+}
+
+function stripBracketSearchCanceled<T>(result: T | null | BracketSearchCanceled): T | null {
+	if (result instanceof BracketSearchCanceled) {
+		return null;
+	}
+	return result;
+}
+
 export class TextModel extends Disposable implements model.ITextModel {
 
 	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
@@ -263,6 +277,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * Unlike, versionId, this can go down (via undo) or go to previous values (via redo)
 	 */
 	private _alternativeVersionId: number;
+	private _initialUndoRedoSnapshot: ResourceEditStackSnapshot | null;
 	private readonly _isTooLargeForSyncing: boolean;
 	private readonly _isTooLargeForTokenization: boolean;
 
@@ -336,6 +351,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._versionId = 1;
 		this._alternativeVersionId = 1;
+		this._initialUndoRedoSnapshot = null;
 
 		this._isDisposed = false;
 		this._isDisposing = false;
@@ -685,6 +701,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.mightContainRTL();
 	}
 
+	public mightContainUnusualLineTerminators(): boolean {
+		return this._buffer.mightContainUnusualLineTerminators();
+	}
+
+	public removeUnusualLineTerminators(selections: Selection[] | null = null): void {
+		const matches = this.findMatches(strings.UNUSUAL_LINE_TERMINATORS.source, false, true, false, null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		this._buffer.resetMightContainUnusualLineTerminators();
+		this.pushEditOperations(selections, matches.map(m => ({ range: m.range, text: null })), () => null);
+	}
+
 	public mightContainNonBasicASCII(): boolean {
 		return this._buffer.mightContainNonBasicASCII();
 	}
@@ -692,6 +718,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 	public getAlternativeVersionId(): number {
 		this._assertNotDisposed();
 		return this._alternativeVersionId;
+	}
+
+	public getInitialUndoRedoSnapshot(): ResourceEditStackSnapshot | null {
+		this._assertNotDisposed();
+		return this._initialUndoRedoSnapshot;
 	}
 
 	public getOffsetAt(rawPosition: IPosition): number {
@@ -717,6 +748,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public _overwriteAlternativeVersionId(newAlternativeVersionId: number): void {
 		this._alternativeVersionId = newAlternativeVersionId;
+	}
+
+	public _overwriteInitialUndoRedoSnapshot(newInitialUndoRedoSnapshot: ResourceEditStackSnapshot | null): void {
+		this._initialUndoRedoSnapshot = newInitialUndoRedoSnapshot;
 	}
 
 	public getValue(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): string {
@@ -1083,16 +1118,38 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
-		let searchRange: Range;
-		if (Range.isIRange(rawSearchScope)) {
-			searchRange = this.validateRange(rawSearchScope);
-		} else {
-			searchRange = this.getFullModelRange();
+		let searchRanges: Range[] | null = null;
+
+		if (rawSearchScope !== null) {
+			if (!Array.isArray(rawSearchScope)) {
+				rawSearchScope = [rawSearchScope];
+			}
+
+			if (rawSearchScope.every((searchScope: Range) => Range.isIRange(searchScope))) {
+				searchRanges = rawSearchScope.map((searchScope: Range) => this.validateRange(searchScope));
+			}
 		}
 
+		if (searchRanges === null) {
+			searchRanges = [this.getFullModelRange()];
+		}
+
+		searchRanges = searchRanges.sort((d1, d2) => d1.startLineNumber - d2.startLineNumber || d1.startColumn - d2.startColumn);
+
+		const uniqueSearchRanges: Range[] = [];
+		uniqueSearchRanges.push(searchRanges.reduce((prev, curr) => {
+			if (Range.areIntersecting(prev, curr)) {
+				return prev.plusRange(curr);
+			}
+
+			uniqueSearchRanges.push(prev);
+			return curr;
+		}));
+
+		let matchMapper: (value: Range, index: number, array: Range[]) => model.FindMatch[];
 		if (!isRegex && searchString.indexOf('\n') < 0) {
 			// not regex, not multi line
 			const searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
@@ -1102,10 +1159,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 				return [];
 			}
 
-			return this.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
+			matchMapper = (searchRange: Range) => this.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
+		} else {
+			matchMapper = (searchRange: Range) => TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
 		}
 
-		return TextModelSearch.findMatches(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchRange, captureMatches, limitResultCount);
+		return uniqueSearchRanges.map(matchMapper).reduce((arr, matches: model.FindMatch[]) => arr.concat(matches), []);
 	}
 
 	public findNextMatch(searchString: string, rawSearchStart: IPosition, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean): model.FindMatch | null {
@@ -1162,6 +1221,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._eventEmitter.beginDeferredEmit();
+			if (this._initialUndoRedoSnapshot === null) {
+				this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
+			}
 			this._commandManager.pushEOL(eol);
 		} finally {
 			this._eventEmitter.endDeferredEmit();
@@ -1285,6 +1347,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 
 			this._trimAutoWhitespaceLines = null;
+		}
+		if (this._initialUndoRedoSnapshot === null) {
+			this._initialUndoRedoSnapshot = this._undoRedoService.createSnapshot(this.uri);
 		}
 		return this._commandManager.pushEditOperation(beforeCursorState, editOperations, cursorStateComputer);
 	}
@@ -2014,7 +2079,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return null;
 		}
 
-		return this._findMatchingBracketUp(data, position);
+		return stripBracketSearchCanceled(this._findMatchingBracketUp(data, position, null));
 	}
 
 	public matchBracket(position: IPosition): [Range, Range] | null {
@@ -2062,8 +2127,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				// check that we didn't hit a bracket too far away from position
 				if (foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
-					const r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText]);
+					const r = this._matchFoundBracket(foundBracket, currentModeBrackets.textIsBracket[foundBracketText], currentModeBrackets.textIsOpenBracket[foundBracketText], null);
 					if (r) {
+						if (r instanceof BracketSearchCanceled) {
+							return null;
+						}
 						bestResult = r;
 					}
 				}
@@ -2100,8 +2168,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				// check that we didn't hit a bracket too far away from position
 				if (foundBracket && foundBracket.startColumn <= position.column && position.column <= foundBracket.endColumn) {
 					const foundBracketText = lineText.substring(foundBracket.startColumn - 1, foundBracket.endColumn - 1).toLowerCase();
-					const r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText]);
+					const r = this._matchFoundBracket(foundBracket, prevModeBrackets.textIsBracket[foundBracketText], prevModeBrackets.textIsOpenBracket[foundBracketText], null);
 					if (r) {
+						if (r instanceof BracketSearchCanceled) {
+							return null;
+						}
 						return r;
 					}
 				}
@@ -2111,35 +2182,41 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
-	private _matchFoundBracket(foundBracket: Range, data: RichEditBracket, isOpen: boolean): [Range, Range] | null {
+	private _matchFoundBracket(foundBracket: Range, data: RichEditBracket, isOpen: boolean, continueSearchPredicate: ContinueBracketSearchPredicate): [Range, Range] | null | BracketSearchCanceled {
 		if (!data) {
 			return null;
 		}
 
-		if (isOpen) {
-			let matched = this._findMatchingBracketDown(data, foundBracket.getEndPosition());
-			if (matched) {
-				return [foundBracket, matched];
-			}
-		} else {
-			let matched = this._findMatchingBracketUp(data, foundBracket.getStartPosition());
-			if (matched) {
-				return [foundBracket, matched];
-			}
+		const matched = (
+			isOpen
+				? this._findMatchingBracketDown(data, foundBracket.getEndPosition(), continueSearchPredicate)
+				: this._findMatchingBracketUp(data, foundBracket.getStartPosition(), continueSearchPredicate)
+		);
+
+		if (!matched) {
+			return null;
 		}
 
-		return null;
+		if (matched instanceof BracketSearchCanceled) {
+			return matched;
+		}
+
+		return [foundBracket, matched];
 	}
 
-	private _findMatchingBracketUp(bracket: RichEditBracket, position: Position): Range | null {
+	private _findMatchingBracketUp(bracket: RichEditBracket, position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): Range | null | BracketSearchCanceled {
 		// console.log('_findMatchingBracketUp: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		const languageId = bracket.languageIdentifier.id;
 		const reversedBracketRegex = bracket.reversedRegex;
 		let count = -1;
 
-		const searchPrevMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null => {
+		let totalCallCount = 0;
+		const searchPrevMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null | BracketSearchCanceled => {
 			while (true) {
+				if (continueSearchPredicate && (++totalCallCount) % 100 === 0 && !continueSearchPredicate()) {
+					return BracketSearchCanceled.INSTANCE;
+				}
 				const r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (!r) {
 					break;
@@ -2214,15 +2291,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
-	private _findMatchingBracketDown(bracket: RichEditBracket, position: Position): Range | null {
+	private _findMatchingBracketDown(bracket: RichEditBracket, position: Position, continueSearchPredicate: ContinueBracketSearchPredicate): Range | null | BracketSearchCanceled {
 		// console.log('_findMatchingBracketDown: ', 'bracket: ', JSON.stringify(bracket), 'startPosition: ', String(position));
 
 		const languageId = bracket.languageIdentifier.id;
 		const bracketRegex = bracket.forwardRegex;
 		let count = 1;
 
-		const searchNextMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null => {
+		let totalCallCount = 0;
+		const searchNextMatchingBracketInRange = (lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): Range | null | BracketSearchCanceled => {
 			while (true) {
+				if (continueSearchPredicate && (++totalCallCount) % 100 === 0 && !continueSearchPredicate()) {
+					return BracketSearchCanceled.INSTANCE;
+				}
 				const r = BracketsUtils.findNextBracketInRange(bracketRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (!r) {
 					break;
@@ -2452,7 +2533,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return null;
 	}
 
-	public findEnclosingBrackets(_position: IPosition, maxDuration = Constants.MAX_SAFE_SMALL_INTEGER): [Range, Range] | null {
+	public findEnclosingBrackets(_position: IPosition, maxDuration?: number): [Range, Range] | null {
+		let continueSearchPredicate: ContinueBracketSearchPredicate;
+		if (typeof maxDuration === 'undefined') {
+			continueSearchPredicate = null;
+		} else {
+			const startTime = Date.now();
+			continueSearchPredicate = () => {
+				return (Date.now() - startTime <= maxDuration);
+			};
+		}
 		const position = this.validatePosition(_position);
 		const lineCount = this.getLineCount();
 		const savedCounts = new Map<number, number[]>();
@@ -2468,8 +2558,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 			}
 			counts = savedCounts.get(languageId)!;
 		};
-		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null => {
+
+		let totalCallCount = 0;
+		const searchInRange = (modeBrackets: RichEditBrackets, lineNumber: number, lineText: string, searchStartOffset: number, searchEndOffset: number): [Range, Range] | null | BracketSearchCanceled => {
 			while (true) {
+				if (continueSearchPredicate && (++totalCallCount) % 100 === 0 && !continueSearchPredicate()) {
+					return BracketSearchCanceled.INSTANCE;
+				}
 				const r = BracketsUtils.findNextBracketInRange(modeBrackets.forwardRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (!r) {
 					break;
@@ -2485,7 +2580,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					}
 
 					if (counts[bracket.index] === -1) {
-						return this._matchFoundBracket(r, bracket, false);
+						return this._matchFoundBracket(r, bracket, false, continueSearchPredicate);
 					}
 				}
 
@@ -2496,12 +2591,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		let languageId: LanguageId = -1;
 		let modeBrackets: RichEditBrackets | null = null;
-		const startTime = Date.now();
 		for (let lineNumber = position.lineNumber; lineNumber <= lineCount; lineNumber++) {
-			const elapsedTime = Date.now() - startTime;
-			if (elapsedTime > maxDuration) {
-				return null;
-			}
 			const lineTokens = this._getLineTokens(lineNumber);
 			const tokenCount = lineTokens.getCount();
 			const lineText = this._buffer.getLineContent(lineNumber);
@@ -2530,7 +2620,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
 						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
 						if (r) {
-							return r;
+							return stripBracketSearchCanceled(r);
 						}
 						prevSearchInToken = false;
 					}
@@ -2555,7 +2645,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
 						const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
 						if (r) {
-							return r;
+							return stripBracketSearchCanceled(r);
 						}
 					}
 				}
@@ -2566,7 +2656,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 			if (modeBrackets && prevSearchInToken && searchStartOffset !== searchEndOffset) {
 				const r = searchInRange(modeBrackets, lineNumber, lineText, searchStartOffset, searchEndOffset);
 				if (r) {
-					return r;
+					return stripBracketSearchCanceled(r);
 				}
 			}
 		}
@@ -3118,8 +3208,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
-		this.hoverMessage = withUndefinedAsNull(options.hoverMessage);
-		this.glyphMarginHoverMessage = withUndefinedAsNull(options.glyphMarginHoverMessage);
+		this.hoverMessage = options.hoverMessage || null;
+		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;
 		this.showIfCollapsed = options.showIfCollapsed || false;
 		this.collapseOnReplaceEdit = options.collapseOnReplaceEdit || false;

@@ -14,6 +14,7 @@ import { localize } from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
@@ -28,17 +29,18 @@ export interface IVariableResolveContext {
 export class AbstractVariableResolverService implements IConfigurationResolverService {
 
 	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
-	static readonly VARIABLE_REGEXP_SINGLE = /\$\{(.*?)\}/;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _context: IVariableResolveContext;
+	private _labelService?: ILabelService;
 	private _envVariables?: IProcessEnvironment;
 	protected _contributedVariables: Map<string, () => Promise<string | undefined>> = new Map();
 
 
-	constructor(_context: IVariableResolveContext, _envVariables?: IProcessEnvironment) {
+	constructor(_context: IVariableResolveContext, _labelService?: ILabelService, _envVariables?: IProcessEnvironment, private _ignoreEditorVariables = false) {
 		this._context = _context;
+		this._labelService = _labelService;
 		if (_envVariables) {
 			if (isWindows) {
 				// windows env variables are case insensitive
@@ -141,6 +143,10 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		return replaced;
 	}
 
+	private fsPath(displayUri: uri): string {
+		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
+	}
+
 	private evaluateSingleVariable(match: string, variable: string, folderUri: uri | undefined, commandValueMapping: IStringDictionary<string> | undefined): string {
 
 		// try to separate variable arguments from variable name
@@ -222,16 +228,19 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				switch (variable) {
 					case 'workspaceRoot':
 					case 'workspaceFolder':
-						return normalizeDriveLetter(getFolderUri().fsPath);
+						return normalizeDriveLetter(this.fsPath(getFolderUri()));
 
 					case 'cwd':
-						return (folderUri ? normalizeDriveLetter(getFolderUri().fsPath) : process.cwd());
+						return ((folderUri || argument) ? normalizeDriveLetter(this.fsPath(getFolderUri())) : process.cwd());
 
 					case 'workspaceRootFolderName':
 					case 'workspaceFolderBasename':
-						return paths.basename(getFolderUri().fsPath);
+						return paths.basename(this.fsPath(getFolderUri()));
 
 					case 'lineNumber':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						const lineNumber = this._context.getLineNumber();
 						if (lineNumber) {
 							return lineNumber;
@@ -239,6 +248,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						throw new Error(localize('canNotResolveLineNumber', "'{0}' can not be resolved. Make sure to have a line selected in the active editor.", match));
 
 					case 'selectedText':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						const selectedText = this._context.getSelectedText();
 						if (selectedText) {
 							return selectedText;
@@ -246,31 +258,52 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						throw new Error(localize('canNotResolveSelectedText', "'{0}' can not be resolved. Make sure to have some text selected in the active editor.", match));
 
 					case 'file':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						return getFilePath();
 
 					case 'relativeFile':
-						if (folderUri) {
-							return paths.normalize(paths.relative(getFolderUri().fsPath, getFilePath()));
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
+						if (folderUri || argument) {
+							return paths.relative(this.fsPath(getFolderUri()), getFilePath());
 						}
 						return getFilePath();
 
 					case 'relativeFileDirname':
-						let dirname = paths.dirname(getFilePath());
-						if (folderUri) {
-							return paths.normalize(paths.relative(getFolderUri().fsPath, dirname));
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
+						const dirname = paths.dirname(getFilePath());
+						if (folderUri || argument) {
+							return paths.relative(this.fsPath(getFolderUri()), dirname);
 						}
 						return dirname;
 
 					case 'fileDirname':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						return paths.dirname(getFilePath());
 
 					case 'fileExtname':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						return paths.extname(getFilePath());
 
 					case 'fileBasename':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						return paths.basename(getFilePath());
 
 					case 'fileBasenameNoExtension':
+						if (this._ignoreEditorVariables) {
+							return match;
+						}
 						const basename = paths.basename(getFilePath());
 						return (basename.slice(0, basename.length - paths.extname(basename).length));
 

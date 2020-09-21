@@ -23,7 +23,12 @@ export interface ITelemetryData {
 
 export interface ITelemetryService {
 
-	_serviceBrand: undefined;
+	/**
+	 * Whether error telemetry will get sent. If false, `publicLogError` will no-op.
+	 */
+	readonly sendErrorTelemetry: boolean;
+
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.
@@ -33,9 +38,15 @@ export interface ITelemetryService {
 
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
 
+	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void>;
+
+	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
+
 	setEnabled(value: boolean): void;
 
 	getTelemetryInfo(): Promise<ITelemetryInfo>;
+
+	setExperimentProperty(name: string, value: string): void;
 
 	isOptedIn: boolean;
 }
@@ -46,5 +57,3 @@ export const currentSessionDateStorageKey = 'telemetry.currentSessionDate';
 export const firstSessionDateStorageKey = 'telemetry.firstSessionDate';
 export const lastSessionDateStorageKey = 'telemetry.lastSessionDate';
 export const machineIdKey = 'telemetry.machineId';
-export const trueMachineIdKey = 'telemetry.trueMachineId';
-export const crashReporterIdStorageKey = 'crashReporter.guid';

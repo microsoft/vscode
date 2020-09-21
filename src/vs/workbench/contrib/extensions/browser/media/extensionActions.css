@@ -23,7 +23,6 @@
 
 .monaco-action-bar .action-item .action-label.extension-action.icon {
 	padding: 0 2px;
-	height: 18px;
 	width: 16px;
 }
 
@@ -59,7 +58,6 @@
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action {
 	opacity: 1;
-	pointer-events: none;
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.text {

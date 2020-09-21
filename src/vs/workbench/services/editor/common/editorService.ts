@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -34,8 +35,8 @@ export interface IOpenEditorOverrideEntry {
 }
 
 export interface IOpenEditorOverrideHandler {
-	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id?: string): IOpenEditorOverride | undefined;
-	getEditorOverrides?(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext): IOpenEditorOverride | undefined;
+	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 
 export interface IOpenEditorOverride {
@@ -61,6 +62,11 @@ export interface IBaseSaveRevertAllEditorOptions {
 	 * Whether to include untitled editors as well.
 	 */
 	readonly includeUntitled?: boolean;
+
+	/**
+	 * Whether to exclude sticky editors.
+	 */
+	readonly excludeSticky?: boolean;
 }
 
 export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
@@ -68,7 +74,6 @@ export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRe
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface ICustomEditorInfo {
-
 	readonly id: string;
 	readonly displayName: string;
 	readonly providerDisplayName: string;
@@ -76,12 +81,13 @@ export interface ICustomEditorInfo {
 
 export interface ICustomEditorViewTypesHandler {
 	readonly onDidChangeViewTypes: Event<void>;
+
 	getViewTypes(): ICustomEditorInfo[];
 }
 
 export interface IEditorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emitted when the currently active editor changes.
@@ -96,6 +102,11 @@ export interface IEditorService {
 	 * @see `IEditorService.visibleEditorPanes`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
+
+	/**
+	 * Emitted when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * The currently active editor pane or `undefined` if none. The editor pane is
@@ -164,8 +175,9 @@ export interface IEditorService {
 	 * identifier.
 	 *
 	 * @param order the order of the editors to use
+	 * @param options wether to exclude sticky editors or not
 	 */
-	getEditors(order: EditorsOrder): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 
 	/**
 	 * Open an editor in an editor group.
@@ -224,7 +236,7 @@ export interface IEditorService {
 	/**
 	 * Get all available editor overrides for the editor input.
 	 */
-	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
+	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
 
 	/**
 	 * Allows to override the opening of editors by installing a handler that will
@@ -233,12 +245,12 @@ export interface IEditorService {
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
 
-	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
-
 	/**
-	 * Invoke a function in the context of the services of the active editor.
+	 * Register handlers for custom editor view types.
+	 * The handler will provide all available custom editors registered
+	 * and also notify the editor service when a custom editor view type is registered/unregistered.
 	 */
-	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
+	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.
@@ -261,11 +273,24 @@ export interface IEditorService {
 
 	/**
 	 * Reverts the provided list of editors.
+	 *
+	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void>;
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
 
 	/**
 	 * Reverts all editors.
+	 *
+	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	revertAll(options?: IRevertAllEditorsOptions): Promise<void>;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Track the provided editors until all have been closed.
+	 *
+	 * @param options use `waitForSaved: true` to wait for the resources
+	 * being saved. If auto-save is enabled, it may be possible to close
+	 * an editor while the save continues in the background.
+	 */
+	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void>;
 }

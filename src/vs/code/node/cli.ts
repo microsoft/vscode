@@ -6,7 +6,8 @@
 import * as os from 'os';
 import * as fs from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS, ParsedArgs } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/waitMarkerFile';
 import product from 'vs/platform/product/common/product';
@@ -14,11 +15,11 @@ import * as paths from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort, randomPort } from 'vs/base/node/ports';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { ProfilingSession, Target } from 'v8-inspect-profiler';
+import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isString } from 'vs/base/common/types';
 import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
 
-function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
+function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 	return !!argv['install-source']
 		|| !!argv['list-extensions']
 		|| !!argv['install-extension']
@@ -28,11 +29,11 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 }
 
 interface IMainCli {
-	main: (argv: ParsedArgs) => Promise<void>;
+	main: (argv: NativeParsedArgs) => Promise<void>;
 }
 
 export async function main(argv: string[]): Promise<any> {
-	let args: ParsedArgs;
+	let args: NativeParsedArgs;
 
 	try {
 		args = parseCLIProcessArgv(argv);
@@ -43,7 +44,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Help
 	if (args.help) {
-		const executable = `${product.applicationName}${os.platform() === 'win32' ? '.exe' : ''}`;
+		const executable = `${product.applicationName}${isWindows ? '.exe' : ''}`;
 		console.log(buildHelpMessage(product.nameLong, executable, product.version, OPTIONS));
 	}
 
@@ -94,9 +95,9 @@ export async function main(argv: string[]): Promise<any> {
 				// On Windows we use a different strategy of saving the file
 				// by first truncating the file and then writing with r+ mode.
 				// This helps to save hidden files on Windows
-				// (see https://github.com/Microsoft/vscode/issues/931) and
+				// (see https://github.com/microsoft/vscode/issues/931) and
 				// prevent removing alternate data streams
-				// (see https://github.com/Microsoft/vscode/issues/6363)
+				// (see https://github.com/microsoft/vscode/issues/6363)
 				fs.truncateSync(target, 0);
 				writeFileSync(target, data, { flag: 'r+' });
 			} else {
@@ -137,7 +138,7 @@ export async function main(argv: string[]): Promise<any> {
 				child.stdout!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr!.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 
-				await new Promise(c => child.once('exit', () => c()));
+				await new Promise<void>(c => child.once('exit', () => c()));
 			});
 		}
 
@@ -153,7 +154,7 @@ export async function main(argv: string[]): Promise<any> {
 
 			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
 			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
-			// checking for stdin being connected to a TTY is not enough (https://github.com/Microsoft/vscode/issues/40351)
+			// checking for stdin being connected to a TTY is not enough (https://github.com/microsoft/vscode/issues/40351)
 
 			if (args._.length === 0) {
 				if (hasReadStdinArg) {

@@ -22,6 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -37,31 +38,31 @@ interface Key {
 const keys: Key[] = [
 	{
 		id: 'explorer',
-		arrow: '&larr;',
+		arrow: '\u2190', // &larr;
 		label: localize('welcomeOverlay.explorer', "File explorer"),
 		command: 'workbench.view.explorer'
 	},
 	{
 		id: 'search',
-		arrow: '&larr;',
+		arrow: '\u2190', // &larr;
 		label: localize('welcomeOverlay.search', "Search across files"),
 		command: 'workbench.view.search'
 	},
 	{
 		id: 'git',
-		arrow: '&larr;',
+		arrow: '\u2190', // &larr;
 		label: localize('welcomeOverlay.git', "Source code management"),
 		command: 'workbench.view.scm'
 	},
 	{
 		id: 'debug',
-		arrow: '&larr;',
+		arrow: '\u2190', // &larr;
 		label: localize('welcomeOverlay.debug', "Launch and debug"),
 		command: 'workbench.view.debug'
 	},
 	{
 		id: 'extensions',
-		arrow: '&larr;',
+		arrow: '\u2190', // &larr;
 		label: localize('welcomeOverlay.extensions', "Manage extensions"),
 		command: 'workbench.view.extensions'
 	},
@@ -73,7 +74,7 @@ const keys: Key[] = [
 	// },
 	{
 		id: 'problems',
-		arrow: '&larrpl;',
+		arrow: '\u2939', // &larrpl;
 		label: localize('welcomeOverlay.problems', "View errors and warnings"),
 		command: 'workbench.actions.view.problems'
 	},
@@ -91,13 +92,13 @@ const keys: Key[] = [
 	// },
 	{
 		id: 'commandPalette',
-		arrow: '&nwarr;',
+		arrow: '\u2196', // &nwarr;
 		label: localize('welcomeOverlay.commandPalette', "Find and run all commands"),
 		command: ShowAllCommandsAction.ID
 	},
 	{
 		id: 'notifications',
-		arrow: '&cudarrr;',
+		arrow: '\u2935', // &cudarrr;
 		arrowLast: true,
 		label: localize('welcomeOverlay.notifications', "Show notifications"),
 		command: 'notifications.showList'
@@ -185,7 +186,7 @@ class WelcomeOverlay extends Disposable {
 			.forEach(({ id, arrow, label, command, arrowLast }) => {
 				const div = dom.append(this._overlay, $(`.key.${id}`));
 				if (arrow && !arrowLast) {
-					dom.append(div, $('span.arrow')).innerHTML = arrow;
+					dom.append(div, $('span.arrow', undefined, arrow));
 				}
 				dom.append(div, $('span.label')).textContent = label;
 				if (command) {
@@ -195,7 +196,7 @@ class WelcomeOverlay extends Disposable {
 					}
 				}
 				if (arrow && arrowLast) {
-					dom.append(div, $('span.arrow')).innerHTML = arrow;
+					dom.append(div, $('span.arrow', undefined, arrow));
 				}
 			});
 	}
@@ -213,7 +214,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .codicon.codicon-warning');
+		const problems = document.querySelector(`footer[id="workbench.parts.statusbar"] .statusbar-item.left ${Codicon.warning.cssSelector}`);
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -258,10 +259,10 @@ class WelcomeOverlay extends Disposable {
 }
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.create(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', localize('help', "Help"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.create(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
 
 // theming
 

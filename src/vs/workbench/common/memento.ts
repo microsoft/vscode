@@ -5,6 +5,7 @@
 
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { isEmptyObject } from 'vs/base/common/types';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export type MementoObject = { [key: string]: any };
 
@@ -75,7 +76,15 @@ class ScopedMemento {
 	private load(): MementoObject {
 		const memento = this.storageService.get(this.id, this.scope);
 		if (memento) {
-			return JSON.parse(memento);
+			try {
+				return JSON.parse(memento);
+			} catch (error) {
+				// Seeing reports from users unable to open editors
+				// from memento parsing exceptions. Log the contents
+				// to diagnose further
+				// https://github.com/microsoft/vscode/issues/102251
+				onUnexpectedError(`[memento]: failed to parse contents: ${error} (id: ${this.id}, scope: ${this.scope}, contents: ${memento})`);
+			}
 		}
 
 		return {};

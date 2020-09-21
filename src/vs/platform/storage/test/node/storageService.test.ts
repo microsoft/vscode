@@ -11,9 +11,10 @@ import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { mkdirp, rimraf, RimRafMode } from 'vs/base/node/pfs';
 import { NullLogService } from 'vs/platform/log/common/log';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { URI } from 'vs/base/common/uri';
 
 suite('StorageService', () => {
 
@@ -83,13 +84,13 @@ suite('StorageService', () => {
 	}
 
 	test('Migrate Data', async () => {
-		class StorageTestEnvironmentService extends EnvironmentService {
+		class StorageTestEnvironmentService extends NativeEnvironmentService {
 
-			constructor(private workspaceStorageFolderPath: string, private _extensionsPath: string) {
-				super(parseArgs(process.argv, OPTIONS), process.execPath);
+			constructor(private workspaceStorageFolderPath: URI, private _extensionsPath: string) {
+				super(parseArgs(process.argv, OPTIONS));
 			}
 
-			get workspaceStorageHome(): string {
+			get workspaceStorageHome(): URI {
 				return this.workspaceStorageFolderPath;
 			}
 
@@ -101,7 +102,7 @@ suite('StorageService', () => {
 		const storageDir = uniqueStorageDir();
 		await mkdirp(storageDir);
 
-		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(storageDir, storageDir));
+		const storage = new NativeStorageService(new InMemoryStorageDatabase(), new NullLogService(), new StorageTestEnvironmentService(URI.file(storageDir), storageDir));
 		await storage.initialize({ id: String(Date.now()) });
 
 		storage.store('bar', 'foo', StorageScope.WORKSPACE);

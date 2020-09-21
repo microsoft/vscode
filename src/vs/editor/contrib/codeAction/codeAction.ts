@@ -24,9 +24,32 @@ export const sourceActionCommandId = 'editor.action.sourceAction';
 export const organizeImportsCommandId = 'editor.action.organizeImports';
 export const fixAllCommandId = 'editor.action.fixAll';
 
+export class CodeActionItem {
+
+	constructor(
+		readonly action: modes.CodeAction,
+		readonly provider: modes.CodeActionProvider | undefined,
+	) { }
+
+	async resolve(token: CancellationToken): Promise<this> {
+		if (this.provider?.resolveCodeAction && !this.action.edit) {
+			let action: modes.CodeAction | undefined | null;
+			try {
+				action = await this.provider.resolveCodeAction(this.action, token);
+			} catch (err) {
+				onUnexpectedExternalError(err);
+			}
+			if (action) {
+				this.action.edit = action.edit;
+			}
+		}
+		return this;
+	}
+}
+
 export interface CodeActionSet extends IDisposable {
-	readonly validActions: readonly modes.CodeAction[];
-	readonly allActions: readonly modes.CodeAction[];
+	readonly validActions: readonly CodeActionItem[];
+	readonly allActions: readonly CodeActionItem[];
 	readonly hasAutoFix: boolean;
 
 	readonly documentation: readonly modes.Command[];
@@ -34,7 +57,7 @@ export interface CodeActionSet extends IDisposable {
 
 class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 
-	private static codeActionsComparator(a: modes.CodeAction, b: modes.CodeAction): number {
+	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
 		if (a.isPreferred && !b.isPreferred) {
 			return -1;
 		} else if (!a.isPreferred && b.isPreferred) {
@@ -54,24 +77,27 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 		}
 	}
 
-	public readonly validActions: readonly modes.CodeAction[];
-	public readonly allActions: readonly modes.CodeAction[];
+	public readonly validActions: readonly CodeActionItem[];
+	public readonly allActions: readonly CodeActionItem[];
 
 	public constructor(
-		actions: readonly modes.CodeAction[],
+		actions: readonly CodeActionItem[],
 		public readonly documentation: readonly modes.Command[],
 		disposables: DisposableStore,
 	) {
 		super();
 		this._register(disposables);
 		this.allActions = mergeSort([...actions], ManagedCodeActionSet.codeActionsComparator);
-		this.validActions = this.allActions.filter(action => !action.disabled);
+		this.validActions = this.allActions.filter(({ action }) => !action.disabled);
 	}
 
 	public get hasAutoFix() {
-		return this.validActions.some(fix => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
+		return this.validActions.some(({ action: fix }) => !!fix.kind && CodeActionKind.QuickFix.contains(new CodeActionKind(fix.kind)) && !!fix.isPreferred);
 	}
 }
+
+
+const emptyCodeActionsResponse = { actions: [] as CodeActionItem[], documentation: undefined };
 
 export function getCodeActions(
 	model: ITextModel,
@@ -100,18 +126,21 @@ export function getCodeActions(
 			}
 
 			if (cts.token.isCancellationRequested) {
-				return { actions: [] as modes.CodeAction[], documentation: undefined };
+				return emptyCodeActionsResponse;
 			}
 
 			const filteredActions = (providedCodeActions?.actions || []).filter(action => action && filtersAction(filter, action));
 			const documentation = getDocumentation(provider, filteredActions, filter.include);
-			return { actions: filteredActions, documentation };
+			return {
+				actions: filteredActions.map(action => new CodeActionItem(action, provider)),
+				documentation
+			};
 		} catch (err) {
 			if (isPromiseCanceledError(err)) {
 				throw err;
 			}
 			onUnexpectedExternalError(err);
-			return { actions: [] as modes.CodeAction[], documentation: undefined };
+			return emptyCodeActionsResponse;
 		}
 	});
 
@@ -195,7 +224,7 @@ function getDocumentation(
 }
 
 registerLanguageCommand('_executeCodeActionProvider', async function (accessor, args): Promise<ReadonlyArray<modes.CodeAction>> {
-	const { resource, rangeOrSelection, kind } = args;
+	const { resource, rangeOrSelection, kind, itemResolveCount } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
@@ -222,6 +251,17 @@ registerLanguageCommand('_executeCodeActionProvider', async function (accessor, 
 		Progress.None,
 		CancellationToken.None);
 
-	setTimeout(() => codeActionSet.dispose(), 100);
-	return codeActionSet.validActions;
+
+	const resolving: Promise<any>[] = [];
+	const resolveCount = Math.min(codeActionSet.validActions.length, typeof itemResolveCount === 'number' ? itemResolveCount : 0);
+	for (let i = 0; i < resolveCount; i++) {
+		resolving.push(codeActionSet.validActions[i].resolve(CancellationToken.None));
+	}
+
+	try {
+		await Promise.all(resolving);
+		return codeActionSet.validActions.map(item => item.action);
+	} finally {
+		setTimeout(() => codeActionSet.dispose(), 100);
+	}
 });

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -11,6 +12,7 @@ import { PieceTreeBase, StringBuffer } from 'vs/editor/common/model/pieceTreeTex
 import { SearchData } from 'vs/editor/common/model/textModelSearch';
 import { countEOL, StringEOL } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -30,17 +32,25 @@ export interface IReverseSingleEditOperation extends IValidEditOperation {
 	sortIndex: number;
 }
 
-export class PieceTreeTextBuffer implements ITextBuffer {
+export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 	private readonly _pieceTree: PieceTreeBase;
 	private readonly _BOM: string;
 	private _mightContainRTL: boolean;
+	private _mightContainUnusualLineTerminators: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
-	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
+	private readonly _onDidChangeContent: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		this._BOM = BOM;
 		this._mightContainNonBasicASCII = !isBasicASCII;
 		this._mightContainRTL = containsRTL;
+		this._mightContainUnusualLineTerminators = containsUnusualLineTerminators;
 		this._pieceTree = new PieceTreeBase(chunks, eol, eolNormalized);
+	}
+	dispose(): void {
+		this._onDidChangeContent.dispose();
 	}
 
 	// #region TextBuffer
@@ -58,6 +68,12 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	}
 	public mightContainRTL(): boolean {
 		return this._mightContainRTL;
+	}
+	public mightContainUnusualLineTerminators(): boolean {
+		return this._mightContainUnusualLineTerminators;
+	}
+	public resetMightContainUnusualLineTerminators(): void {
+		this._mightContainUnusualLineTerminators = false;
 	}
 	public mightContainNonBasicASCII(): boolean {
 		return this._mightContainNonBasicASCII;
@@ -162,6 +178,10 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 		return this._pieceTree.getLineCharCode(lineNumber, index);
 	}
 
+	public getCharCode(offset: number): number {
+		return this._pieceTree.getCharCode(offset);
+	}
+
 	public getLineLength(lineNumber: number): number {
 		return this._pieceTree.getLineLength(lineNumber);
 	}
@@ -198,8 +218,9 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				return '\r\n';
 			case EndOfLinePreference.TextDefined:
 				return this.getEOL();
+			default:
+				throw new Error('Unknown EOL preference');
 		}
-		throw new Error('Unknown EOL preference');
 	}
 
 	public setEOL(newEOL: '\r\n' | '\n'): void {
@@ -208,6 +229,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 
 	public applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult {
 		let mightContainRTL = this._mightContainRTL;
+		let mightContainUnusualLineTerminators = this._mightContainUnusualLineTerminators;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
 
@@ -218,12 +240,20 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				canReduceOperations = false;
 			}
 			let validatedRange = op.range;
-			if (!mightContainRTL && op.text) {
-				// check if the new inserted text contains RTL
-				mightContainRTL = strings.containsRTL(op.text);
-			}
-			if (!mightContainNonBasicASCII && op.text) {
-				mightContainNonBasicASCII = !strings.isBasicASCII(op.text);
+			if (op.text) {
+				let textMightContainNonBasicASCII = true;
+				if (!mightContainNonBasicASCII) {
+					textMightContainNonBasicASCII = !strings.isBasicASCII(op.text);
+					mightContainNonBasicASCII = textMightContainNonBasicASCII;
+				}
+				if (!mightContainRTL && textMightContainNonBasicASCII) {
+					// check if the new inserted text contains RTL
+					mightContainRTL = strings.containsRTL(op.text);
+				}
+				if (!mightContainUnusualLineTerminators && textMightContainNonBasicASCII) {
+					// check if the new inserted text contains unusual line terminators
+					mightContainUnusualLineTerminators = strings.containsUnusualLineTerminators(op.text);
+				}
 			}
 
 			let validText = '';
@@ -332,6 +362,7 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 
 
 		this._mightContainRTL = mightContainRTL;
+		this._mightContainUnusualLineTerminators = mightContainUnusualLineTerminators;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
 		const contentChanges = this._doApplyEdits(operations);
@@ -359,6 +390,8 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 				trimAutoWhitespaceLineNumbers.push(lineNumber);
 			}
 		}
+
+		this._onDidChangeContent.fire();
 
 		return new ApplyEditsResult(
 			reverseOperations,
@@ -482,6 +515,32 @@ export class PieceTreeTextBuffer implements ITextBuffer {
 	public getPieceTree(): PieceTreeBase {
 		return this._pieceTree;
 	}
+
+	public static _getInverseEditRange(range: Range, text: string) {
+		let startLineNumber = range.startLineNumber;
+		let startColumn = range.startColumn;
+		const [eolCount, firstLineLength, lastLineLength] = countEOL(text);
+		let resultRange: Range;
+
+		if (text.length > 0) {
+			// the operation inserts something
+			const lineCount = eolCount + 1;
+
+			if (lineCount === 1) {
+				// single line insert
+				resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn + firstLineLength);
+			} else {
+				// multi line insert
+				resultRange = new Range(startLineNumber, startColumn, startLineNumber + lineCount - 1, lastLineLength + 1);
+			}
+		} else {
+			// There is nothing to insert
+			resultRange = new Range(startLineNumber, startColumn, startLineNumber, startColumn);
+		}
+
+		return resultRange;
+	}
+
 	/**
 	 * Assumes `operations` are validated and sorted ascending
 	 */

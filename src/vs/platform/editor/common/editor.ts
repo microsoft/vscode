@@ -19,6 +19,11 @@ export interface IEditorModel {
 	load(): Promise<IEditorModel>;
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean;
+
+	/**
 	 * Dispose associated resources
 	 */
 	dispose(): void;
@@ -171,6 +176,12 @@ export interface IEditorOptions {
 	readonly pinned?: boolean;
 
 	/**
+	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
+	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 */
+	readonly sticky?: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	readonly index?: number;
@@ -191,9 +202,12 @@ export interface IEditorOptions {
 	readonly ignoreError?: boolean;
 
 	/**
-	 * Does not use editor overrides while opening the editor
+	 * Allows to override the editor that should be used to display the input:
+	 * - `undefined`: let the editor decide for itself
+	 * - `false`: disable overrides
+	 * - `string`: specific override by id
 	 */
-	readonly ignoreOverrides?: boolean;
+	readonly override?: false | string;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

@@ -34,7 +34,6 @@ import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
-const MAX_TREE_HEIGHT = 324;
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -105,7 +104,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.tree = <WorkbenchAsyncDataTree<IExpression, IExpression, any>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'DebugHover', this.treeContainer, new DebugHoverDelegate(), [this.instantiationService.createInstance(VariablesRenderer)],
 			dataSource, {
-			ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 			accessibilityProvider: new DebugHoverAccessibilityProvider(),
 			mouseSupport: false,
 			horizontalScrolling: true,
@@ -141,7 +139,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.color = '';
 			}
 		}));
-		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
@@ -282,16 +280,16 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.valueContainer.hidden = true;
-		this.complexValueContainer.hidden = false;
 
+		await this.tree.setInput(expression);
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
-		this.layoutTreeAndContainer();
+		this.layoutTreeAndContainer(true);
 		this.editor.layoutContentWidget(this);
 		this.scrollbar.scanDomNode();
-		await this.tree.setInput(expression);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
+		this.complexValueContainer.hidden = false;
 
 		if (focus) {
 			this.editor.render();
@@ -299,11 +297,11 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 	}
 
-	private layoutTreeAndContainer(): void {
+	private layoutTreeAndContainer(initialLayout: boolean): void {
 		const scrollBarHeight = 8;
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight + scrollBarHeight);
+		const treeHeight = Math.min(this.editor.getScrollHeight() / 2, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight, 324);
+		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
 	}
 
 	hide(): void {
@@ -336,8 +334,13 @@ export class DebugHoverWidget implements IContentWidget {
 }
 
 class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('treeAriaLabel', "Debug Hover");
+	}
+
 	getAriaLabel(element: IExpression): string {
-		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+		return nls.localize({ key: 'variableAriaLabel', comment: ['Do not translate placholders. Placeholders are name and value of a variable.'] }, "{0}, value {1}, variables, debug", element.name, element.value);
 	}
 }
 

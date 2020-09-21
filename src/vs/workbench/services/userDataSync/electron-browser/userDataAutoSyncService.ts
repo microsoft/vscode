@@ -3,29 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataAutoSyncService, UserDataSyncError } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataAutoSyncService, UserDataSyncError, IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event } from 'vs/base/common/event';
+import { UserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
-export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
+class UserDataAutoSyncService extends UserDataAutoSyncEnablementService implements IUserDataAutoSyncService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 	get onError(): Event<UserDataSyncError> { return Event.map(this.channel.listen<Error>('onError'), e => UserDataSyncError.toUserDataSyncError(e)); }
 
 	constructor(
-		@ISharedProcessService sharedProcessService: ISharedProcessService
+		@IStorageService storageService: IStorageService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
-		super();
+		super(storageService, environmentService, userDataSyncStoreManagementService);
 		this.channel = sharedProcessService.getChannel('userDataAutoSync');
 	}
 
-	triggerAutoSync(sources: string[]): Promise<void> {
-		return this.channel.call('triggerAutoSync', [sources]);
+	triggerSync(sources: string[], hasToLimitSync: boolean, disableCache: boolean): Promise<void> {
+		return this.channel.call('triggerSync', [sources, hasToLimitSync, disableCache]);
+	}
+
+	turnOn(): Promise<void> {
+		return this.channel.call('turnOn');
+	}
+
+	turnOff(everywhere: boolean): Promise<void> {
+		return this.channel.call('turnOff', [everywhere]);
 	}
 
 }

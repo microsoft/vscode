@@ -9,8 +9,8 @@ import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { ActionBar, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator } from 'vs/base/common/actions';
+import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
@@ -21,13 +21,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerThemingParticipant, IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { FocusSessionAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -57,10 +55,8 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		@IStorageService private readonly storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(themeService);
@@ -80,9 +76,10 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action);
-				}
-				if (action instanceof MenuItemAction) {
-					return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, contextMenuService);
+				} else if (action instanceof MenuItemAction) {
+					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+				} else if (action instanceof SubmenuItemAction) {
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 				}
 
 				return undefined;
@@ -145,7 +142,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 
 		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
-			dom.addClass(this.dragArea, 'dragged');
+			this.dragArea.classList.add('dragged');
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
@@ -157,7 +154,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
-				dom.removeClass(this.dragArea, 'dragged');
+				this.dragArea.classList.remove('dragged');
 
 				mouseMoveListener.dispose();
 				mouseUpListener.dispose();
@@ -271,7 +268,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		if (this.$el) {
 			this.$el.remove();
-			delete this.$el;
 		}
 		if (this.disposeOnUpdate) {
 			dispose(this.disposeOnUpdate);
@@ -365,7 +361,7 @@ registerThemingParticipant((theme, collector) => {
 
 	const debugIconStopColor = theme.getColor(debugIconStopForeground);
 	if (debugIconStopColor) {
-		collector.addRule(`.monaco-workbench .codicon-debug-stop { color: ${debugIconStopColor} !important; }`);
+		collector.addRule(`.monaco-workbench .codicon-debug-stop, .monaco-workbench .debug-view-content .codicon-record { color: ${debugIconStopColor} !important; }`);
 	}
 
 	const debugIconDisconnectColor = theme.getColor(debugIconDisconnectForeground);

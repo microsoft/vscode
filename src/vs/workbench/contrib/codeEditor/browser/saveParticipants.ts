@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as strings from 'vs/base/common/strings';
-import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -13,11 +13,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeActionTriggerType, DocumentFormattingEditProvider, CodeActionProvider } from 'vs/editor/common/modes';
+import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/modes';
 import { getCodeActions } from 'vs/editor/contrib/codeAction/codeAction';
 import { applyCodeAction } from 'vs/editor/contrib/codeAction/codeActionCommands';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/types';
-import { formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
+import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,6 +29,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution, Extensions as WorkbenchContributionsExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -221,15 +223,14 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		if (!model.textEditorModel) {
 			return;
 		}
+		if (env.reason === SaveReason.AUTO) {
+			return undefined;
+		}
 
 		const textEditorModel = model.textEditorModel;
 		const overrides = { overrideIdentifier: textEditorModel.getLanguageIdentifier().language, resource: textEditorModel.uri };
 
-		if (env.reason === SaveReason.AUTO || !this.configurationService.getValue('editor.formatOnSave', overrides)) {
-			return undefined;
-		}
-
-		const nestedProgress = new Progress<DocumentFormattingEditProvider>(provider => {
+		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
 				message: localize(
 					'formatting',
@@ -238,8 +239,24 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 				)
 			});
 		});
+
+		const enabled = this.configurationService.getValue<boolean>('editor.formatOnSave', overrides);
+		if (!enabled) {
+			return undefined;
+		}
+
 		const editorOrModel = findEditor(textEditorModel, this.codeEditorService) || textEditorModel;
-		await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+		const mode = this.configurationService.getValue<'file' | 'modifications'>('editor.formatOnSaveMode', overrides);
+		if (mode === 'modifications') {
+			// format modifications
+			const ranges = await this.instantiationService.invokeFunction(getModifiedRanges, isCodeEditor(editorOrModel) ? editorOrModel.getModel() : editorOrModel);
+			if (ranges) {
+				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+			}
+		} else {
+			// format the whole file
+			await this.instantiationService.invokeFunction(formatDocumentWithSelectedProvider, editorOrModel, FormattingMode.Silent, nestedProgress, token);
+		}
 	}
 }
 
@@ -327,7 +344,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, getActionProgress, token);
 			try {
 				for (const action of actionsToRun.validActions) {
-					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.title) });
+					progress.report({ message: localize('codeAction.apply', "Applying code action '{0}'.", action.action.title) });
 					await this.instantiationService.invokeFunction(applyCodeAction, action);
 				}
 			} catch {

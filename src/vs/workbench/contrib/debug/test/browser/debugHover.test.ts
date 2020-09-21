@@ -6,13 +6,14 @@
 import * as assert from 'assert';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
 import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { StackFrame, Thread, DebugModel, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { StackFrame, Thread, Scope, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import type { IScope, IExpression } from 'vs/workbench/contrib/debug/common/debug';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
 
 suite('Debug - Hover', () => {
 	test('find expression in stack frame', async () => {
-		const model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		const model = createMockDebugModel();
 		const session = createMockSession(model);
 		let stackFrame: StackFrame;
 
@@ -26,7 +27,7 @@ suite('Debug - Hover', () => {
 			name: 'internalModule.js',
 			path: 'a/b/c/d/internalModule.js',
 			sourceReference: 10,
-		}, 'aDebugSessionId');
+		}, 'aDebugSessionId', mockUriIdentityService);
 
 		let scope: Scope;
 		stackFrame = new class extends StackFrame {

@@ -32,6 +32,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { Codicon } from 'vs/base/common/codicons';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -61,6 +62,7 @@ const toggleOutputActionKeybindings = {
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
+	icon: Codicon.output.classNames,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: OUTPUT_VIEW_ID,
@@ -71,7 +73,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	containerIcon: 'codicon-output',
+	containerIcon: Codicon.output.classNames,
 	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
@@ -113,7 +115,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor, channelId: string): Promise<void> {
-		accessor.get(IOutputService).showChannel(channelId);
+		if (typeof channelId === 'string') {
+			// Sometimes the action is executed with no channelId parameter, then we should just ignore it #103496
+			accessor.get(IOutputService).showChannel(channelId);
+		}
 	}
 });
 registerAction2(class extends Action2 {
@@ -241,7 +246,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-const devCategory = { value: nls.localize('developer', "Developer"), original: 'Developer' };
+const devCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -317,7 +322,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: nls.localize('output.smartScroll.enabled', "Enable/disable the ability of smart scrolling in the output view. Smart scrolling allows you to lock scrolling automatically when you click in the output view and unlocks when you click in the last line."),
 			default: true,
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.WINDOW,
 			tags: ['output']
 		}
 	}

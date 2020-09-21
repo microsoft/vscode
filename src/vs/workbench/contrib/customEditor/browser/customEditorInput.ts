@@ -18,7 +18,7 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
@@ -29,7 +29,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	private readonly _editorResource: URI;
 	private _defaultDirtyState: boolean | undefined;
 
-	public readonly backupId: string | undefined;
+	private readonly _backupId: string | undefined;
 
 	get resource() { return this._editorResource; }
 
@@ -54,7 +54,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
 		this._defaultDirtyState = options.startsDirty;
-		this.backupId = options.backupId;
+		this._backupId = options.backupId;
 	}
 
 	public getTypeId(): string {
@@ -119,6 +119,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
 		if (!this.isDirty()) {
 			return false; // the editor needs to be dirty for being saved
 		}
@@ -162,7 +166,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined;
 		}
 
-		return this.move(groupId, target)?.editor;
+		return this.rename(groupId, target)?.editor;
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -192,7 +196,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return null;
 	}
 
-	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+	rename(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
 		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
@@ -213,7 +217,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this.viewType,
 			this.id,
 			new Lazy(() => undefined!),
-			{ startsDirty: this._defaultDirtyState, backupId: this.backupId }); // this webview is replaced in the transfer call
+			{ startsDirty: this._defaultDirtyState, backupId: this._backupId }); // this webview is replaced in the transfer call
 		this.transfer(newEditor);
 		newEditor.updateGroup(group);
 		return newEditor;
@@ -244,5 +248,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		other._moveHandler = this._moveHandler;
 		this._moveHandler = undefined;
 		return other;
+	}
+
+	get backupId(): string | undefined {
+		if (this._modelRef) {
+			return this._modelRef.object.backupId;
+		}
+		return this._backupId;
 	}
 }

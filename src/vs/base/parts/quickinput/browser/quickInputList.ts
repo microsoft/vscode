@@ -12,7 +12,6 @@ import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyCodiconAware, parseCodicons } from 'vs/base/common/codicon';
 import { compareAnything } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -27,6 +26,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
 import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -72,7 +72,7 @@ class ListElement implements IListElement, IDisposable {
 	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
-		assign(this, init);
+		Object.assign(this, init);
 	}
 
 	dispose() {
@@ -179,11 +179,7 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		} else {
 			data.separator.style.display = 'none';
 		}
-		if (element.separator) {
-			dom.addClass(data.entry, 'quick-input-list-separator-border');
-		} else {
-			dom.removeClass(data.entry, 'quick-input-list-separator-border');
-		}
+		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
 
 		// Actions
 		data.actionBar.clear();
@@ -204,9 +200,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
-			dom.addClass(data.entry, 'has-actions');
+			data.entry.classList.add('has-actions');
 		} else {
-			dom.removeClass(data.entry, 'has-actions');
+			data.entry.classList.remove('has-actions');
 		}
 	}
 
@@ -282,12 +278,10 @@ export class QuickInputList {
 		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: { getId: element => element.saneLabel },
-			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
-			accessibilityProvider,
-			ariaRole: 'listbox'
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -714,8 +708,16 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 
 class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
 
+	getWidgetAriaLabel(): string {
+		return localize('quickInput', "Quick Input");
+	}
+
 	getAriaLabel(element: ListElement): string | null {
 		return element.saneAriaLabel;
+	}
+
+	getWidgetRole() {
+		return 'listbox';
 	}
 
 	getRole() {

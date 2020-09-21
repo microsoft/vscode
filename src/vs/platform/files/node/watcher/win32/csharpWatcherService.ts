@@ -131,7 +131,7 @@ export class OutOfProcessWin32FolderWatcher {
 		this.logCallback({ type: 'trace', message: `[File Watcher (C#)] ${message}` });
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		if (this.handle) {
 			this.handle.kill();
 			this.handle = undefined;

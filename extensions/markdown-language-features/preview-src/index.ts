@@ -18,7 +18,13 @@ const settings = getSettings();
 
 const vscode = acquireVsCodeApi();
 
-const state = { ...vscode.getState(), ...getData<any>('data-state') };
+const originalState = vscode.getState();
+
+const state = {
+	...(typeof originalState === 'object' ? originalState : {}),
+	...getData<any>('data-state')
+};
+
 // Make sure to sync VS Code state here
 vscode.setState(state);
 
@@ -157,12 +163,14 @@ document.addEventListener('click', event => {
 				return;
 			}
 
-			// Pass through known schemes
-			if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
-				return;
+			let hrefText = node.getAttribute('data-href');
+			if (!hrefText) {
+				// Pass through known schemes
+				if (passThroughLinkSchemes.some(scheme => node.href.startsWith(scheme))) {
+					return;
+				}
+				hrefText = node.getAttribute('href');
 			}
-
-			const hrefText = node.getAttribute('data-href') || node.getAttribute('href');
 
 			// If original link doesn't look like a url, delegate back to VS Code to resolve
 			if (!/^[a-z\-]+:/i.test(hrefText)) {

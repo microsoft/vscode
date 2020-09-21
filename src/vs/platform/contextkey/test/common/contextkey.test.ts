@@ -136,4 +136,54 @@ suite('ContextKeyExpr', () => {
 		testNormalize('isLinux', isLinux ? 'true' : 'false');
 		testNormalize('isWindows', isWindows ? 'true' : 'false');
 	});
+
+	test('issue #101015: distribute OR', () => {
+		function t(expr1: string, expr2: string, expected: string | undefined): void {
+			const e1 = ContextKeyExpr.deserialize(expr1);
+			const e2 = ContextKeyExpr.deserialize(expr2);
+			const actual = ContextKeyExpr.and(e1, e2)?.serialize();
+			assert.strictEqual(actual, expected);
+		}
+		t('a', 'b', 'a && b');
+		t('a || b', 'c', 'a && c || b && c');
+		t('a || b', 'c || d', 'a && c || a && d || b && c || b && d');
+		t('a || b', 'c && d', 'a && c && d || b && c && d');
+		t('a || b', 'c && d || e', 'a && e || b && e || a && c && d || b && c && d');
+	});
+
+	test('ContextKeyInExpr', () => {
+		const ainb = ContextKeyExpr.deserialize('a in b')!;
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': [3, 2, 1] })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': [1, 2, 3] })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': [1, 2] })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3 })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 3, 'b': null })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': ['x'] })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': ['y'] })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': {} })), false);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': false } })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'x', 'b': { 'x': true } })), true);
+		assert.equal(ainb.evaluate(createContext({ 'a': 'prototype', 'b': {} })), false);
+	});
+
+	test('issue #106524: distributing AND should normalize', () => {
+		const actual = ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				ContextKeyExpr.has('a'),
+				ContextKeyExpr.has('b')
+			),
+			ContextKeyExpr.has('c')
+		);
+		const expected = ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('a'),
+				ContextKeyExpr.has('c')
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.has('b'),
+				ContextKeyExpr.has('c')
+			)
+		);
+		assert.equal(actual!.equals(expected!), true);
+	});
 });

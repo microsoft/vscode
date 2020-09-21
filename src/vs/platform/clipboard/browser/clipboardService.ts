@@ -5,70 +5,96 @@
 
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
+import { $ } from 'vs/base/browser/dom';
 
 export class BrowserClipboardService implements IClipboardService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
-	private _internalResourcesClipboard: URI[] | undefined;
+	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
 	async writeText(text: string, type?: string): Promise<void> {
+
+		// With type: only in-memory is supported
 		if (type) {
-			return; // TODO@sbatten
+			this.mapTextToType.set(type, text);
+
+			return;
 		}
 
-		if (navigator.clipboard && navigator.clipboard.writeText) {
-			return navigator.clipboard.writeText(text);
-		} else {
-			const activeElement = <HTMLElement>document.activeElement;
-			const newTextarea = document.createElement('textarea');
-			newTextarea.className = 'clipboard-copy';
-			newTextarea.style.visibility = 'false';
-			newTextarea.style.height = '1px';
-			newTextarea.style.width = '1px';
-			newTextarea.setAttribute('aria-hidden', 'true');
-			newTextarea.style.position = 'absolute';
-			newTextarea.style.top = '-1000';
-			newTextarea.style.left = '-1000';
-			document.body.appendChild(newTextarea);
-			newTextarea.value = text;
-			newTextarea.focus();
-			newTextarea.select();
-			document.execCommand('copy');
-			activeElement.focus();
-			document.body.removeChild(newTextarea);
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			return await navigator.clipboard.writeText(text);
+		} catch (error) {
+			console.error(error);
 		}
+
+		// Fallback to textarea and execCommand solution
+
+		const activeElement = document.activeElement;
+
+		const textArea: HTMLTextAreaElement = document.body.appendChild($('textarea', { 'aria-hidden': true }));
+		textArea.style.height = '1px';
+		textArea.style.width = '1px';
+		textArea.style.position = 'absolute';
+
+		textArea.value = text;
+		textArea.focus();
+		textArea.select();
+
+		document.execCommand('copy');
+
+		if (activeElement instanceof HTMLElement) {
+			activeElement.focus();
+		}
+
+		document.body.removeChild(textArea);
+
 		return;
 	}
 
 	async readText(type?: string): Promise<string> {
+
+		// With type: only in-memory is supported
 		if (type) {
-			return ''; // TODO@sbatten
+			return this.mapTextToType.get(type) || '';
 		}
 
-		return navigator.clipboard.readText();
+		// Guard access to navigator.clipboard with try/catch
+		// as we have seen DOMExceptions in certain browsers
+		// due to security policies.
+		try {
+			return await navigator.clipboard.readText();
+		} catch (error) {
+			console.error(error);
+
+			return '';
+		}
 	}
 
-	readTextSync(): string | undefined {
-		return undefined;
+	private findText = ''; // unsupported in web (only in-memory)
+
+	async readFindText(): Promise<string> {
+		return this.findText;
 	}
 
-	readFindText(): string {
-		// @ts-expect-error
-		return undefined;
+	async writeFindText(text: string): Promise<void> {
+		this.findText = text;
 	}
 
-	writeFindText(text: string): void { }
+	private resources: URI[] = []; // unsupported in web (only in-memory)
 
-	writeResources(resources: URI[]): void {
-		this._internalResourcesClipboard = resources;
+	async writeResources(resources: URI[]): Promise<void> {
+		this.resources = resources;
 	}
 
-	readResources(): URI[] {
-		return this._internalResourcesClipboard || [];
+	async readResources(): Promise<URI[]> {
+		return this.resources;
 	}
 
-	hasResources(): boolean {
-		return this._internalResourcesClipboard !== undefined && this._internalResourcesClipboard.length > 0;
+	async hasResources(): Promise<boolean> {
+		return this.resources.length > 0;
 	}
 }

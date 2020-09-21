@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IMarker, ITerminalAddon } from 'xterm';
+import type { Terminal, IMarker, ITerminalAddon } from 'xterm';
 import { ICommandTracker } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
@@ -233,13 +233,13 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = xterm.registerMarker(this._getOffset(xterm) - 1);
+			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) - 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = xterm.registerMarker(offset - 1);
+			this._currentMarker = this._addMarkerOrThrow(xterm, offset - 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
@@ -256,16 +256,24 @@ export class CommandTrackerAddon implements ICommandTracker, ITerminalAddon {
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = xterm.registerMarker(this._getOffset(xterm) + 1);
+			this._currentMarker = this._addMarkerOrThrow(xterm, this._getOffset(xterm) + 1);
 		} else {
 			const offset = this._getOffset(xterm);
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
-			this._currentMarker = xterm.registerMarker(offset + 1);
+			this._currentMarker = this._addMarkerOrThrow(xterm, offset + 1);
 		}
 		this._isDisposable = true;
 		this._scrollToMarker(this._currentMarker, scrollPosition);
+	}
+
+	private _addMarkerOrThrow(xterm: Terminal, cursorYOffset: number): IMarker {
+		const marker = xterm.addMarker(cursorYOffset);
+		if (!marker) {
+			throw new Error(`Could not create marker for ${cursorYOffset}`);
+		}
+		return marker;
 	}
 
 	private _getOffset(xterm: Terminal): number {

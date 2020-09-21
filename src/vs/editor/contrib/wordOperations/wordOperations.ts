@@ -53,7 +53,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		});
 
 		model.pushStackElement();
-		editor._getCursors().setStates('moveWordCommand', CursorChangeReason.NotSet, result.map(r => CursorState.fromModelSelection(r)));
+		editor._getViewModel().setCursorStates('moveWordCommand', CursorChangeReason.NotSet, result.map(r => CursorState.fromModelSelection(r)));
 		if (result.length === 1) {
 			const pos = new Position(result[0].positionLineNumber, result[0].positionColumn);
 			editor.revealPosition(pos, ScrollType.Smooth);
@@ -101,13 +101,7 @@ export class CursorWordStartLeft extends WordLeftCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'cursorWordStartLeft',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: undefined
 		});
 	}
 }
@@ -129,7 +123,13 @@ export class CursorWordLeft extends WordLeftCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordStartFast,
 			id: 'cursorWordLeft',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 }
@@ -140,13 +140,7 @@ export class CursorWordStartLeftSelect extends WordLeftCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'cursorWordStartLeftSelect',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: undefined
 		});
 	}
 }
@@ -168,7 +162,13 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordStartFast,
 			id: 'cursorWordLeftSelect',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 }

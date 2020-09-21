@@ -15,7 +15,6 @@
 	"include": [
 		"typings/require.d.ts",
 		"typings/thenable.d.ts",
-		"typings/lib.array-ext.d.ts",
 		"vs/css.d.ts",
 		"vs/monaco.d.ts",
 		"vs/nls.d.ts",
