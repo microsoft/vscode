@@ -15,6 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -192,7 +193,9 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 
 	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
-	private _css: string;
+	private _codiconCSS: string;
+	private _themeCSS: string;
+	private _allCSS: string;
 	private _globalStyleElement: HTMLStyleElement | null;
 	private _styleElements: HTMLStyleElement[];
 	private _theme!: IStandaloneTheme;
@@ -204,10 +207,17 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
-		this._css = '';
+		this._codiconCSS = CodiconStyles.getCSS();
+		this._themeCSS = '';
+		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
 		this._globalStyleElement = null;
 		this._styleElements = [];
 		this.setTheme(VS_THEME_NAME);
+
+		CodiconStyles.onDidChange(() => {
+			this._codiconCSS = CodiconStyles.getCSS();
+			this._updateCSS();
+		});
 	}
 
 	public registerEditorContainer(domNode: HTMLElement): IDisposable {
@@ -221,7 +231,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		if (!this._globalStyleElement) {
 			this._globalStyleElement = dom.createStyleSheet();
 			this._globalStyleElement.className = 'monaco-colors';
-			this._globalStyleElement.innerHTML = this._css;
+			this._globalStyleElement.innerHTML = this._allCSS;
 			this._styleElements.push(this._globalStyleElement);
 		}
 		return Disposable.None;
@@ -230,7 +240,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
 		const styleElement = dom.createStyleSheet(domNode);
 		styleElement.className = 'monaco-colors';
-		styleElement.innerHTML = this._css;
+		styleElement.innerHTML = this._allCSS;
 		this._styleElements.push(styleElement);
 		return {
 			dispose: () => {
@@ -299,13 +309,18 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		let colorMap = tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
-		this._css = cssRules.join('\n');
-		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
+		this._themeCSS = cssRules.join('\n');
+		this._updateCSS();
 
 		TokenizationRegistry.setColorMap(colorMap);
 		this._onColorThemeChange.fire(theme);
 
 		return theme.id;
+	}
+
+	private _updateCSS(): void {
+		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
+		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._allCSS);
 	}
 
 	public getFileIconTheme(): IFileIconTheme {

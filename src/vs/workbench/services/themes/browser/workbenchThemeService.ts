@@ -18,7 +18,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { registerFileIconThemeSchemas } from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { FileIconThemeData } from 'vs/workbench/services/themes/browser/fileIconThemeData';
-import { removeClasses, addClasses } from 'vs/base/browser/dom';
+import { removeClasses, addClasses, createStyleSheet } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -34,6 +34,8 @@ import { ProductIconThemeData, DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbenc
 import { registerProductIconThemeSchemas } from 'vs/workbench/services/themes/common/productIconThemeSchema';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isWeb } from 'vs/base/common/platform';
+import { CodiconStyles } from 'vs/base/browser/ui/codicons/codiconStyles';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 // implementation
 
@@ -163,6 +165,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.installPreferredSchemeListener();
 			this.installRegistryListeners();
 		});
+
+		const codiconStyleSheet = createStyleSheet();
+		codiconStyleSheet.id = 'codiconStyles';
+
+		function updateAll() {
+			codiconStyleSheet.innerHTML = CodiconStyles.getCSS();
+		}
+
+		const delayer = new RunOnceScheduler(updateAll, 0);
+		CodiconStyles.onDidChange(() => delayer.schedule());
+		delayer.schedule();
 	}
 
 	private initialize(): Promise<[IWorkbenchColorTheme | null, IWorkbenchFileIconTheme | null, IWorkbenchProductIconTheme | null]> {
