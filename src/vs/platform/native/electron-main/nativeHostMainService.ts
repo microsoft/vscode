@@ -10,7 +10,7 @@ import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { isMacintosh, isWindows, isRootUser } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isRootUser, isLinux } from 'vs/base/common/platform';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -24,6 +24,10 @@ import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { arch, totalmem, release, platform, type, loadavg, freemem, cpus } from 'os';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { virtualMachineHint } from 'vs/base/node/id';
+import { ILogService } from 'vs/platform/log/common/log';
+import { dirname, join } from 'vs/base/common/path';
+import product from 'vs/platform/product/common/product';
+import { memoize } from 'vs/base/common/decorators';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -38,7 +42,8 @@ export class NativeHostMainService implements INativeHostMainService {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.registerListeners();
 	}
@@ -313,13 +318,6 @@ export class NativeHostMainService implements INativeHostMainService {
 		return true;
 	}
 
-	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
-		const window = this.windowById(windowId);
-		if (window) {
-			window.updateTouchBar(items);
-		}
-	}
-
 	async moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<boolean> {
 		return shell.moveItemToTrash(fullPath);
 	}
@@ -333,6 +331,69 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 
 		return isAdmin;
+	}
+
+	async writeElevated(windowId: number | undefined, source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void> {
+		const sudoPrompt = await import('sudo-prompt');
+
+		return new Promise<void>((resolve, reject) => {
+			const sudoCommand: string[] = [`"${this.cliPath}"`];
+			if (options?.overwriteReadonly) {
+				sudoCommand.push('--file-chmod');
+			}
+
+			sudoCommand.push('--file-write', `"${source.fsPath}"`, `"${target.fsPath}"`);
+
+			const promptOptions = {
+				name: product.nameLong.replace('-', ''),
+				icns: (isMacintosh && this.environmentService.isBuilt) ? join(dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : undefined
+			};
+
+			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
+				if (stdout) {
+					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+				}
+
+				if (stderr) {
+					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
+				}
+
+				if (error) {
+					reject(error);
+				} else {
+					resolve(undefined);
+				}
+			});
+		});
+	}
+
+	@memoize
+	private get cliPath(): string {
+
+		// Windows
+		if (isWindows) {
+			if (this.environmentService.isBuilt) {
+				return join(dirname(process.execPath), 'bin', `${product.applicationName}.cmd`);
+			}
+
+			return join(this.environmentService.appRoot, 'scripts', 'code-cli.bat');
+		}
+
+		// Linux
+		if (isLinux) {
+			if (this.environmentService.isBuilt) {
+				return join(dirname(process.execPath), 'bin', `${product.applicationName}`);
+			}
+
+			return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
+		}
+
+		// macOS
+		if (this.environmentService.isBuilt) {
+			return join(this.environmentService.appRoot, 'bin', 'code');
+		}
+
+		return join(this.environmentService.appRoot, 'scripts', 'code-cli.sh');
 	}
 
 	async getOSStatistics(): Promise<IOSStatistics> {
@@ -369,7 +430,7 @@ export class NativeHostMainService implements INativeHostMainService {
 	//#endregion
 
 
-	//#region clipboard
+	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
 		return clipboard.readText(type);
@@ -425,6 +486,13 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	async toggleWindowTabsBar(): Promise<void> {
 		Menu.sendActionToFirstResponder('toggleTabBar:');
+	}
+
+	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			window.updateTouchBar(items);
+		}
 	}
 
 	//#endregion

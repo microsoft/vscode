@@ -109,7 +109,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	args: NativeParsedArgs = Object.create(null);
 
 	execPath: string = undefined!;
-	cliPath: string = undefined!;
 	appRoot: string = undefined!;
 	userHome: URI = undefined!;
 	appSettingsHome: URI = undefined!;

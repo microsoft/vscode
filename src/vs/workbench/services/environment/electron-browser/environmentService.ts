@@ -8,9 +8,8 @@ import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } fro
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { dirname, join } from 'vs/base/common/path';
+import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isLinux, isWindows } from 'vs/base/common/platform';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -59,9 +58,6 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 		return undefined;
 	}
 
-	@memoize
-	get cliPath(): string { return this.doGetCLIPath(); }
-
 	readonly execPath = this.configuration.execPath;
 
 	constructor(
@@ -69,33 +65,5 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 		private readonly productService: IProductService
 	) {
 		super(configuration);
-	}
-
-	private doGetCLIPath(): string {
-
-		// Windows
-		if (isWindows) {
-			if (this.isBuilt) {
-				return join(dirname(this.execPath), 'bin', `${this.productService.applicationName}.cmd`);
-			}
-
-			return join(this.appRoot, 'scripts', 'code-cli.bat');
-		}
-
-		// Linux
-		if (isLinux) {
-			if (this.isBuilt) {
-				return join(dirname(this.execPath), 'bin', `${this.productService.applicationName}`);
-			}
-
-			return join(this.appRoot, 'scripts', 'code-cli.sh');
-		}
-
-		// macOS
-		if (this.isBuilt) {
-			return join(this.appRoot, 'bin', 'code');
-		}
-
-		return join(this.appRoot, 'scripts', 'code-cli.sh');
 	}
 }
