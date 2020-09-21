@@ -506,7 +506,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				try {
 					overrides.push(...handler.getEditorOverrides(resource, options, group).map(val => [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]));
 				} catch (error) {
-					this.logService.error(`Unexpected error getting editor overides: ${error}`);
+					this.logService.error(`Unexpected error getting editor overrides: ${error}`);
 				}
 			}
 		}
