@@ -2506,12 +2506,14 @@ export class CommandCenter {
 			}
 		}
 
-		let defaultStashMessage: string;
-		const commitTemplate = repository.sourceControl.commitTemplate;
-		if (commitTemplate === undefined) {
-			defaultStashMessage = repository.inputBox.value;
-		} else {
-			defaultStashMessage = repository.inputBox.value.replace(commitTemplate, '');
+		let defaultStashMessage = '';
+		if (config.get<boolean>('defaultStashMessage')) {
+			const commitTemplate = repository.sourceControl.commitTemplate;
+			if (commitTemplate === undefined) {
+				defaultStashMessage = repository.inputBox.value;
+			} else {
+				defaultStashMessage = repository.inputBox.value.replace(commitTemplate, '');
+			}
 		}
 		const message = await this.getStashMessage(defaultStashMessage);
 

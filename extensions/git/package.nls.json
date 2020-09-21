@@ -176,6 +176,7 @@
 	"config.timeline.date": "Controls which date to use for items in the Timeline view",
 	"config.timeline.date.committed": "Use the committed date",
 	"config.timeline.date.authored": "Use the authored date",
+	"config.defaultStashMessage": "Controls whether to use message from commit input box (if populated) as default stash messages",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
 	"submenu.commit.signoff": "Sign Off",

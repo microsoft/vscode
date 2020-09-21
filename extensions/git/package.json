@@ -2012,6 +2012,12 @@
           "default": true,
           "description": "%config.terminalAuthentication%"
         },
+        "git.defaultStashMessage": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%config.defaultStashMessage%"
+        },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
         },
