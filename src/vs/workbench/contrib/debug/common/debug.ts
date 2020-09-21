@@ -437,12 +437,14 @@ export interface IViewModel extends ITreeElement {
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
 	setSelectedExpression(expression: IExpression | undefined): void;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
+	updateViews(): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression | undefined>;
+	onWillUpdateViews: Event<void>;
 }
 
 export interface IEvaluate {
