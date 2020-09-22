@@ -20,8 +20,13 @@
 }
 
 .monaco-workbench .monaco-action-bar .action-item .monaco-select-box {
+	font-size: 11px;
 	cursor: pointer;
 	min-width: 110px;
 	min-height: 18px;
 	padding: 2px 23px 2px 8px;
+}
+
+.monaco-workbench.mac .monaco-action-bar .action-item .monaco-select-box {
+	border-radius: 5px;
 }
