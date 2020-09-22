@@ -539,7 +539,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
 		for (let key of keys) {
-			if (
+			if (key === 'custom') {
+				if (!this._customMetadataEqual(a[key], b[key])
+					&&
+					!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
+				) {
+					return true;
+				}
+			} else if (
 				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
 				&&
 				!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
@@ -549,6 +556,24 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		return false;
+	}
+
+	private _customMetadataEqual(a: any, b: any) {
+		const aProps = Object.getOwnPropertyNames(a);
+		const bProps = Object.getOwnPropertyNames(b);
+
+		if (aProps.length !== bProps.length) {
+			return false;
+		}
+
+		for (let i = 0; i < aProps.length; i++) {
+			const propName = aProps[i];
+			if (a[propName] !== b[propName]) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private _changeCellMetadata(handle: number, metadata: NotebookCellMetadata, computeUndoRedo: boolean) {

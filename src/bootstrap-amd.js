@@ -9,12 +9,15 @@
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 
+const isElectron = process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron'];
+const isElectronRenderer = isElectron && process.type === 'renderer';
+
 // Bootstrap: NLS
 const nlsConfig = bootstrap.setupNLS();
 
 // Bootstrap: Loader
 loader.config({
-	baseUrl: bootstrap.fileUriFromPath(__dirname),
+	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
 	catchError: true,
 	nodeRequire: require,
 	nodeMain: __filename,

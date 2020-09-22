@@ -151,7 +151,7 @@ export class RunToCursorAction extends EditorAction {
 					column = position.column;
 				}
 
-				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], 'debugEditorActions.runToCursorAction');
+				const breakpoints = await debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column }], 'debugEditorActions.runToCursorAction', false);
 				if (breakpoints && breakpoints.length) {
 					breakpointToRemove = breakpoints[0];
 				}

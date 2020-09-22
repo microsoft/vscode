@@ -28,7 +28,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ReplModel } from 'vs/workbench/contrib/debug/common/replModel';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { variableSetEmitter } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -52,6 +51,7 @@ export class DebugSession implements IDebugSession {
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
+	private stoppedDetails: IRawStoppedDetails | undefined;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -247,7 +247,8 @@ export class DebugSession implements IDebugSession {
 				supportsVariablePaging: true, // #9537
 				supportsRunInTerminalRequest: true, // #10574
 				locale: platform.locale,
-				supportsProgressReporting: true // #92253
+				supportsProgressReporting: true, // #92253
+				supportsInvalidatedEvent: true // #106745
 			});
 
 			this.initialized = true;
@@ -800,6 +801,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidStop(async event => {
+			this.stoppedDetails = event.body;
 			await this.fetchThreads(event.body);
 			const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
 			if (thread) {
@@ -1001,6 +1003,19 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.push(this.raw.onDidProgressEnd(event => {
 			this._onDidProgressEnd.fire(event);
 		}));
+		this.rawListeners.push(this.raw.onDidInvalidated(async event => {
+			if (!(event.body.areas && event.body.areas.length === 1 && event.body.areas[0] === 'variables')) {
+				// If invalidated event only requires to update variables, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
+				this.cancelAllRequests();
+				this.model.clearThreads(this.getId(), true);
+				await this.fetchThreads(this.stoppedDetails);
+			}
+
+			const viewModel = this.debugService.getViewModel();
+			if (viewModel.focusedSession === this) {
+				viewModel.updateViews();
+			}
+		}));
 
 		this.rawListeners.push(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
 	}
@@ -1091,7 +1106,7 @@ export class DebugSession implements IDebugSession {
 	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
 		await this.repl.addReplExpression(this, stackFrame, name);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-		variableSetEmitter.fire();
+		this.debugService.getViewModel().updateViews();
 	}
 
 	appendToRepl(data: string | IExpression, severity: severity, source?: IReplElementSource): void {

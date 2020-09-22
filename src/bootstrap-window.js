@@ -21,6 +21,7 @@
 		globalThis.MonacoBootstrapWindow = factory();
 	}
 }(this, function () {
+	const bootstrapLib = bootstrap();
 	const preloadGlobals = globals();
 	const sandbox = preloadGlobals.context.sandbox;
 	const webFrame = preloadGlobals.webFrame;
@@ -97,11 +98,15 @@
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${uriFromPath(configuration.appRoot)}/out`,
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', authority: 'app' })}/out`,
 			'vs/nls': nlsConfig,
 			preferScriptTags: true
 		};
 
+		// Enable loading of node modules:
+		// - sandbox: we list paths of webpacked modules to help the loader
+		// - non-sandbox: we signal that any module that does not begin with
+		//                `vs/` should be loaded using node.js require()
 		if (sandbox) {
 			loaderConfig.paths = {
 				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
@@ -232,36 +237,19 @@
 	}
 
 	/**
+	 * @return {{ fileUriFromPath: (path: string, config: { isWindows?: boolean, scheme?: string, authority?: string }) => string; }}
+	 */
+	function bootstrap() {
+		// @ts-ignore (defined in bootstrap.js)
+		return window.MonacoBootstrap;
+	}
+
+	/**
 	 * @return {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals')}
 	 */
 	function globals() {
 		// @ts-ignore (defined in globals.js)
 		return window.vscode;
-	}
-
-	/**
-	 * TODO@sandbox this should not use the file:// protocol at all
-	 * and be consolidated with the fileUriFromPath() method in
-	 * bootstrap.js.
-	 *
-	 * @param {string} path
-	 * @returns {string}
-	 */
-	function uriFromPath(path) {
-		let pathName = path.replace(/\\/g, '/');
-		if (pathName.length > 0 && pathName.charAt(0) !== '/') {
-			pathName = `/${pathName}`;
-		}
-
-		/** @type {string} */
-		let uri;
-		if (safeProcess.platform === 'win32' && pathName.startsWith('//')) { // specially handle Windows UNC paths
-			uri = encodeURI(`file:${pathName}`);
-		} else {
-			uri = encodeURI(`vscode-file://app${pathName}`);
-		}
-
-		return uri.replace(/#/g, '%23');
 	}
 
 	return {
