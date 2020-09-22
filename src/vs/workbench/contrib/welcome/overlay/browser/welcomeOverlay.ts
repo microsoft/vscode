@@ -205,7 +205,7 @@ class WelcomeOverlay extends Disposable {
 		if (this._overlay.style.display !== 'block') {
 			this._overlay.style.display = 'block';
 			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
-			dom.addClass(workbench, 'blur-background');
+			workbench.classList.add('blur-background');
 			this._overlayVisible.set(true);
 			this.updateProblemsKey();
 			this.updateActivityBarKeys();
@@ -252,7 +252,7 @@ class WelcomeOverlay extends Disposable {
 		if (this._overlay.style.display !== 'none') {
 			this._overlay.style.display = 'none';
 			const workbench = document.querySelector('.monaco-workbench') as HTMLElement;
-			dom.removeClass(workbench, 'blur-background');
+			workbench.classList.remove('blur-background');
 			this._overlayVisible.reset();
 		}
 	}

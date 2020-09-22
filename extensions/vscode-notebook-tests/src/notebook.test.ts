@@ -456,7 +456,7 @@ suite('Notebook API tests', () => {
 	});
 
 	test('edit API (replaceMetadata)', async function () {
-
+		this.skip();
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -475,7 +475,7 @@ suite('Notebook API tests', () => {
 	});
 
 	test('edit API (replaceMetadata, event)', async function () {
-
+		this.skip();
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -624,6 +624,7 @@ suite('Notebook API tests', () => {
 	});
 
 	test('edit API batch edits', async function () {
+		this.skip();
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -643,6 +644,7 @@ suite('Notebook API tests', () => {
 	});
 
 	test('edit API batch edits undo/redo', async function () {
+		this.skip();
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
