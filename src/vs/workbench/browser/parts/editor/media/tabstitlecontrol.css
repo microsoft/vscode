@@ -37,7 +37,7 @@
 /* Title Container (multi-line wrapping) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container {
-	height: auto !important;
+	height: auto;
 	flex-wrap: wrap;
 }
 
@@ -47,11 +47,11 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element {
-	height: auto !important;
+	height: auto; /* For when breadcrumbs are enabled */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container > .tab {
-	flex-grow: 1;
+	flex-grow: 1; /* Grow the tabs to fill the row */
 }
 
 /* Tabs Container */
