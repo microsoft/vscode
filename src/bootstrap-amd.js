@@ -9,9 +9,6 @@
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 
-const isElectron = process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron'];
-const isElectronRenderer = isElectron && process.type === 'renderer';
-
 // Bootstrap: NLS
 const nlsConfig = bootstrap.setupNLS();
 
