@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { append, $, hide, show, getDomNodePagePosition, addDisposableListener, addStandardDisposableListener, addClasses } from 'vs/base/browser/dom';
+import { append, $, hide, show, getDomNodePagePosition, addDisposableListener, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -233,7 +233,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			addClasses(data.iconContainer, `suggest-icon ${completionKindToCssClass(suggestion.kind)}`);
+			data.iconContainer.classList.add('suggest-icon', ...completionKindToCssClass(suggestion.kind).split(' '));
 		}
 
 		if (suggestion.tags && suggestion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
