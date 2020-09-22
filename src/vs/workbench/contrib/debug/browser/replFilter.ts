@@ -223,7 +223,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	private updateBadge(): void {
 		if (this.filterBadge) {
 			const { total, filtered } = this.filters.filterStats;
-			const filterBadgeHidden = total === filtered || filtered === 0;
+			const filterBadgeHidden = total === filtered || total === 0;
 
 			this.filterBadge.classList.toggle('hidden', filterBadgeHidden);
 			this.filterBadge.textContent = localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total);
