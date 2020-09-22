@@ -106,7 +106,7 @@ suite('viewLineRenderer.renderLine', () => {
 	}
 
 	test('empty line', () => {
-		assertParts('', 4, [], '<span>\u00a0</span>', [], []);
+		assertParts('', 4, [], '<span></span>', [], []);
 	});
 
 	test('uses part type', () => {

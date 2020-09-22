@@ -272,7 +272,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceComposition(e.data);
+			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
@@ -290,7 +290,7 @@ export class TextAreaInput extends Disposable {
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			} else {
-				const [newState, typeInput] = deduceComposition(e.data);
+				const [newState, typeInput] = deduceComposition(e.data || '');
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			}

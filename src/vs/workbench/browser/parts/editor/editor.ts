@@ -16,8 +16,6 @@ import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
-export const EDITOR_TITLE_HEIGHT = 35;
-
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
 }
@@ -111,12 +109,6 @@ export interface IEditorGroupsAccessor {
 }
 
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
-	readonly group: EditorGroup;
-	readonly whenRestored: Promise<void>;
-	readonly disposed: boolean;
-
-	readonly isEmpty: boolean;
-	readonly isMinimized: boolean;
 
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
@@ -124,6 +116,16 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onDidOpenEditorFail: Event<IEditorInput>;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	readonly group: EditorGroup;
+	readonly whenRestored: Promise<void>;
+
+	readonly preferredTitleHeight: number;
+
+	readonly isEmpty: boolean;
+	readonly isMinimized: boolean;
+
+	readonly disposed: boolean;
 
 	setActive(isActive: boolean): void;
 

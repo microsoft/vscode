@@ -762,7 +762,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const viewContainers = this.getViewContainers();
 		for (const { id } of this.cachedViewContainers) {
 			if (viewContainers.every(viewContainer => viewContainer.id !== id)) {
-				this.hideComposite(id);
+				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
+					this.removeComposite(id);
+				} else {
+					this.hideComposite(id);
+				}
 			}
 		}
 	}
