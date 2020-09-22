@@ -54,7 +54,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -65,6 +65,9 @@ import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgen
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class NativeWindow extends Disposable {
+
+	private static readonly MIN_WINDOW_WIDTH_PANEL_SIDE = 600;
+	private static readonly MIN_WINDOW_WIDTH = 400;
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -266,6 +269,17 @@ export class NativeWindow extends Disposable {
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+
+		// Detect panel position to determine minimum width
+		this._register(this.layoutService.onPanelPositionChange(pos => {
+			this.onDidPanelPositionChange(positionFromString(pos));
+		}));
+		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
+
+		this._register(this.layoutService.onPartVisibilityChange(() => {
+			this.onDidPanelVisibilityChange(!this.layoutService.getPanelHidden());
+		}));
+		this.onDidPanelVisibilityChange(!this.layoutService.getPanelHidden());
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
@@ -278,6 +292,26 @@ export class NativeWindow extends Disposable {
 
 	private onDidChangeMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
+	}
+
+	private getWindowMinimumWidthPanelVisible(pos: Position): number {
+		switch (pos) {
+			case Position.LEFT: return NativeWindow.MIN_WINDOW_WIDTH_PANEL_SIDE;
+			case Position.RIGHT: return NativeWindow.MIN_WINDOW_WIDTH_PANEL_SIDE;
+			case Position.BOTTOM: return NativeWindow.MIN_WINDOW_WIDTH;
+			default: return NativeWindow.MIN_WINDOW_WIDTH_PANEL_SIDE;
+		}
+	}
+
+	private onDidPanelPositionChange(pos: Position): void {
+		const minWidth = this.getWindowMinimumWidthPanelVisible(pos);
+		this.nativeHostService.setWindowMinimumWidth(minWidth);
+	}
+
+	private onDidPanelVisibilityChange(visible: boolean): void {
+		const pos: Position = this.layoutService.getPanelPosition();
+		const minWidth = visible ? this.getWindowMinimumWidthPanelVisible(pos) : NativeWindow.MIN_WINDOW_WIDTH;
+		this.nativeHostService.setWindowMinimumWidth(minWidth);
 	}
 
 	private onDidVisibleEditorsChange(): void {

@@ -67,6 +67,8 @@ export interface ICommonNativeHostService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
+	setWindowMinimumWidth(minimumWidth: number): Promise<void>;
+
 	/**
 	 * Make the window focused.
 	 *
