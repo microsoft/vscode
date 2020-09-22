@@ -842,29 +842,47 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 
 class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@ITerminalService readonly terminalService: ITerminalService,
-		@INotificationService readonly notificationService: INotificationService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@IViewsService readonly viewsService: IViewsService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-		const urlFinder = this._register(new UrlFinder(terminalService));
+		if (this.environmentService.configuration.remoteAuthority) {
+			this.startUrlFinder();
+		}
+	}
+
+	private startUrlFinder() {
+		if (!forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
+			return;
+		}
+		const urlFinder = this._register(new UrlFinder(this.terminalService));
 		this._register(urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			const forwarded = await this.remoteExplorerService.forward(localUrl);
 			if (forwarded) {
 				const address = MakeAddress(forwarded.tunnelRemoteHost, forwarded.tunnelRemotePort);
-				const message = nls.localize('remote.tunnelsView.automaticForward', "{0} has been forwarded to {1} locally.",
+				const message = nls.localize('remote.tunnelsView.automaticForward', "{0} from the remote has been forwarded to {1} locally.",
 					address, forwarded.localAddress);
 				const browserChoice: IPromptChoice = {
 					label: OpenPortInBrowserAction.LABEL,
-					run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, openerService, address)
+					run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
 				};
 				const showChoice: IPromptChoice = {
-					label: nls.localize('remote.tunnelsView.showView', "Show Tunnels View"),
-					run: () => viewsService.openViewContainer(VIEWLET_ID)
+					label: nls.localize('remote.tunnelsView.showView', "Show Forwarded Ports"),
+					run: () => {
+						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] : undefined;
+						if (explorerType) {
+							this.remoteExplorerService.targetType = explorerType;
+						}
+						this.viewsService.openViewContainer(VIEWLET_ID);
+					}
 				};
-				notificationService.prompt(Severity.Info, message, [browserChoice, showChoice]);
+				this.notificationService.prompt(Severity.Info, message, [browserChoice, showChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 			}
 		}));
 	}

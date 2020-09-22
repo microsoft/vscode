@@ -19,9 +19,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
+import { localize } from 'vs/nls';
 
 
 type ParsedQuery = {
@@ -77,23 +79,45 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 }
 
+export interface IFilterStatsProvider {
+	getFilterStats(): { total: number, filtered: number };
+}
+
 export class ReplFilterState {
+
+	constructor(private filterStatsProvider: IFilterStatsProvider) { }
 
 	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
 	get onDidChange(): Event<void> {
 		return this._onDidChange.event;
 	}
 
+	private readonly _onDidStatsChange: Emitter<void> = new Emitter<void>();
+	get onDidStatsChange(): Event<void> {
+		return this._onDidStatsChange.event;
+	}
+
 	private _filterText = '';
+	private _stats = { total: 0, filtered: 0 };
 
 	get filterText(): string {
 		return this._filterText;
+	}
+
+	get filterStats(): { total: number, filtered: number } {
+		return this._stats;
 	}
 
 	set filterText(filterText: string) {
 		if (this._filterText !== filterText) {
 			this._filterText = filterText;
 			this._onDidChange.fire();
+
+			const { total, filtered } = this.filterStatsProvider.getFilterStats();
+			if (this._stats.total !== total || this._stats.filtered !== filtered) {
+				this._stats = { total, filtered };
+				this._onDidStatsChange.fire();
+			}
 		}
 	}
 }
@@ -102,6 +126,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container!: HTMLElement;
+	private filterBadge!: HTMLElement;
 	private filterInputBox!: HistoryInputBox;
 
 	constructor(
@@ -123,6 +148,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;
 		this.createInput(this.element);
+		this.createBadge(this.element);
 		this.updateClass();
 	}
 
@@ -177,6 +203,34 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 			event.stopPropagation();
 			event.preventDefault();
 		}
+	}
+
+	private createBadge(container: HTMLElement): void {
+		const controlsContainer = DOM.append(container, DOM.$('.repl-panel-filter-controls'));
+		const filterBadge = this.filterBadge = DOM.append(controlsContainer, DOM.$('.repl-panel-filter-badge'));
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+
+			filterBadge.style.backgroundColor = background;
+
+			filterBadge.style.borderWidth = border ? '1px' : '';
+			filterBadge.style.borderStyle = border ? 'solid' : '';
+			filterBadge.style.borderColor = border;
+			filterBadge.style.color = foreground;
+		}));
+		this.updateBadge();
+		this._register(this.filters.onDidStatsChange(() => this.updateBadge()));
+	}
+
+	private updateBadge(): void {
+		const { total, filtered } = this.filters.filterStats;
+		const filterBadgeHidden = total === filtered || total === 0;
+
+		this.filterBadge.classList.toggle('hidden', filterBadgeHidden);
+		this.filterBadge.textContent = localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total);
+		this.filterInputBox.inputElement.style.paddingRight = filterBadgeHidden ? '4px' : '150px';
 	}
 
 	protected get class(): string {

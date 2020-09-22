@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.50.0",
-  "distro": "e1ab83d5a229ad32d7b0af96380fdf36ec203b2f",
+  "distro": "20bcc93e22ceef0a6c4464ae78363429f59be797",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,7 +28,7 @@
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
     "mocha": "mocha test/unit/node/all.js --delay",
-    "precommit": "node build/gulpfile.hygiene.js",
+    "precommit": "node build/hygiene.js",
     "gulp": "gulp --max_old_space_size=8192",
     "electron": "node build/lib/electron",
     "7z": "7z",
@@ -63,7 +63,7 @@
     "semver-umd": "^5.5.7",
     "spdlog": "^0.11.1",
     "sudo-prompt": "9.1.1",
-    "tas-client-umd": "^0.1.1",
+    "tas-client-umd": "0.1.2",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-nsfw": "1.2.8",
     "vscode-oniguruma": "1.3.1",

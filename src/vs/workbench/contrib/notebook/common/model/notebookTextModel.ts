@@ -559,6 +559,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _customMetadataEqual(a: any, b: any) {
+		if (!a && !b) {
+			// both of them are nullish or undefined
+			return true;
+		}
+
+		if (!a || !b) {
+			return false;
+		}
+
 		const aProps = Object.getOwnPropertyNames(a);
 		const bProps = Object.getOwnPropertyNames(b);
 

@@ -55,14 +55,6 @@ const autoCloseAlways = () => true;
 const autoCloseNever = () => false;
 const autoCloseBeforeWhitespace = (chr: string) => (chr === ' ' || chr === '\t');
 
-function appendEntry<K, V>(target: Map<K, V[]>, key: K, value: V): void {
-	if (target.has(key)) {
-		target.get(key)!.push(value);
-	} else {
-		target.set(key, [value]);
-	}
-}
-
 export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void;
 
@@ -136,8 +128,6 @@ export class CursorConfiguration {
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
 
-		this.autoClosingPairsOpen2 = new Map<string, StandardAutoClosingPairConditional[]>();
-		this.autoClosingPairsClose2 = new Map<string, StandardAutoClosingPairConditional[]>();
 		this.surroundingPairs = {};
 		this._electricChars = null;
 
@@ -146,15 +136,9 @@ export class CursorConfiguration {
 			bracket: CursorConfiguration._getShouldAutoClose(languageIdentifier, this.autoClosingBrackets)
 		};
 
-		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
-		if (autoClosingPairs) {
-			for (const pair of autoClosingPairs) {
-				appendEntry(this.autoClosingPairsOpen2, pair.open.charAt(pair.open.length - 1), pair);
-				if (pair.close.length === 1) {
-					appendEntry(this.autoClosingPairsClose2, pair.close, pair);
-				}
-			}
-		}
+		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
+		this.autoClosingPairsOpen2 = autoClosingPairs.autoClosingPairsOpen;
+		this.autoClosingPairsClose2 = autoClosingPairs.autoClosingPairsClose;
 
 		let surroundingPairs = CursorConfiguration._getSurroundingPairs(languageIdentifier);
 		if (surroundingPairs) {
@@ -184,15 +168,6 @@ export class CursorConfiguration {
 	private static _getElectricCharacters(languageIdentifier: LanguageIdentifier): string[] | null {
 		try {
 			return LanguageConfigurationRegistry.getElectricCharacters(languageIdentifier.id);
-		} catch (e) {
-			onUnexpectedError(e);
-			return null;
-		}
-	}
-
-	private static _getAutoClosingPairs(languageIdentifier: LanguageIdentifier): StandardAutoClosingPairConditional[] | null {
-		try {
-			return LanguageConfigurationRegistry.getAutoClosingPairs(languageIdentifier.id);
 		} catch (e) {
 			onUnexpectedError(e);
 			return null;

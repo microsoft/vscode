@@ -120,7 +120,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
-		this.filterState = new ReplFilterState();
+		this.filterState = new ReplFilterState(this);
 
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -249,6 +249,13 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			this.tree.refilter();
 			revealLastElement(this.tree);
 		}));
+	}
+
+	getFilterStats(): { total: number, filtered: number } {
+		return {
+			total: this.tree.getNode().children.length,
+			filtered: this.tree.getNode().children.filter(c => c.visible).length
+		};
 	}
 
 	get isReadonly(): boolean {
