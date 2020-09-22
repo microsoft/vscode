@@ -5,15 +5,14 @@
 
 import { AsyncEmitter, Emitter, Event, IWaitUntil } from 'vs/base/common/event';
 import { IRelativePattern, parse } from 'vs/base/common/glob';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, IWorkspaceFileEditDto, IWorkspaceTextEditDto } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, SourceTargetPair, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { FileOperation } from 'vs/platform/files/common/files';
-import { flatten } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -124,7 +123,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
+		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape = mainContext.getProxy(MainContext.MainThreadBulkEdits)
 	) {
 		//
 	}
@@ -142,16 +141,16 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	//--- file operations
 
-	$onDidRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined): void {
+	$onDidRunFileOperation(operation: FileOperation, files: SourceTargetPair[]): void {
 		switch (operation) {
 			case FileOperation.MOVE:
-				this._onDidRenameFile.fire(Object.freeze({ files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }));
+				this._onDidRenameFile.fire(Object.freeze({ files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }));
 				break;
 			case FileOperation.DELETE:
-				this._onDidDeleteFile.fire(Object.freeze({ files: [URI.revive(target)] }));
+				this._onDidDeleteFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			case FileOperation.CREATE:
-				this._onDidCreateFile.fire(Object.freeze({ files: [URI.revive(target)] }));
+				this._onDidCreateFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			default:
 			//ignore, dont send
@@ -179,16 +178,16 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, files: SourceTargetPair[], timeout: number, token: CancellationToken): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }, timeout, token);
+				await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
 				break;
 			case FileOperation.DELETE:
-				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] }, timeout, token);
+				await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 				break;
 			case FileOperation.CREATE:
-				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] }, timeout, token);
+				await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 				break;
 			default:
 			//ignore, dont send
@@ -217,14 +216,13 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		}
 
 		if (edits.length > 0) {
-			// flatten all WorkspaceEdits collected via waitUntil-call
-			// and apply them in one go.
-			const allEdits = new Array<Array<IWorkspaceFileEditDto | IWorkspaceTextEditDto>>();
+			// concat all WorkspaceEdits collected via waitUntil-call and apply them in one go.
+			const dto: IWorkspaceEditDto = { edits: [] };
 			for (let edit of edits) {
 				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
-				allEdits.push(edits);
+				dto.edits = dto.edits.concat(edits);
 			}
-			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit({ edits: flatten(allEdits) });
+			return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
 		}
 	}
 }

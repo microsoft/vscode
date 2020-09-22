@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -26,13 +26,10 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { peekViewBorder } from 'vs/editor/contrib/peekView/peekView';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
-import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { contrastBorder, editorForeground, focusBorder, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
@@ -48,6 +45,8 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action codicon-chevron-up';
@@ -108,15 +107,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		private _owner: string,
 		private _commentThread: modes.CommentThread,
 		private _pendingComment: string | null,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IThemeService private themeService: IThemeService,
 		@ICommentService private commentService: ICommentService,
 		@IOpenerService private openerService: IOpenerService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@INotificationService private notificationService: INotificationService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editor, { keepEditorSelection: true });
@@ -238,11 +234,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._actionbarWidget = new ActionBar(actionsContainer, {
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction) {
-					let item = new ContextAwareMenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
-					return item;
+					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
+				} else if (action instanceof SubmenuItemAction) {
+					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 				} else {
-					let item = new ActionViewItem({}, action, { label: false, icon: true });
-					return item;
+					return new ActionViewItem({}, action, { label: false, icon: true });
 				}
 			}
 		});
@@ -554,9 +550,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				if (input.value === '') {
 					this._pendingComment = '';
-					if (dom.hasClass(this._commentForm, 'expand')) {
-						dom.removeClass(this._commentForm, 'expand');
-					}
+					this._commentForm.classList.remove('expand');
 					this._commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
 					dom.addClass(this._error, 'hidden');
@@ -667,7 +661,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._disposables.add(newCommentNode);
 		this._disposables.add(newCommentNode.onDidClick(clickedNode =>
-			this.setFocusedComment(arrays.firstIndex(this._commentElements, commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
+			this.setFocusedComment(this._commentElements.findIndex(commentNode => commentNode.comment.uniqueIdInThread === clickedNode.comment.uniqueIdInThread))
 		));
 
 		return newCommentNode;
@@ -696,14 +690,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (label) {
-			this._headingLabel.innerHTML = strings.escape(label);
+			this._headingLabel.textContent = strings.escape(label);
 			this._headingLabel.setAttribute('aria-label', label);
 		}
 	}
 
 	private expandReplyArea() {
-		if (!dom.hasClass(this._commentForm, 'expand')) {
-			dom.addClass(this._commentForm, 'expand');
+		if (!this._commentForm.classList.contains('expand')) {
+			this._commentForm.classList.add('expand');
 			this._commentEditor.focus();
 		}
 	}
@@ -711,16 +705,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private hideReplyArea() {
 		this._commentEditor.setValue('');
 		this._pendingComment = '';
-		if (dom.hasClass(this._commentForm, 'expand')) {
-			dom.removeClass(this._commentForm, 'expand');
-		}
+		this._commentForm.classList.remove('expand');
 		this._commentEditor.getDomNode()!.style.outline = '';
 		this._error.textContent = '';
 		dom.addClass(this._error, 'hidden');
 	}
 
 	private createReplyButton() {
-		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$('button.review-thread-reply-button'));
+		this._reviewThreadReplyButton = <HTMLButtonElement>dom.append(this._commentForm, dom.$(`button.review-thread-reply-button.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this._reviewThreadReplyButton.title = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
 
 		this._reviewThreadReplyButton.textContent = this._commentOptions?.prompt || nls.localize('reply', "Reply...");
@@ -729,7 +721,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
 
 		this._commentEditor.onDidBlurEditorWidget(() => {
-			if (this._commentEditor.getModel()!.getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
+			if (this._commentEditor.getModel()!.getValueLength() === 0 && this._commentForm.classList.add('expand')) {
 				dom.removeClass(this._commentForm, 'expand');
 			}
 		});
@@ -738,6 +730,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	_refresh() {
 		if (this._isExpanded && this._bodyElement) {
 			let dimensions = dom.getClientArea(this._bodyElement);
+
+			this._commentElements.forEach(element => {
+				element.layout();
+			});
+
 			const headHeight = Math.ceil(this.editor.getOption(EditorOption.lineHeight) * 1.2);
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 			const arrowHeight = Math.round(lineHeight / 3);
@@ -915,7 +912,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			font-weight: ${fontInfo.fontWeight};
 		}`);
 
-		this._styleElement.innerHTML = content.join('\n');
+		this._styleElement.textContent = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
 		this.setCommentEditorDecorations();

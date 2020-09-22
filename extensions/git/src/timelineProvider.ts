@@ -65,27 +65,32 @@ export class GitTimelineProvider implements TimelineProvider {
 	readonly id = 'git-history';
 	readonly label = localize('git.timeline.source', 'Git History');
 
-	private disposable: Disposable;
+	private readonly disposable: Disposable;
+	private providerDisposable: Disposable | undefined;
 
 	private repo: Repository | undefined;
 	private repoDisposable: Disposable | undefined;
 	private repoStatusDate: Date | undefined;
 
-	constructor(private readonly _model: Model) {
+	constructor(private readonly model: Model) {
 		this.disposable = Disposable.from(
-			_model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this),
+			model.onDidOpenRepository(this.onRepositoriesChanged, this),
 		);
+
+		if (model.repositories.length) {
+			this.ensureProviderRegistration();
+		}
 	}
 
 	dispose() {
+		this.providerDisposable?.dispose();
 		this.disposable.dispose();
 	}
 
 	async provideTimeline(uri: Uri, options: TimelineOptions, _token: CancellationToken): Promise<Timeline> {
 		// console.log(`GitTimelineProvider.provideTimeline: uri=${uri} state=${this._model.state}`);
 
-		const repo = this._model.getRepository(uri);
+		const repo = this.model.getRepository(uri);
 		if (!repo) {
 			this.repoDisposable?.dispose();
 			this.repoStatusDate = undefined;
@@ -110,7 +115,7 @@ export class GitTimelineProvider implements TimelineProvider {
 		let limit: number | undefined;
 		if (options.limit !== undefined && typeof options.limit !== 'number') {
 			try {
-				const result = await this._model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.id}..`, '--', uri.fsPath]);
+				const result = await this.model.git.exec(repo.root, ['rev-list', '--count', `${options.limit.id}..`, '--', uri.fsPath]);
 				if (!result.exitCode) {
 					// Ask for 2 more (1 for the limit commit and 1 for the next commit) than so we can determine if there are more commits
 					limit = Number(result.stdout) + 2;
@@ -203,8 +208,16 @@ export class GitTimelineProvider implements TimelineProvider {
 		};
 	}
 
+	private ensureProviderRegistration() {
+		if (this.providerDisposable === undefined) {
+			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this);
+		}
+	}
+
 	private onRepositoriesChanged(_repo: Repository) {
 		// console.log(`GitTimelineProvider.onRepositoriesChanged`);
+
+		this.ensureProviderRegistration();
 
 		// TODO@eamodio: Being naive for now and just always refreshing each time there is a new repository
 		this.fireChanged();
@@ -219,7 +232,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	private onRepositoryStatusChanged(_repo: Repository) {
 		// console.log(`GitTimelineProvider.onRepositoryStatusChanged`);
 
-		// This is crappy, but for now just save the last time a status was run and use that as the timestamp for staged items
+		// This is less than ideal, but for now just save the last time a status was run and use that as the timestamp for staged items
 		this.repoStatusDate = new Date();
 
 		this.fireChanged();

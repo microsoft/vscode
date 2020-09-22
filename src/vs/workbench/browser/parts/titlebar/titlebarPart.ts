@@ -25,7 +25,7 @@ import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform'
 import { URI } from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { EventType, EventHelper, Dimension, isAncestor, removeClass, addClass, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame, removeNode } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, isAncestor, append, $, addDisposableListener, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { template } from 'vs/base/common/labels';
@@ -39,7 +39,7 @@ import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions'
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
+import { Schemas } from 'vs/base/common/network';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -60,7 +60,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private _onMenubarVisibilityChange = this._register(new Emitter<boolean>());
 	readonly onMenubarVisibilityChange = this._onMenubarVisibilityChange.event;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	protected title!: HTMLElement;
 	protected customMenubar: CustomMenubarControl | undefined;
@@ -72,7 +72,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private isInactive: boolean = false;
 
-	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false };
+	private readonly properties: ITitleProperties = { isPure: true, isAdmin: false, prefix: undefined };
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 
 	private readonly titleUpdater = this._register(new RunOnceScheduler(() => this.doUpdateTitle(), 0));
@@ -191,6 +191,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	private getWindowTitle(): string {
 		let title = this.doGetWindowTitle();
 
+		if (this.properties.prefix) {
+			title = `${this.properties.prefix} ${title || this.productService.nameLong}`;
+		}
+
 		if (this.properties.isAdmin) {
 			title = `${title || this.productService.nameLong} ${TitlebarPart.NLS_USER_IS_ADMIN}`;
 		}
@@ -212,10 +216,12 @@ export class TitlebarPart extends Part implements ITitleService {
 	updateProperties(properties: ITitleProperties): void {
 		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
 		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;
+		const prefix = typeof properties.prefix === 'string' ? properties.prefix : this.properties.prefix;
 
-		if (isAdmin !== this.properties.isAdmin || isPure !== this.properties.isPure) {
+		if (isAdmin !== this.properties.isAdmin || isPure !== this.properties.isPure || prefix !== this.properties.prefix) {
 			this.properties.isAdmin = isAdmin;
 			this.properties.isPure = isPure;
+			this.properties.prefix = prefix;
 
 			this.titleUpdater.schedule();
 		}
@@ -265,7 +271,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			folder = workspace.folders[0];
 		} else {
-			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
+			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 			if (resource) {
 				folder = this.contextService.getWorkspaceFolder(resource);
 			}
@@ -284,7 +290,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const remoteName = this.labelService.getHostLabel(REMOTE_HOST_SCHEME, this.environmentService.configuration.remoteAuthority);
+		const remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.configuration.remoteAuthority);
 		const separator = this.configurationService.getValue<string>('window.titleSeparator');
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 
@@ -313,7 +319,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (this.menubar) {
-			removeNode(this.menubar);
+			this.menubar.remove();
 			this.menubar = undefined;
 		}
 	}
@@ -327,7 +333,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
 
 		this.menubar = this.element.insertBefore($('div.menubar'), this.title);
-
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubar.create(this.menubar);
@@ -391,9 +396,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Part container
 		if (this.element) {
 			if (this.isInactive) {
-				addClass(this.element, 'inactive');
+				this.element.classList.add('inactive');
 			} else {
-				removeClass(this.element, 'inactive');
+				this.element.classList.remove('inactive');
 			}
 
 			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
@@ -405,9 +410,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			}) || '';
 			this.element.style.backgroundColor = titleBackground;
 			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
-				addClass(this.element, 'light');
+				this.element.classList.add('light');
 			} else {
-				removeClass(this.element, 'light');
+				this.element.classList.remove('light');
 			}
 
 			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);

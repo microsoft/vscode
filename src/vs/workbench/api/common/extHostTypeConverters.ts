@@ -31,6 +31,8 @@ import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
 import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface PositionLike {
 	line: number;
@@ -95,11 +97,22 @@ export namespace Range {
 	}
 }
 
+export namespace TokenType {
+	export function to(type: modes.StandardTokenType): types.StandardTokenType {
+		switch (type) {
+			case modes.StandardTokenType.Comment: return types.StandardTokenType.Comment;
+			case modes.StandardTokenType.Other: return types.StandardTokenType.Other;
+			case modes.StandardTokenType.RegEx: return types.StandardTokenType.RegEx;
+			case modes.StandardTokenType.String: return types.StandardTokenType.String;
+		}
+	}
+}
+
 export namespace Position {
 	export function to(position: IPosition): types.Position {
 		return new types.Position(position.lineNumber - 1, position.column - 1);
 	}
-	export function from(position: types.Position): IPosition {
+	export function from(position: types.Position | vscode.Position): IPosition {
 		return { lineNumber: position.line + 1, column: position.character + 1 };
 	}
 }
@@ -120,8 +133,9 @@ export namespace DiagnosticTag {
 				return types.DiagnosticTag.Unnecessary;
 			case MarkerTag.Deprecated:
 				return types.DiagnosticTag.Deprecated;
+			default:
+				return undefined;
 		}
-		return undefined;
 	}
 }
 
@@ -199,8 +213,9 @@ export namespace DiagnosticSeverity {
 				return types.DiagnosticSeverity.Error;
 			case MarkerSeverity.Hint:
 				return types.DiagnosticSeverity.Hint;
+			default:
+				return types.DiagnosticSeverity.Error;
 		}
-		return types.DiagnosticSeverity.Error;
 	}
 }
 
@@ -492,31 +507,42 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): extHostProtocol.IWorkspaceEditDto {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors, notebooks?: ExtHostNotebookController): extHostProtocol.IWorkspaceEditDto {
 		const result: extHostProtocol.IWorkspaceEditDto = {
 			edits: []
 		};
 
 		if (value instanceof types.WorkspaceEdit) {
-			for (let entry of value.allEntries()) {
+			for (let entry of value._allEntries()) {
 
-				if (entry._type === 1) {
+				if (entry._type === types.FileEditType.File) {
 					// file operation
 					result.edits.push(<extHostProtocol.IWorkspaceFileEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.File,
 						oldUri: entry.from,
 						newUri: entry.to,
 						options: entry.options,
 						metadata: entry.metadata
 					});
 
-				} else {
+				} else if (entry._type === types.FileEditType.Text) {
 					// text edits
 					const doc = documents?.getDocument(entry.uri);
 					result.edits.push(<extHostProtocol.IWorkspaceTextEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Text,
 						resource: entry.uri,
 						edit: TextEdit.from(entry.edit),
 						modelVersionId: doc?.version,
 						metadata: entry.metadata
+					});
+				} else if (entry._type === types.FileEditType.Cell) {
+					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
+						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
+						resource: entry.uri,
+						edit: entry.edit,
+						notebookMetadata: entry.notebookMetadata,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}
@@ -635,7 +661,7 @@ export namespace DocumentSymbol {
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind),
-			tags: info.tags ? info.tags.map(SymbolTag.from) : []
+			tags: info.tags?.map(SymbolTag.from) ?? []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
@@ -900,7 +926,7 @@ export namespace CompletionItem {
 
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
-		result.tags = suggestion.tags && suggestion.tags.map(CompletionItemTag.to);
+		result.tags = suggestion.tags?.map(CompletionItemTag.to);
 		result.detail = suggestion.detail;
 		result.documentation = htmlContent.isMarkdownString(suggestion.documentation) ? MarkdownString.to(suggestion.documentation) : suggestion.documentation;
 		result.sortText = suggestion.sortText;
@@ -1153,15 +1179,20 @@ export namespace FoldingRangeKind {
 	}
 }
 
-export namespace TextEditorOptions {
+export interface TextEditorOpenOptions extends vscode.TextDocumentShowOptions {
+	background?: boolean;
+}
 
-	export function from(options?: vscode.TextDocumentShowOptions): ITextEditorOptions | undefined {
+export namespace TextEditorOpenOptions {
+
+	export function from(options?: TextEditorOpenOptions): ITextEditorOptions | undefined {
 		if (options) {
 			return {
 				pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+				inactive: options.background,
 				preserveFocus: options.preserveFocus,
-				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined
-			} as ITextEditorOptions;
+				selection: typeof options.selection === 'object' ? Range.from(options.selection) : undefined,
+			};
 		}
 
 		return undefined;
@@ -1237,9 +1268,9 @@ export namespace LogLevel {
 				return _MainLogLevel.Critical;
 			case types.LogLevel.Off:
 				return _MainLogLevel.Off;
+			default:
+				return _MainLogLevel.Info;
 		}
-
-		return _MainLogLevel.Info;
 	}
 
 	export function to(mainLevel: _MainLogLevel): types.LogLevel {
@@ -1258,8 +1289,91 @@ export namespace LogLevel {
 				return types.LogLevel.Critical;
 			case _MainLogLevel.Off:
 				return types.LogLevel.Off;
+			default:
+				return types.LogLevel.Info;
+		}
+	}
+}
+
+export namespace NotebookExclusiveDocumentPattern {
+	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: undefined): undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
+		if (pattern === null || pattern === undefined) {
+			return undefined;
 		}
 
-		return types.LogLevel.Info;
+		if (pattern instanceof types.RelativePattern) {
+			return pattern;
+		}
+
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+
+		if (isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.base, pattern.pattern);
+		}
+
+		if (isExclusivePattern(pattern)) {
+			return {
+				include: GlobPattern.from(pattern.include) || undefined,
+				exclude: GlobPattern.from(pattern.exclude) || undefined
+			};
+		}
+
+		return undefined; // preserve `undefined`
+
+	}
+
+	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		if (isRelativePattern(pattern)) {
+			return {
+				base: pattern.base,
+				pattern: pattern.pattern
+			};
+		}
+
+		return {
+			include: pattern.include,
+			exclude: pattern.exclude
+		};
+	}
+
+	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
+		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
+		const include = GlobPattern.from(ep.include);
+		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
+			return false;
+		}
+
+		const exclude = GlobPattern.from(ep.exclude);
+		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
+			return false;
+		}
+
+		return true;
+	}
+
+	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+		const rp = obj as vscode.RelativePattern;
+		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+}
+
+export namespace NotebookDecorationRenderOptions {
+	export function from(options: vscode.NotebookDecorationRenderOptions): INotebookDecorationRenderOptions {
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
 	}
 }

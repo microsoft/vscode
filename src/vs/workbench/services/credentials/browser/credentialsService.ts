@@ -3,24 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsProvider, ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { find } from 'vs/base/common/arrays';
-
-export interface ICredentialsProvider {
-	getPassword(service: string, account: string): Promise<string | null>;
-	setPassword(service: string, account: string, password: string): Promise<void>;
-
-	deletePassword(service: string, account: string): Promise<boolean>;
-
-	findPassword(service: string): Promise<string | null>;
-	findCredentials(service: string): Promise<Array<{ account: string, password: string; }>>;
-}
 
 export class BrowserCredentialsService implements ICredentialsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private credentialsProvider: ICredentialsProvider;
 
@@ -90,7 +79,7 @@ class InMemoryCredentialsProvider implements ICredentialsProvider {
 	}
 
 	private doFindPassword(service: string, account?: string): ICredential | undefined {
-		return find(this.credentials, credential =>
+		return this.credentials.find(credential =>
 			credential.service === service && (typeof account !== 'string' || credential.account === account));
 	}
 

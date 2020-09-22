@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/notificationsList';
 import { localize } from 'vs/nls';
-import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
+import { isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListOptions } from 'vs/base/browser/ui/list/listWidget';
@@ -68,7 +68,7 @@ export class NotificationsList extends Themable {
 
 		// List Container
 		this.listContainer = document.createElement('div');
-		addClass(this.listContainer, 'notifications-list-container');
+		this.listContainer.classList.add('notifications-list-container');
 
 		const actionRunner = this._register(this.instantiationService.createInstance(NotificationActionRunner));
 

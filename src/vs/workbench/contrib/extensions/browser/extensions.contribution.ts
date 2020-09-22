@@ -15,11 +15,10 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
-	EnableAllAction, EnableAllWorkspaceAction, DisableAllAction, DisableAllWorkspaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction
+	EnableAllAction, EnableAllWorkspaceAction, DisableAllAction, DisableAllWorkspaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, InstallVSIXAction, ReinstallAction, InstallSpecificVersionOfExtensionAction, ClearExtensionsSearchResultsAction
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -45,11 +44,15 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
+import { CONTEXT_SYNC_ENABLEMENT } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { MultiCommand } from 'vs/editor/browser/editorExtensions';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -110,9 +113,6 @@ actionRegistry.registerWorkbenchAction(keymapRecommendationsActionDescriptor, 'P
 const languageExtensionsActionDescriptor = SyncActionDescriptor.from(ShowLanguageExtensionsAction);
 actionRegistry.registerWorkbenchAction(languageExtensionsActionDescriptor, 'Preferences: Language Extensions', PreferencesLabel);
 
-const azureExtensionsActionDescriptor = SyncActionDescriptor.from(ShowAzureExtensionsAction);
-actionRegistry.registerWorkbenchAction(azureExtensionsActionDescriptor, 'Preferences: Azure Extensions', PreferencesLabel);
-
 const popularActionDescriptor = SyncActionDescriptor.from(ShowPopularExtensionsAction);
 actionRegistry.registerWorkbenchAction(popularActionDescriptor, 'Extensions: Show Popular Extensions', ExtensionsLabel);
 
@@ -149,10 +149,11 @@ actionRegistry.registerWorkbenchAction(enableAllWorkspaceAction, 'Extensions: En
 const checkForUpdatesAction = SyncActionDescriptor.from(CheckForUpdatesAction);
 actionRegistry.registerWorkbenchAction(checkForUpdatesAction, `Extensions: Check for Extension Updates`, ExtensionsLabel);
 
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClearExtensionsSearchResultsAction), 'Extensions: Clear Extensions Search Results', ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(EnableAutoUpdateAction), `Extensions: Enable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(DisableAutoUpdateAction), `Extensions: Disable Auto Updating Extensions`, ExtensionsLabel);
 actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(InstallSpecificVersionOfExtensionAction), 'Install Specific Version of Extension...', ExtensionsLabel);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ReinstallAction), 'Reinstall Extension...', localize('developer', "Developer"));
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ReinstallAction), 'Reinstall Extension...', localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"));
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({
@@ -195,6 +196,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'array',
 				description: localize('handleUriConfirmedExtensions', "When an extension is listed here, a confirmation prompt will not be shown when that extension handles a URI."),
 				default: []
+			},
+			'extensions.webWorker': {
+				type: 'boolean',
+				description: localize('extensionsWebWorker', "Enable web worker extension host."),
+				default: false
 			}
 		}
 	});
@@ -450,17 +456,32 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, id: string) {
-		const configurationService = accessor.get(IConfigurationService);
-		const ignoredExtensions = [...configurationService.getValue<string[]>('sync.ignoredExtensions')];
-		const index = ignoredExtensions.findIndex(ignoredExtension => areSameExtensions({ id: ignoredExtension }, { id }));
-		if (index !== -1) {
-			ignoredExtensions.splice(index, 1);
-		} else {
-			ignoredExtensions.push(id);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const extension = extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
+		if (extension) {
+			return extensionsWorkbenchService.toggleExtensionIgnoredToSync(extension);
 		}
-		return configurationService.updateValue('sync.ignoredExtensions', ignoredExtensions.length ? ignoredExtensions : undefined, ConfigurationTarget.USER);
 	}
 });
+
+function overrideActionForActiveExtensionEditorWebview(command: MultiCommand | undefined, f: (webview: Webview) => void) {
+	command?.addImplementation(105, (accessor) => {
+		const editorService = accessor.get(IEditorService);
+		const editor = editorService.activeEditorPane;
+		if (editor instanceof ExtensionEditor) {
+			if (editor.activeWebview?.isFocused) {
+				f(editor.activeWebview);
+				return true;
+			}
+		}
+		return false;
+	});
+}
+
+overrideActionForActiveExtensionEditorWebview(CopyAction, webview => webview.copy());
+overrideActionForActiveExtensionEditorWebview(CutAction, webview => webview.cut());
+overrideActionForActiveExtensionEditorWebview(PasteAction, webview => webview.paste());
+
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 
@@ -470,9 +491,10 @@ class ExtensionsContributions implements IWorkbenchContribution {
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
 
-		const canManageExtensions = extensionManagementServerService.localExtensionManagementServer || extensionManagementServerService.remoteExtensionManagementServer;
-
-		if (canManageExtensions) {
+		if (extensionManagementServerService.localExtensionManagementServer
+			|| extensionManagementServerService.remoteExtensionManagementServer
+			|| extensionManagementServerService.webExtensionManagementServer
+		) {
 			Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess).registerQuickAccessProvider({
 				ctor: InstallExtensionQuickAccessProvider,
 				prefix: InstallExtensionQuickAccessProvider.PREFIX,

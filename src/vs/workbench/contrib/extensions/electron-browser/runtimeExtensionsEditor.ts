@@ -5,10 +5,9 @@
 
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
-import * as os from 'os';
-import product from 'vs/platform/product/common/product';
-import { Action, IAction } from 'vs/base/common/actions';
-import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { Action, IAction, Separator } from 'vs/base/common/actions';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -17,16 +16,14 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, addClass, toggleClass, Dimension, clearNode } from 'vs/base/browser/dom';
-import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { append, $, reset, Dimension, clearNode } from 'vs/base/browser/dom';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { writeFile } from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
@@ -38,17 +35,18 @@ import { randomPort } from 'vs/base/node/ports';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { escape } from 'vs/base/common/strings';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { ExtensionIdentifier, ExtensionType, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-browser/extensionsSlowActions';
+import { Schemas } from 'vs/base/common/network';
+import { SlowExtensionAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsSlowActions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 export const CONTEXT_PROFILE_SESSION_STATE = new RawContextKey<string>('profileSessionState', 'none');
@@ -62,7 +60,7 @@ export enum ProfileSessionState {
 }
 
 export interface IExtensionHostProfileService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeState: Event<void>;
 	readonly onDidChangeLastProfile: Event<void>;
@@ -100,7 +98,7 @@ interface IRuntimeExtension {
 	unresponsiveProfile?: IExtensionHostProfile;
 }
 
-export class RuntimeExtensionsEditor extends BaseEditor {
+export class RuntimeExtensionsEditor extends EditorPane {
 
 	public static readonly ID: string = 'workbench.editor.runtimeExtensions';
 
@@ -127,7 +125,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IProductService private readonly _productService: IProductService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService, storageService);
 
@@ -156,23 +156,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._extensionService.getExtensions().then((extensions) => {
 			// We only deal with extensions with source code!
 			this._extensionsDescriptions = extensions.filter((extension) => {
-				return !!extension.main;
+				return Boolean(extension.main) || Boolean(extension.browser);
 			});
 			this._updateExtensions();
 		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
 	}
 
-	private _updateExtensions(): void {
-		this._elements = this._resolveExtensions();
+	private async _updateExtensions(): Promise<void> {
+		this._elements = await this._resolveExtensions();
 		if (this._list) {
 			this._list.splice(0, this._list.length, this._elements);
 		}
 	}
 
-	private _resolveExtensions(): IRuntimeExtension[] {
+	private async _resolveExtensions(): Promise<IRuntimeExtension[]> {
 		let marketplaceMap: { [id: string]: IExtension; } = Object.create(null);
-		for (let extension of this._extensionsWorkbenchService.local) {
+		const marketPlaceExtensions = await this._extensionsWorkbenchService.queryLocal();
+		for (let extension of marketPlaceExtensions) {
 			marketplaceMap[ExtensionIdentifier.toKey(extension.identifier.id)] = extension;
 		}
 
@@ -231,11 +232,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		result = result.filter(element => element.status.activationTimes);
 
 		// bubble up extensions that have caused slowness
+
+		const isUnresponsive = (extension: IRuntimeExtension): boolean =>
+			extension.unresponsiveProfile === this._profileInfo;
+
+		const profileTime = (extension: IRuntimeExtension): number =>
+			extension.profileInfo?.totalTime ?? 0;
+
+		const activationTime = (extension: IRuntimeExtension): number =>
+			(extension.status.activationTimes?.codeLoadingTime ?? 0) +
+			(extension.status.activationTimes?.activateCallTime ?? 0);
+
 		result = result.sort((a, b) => {
-			if (a.unresponsiveProfile === this._profileInfo && !b.unresponsiveProfile) {
-				return -1;
-			} else if (!a.unresponsiveProfile && b.unresponsiveProfile === this._profileInfo) {
-				return 1;
+			if (isUnresponsive(a) || isUnresponsive(b)) {
+				return +isUnresponsive(b) - +isUnresponsive(a);
+			} else if (profileTime(a) || profileTime(b)) {
+				return profileTime(b) - profileTime(a);
+			} else if (activationTime(a) || activationTime(b)) {
+				return activationTime(b) - activationTime(a);
 			}
 			return a.originalIndex - b.originalIndex;
 		});
@@ -244,7 +258,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		addClass(parent, 'runtime-extensions-editor');
+		parent.classList.add('runtime-extensions-editor');
 
 		const TEMPLATE_ID = 'runtimeExtensionElementTemplate';
 
@@ -315,7 +329,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				data.elementDisposables = dispose(data.elementDisposables);
 
-				toggleClass(data.root, 'odd', index % 2 === 1);
+				data.root.classList.toggle('odd', index % 2 === 1);
 
 				const onError = Event.once(domEvent(data.icon, 'error'));
 				onError(() => data.icon.src = element.marketplaceInfo.iconUrlFallback, null, data.elementDisposables);
@@ -327,7 +341,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName || '';
+				data.name.textContent = element.marketplaceInfo.displayName;
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
@@ -339,7 +353,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					data.actionbar.push(this._instantiationService.createInstance(SlowExtensionAction, element.description, element.unresponsiveProfile), { icon: true, label: true });
 				}
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService), { icon: true, label: true });
+					data.actionbar.push(new ReportExtensionIssueAction(element, this._openerService, this._clipboardService, this._productService, this._nativeHostService), { icon: true, label: true });
 				}
 
 				let title: string;
@@ -372,6 +386,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							'{0} will be a glob pattern'
 						]
 					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+				} else if (activationEvent === 'onStartupFinished') {
+					title = nls.localize({
+						key: 'startupFinishedActivation',
+						comment: [
+							'This refers to an extension. {0} will be an activation event.'
+						]
+					}, "Activated by {0} after start-up finished", activationId);
 				} else if (/^onLanguage:/.test(activationEvent)) {
 					let language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);
@@ -388,32 +409,28 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				clearNode(data.msgContainer);
 
 				if (this._extensionHostProfileService.getUnresponsiveProfile(element.description.identifier)) {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(` $(alert) Unresponsive`));
+					const el = $('span', undefined, ...renderCodicons(` $(alert) Unresponsive`));
 					el.title = nls.localize('unresponsive.title', "Extension has caused the extension host to freeze.");
 					data.msgContainer.appendChild(el);
 				}
 
 				if (isNonEmptyArray(element.status.runtimeErrors)) {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
+					const el = $('span', undefined, ...renderCodicons(`$(bug) ${nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length)}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(`$(alert) ${element.status.messages[0].message}`));
+					const el = $('span', undefined, ...renderCodicons(`$(alert) ${element.status.messages[0].message}`));
 					data.msgContainer.appendChild(el);
 				}
 
 				if (element.description.extensionLocation.scheme !== 'file') {
-					const el = $('span');
-					el.innerHTML = renderCodicons(escape(`$(remote) ${element.description.extensionLocation.authority}`));
+					const el = $('span', undefined, ...renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
-					const hostLabel = this._labelService.getHostLabel(REMOTE_HOST_SCHEME, this._environmentService.configuration.remoteAuthority);
+					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.configuration.remoteAuthority);
 					if (hostLabel) {
-						el.innerHTML = renderCodicons(escape(`$(remote) ${hostLabel}`));
+						reset(el, ...renderCodicons(`$(remote) ${hostLabel}`));
 					}
 				}
 
@@ -451,14 +468,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 			const actions: IAction[] = [];
 
-			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService));
+			actions.push(new ReportExtensionIssueAction(e.element, this._openerService, this._clipboardService, this._productService, this._nativeHostService));
 			actions.push(new Separator());
 
-			if (e.element.marketplaceInfo) {
-				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
-				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
-				actions.push(new Separator());
-			}
+			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
+			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
+			actions.push(new Separator());
+
 			const state = this._extensionHostProfileService.state;
 			if (state === ProfileSessionState.Running) {
 				actions.push(this._instantiationService.createInstance(StopExtensionHostProfileAction, StopExtensionHostProfileAction.ID, StopExtensionHostProfileAction.LABEL));
@@ -492,14 +508,13 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IEditorService private readonly _editorService: IEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super(id, label);
 	}
 
 	public async run(e?: any): Promise<any> {
-		await this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
+		await this._editorService.openEditor(RuntimeExtensionsInput.instance, { revealIfOpened: true });
 	}
 }
 
@@ -508,41 +523,44 @@ export class ReportExtensionIssueAction extends Action {
 	private static readonly _id = 'workbench.extensions.action.reportExtensionIssue';
 	private static readonly _label = nls.localize('reportExtensionIssue', "Report Issue");
 
-	private readonly _url: string;
+	private _url: string | undefined;
 
 	constructor(
-		extension: {
+		private extension: {
 			description: IExtensionDescription;
 			marketplaceInfo: IExtension;
 			status?: IExtensionsStatus;
 			unresponsiveProfile?: IExtensionHostProfile
 		},
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IClipboardService private readonly clipboardService: IClipboardService
+		@IClipboardService private readonly clipboardService: IClipboardService,
+		@IProductService private readonly productService: IProductService,
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(ReportExtensionIssueAction._id, ReportExtensionIssueAction._label, 'extension-action report-issue');
 		this.enabled = extension.marketplaceInfo
 			&& extension.marketplaceInfo.type === ExtensionType.User
 			&& !!extension.description.repository && !!extension.description.repository.url;
-
-		this._url = this._generateNewIssueUrl(extension);
 	}
 
 	async run(): Promise<void> {
+		if (!this._url) {
+			this._url = await this._generateNewIssueUrl(this.extension);
+		}
 		this.openerService.open(URI.parse(this._url));
 	}
 
-	private _generateNewIssueUrl(extension: {
+	private async _generateNewIssueUrl(extension: {
 		description: IExtensionDescription;
 		marketplaceInfo: IExtension;
 		status?: IExtensionsStatus;
 		unresponsiveProfile?: IExtensionHostProfile
-	}): string {
+	}): Promise<string> {
 		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === ExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {
-			baseUrl = product.reportIssueUrl!;
+			baseUrl = this.productService.reportIssueUrl!;
 		}
 
 		let reason = 'Bug';
@@ -550,14 +568,15 @@ export class ReportExtensionIssueAction extends Action {
 		let message = ':warning: We have written the needed data into your clipboard. Please paste! :warning:';
 		this.clipboardService.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
 
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+		const os = await this.nativeHostService.getOSProperties();
+		const osVersion = `${os.type} ${os.arch} ${os.release}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(
 			`- Issue Type: \`${reason}\`
 - Extension Name: \`${extension.description.name}\`
 - Extension Version: \`${extension.description.version}\`
 - OS Version: \`${osVersion}\`
-- VSCode version: \`${product.version}\`\n\n${message}`
+- VSCode version: \`${this.productService.version}\`\n\n${message}`
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}&title=${encodeURIComponent(title)}`;
@@ -571,9 +590,10 @@ export class DebugExtensionHostAction extends Action {
 
 	constructor(
 		@IDebugService private readonly _debugService: IDebugService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(DebugExtensionHostAction.ID, DebugExtensionHostAction.LABEL, DebugExtensionHostAction.CSS_CLASS);
 	}
@@ -585,12 +605,12 @@ export class DebugExtensionHostAction extends Action {
 			const res = await this._dialogService.confirm({
 				type: 'info',
 				message: nls.localize('restart1', "Profile Extensions"),
-				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", product.nameLong),
+				detail: nls.localize('restart2', "In order to profile extensions a restart is required. Do you want to restart '{0}' now?", this.productService.nameLong),
 				primaryButton: nls.localize('restart3', "Restart"),
 				secondaryButton: nls.localize('cancel', "Cancel")
 			});
 			if (res.confirmed) {
-				await this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+				await this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 			}
 
 			return;
@@ -646,9 +666,10 @@ export class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		@IElectronService private readonly _electronService: IElectronService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super(id, label, undefined, false);
 		this._extensionHostProfileService.onDidChangeLastProfile(() => {
@@ -661,7 +682,7 @@ export class SaveExtensionHostProfileAction extends Action {
 	}
 
 	private async _asyncRun(): Promise<any> {
-		let picked = await this._electronService.showSaveDialog({
+		let picked = await this._nativeHostService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
@@ -693,7 +714,7 @@ export class SaveExtensionHostProfileAction extends Action {
 			savePath = savePath + '.txt';
 		}
 
-		return writeFile(savePath, JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t'));
+		return this._fileService.writeFile(URI.file(savePath), VSBuffer.fromString(JSON.stringify(profileInfo ? profileInfo.data : {}, null, '\t')));
 	}
 }
 

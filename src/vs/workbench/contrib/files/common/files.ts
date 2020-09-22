@@ -33,13 +33,8 @@ export const VIEWLET_ID = 'workbench.view.explorer';
  */
 export const VIEW_ID = 'workbench.explorer.fileView';
 
-/**
- * Id of the default editor for open with.
- */
-export const DEFAULT_EDITOR_ID = 'default';
-
 export interface IExplorerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
 
@@ -51,14 +46,14 @@ export interface IExplorerService {
 	isEditable(stat: ExplorerItem | undefined): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): Promise<void>;
-	setToCopy(stats: ExplorerItem[], cut: boolean): void;
+	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
 	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
-	select(resource: URI, reveal?: boolean): Promise<void>;
+	select(resource: URI, reveal?: boolean | string): Promise<void>;
 
 	registerView(contextAndRefreshProvider: IExplorerView): void;
 }
@@ -66,10 +61,11 @@ export interface IExplorerService {
 export interface IExplorerView {
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: boolean): Promise<void>;
+	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
+	focusNeighbourIfItemFocused(item: ExplorerItem): void;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
@@ -121,7 +117,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		openEditors: {
 			visible: number;
 		};
-		autoReveal: boolean;
+		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
@@ -169,14 +165,21 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 	}
 
 	private static resourceToTextFile(scheme: string, resource: URI): URI {
-		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme }) });
+		return resource.with({ scheme, query: JSON.stringify({ scheme: resource.scheme, query: resource.query }) });
 	}
 
 	private static textFileToResource(resource: URI): URI {
-		return resource.with({ scheme: JSON.parse(resource.query)['scheme'], query: null });
+		const { scheme, query } = JSON.parse(resource.query);
+		return resource.with({ scheme, query });
 	}
 
-	async provideTextContent(resource: URI): Promise<ITextModel> {
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		if (!resource.query) {
+			// We require the URI to use the `query` to transport the original scheme and query
+			// as done by `resourceToTextFile`
+			return null;
+		}
+
 		const savedFileResource = TextFileContentProvider.textFileToResource(resource);
 
 		// Make sure our text file is resolved up to date
@@ -255,7 +258,11 @@ export class OpenEditor implements IEditorIdentifier {
 		return this._group.previewEditor === this.editor;
 	}
 
+	isSticky(): boolean {
+		return this._group.isSticky(this.editor);
+	}
+
 	getResource(): URI | undefined {
-		return toResource(this.editor, { supportSideBySide: SideBySideEditor.MASTER });
+		return toResource(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	}
 }

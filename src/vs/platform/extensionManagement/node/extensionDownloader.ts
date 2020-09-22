@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { tmpdir } from 'os';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { joinPath } from 'vs/base/common/resources';
 import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -20,22 +18,20 @@ const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
 export class ExtensionsDownloader extends Disposable {
 
-	private readonly extensionsDownloadDir: URI = URI.file(tmpdir());
-	private readonly cache: number = 0;
-	private readonly cleanUpPromise: Promise<void> = Promise.resolve();
+	private readonly extensionsDownloadDir: URI;
+	private readonly cache: number;
+	private readonly cleanUpPromise: Promise<void>;
 
 	constructor(
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		if (environmentService.extensionsDownloadPath) {
-			this.extensionsDownloadDir = URI.file(environmentService.extensionsDownloadPath);
-			this.cache = 20; // Cache 20 downloads
-			this.cleanUpPromise = this.cleanUp();
-		}
+		this.extensionsDownloadDir = URI.file(environmentService.extensionsDownloadPath);
+		this.cache = 20; // Cache 20 downloads
+		this.cleanUpPromise = this.cleanUp();
 	}
 
 	async downloadExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
@@ -46,10 +42,7 @@ export class ExtensionsDownloader extends Disposable {
 	}
 
 	async delete(location: URI): Promise<void> {
-		// Delete immediately if caching is disabled
-		if (!this.cache) {
-			await this.fileService.del(location);
-		}
+		// noop as caching is enabled always
 	}
 
 	private async download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void> {

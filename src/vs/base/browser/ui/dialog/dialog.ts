@@ -6,7 +6,7 @@
 import 'vs/css!./dialog';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $, hide, show, EventHelper, clearNode, removeClasses, addClasses, removeNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { $, hide, show, EventHelper, clearNode, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -73,6 +73,7 @@ export class Dialog extends Disposable {
 		this.modal = this.container.appendChild($(`.monaco-dialog-modal-block${options.type === 'pending' ? '.dimmed' : ''}`));
 		this.shadowElement = this.modal.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
+		this.element.setAttribute('role', 'dialog');
 		hide(this.element);
 
 		// If no button is provided, default to OK
@@ -107,6 +108,28 @@ export class Dialog extends Disposable {
 
 		const toolbarRowElement = this.element.appendChild($('.dialog-toolbar-row'));
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
+	}
+
+	private getAriaLabel(): string {
+		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
+		switch (this.options.type) {
+			case 'error':
+				nls.localize('dialogErrorMessage', 'Error');
+				break;
+			case 'warning':
+				nls.localize('dialogWarningMessage', 'Warning');
+				break;
+			case 'pending':
+				nls.localize('dialogPendingMessage', 'In Progress');
+				break;
+			case 'none':
+			case 'info':
+			case 'question':
+			default:
+				break;
+		}
+
+		return `${typeLabel}: ${this.message} ${this.options.detail || ''}`;
 	}
 
 	updateMessage(message: string): void {
@@ -211,23 +234,23 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			removeClasses(this.iconElement, dialogErrorIcon.classNames, dialogWarningIcon.classNames, dialogInfoIcon.classNames, Codicon.loading.classNames);
+			this.iconElement.classList.remove(...dialogErrorIcon.classNamesArray, ...dialogWarningIcon.classNamesArray, ...dialogInfoIcon.classNamesArray, ...Codicon.loading.classNamesArray);
 
 			switch (this.options.type) {
 				case 'error':
-					addClasses(this.iconElement, dialogErrorIcon.classNames);
+					this.iconElement.classList.add(...dialogErrorIcon.classNamesArray);
 					break;
 				case 'warning':
-					addClasses(this.iconElement, dialogWarningIcon.classNames);
+					this.iconElement.classList.add(...dialogWarningIcon.classNamesArray);
 					break;
 				case 'pending':
-					addClasses(this.iconElement, Codicon.loading.classNames, 'codicon-animation-spin');
+					this.iconElement.classList.add(...Codicon.loading.classNamesArray, 'codicon-animation-spin');
 					break;
 				case 'none':
 				case 'info':
 				case 'question':
 				default:
-					addClasses(this.iconElement, dialogInfoIcon.classNames);
+					this.iconElement.classList.add(...dialogInfoIcon.classNamesArray);
 					break;
 			}
 
@@ -242,7 +265,7 @@ export class Dialog extends Disposable {
 
 			this.applyStyles();
 
-			this.element.setAttribute('aria-label', this.message);
+			this.element.setAttribute('aria-label', this.getAriaLabel());
 			show(this.element);
 
 			// Focus first element
@@ -311,7 +334,7 @@ export class Dialog extends Disposable {
 	dispose(): void {
 		super.dispose();
 		if (this.modal) {
-			removeNode(this.modal);
+			this.modal.remove();
 			this.modal = undefined;
 		}
 

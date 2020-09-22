@@ -11,9 +11,12 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { deserializePipePositions, serializePipePositions, testRepeatedActionAndExtractPositions } from 'vs/editor/contrib/wordOperations/test/wordTestUtils';
 import { CursorWordEndLeft, CursorWordEndLeftSelect, CursorWordEndRight, CursorWordEndRightSelect, CursorWordLeft, CursorWordLeftSelect, CursorWordRight, CursorWordRightSelect, CursorWordStartLeft, CursorWordStartLeftSelect, CursorWordStartRight, CursorWordStartRightSelect, DeleteWordEndLeft, DeleteWordEndRight, DeleteWordLeft, DeleteWordRight, DeleteWordStartLeft, DeleteWordStartRight, CursorWordAccessibilityLeft, CursorWordAccessibilityLeftSelect, CursorWordAccessibilityRight, CursorWordAccessibilityRightSelect } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('WordOperations', () => {
 
@@ -113,7 +116,7 @@ suite('WordOperations', () => {
 			'    Third Line🐶',
 			'',
 			'1',
-		], {}, (editor, _) => {
+		], {}, (editor) => {
 			editor.setPosition(new Position(5, 2));
 			cursorWordLeft(editor, true);
 			assert.deepEqual(editor.getSelection(), new Selection(5, 2, 5, 1));
@@ -168,7 +171,7 @@ suite('WordOperations', () => {
 
 	test('cursorWordStartLeft', () => {
 		// This is the behaviour observed in Visual Studio, please do not touch test
-		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/|  '].join('\n');
+		const EXPECTED = ['|   |/* |Just |some   |more   |text |a|+= |3 |+|5|-|3 |+ |7 |*/  '].join('\n');
 		const [text,] = deserializePipePositions(EXPECTED);
 		const actualStops = testRepeatedActionAndExtractPositions(
 			text,
@@ -197,23 +200,19 @@ suite('WordOperations', () => {
 	});
 
 	test('issue #51275 - cursorWordStartLeft does not push undo/redo stack element', () => {
-		function cursorCommand(cursor: Cursor, command: string, extraData?: any, overwriteSource?: string) {
-			cursor.trigger(overwriteSource || 'tests', command, extraData);
-		}
-
-		function type(cursor: Cursor, text: string) {
+		function type(viewModel: ViewModel, text: string) {
 			for (let i = 0; i < text.length; i++) {
-				cursorCommand(cursor, Handler.Type, { text: text.charAt(i) }, 'keyboard');
+				viewModel.type(text.charAt(i), 'keyboard');
 			}
 		}
 
-		withTestCodeEditor('', {}, (editor, cursor) => {
-			type(cursor, 'foo bar baz');
+		withTestCodeEditor('', {}, (editor, viewModel) => {
+			type(viewModel, 'foo bar baz');
 			assert.equal(editor.getValue(), 'foo bar baz');
 
 			cursorWordStartLeft(editor);
 			cursorWordStartLeft(editor);
-			type(cursor, 'q');
+			type(viewModel, 'q');
 
 			assert.equal(editor.getValue(), 'foo qbar baz');
 
@@ -725,5 +724,30 @@ suite('WordOperations', () => {
 			editor.setPosition(new Position(2, 1));
 			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'A line with text.   And another one', '001');
 		});
+	});
+
+	test('deleteWordLeft - issue #91855: Matching (quote, bracket, paren) doesn\'t get deleted when hitting Ctrl+Backspace', () => {
+		const languageId = new LanguageIdentifier('myTestMode', 5);
+		class TestMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					autoClosingPairs: [
+						{ open: '\"', close: '\"' }
+					]
+				}));
+			}
+		}
+
+		const mode = new TestMode();
+		const model = createTextModel('a ""', undefined, languageId);
+
+		withTestCodeEditor(null, { model }, (editor, _) => {
+			editor.setPosition(new Position(1, 4));
+			deleteWordLeft(editor); assert.equal(model.getLineContent(1), 'a ');
+		});
+
+		model.dispose();
+		mode.dispose();
 	});
 });

@@ -11,7 +11,7 @@ import { IContextKeyService, IContextKeyChangeEvent, ContextKeyExpression } from
 
 export class MenuService implements IMenuService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService
@@ -20,7 +20,7 @@ export class MenuService implements IMenuService {
 	}
 
 	createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, this._commandService, contextKeyService);
+		return new Menu(id, this._commandService, contextKeyService, this);
 	}
 }
 
@@ -38,14 +38,15 @@ class Menu implements IMenu {
 	constructor(
 		private readonly _id: MenuId,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IMenuService private readonly _menuService: IMenuService
 	) {
 		this._build();
 
 		// rebuild this menu whenever the menu registry reports an
 		// event for this MenuId
 		this._dispoables.add(Event.debounce(
-			Event.filter(MenuRegistry.onDidChangeMenu, menuId => menuId === this._id),
+			Event.filter(MenuRegistry.onDidChangeMenu, set => set.has(this._id)),
 			() => { },
 			50
 		)(this._build, this));
@@ -114,7 +115,7 @@ class Menu implements IMenu {
 				if (this._contextKeyService.contextMatchesRules(item.when)) {
 					const action = isIMenuItem(item)
 						? new MenuItemAction(item.command, item.alt, options, this._contextKeyService, this._commandService)
-						: new SubmenuItemAction(item);
+						: new SubmenuItemAction(item, this._menuService, this._contextKeyService, options);
 
 					activeActions.push(action);
 				}

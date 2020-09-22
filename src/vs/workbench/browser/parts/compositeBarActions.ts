@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Action } from 'vs/base/common/actions';
+import { Action, Separator } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
-import { BaseActionViewItem, IBaseActionViewItemOptions, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { dispose, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -18,9 +17,10 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { Codicon } from 'vs/base/common/codicons';
+import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -119,7 +119,7 @@ export interface ICompositeBarColors {
 	inactiveForegroundColor?: Color;
 	badgeBackground?: Color;
 	badgeForeground?: Color;
-	dragAndDropBackground?: Color;
+	dragAndDropBorder?: Color;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -169,16 +169,14 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 					this.label.style.color = foreground ? foreground.toString() : '';
 					this.label.style.backgroundColor = '';
 				}
-
-				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
-				this.container.style.setProperty('--insert-border-color', dragColor ? dragColor.toString() : '');
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
-				this.container.style.setProperty('--insert-border-color', colors.activeForegroundColor ? colors.activeForegroundColor.toString() : '');
 			}
+
+			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
 		}
 
 		// Badge
@@ -203,11 +201,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Make the container tab-able for keyboard navigation
 		this.container.tabIndex = 0;
-		this.container.setAttribute('role', this.options.icon ? 'button' : 'tab');
+		this.container.setAttribute('role', 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
-			dom.addClass(this.container, 'clicked');
+			this.container.classList.add('clicked');
 		}));
 
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_UP, () => {
@@ -216,7 +214,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 
 			this.mouseUpTimeout = setTimeout(() => {
-				dom.removeClass(this.container, 'clicked');
+				this.container.classList.remove('clicked');
 			}, 800); // delayed to prevent focus feedback from showing on mouse up
 		}));
 
@@ -301,8 +299,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 			}
 
 			if (clazz) {
-				dom.addClasses(this.badge, clazz);
-				this.badgeDisposable.value = toDisposable(() => dom.removeClasses(this.badge, clazz));
+				this.badge.classList.add(...clazz.split(' '));
+				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...clazz.split(' ')));
 			}
 		}
 
@@ -325,12 +323,12 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClasses(this.label, this.activity.cssClass);
+			this.label.classList.add(...this.activity.cssClass.split(' '));
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {
 			// Only apply codicon class to activity bar icon items without iconUrl
-			dom.addClass(this.label, 'codicon');
+			this.label.classList.add('codicon');
 		}
 
 		if (!this.options.icon) {
@@ -524,6 +522,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
 			onDragOver: e => {
 				const isValidMove = e.dragAndDropData.getData().id !== this.activity.id && this.dndHandler.onDragOver(e.dragAndDropData, this.activity.id, e.eventData);
+				toggleDropEffect(e.eventData.dataTransfer, 'move', isValidMove);
 				insertDropBefore = this.updateFromDragging(container, isValidMove, e.eventData);
 			},
 
@@ -548,11 +547,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				if (e.eventData.dataTransfer) {
 					e.eventData.dataTransfer.effectAllowed = 'move';
 				}
-
-				// Trigger the action even on drag start to prevent clicks from failing that started a drag
-				if (!this.getAction().checked) {
-					this.getAction().run();
-				}
+				// Remove focus indicator when dragging
+				this.blur();
 			}
 		}));
 
@@ -592,10 +588,10 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		const left = forceLeft || (preferLeft && !lastClasses.horizontal) || (!forceRight && lastClasses.horizontal === 'left');
 		const right = forceRight || (!preferLeft && !lastClasses.horizontal) || (!forceLeft && lastClasses.horizontal === 'right');
 
-		dom.toggleClass(element, 'top', showFeedback && top);
-		dom.toggleClass(element, 'bottom', showFeedback && bottom);
-		dom.toggleClass(element, 'left', showFeedback && left);
-		dom.toggleClass(element, 'right', showFeedback && right);
+		element.classList.toggle('top', showFeedback && top);
+		element.classList.toggle('bottom', showFeedback && bottom);
+		element.classList.toggle('left', showFeedback && left);
+		element.classList.toggle('right', showFeedback && right);
 
 		if (!showFeedback) {
 			return undefined;
@@ -650,11 +646,15 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	protected updateChecked(): void {
 		if (this.getAction().checked) {
-			dom.addClass(this.container, 'checked');
-			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
-		} else {
-			dom.removeClass(this.container, 'checked');
+			this.container.classList.add('checked');
 			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-expanded', 'true');
+			this.container.setAttribute('aria-selected', 'true');
+		} else {
+			this.container.classList.remove('checked');
+			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-expanded', 'false');
+			this.container.setAttribute('aria-selected', 'false');
 		}
 		this.updateStyles();
 	}
@@ -665,9 +665,9 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		}
 
 		if (this.getAction().enabled) {
-			dom.removeClass(this.element, 'disabled');
+			this.element.classList.remove('disabled');
 		} else {
-			dom.addClass(this.element, 'disabled');
+			this.element.classList.add('disabled');
 		}
 	}
 

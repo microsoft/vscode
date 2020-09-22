@@ -47,12 +47,12 @@ export class ColorPickerHeader extends Disposable {
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color) || '';
-		dom.toggleClass(this.pickedColorNode, 'light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
+		this.pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 	}
 
 	private onDidChangeColor(color: Color): void {
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color) || '';
-		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
+		this.pickedColorNode.classList.toggle('light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
 		this.onDidChangePresentation();
 	}
 
@@ -264,7 +264,7 @@ abstract class Strip extends Disposable {
 	private onMouseDown(e: MouseEvent): void {
 		const monitor = this._register(new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>());
 		const origin = dom.getDomNodePagePosition(this.domNode);
-		dom.addClass(this.domNode, 'grabbing');
+		this.domNode.classList.add('grabbing');
 
 		if (e.target !== this.slider) {
 			this.onDidChangeTop(e.offsetY);
@@ -276,7 +276,7 @@ abstract class Strip extends Disposable {
 			this._onColorFlushed.fire();
 			mouseUpListener.dispose();
 			monitor.stopMonitoring(true);
-			dom.removeClass(this.domNode, 'grabbing');
+			this.domNode.classList.remove('grabbing');
 		}, true);
 	}
 
@@ -298,7 +298,7 @@ class OpacityStrip extends Strip {
 
 	constructor(container: HTMLElement, model: ColorPickerModel) {
 		super(container, model);
-		dom.addClass(this.domNode, 'opacity-strip');
+		this.domNode.classList.add('opacity-strip');
 
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.onDidChangeColor(this.model.color);
@@ -321,7 +321,7 @@ class HueStrip extends Strip {
 
 	constructor(container: HTMLElement, model: ColorPickerModel) {
 		super(container, model);
-		dom.addClass(this.domNode, 'hue-strip');
+		this.domNode.classList.add('hue-strip');
 	}
 
 	protected getValue(color: Color): number {

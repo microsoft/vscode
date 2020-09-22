@@ -15,7 +15,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'vs/base/common/path';
-import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
+import { LocalSearchService } from 'vs/workbench/services/search/electron-browser/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
@@ -163,6 +163,7 @@ suite.skip('TextSearch performance (integration)', () => {
 class TestTelemetryService implements ITelemetryService {
 	public _serviceBrand: undefined;
 	public isOptedIn = true;
+	public sendErrorTelemetry = true;
 
 	public events: any[] = [];
 
@@ -173,6 +174,9 @@ class TestTelemetryService implements ITelemetryService {
 	}
 
 	public setEnabled(value: boolean): void {
+	}
+
+	public setExperimentProperty(name: string, value: string): void {
 	}
 
 	public publicLog(eventName: string, data?: any): Promise<void> {

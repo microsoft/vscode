@@ -7,7 +7,7 @@
 	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js Microsoft/vscode-mssql syntaxes/SQL.plist ./syntaxes/sql.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js microsoft/vscode-mssql syntaxes/SQL.plist ./syntaxes/sql.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{

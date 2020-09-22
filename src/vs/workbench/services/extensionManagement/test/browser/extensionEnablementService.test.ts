@@ -18,11 +18,11 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
+import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
+import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 
 function createStorageService(instantiationService: TestInstantiationService): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -51,7 +51,9 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			extensionManagementService,
 			instantiationService.get(IConfigurationService),
 			extensionManagementServerService,
-			productService
+			productService,
+			instantiationService.get(IUserDataAutoSyncService) || instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return false; } }),
+			instantiationService.get(IUserDataSyncAccountService) || instantiationService.stub(IUserDataSyncAccountService, UserDataSyncAccountService)
 		);
 	}
 
@@ -371,6 +373,48 @@ suite('ExtensionEnablementService Test', () => {
 		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { localizations: [{ languageId: 'gr', translations: [{ id: 'vscode', path: 'path' }] }] })), false);
 	});
 
+	test('test canChangeEnablement return true for auth extension', () => {
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return true for auth extension when user data sync account does not depends on it', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'b' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return true for auth extension when user data sync account depends on it but auto sync is off', () => {
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), true);
+	});
+
+	test('test canChangeEnablement return false for auth extension and user data sync account depends on it and auto sync is on', () => {
+		instantiationService.stub(IUserDataAutoSyncService, <Partial<IUserDataAutoSyncService>>{ isEnabled() { return true; } });
+		instantiationService.stub(IUserDataSyncAccountService, <Partial<IUserDataSyncAccountService>>{
+			account: { authenticationProviderId: 'a' }
+		});
+		testObject = new TestExtensionEnablementService(instantiationService);
+		assert.equal(testObject.canChangeEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return true', () => {
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), true);
+	});
+
+	test('test canChangeWorkspaceEnablement return false if there is no workspace', () => {
+		instantiationService.stub(IWorkspaceContextService, 'getWorkbenchState', WorkbenchState.EMPTY);
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a')), false);
+	});
+
+	test('test canChangeWorkspaceEnablement return false for auth extension', () => {
+		assert.equal(testObject.canChangeWorkspaceEnablement(aLocalExtension('pub.a', { authentication: [{ id: 'a', label: 'a' }] })), false);
+	});
+
 	test('test canChangeEnablement return false when extensions are disabled in environment', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: true } as IWorkbenchEnvironmentService);
 		testObject = new TestExtensionEnablementService(instantiationService);
@@ -397,7 +441,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.ok(!testObject.canChangeEnablement(extension));
 	});
 
-	test('test extension is disabled when disabled in enviroment', async () => {
+	test('test extension is disabled when disabled in environment', async () => {
 		const extension = aLocalExtension('pub.a');
 		instantiationService.stub(IWorkbenchEnvironmentService, { disableExtensions: ['pub.a'] } as IWorkbenchEnvironmentService);
 		instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: didUninstallEvent.event, getInstalled: () => Promise.resolve([extension, aLocalExtension('pub.b')]) } as IExtensionManagementService);
@@ -461,7 +505,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test remote ui extension is disabled by kind when there is no local server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), null));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(!testObject.isEnabled(localWorkspaceExtension));
@@ -499,7 +543,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension on remote server is not disabled by kind when there is no local server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
@@ -507,7 +551,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension with no server is not disabled by kind when there is no local server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService)));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, anExtensionManagementServer('vscode-remote', instantiationService), anExtensionManagementServer('web', instantiationService)));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.https }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
@@ -515,7 +559,7 @@ suite('ExtensionEnablementService Test', () => {
 	});
 
 	test('test web extension with no server is not disabled by kind when there is no local and remote server', async () => {
-		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, null));
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService(null, null, anExtensionManagementServer('web', instantiationService)));
 		const localWorkspaceExtension = aLocalExtension2('pub.a', { extensionKind: ['web'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.https }) });
 		testObject = new TestExtensionEnablementService(instantiationService);
 		assert.ok(testObject.isEnabled(localWorkspaceExtension));
@@ -526,7 +570,7 @@ suite('ExtensionEnablementService Test', () => {
 
 function anExtensionManagementServer(authority: string, instantiationService: TestInstantiationService): IExtensionManagementServer {
 	return {
-		authority,
+		id: authority,
 		label: authority,
 		extensionManagementService: instantiationService.get(IExtensionManagementService)
 	};
@@ -535,22 +579,23 @@ function anExtensionManagementServer(authority: string, instantiationService: Te
 function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService): IExtensionManagementServerService {
 	const localExtensionManagementServer = anExtensionManagementServer('vscode-local', instantiationService);
 	const remoteExtensionManagementServer = anExtensionManagementServer('vscode-remote', instantiationService);
-	return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer);
+	return anExtensionManagementServerService(localExtensionManagementServer, remoteExtensionManagementServer, null);
 }
 
-function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
+function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
 	return {
 		_serviceBrand: undefined,
 		localExtensionManagementServer,
 		remoteExtensionManagementServer,
-		getExtensionManagementServer: (location: URI) => {
-			if (location.scheme === Schemas.file) {
+		webExtensionManagementServer: null,
+		getExtensionManagementServer: (extension: IExtension) => {
+			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === Schemas.vscodeRemote) {
 				return remoteExtensionManagementServer;
 			}
-			return null;
+			return webExtensionManagementServer;
 		}
 	};
 }
@@ -561,11 +606,12 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions, type
 
 function aLocalExtension2(id: string, manifest: any = {}, properties: any = {}): ILocalExtension {
 	const [publisher, name] = id.split('.');
-	properties = assign({
+	manifest = { name, publisher, ...manifest };
+	properties = {
 		identifier: { id },
 		galleryIdentifier: { id, uuid: undefined },
-		type: ExtensionType.User
-	}, properties);
-	manifest = assign({ name, publisher }, manifest);
+		type: ExtensionType.User,
+		...properties
+	};
 	return <ILocalExtension>Object.create({ manifest, ...properties });
 }

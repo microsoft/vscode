@@ -53,7 +53,7 @@ export class MockContextKeyService implements IContextKeyService {
 	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return Event.None;
 	}
-	public bufferChangeEvents() { }
+	public bufferChangeEvents(callback: () => void) { callback(); }
 	public getContextKeyValue(key: string) {
 		const value = this._keys.get(key);
 		if (value) {
@@ -65,6 +65,18 @@ export class MockContextKeyService implements IContextKeyService {
 	}
 	public createScoped(domNode: HTMLElement): IContextKeyService {
 		return this;
+	}
+	updateParent(_parentContextKeyService: IContextKeyService): void {
+		// no-op
+	}
+}
+
+export class MockScopableContextKeyService extends MockContextKeyService {
+	/**
+	 * Don't implement this for all tests since we rarely depend on this behavior and it isn't implemented fully
+	 */
+	public createScoped(domNote: HTMLElement): IContextKeyService {
+		return new MockContextKeyService();
 	}
 }
 
@@ -133,6 +145,10 @@ export class MockKeybindingService implements IKeybindingService {
 	}
 
 	public mightProducePrintableCharacter(e: IKeyboardEvent): boolean {
+		return false;
+	}
+
+	public toggleLogging(): boolean {
 		return false;
 	}
 

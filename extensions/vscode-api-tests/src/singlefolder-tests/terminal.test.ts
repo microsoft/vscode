@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext, TerminalOptions, ExtensionTerminalOptions } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
 // Disable terminal tests:
@@ -22,6 +22,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
+		// Canvas may cause problems when running in a container
+		await config.update('rendererType', 'dom', ConfigurationTarget.Global);
 	});
 
 	suite('Terminal', () => {
@@ -47,7 +49,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
 		});
 
-		test('echo works in the default shell', (done) => {
+		(process.platform === 'linux' ? test.skip : test)('echo works in the default shell', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
 				try {
 					equal(terminal, term);
@@ -67,7 +69,9 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					if (data.indexOf(expected) !== 0) {
 						dataDisposable.dispose();
 						terminal.dispose();
-						disposables.push(window.onDidCloseTerminal(() => done()));
+						disposables.push(window.onDidCloseTerminal(() => {
+							done();
+						}));
 					}
 				});
 				disposables.push(dataDisposable);
@@ -164,8 +168,10 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			const terminal = window.createTerminal(options);
 			try {
 				equal(terminal.name, 'foo');
-				deepEqual(terminal.creationOptions, options);
-				throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+				const terminalOptions = terminal.creationOptions as TerminalOptions;
+				equal(terminalOptions.name, 'foo');
+				equal(terminalOptions.hideFromUser, true);
+				throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 			} catch (e) {
 				done(e);
 				return;
@@ -343,7 +349,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 							term1Write.fire('write1');
 
 							// Wait until the data is written
-							await new Promise(resolve => { resolveOnceDataWritten = resolve; });
+							await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
 
 							term1Close.fire();
 
@@ -456,10 +462,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					}
 					term.show();
 					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						if (e.dimensions.columns === 0 || e.dimensions.rows === 0) {
-							// HACK: Ignore the event if dimension(s) are zero (#83778)
-							return;
-						}
 						// The default pty dimensions have a chance to appear here since override
 						// dimensions happens after the terminal is created. If so just ignore and
 						// wait for the right dimensions
@@ -605,8 +607,10 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const terminal = window.createTerminal(options);
 				try {
 					equal(terminal.name, 'foo');
-					deepEqual(terminal.creationOptions, options);
-					throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
+					const terminalOptions = terminal.creationOptions as ExtensionTerminalOptions;
+					equal(terminalOptions.name, 'foo');
+					equal(terminalOptions.pty, pty);
+					throws(() => terminalOptions.name = 'bad', 'creationOptions should be readonly at runtime');
 				} catch (e) {
 					done(e);
 				}
