@@ -14,7 +14,7 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issue';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
-import { platform, PlatformToString } from 'vs/base/common/platform';
+import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
@@ -70,7 +70,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 				hoverForeground: getColor(theme, listHoverForeground),
 				highlightForeground: getColor(theme, listHighlightForeground),
 			},
-			platform: PlatformToString(platform),
+			platform: process.platform,
 			applicationName: this.productService.applicationName
 		};
 		return this.issueService.openProcessExplorer(data);

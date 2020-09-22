@@ -107,6 +107,10 @@
 			'vs/nls': nlsConfig
 		};
 
+		// Enable loading of node modules:
+		// - sandbox: we list paths of webpacked modules to help the loader
+		// - non-sandbox: we signal that any module that does not begin with
+		//                `vs/` should be loaded using node.js require()
 		if (sandbox) {
 			loaderConfig.paths = {
 				'vscode-textmate': `../node_modules/vscode-textmate/release/main`,
