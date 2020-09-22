@@ -569,19 +569,25 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (controller.viewOptions && !this.notebookProviderInfoStore.get(viewType)) {
 			// register this content provider to the static contribution, if it does not exist
-			this.notebookProviderInfoStore.add(new NotebookProviderInfo({
+			const info = new NotebookProviderInfo({
 				displayName: controller.viewOptions.displayName,
 				id: viewType,
 				priority: NotebookEditorPriority.default,
-				selectors: controller.viewOptions.filenamePattern.map(pattern => ({ filenamePattern: pattern })),
+				selectors: [],
 				providerExtensionId: extensionData.id.value,
 				providerDescription: extensionData.description,
 				providerDisplayName: extensionData.id.value,
 				providerExtensionLocation: URI.revive(extensionData.location),
 				dynamicContribution: true,
 				exclusive: controller.viewOptions.exclusive
-			}));
+			});
+
+			info.update({ selectors: controller.viewOptions.filenamePattern });
+			info.update({ options: controller.options });
+			this.notebookProviderInfoStore.add(info);
 		}
+
+		this.notebookProviderInfoStore.get(viewType)?.update({ options: controller.options });
 
 		this._onDidChangeViewTypes.fire();
 		return toDisposable(() => {
@@ -806,8 +812,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 
-	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[] {
-		return this.notebookProviderInfoStore.getContributedNotebook(resource);
+	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[] {
+		if (resource) {
+			return this.notebookProviderInfoStore.getContributedNotebook(resource);
+		}
+
+		return [...this.notebookProviderInfoStore];
 	}
 
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined {

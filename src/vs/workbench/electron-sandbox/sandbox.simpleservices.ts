@@ -98,7 +98,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	skipReleaseNotes: boolean = undefined!;
 	keyboardLayoutResource: URI = undefined!;
 	sync: 'on' | 'off' | undefined;
-	enableSyncByDefault: boolean = false;
 	debugExtensionHost: IExtensionHostDebugParams = undefined!;
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];

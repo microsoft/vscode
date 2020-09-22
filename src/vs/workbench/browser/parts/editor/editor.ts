@@ -108,6 +108,22 @@ export interface IEditorGroupsAccessor {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 }
 
+export interface IEditorGroupTitleDimensions {
+
+	/**
+	 * The overall height of the editor group title control.
+	 */
+	height: number;
+
+	/**
+	 * The height offset to e.g. use when drawing drop overlays.
+	 * This number may be smaller than `height` if the title control
+	 * decides to have an `offset` that is within the title area
+	 * (e.g. when breadcrumbs are enabled).
+	 */
+	offset: number;
+}
+
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
@@ -120,7 +136,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly group: EditorGroup;
 	readonly whenRestored: Promise<void>;
 
-	readonly preferredTitleHeight: number;
+	readonly titleDimensions: IEditorGroupTitleDimensions;
 
 	readonly isEmpty: boolean;
 	readonly isMinimized: boolean;

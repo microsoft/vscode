@@ -73,7 +73,7 @@ import { UserDataSyncStoreService, UserDataSyncStoreManagementService } from 'vs
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { WebUserDataAutoSyncService } from 'vs/workbench/services/userDataSync/browser/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
@@ -93,7 +93,7 @@ registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreServic
 registerSingleton(IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService);
 registerSingleton(IUserDataSyncService, UserDataSyncService, true);
-registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, true);
+registerSingleton(IUserDataAutoSyncService, WebUserDataAutoSyncService, true);
 registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(ITimerService, TimerService);
