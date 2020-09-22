@@ -142,7 +142,7 @@ class PropertyHeader extends Disposable {
 
 			const target = e.event.target as HTMLElement;
 
-			if (DOM.hasClass(target, 'codicon-chevron-down') || DOM.hasClass(target, 'codicon-chevron-right')) {
+			if (target.classList.contains('codicon-chevron-down') || target.classList.contains('codicon-chevron-right')) {
 				const parent = target.parentElement as HTMLElement;
 
 				if (!parent) {
@@ -153,7 +153,7 @@ class PropertyHeader extends Disposable {
 					return;
 				}
 
-				if (!DOM.hasClass(parent, 'property-folding-indicator')) {
+				if (!parent.classList.contains('property-folding-indicator')) {
 					return;
 				}
 
