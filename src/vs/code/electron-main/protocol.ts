@@ -9,47 +9,57 @@ import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { session } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
+import { coalesce } from 'vs/base/common/arrays';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+
+type ProtocolCallback = { (result: string | Electron.FilePathWithHeaders | { error: number }): void };
 
 export class FileProtocolHandler extends Disposable {
 
 	constructor(
-		private readonly environmentService: INativeEnvironmentService,
+		environmentService: INativeEnvironmentService,
 		private readonly logService: ILogService
 	) {
 		super();
 
 		const { defaultSession } = session;
 
+		// Define a set of roots we allow loading from
+		const validRoots = coalesce([
+			URI.file(environmentService.appRoot),
+			environmentService.extensionsPath ? URI.file(environmentService.extensionsPath) : undefined
+		]);
+
 		// Register vscode-file:// handler
-		defaultSession.protocol.registerFileProtocol(
-			Schemas.vscodeFileResource,
-			(request, callback) => this.handleResourceRequest(request, callback));
+		defaultSession.protocol.registerFileProtocol(Schemas.vscodeFileResource, (request, callback) => this.handleResourceRequest(request, validRoots, callback as unknown as ProtocolCallback));
 
 		// Block any file:// access
-		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback: any /* TODO@deepak TODO@electron electron typing */) => {
-			const uri = URI.parse(request.url);
-			this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
-			callback({ error: -3 /* ABORTED */ });
-		});
+		defaultSession.protocol.interceptFileProtocol(Schemas.file, (request, callback) => this.handleFileRequest(request, callback as unknown as ProtocolCallback));
 
+		// Cleanup
 		this._register(toDisposable(() => {
 			defaultSession.protocol.unregisterProtocol(Schemas.vscodeFileResource);
+			defaultSession.protocol.uninterceptProtocol(Schemas.file);
 		}));
 	}
 
-	private async handleResourceRequest(
-		request: Electron.Request,
-		callback: any /* TODO@deepak TODO@electron electron typing */) {
+	private async handleFileRequest(request: Electron.Request, callback: ProtocolCallback) {
 		const uri = URI.parse(request.url);
-		const appRoot = this.environmentService.appRoot;
-		const extensionsPath = this.environmentService.extensionsPath;
-		if (uri.path.startsWith(appRoot) ||
-			(extensionsPath && uri.path.startsWith(extensionsPath))) {
+
+		this.logService.error(`Refused to load resource ${uri.fsPath} from ${Schemas.file}: protocol`);
+		callback({ error: -3 /* ABORTED */ });
+	}
+
+	private async handleResourceRequest(request: Electron.Request, validRoots: URI[], callback: ProtocolCallback) {
+		const uri = URI.parse(request.url).with({ scheme: Schemas.file, authority: null, query: null, fragment: null });
+
+		if (validRoots.some(validRoot => extUriBiasedIgnorePathCase.isEqualOrParent(uri, validRoot))) {
 			return callback({
-				path: decodeURIComponent(uri.path)
+				path: uri.fsPath
 			});
 		}
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${uri.path}`);
+
+		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${uri.fsPath}}`);
 		callback({ error: -3 /* ABORTED */ });
 	}
 }
