@@ -527,7 +527,7 @@ export function registerCommands(): void {
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
 				if (!breakpointAlreadySet) {
-					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 		}
