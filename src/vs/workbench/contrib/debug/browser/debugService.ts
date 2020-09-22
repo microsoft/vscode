@@ -860,12 +860,11 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string, ariaAnnounce = true): Promise<IBreakpoint[]> {
+	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce = true): Promise<IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
 		if (ariaAnnounce) {
 			breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
 		}
-		breakpoints.forEach(bp => this.telemetry.logDebugAddBreakpoint(bp, context));
 
 		// In some cases we need to store breakpoints before we send them because sending them can take a long time
 		// And after sending them because the debug adapter can attach adapter data to a breakpoint
