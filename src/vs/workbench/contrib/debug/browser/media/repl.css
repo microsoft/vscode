@@ -119,10 +119,6 @@
 	margin-right: 10px;
 }
 
-.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container.grow {
-	width: 400px;
-}
-
 .repl-panel-filter-container .repl-panel-filter-controls {
 	position: absolute;
 	top: 0px;

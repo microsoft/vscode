@@ -447,7 +447,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
-		this.filterState.layout = this.dimension;
 		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
