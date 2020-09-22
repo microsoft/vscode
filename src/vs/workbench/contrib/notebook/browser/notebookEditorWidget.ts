@@ -2219,6 +2219,27 @@ class DecorationCSSRules {
 						border-color: ${borderColor} !important;
 					}`);
 
+			this._styleSheet.insertRule(`
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-bottom:before,
+					.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.${this.className}:after {
+						content: "";
+						position: absolute;
+						width: 100%;
+						height: 1px;
+						border-bottom: 1px solid ${borderColor};
+						bottom: 0px;
+					`);
+
+			this._styleSheet.insertRule(`
+					.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.${this.className} .cell-focus-indicator-top:before,
+					.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row.${this.className}:before {
+						content: "";
+						position: absolute;
+						width: 100%;
+						height: 1px;
+						border-top: 1px solid ${borderColor};
+					`);
+
 			// more specific rule for `.focused` can override existing rules
 			this._styleSheet.insertRule(`.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-top:before,
 				.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused.${this.className} .cell-focus-indicator-bottom:before,
