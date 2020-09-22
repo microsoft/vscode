@@ -466,7 +466,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
 				mainthreadTextModel.updateLanguages(data.languages);
 				mainthreadTextModel.metadata = data.metadata;
-				mainthreadTextModel.transientOptions = options;
+				mainthreadTextModel.transientOptions = contentOptions;
 
 				const edits: ICellEditOperation[] = [
 					{ editType: CellEditType.Replace, index: 0, count: mainthreadTextModel.cells.length, cells: data.cells }
@@ -484,7 +484,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 				const data = await this._proxy.$resolveNotebookData(viewType, uri, backupId);
 				return {
 					data,
-					transientOptions: options
+					transientOptions: contentOptions
 				};
 			},
 			resolveNotebookEditor: async (viewType: string, uri: URI, editorId: string) => {
