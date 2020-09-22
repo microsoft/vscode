@@ -43,6 +43,7 @@ export class SharedProcess implements ISharedProcess {
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
 				preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+				v8CacheOptions: this.environmentService.v8CacheOptions,
 				nodeIntegration: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,

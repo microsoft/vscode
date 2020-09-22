@@ -141,6 +141,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	verbose = false;
 	isBuilt = false;
 	disableTelemetry = false;
+	v8CacheOptions: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' = 'none';
 }
 
 //#endregion

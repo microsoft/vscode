@@ -119,6 +119,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	// --- Misc. config
 	disableUpdates: boolean;
 	sandbox: boolean;
+	v8CacheOptions: 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile';
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
