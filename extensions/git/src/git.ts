@@ -1290,7 +1290,7 @@ export class Repository {
 		const args = ['checkout', '-q'];
 		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
 
-		if (opts.track) {
+		if (opts.track && !config.get('checkoutDetached')) {
 			args.push('--track');
 		}
 
