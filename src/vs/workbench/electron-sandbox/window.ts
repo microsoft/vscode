@@ -277,9 +277,9 @@ export class NativeWindow extends Disposable {
 		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
 
 		this._register(this.layoutService.onPartVisibilityChange(() => {
-			this.onDidPanelVisibilityChange(!this.layoutService.getPanelHidden());
+			this.onDidPanelVisibilityChange(!this.layoutService.isPanelHidden());
 		}));
-		this.onDidPanelVisibilityChange(!this.layoutService.getPanelHidden());
+		this.onDidPanelVisibilityChange(!this.layoutService.isPanelHidden());
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {

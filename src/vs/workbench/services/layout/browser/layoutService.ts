@@ -207,7 +207,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Gets whether the current panel is hidden or not
 	 */
-	getPanelHidden(): boolean
+	isPanelHidden(): boolean
 
 	/**
 	 * Gets the maximum possible size for editor.
