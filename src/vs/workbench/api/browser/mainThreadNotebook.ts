@@ -450,9 +450,17 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		transientMetadata: TransientMetadata;
 		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	}): Promise<void> {
+		let contentOptions = { transientOutputs: options.transientOutputs, transientMetadata: options.transientMetadata };
+
 		const controller: IMainNotebookController = {
 			supportBackup,
-			options,
+			get options() {
+				return contentOptions;
+			},
+			set options(newOptions) {
+				contentOptions.transientMetadata = newOptions.transientMetadata;
+				contentOptions.transientOutputs = newOptions.transientOutputs;
+			},
 			viewOptions: options.viewOptions,
 			reloadNotebook: async (mainthreadTextModel: NotebookTextModel) => {
 				const data = await this._proxy.$resolveNotebookData(viewType, mainthreadTextModel.uri);
@@ -499,6 +507,19 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		const disposable = this._notebookService.registerNotebookController(viewType, extension, controller);
 		this._notebookProviders.set(viewType, { controller, disposable });
 		return;
+	}
+
+	async $updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void> {
+		const provider = this._notebookProviders.get(viewType);
+
+		if (provider && options) {
+			provider.controller.options = options;
+			this._notebookService.listNotebookDocuments().forEach(document => {
+				if (document.viewType === viewType) {
+					document.transientOptions = provider.controller.options;
+				}
+			});
+		}
 	}
 
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {

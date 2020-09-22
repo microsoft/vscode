@@ -318,8 +318,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
+		const listeners: vscode.Disposable[] = [];
 
-		const listener = provider.onDidChangeNotebook
+		listeners.push(provider.onDidChangeNotebook
 			? provider.onDidChangeNotebook(e => {
 				const document = this._documents.get(URI.revive(e.document.uri));
 
@@ -334,7 +335,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					this._proxy.$onContentChange(e.document.uri, viewType);
 				}
 			})
-			: Disposable.None;
+			: Disposable.None);
+
+		listeners.push(provider.onDidChangeNotebookContentOptions
+			? provider.onDidChangeNotebookContentOptions(() => {
+				this._proxy.$updateNotebookProviderOptions(viewType, provider.options);
+			})
+			: Disposable.None);
 
 		const supportBackup = !!provider.backupNotebook;
 
@@ -353,7 +360,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		});
 
 		return new extHostTypes.Disposable(() => {
-			listener.dispose();
+			listeners.forEach(d => d.dispose());
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});
