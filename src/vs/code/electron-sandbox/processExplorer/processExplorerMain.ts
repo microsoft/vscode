@@ -14,7 +14,7 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, addClass, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, $ } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -417,7 +417,7 @@ class ProcessExplorer {
 
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
-	addClass(document.body, platformClass); // used by our fonts
+	document.body.classList.add(platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
 	const processExplorer = new ProcessExplorer(windowId, data);
