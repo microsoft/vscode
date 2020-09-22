@@ -846,7 +846,8 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		@INotificationService readonly notificationService: INotificationService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@IViewsService readonly viewsService: IViewsService,
-		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService
+		@IRemoteExplorerService readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		const urlFinder = this._register(new UrlFinder(terminalService));
@@ -854,17 +855,24 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 			const forwarded = await this.remoteExplorerService.forward(localUrl);
 			if (forwarded) {
 				const address = MakeAddress(forwarded.tunnelRemoteHost, forwarded.tunnelRemotePort);
-				const message = nls.localize('remote.tunnelsView.automaticForward', "{0} has been forwarded to {1} locally.",
+				const message = nls.localize('remote.tunnelsView.automaticForward', "{0} from the remote has been forwarded to {1} locally.",
 					address, forwarded.localAddress);
 				const browserChoice: IPromptChoice = {
 					label: OpenPortInBrowserAction.LABEL,
 					run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, openerService, address)
 				};
 				const showChoice: IPromptChoice = {
-					label: nls.localize('remote.tunnelsView.showView', "Show Tunnels View"),
-					run: () => viewsService.openViewContainer(VIEWLET_ID)
+					label: nls.localize('remote.tunnelsView.showView', "Show Forwarded Ports"),
+					run: () => {
+						const remoteAuthority = environmentService.configuration.remoteAuthority;
+						const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] : undefined;
+						if (explorerType) {
+							remoteExplorerService.targetType = explorerType;
+						}
+						viewsService.openViewContainer(VIEWLET_ID);
+					}
 				};
-				notificationService.prompt(Severity.Info, message, [browserChoice, showChoice]);
+				notificationService.prompt(Severity.Info, message, [browserChoice, showChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
 			}
 		}));
 	}
