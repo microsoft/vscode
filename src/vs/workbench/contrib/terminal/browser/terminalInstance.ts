@@ -730,7 +730,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
-			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
+			this._hadFocusOnExit = this._xterm.element.classList.contains('focus');
 		}
 		if (this._wrapperElement) {
 			if (this._wrapperElement.xterm) {

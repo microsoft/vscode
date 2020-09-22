@@ -371,7 +371,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			&&
 			container !== this._body) {
 
-			if (DOM.hasClass(container as HTMLElement, 'output')) {
+			if ((container as HTMLElement).classList.contains('output')) {
 				return true;
 			}
 
@@ -385,7 +385,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const id = generateUuid();
 		this._overlayContainer.id = `notebook-${id}`;
 		this._overlayContainer.className = 'notebookOverlay';
-		DOM.addClass(this._overlayContainer, 'notebook-editor');
+		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
 		this.layoutService.container.appendChild(this._overlayContainer);
@@ -512,7 +512,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webviewTransparentCover.style.display = 'none';
 
 		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._overlayContainer, (e: StandardMouseEvent) => {
-			if (DOM.hasClass(e.target, 'slider') && this._webviewTransparentCover) {
+			if (e.target.classList.contains('slider') && this._webviewTransparentCover) {
 				this._webviewTransparentCover.style.display = 'block';
 			}
 		}));
