@@ -79,7 +79,13 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 }
 
+export interface IFilterStatsProvider {
+	getFilterStats(): { total: number, filtered: number };
+}
+
 export class ReplFilterState {
+
+	constructor(private filterStatsProvider: IFilterStatsProvider) { }
 
 	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
 	get onDidChange(): Event<void> {
@@ -102,18 +108,16 @@ export class ReplFilterState {
 		return this._stats;
 	}
 
-	set filterStats(stats: { total: number, filtered: number }) {
-		const { total, filtered } = stats;
-		if (this._stats.total !== total || this._stats.filtered !== filtered) {
-			this._stats = { total, filtered };
-			this._onDidStatsChange.fire();
-		}
-	}
-
 	set filterText(filterText: string) {
 		if (this._filterText !== filterText) {
 			this._filterText = filterText;
 			this._onDidChange.fire();
+
+			const { total, filtered } = this.filterStatsProvider.getFilterStats();
+			if (this._stats.total !== total || this._stats.filtered !== filtered) {
+				this._stats = { total, filtered };
+				this._onDidStatsChange.fire();
+			}
 		}
 	}
 }
@@ -122,7 +126,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container!: HTMLElement;
-	private filterBadge: HTMLElement | null = null;
+	private filterBadge!: HTMLElement;
 	private filterInputBox!: HistoryInputBox;
 
 	constructor(
@@ -221,15 +225,12 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	private updateBadge(): void {
-		if (this.filterBadge) {
-			const { total, filtered } = this.filters.filterStats;
-			const filterBadgeHidden = total === filtered || total === 0;
+		const { total, filtered } = this.filters.filterStats;
+		const filterBadgeHidden = total === filtered || total === 0;
 
-			this.filterBadge.classList.toggle('hidden', filterBadgeHidden);
-			this.filterBadge.textContent = localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total);
-
-			this.filterInputBox.inputElement.style.paddingRight = filterBadgeHidden ? '4px' : '150px';
-		}
+		this.filterBadge.classList.toggle('hidden', filterBadgeHidden);
+		this.filterBadge.textContent = localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total);
+		this.filterInputBox.inputElement.style.paddingRight = filterBadgeHidden ? '4px' : '150px';
 	}
 
 	protected get class(): string {

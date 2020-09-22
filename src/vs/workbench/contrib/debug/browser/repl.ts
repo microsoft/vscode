@@ -120,7 +120,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
-		this.filterState = new ReplFilterState();
+		this.filterState = new ReplFilterState(this);
 
 		codeEditorService.registerDecorationType(DECORATION_KEY, {});
 		this.registerListeners();
@@ -251,19 +251,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}));
 	}
 
-	private computeFilterStats(): { total: number, filtered: number } {
-		let filtered = 0;
-		let total = 0;
-		if (this.tree) {
-			total = this.tree.getNode().children.length;
-			for (const child of this.tree.getNode().children) {
-				if (child.visible) {
-					++filtered;
-				}
-			}
-		}
+	getFilterStats(): { total: number, filtered: number } {
 		return {
-			total, filtered
+			total: this.tree.getNode().children.length,
+			filtered: this.tree.getNode().children.filter(c => c.visible).length
 		};
 	}
 
@@ -590,7 +581,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 			lastSelectedString = selection ? selection.toString() : '';
 		}));
-		this._register(this.tree.onDidChangeContentHeight(() => this.refreshReplElements(false)));
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
@@ -682,7 +672,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 
 			this.refreshScheduler.schedule(noDelay ? 0 : undefined);
-			this.filterState.filterStats = this.computeFilterStats();
 		}
 	}
 
