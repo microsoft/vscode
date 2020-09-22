@@ -425,6 +425,15 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 	document.onkeydown = (e: KeyboardEvent) => {
 		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 
+		// Cmd/Ctrl + w closes issue window
+		if (cmdOrCtrlKey && e.keyCode === 87) {
+			e.stopPropagation();
+			e.preventDefault();
+
+			processExplorer.dispose();
+			ipcRenderer.send('vscode:closeProcessExplorer');
+		}
+
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
 			zoomIn();
@@ -435,13 +444,4 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 			zoomOut();
 		}
 	};
-
-	// Cmd/Ctrl + w closes process explorer
-	window.addEventListener('keydown', e => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-		if (cmdOrCtrlKey && e.keyCode === 87) {
-			processExplorer.dispose();
-			ipcRenderer.send('vscode:closeProcessExplorer');
-		}
-	});
 }

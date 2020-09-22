@@ -10,7 +10,7 @@ import { MockRawSession, createMockDebugModel, mockUriIdentityService } from 'vs
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { Range } from 'vs/editor/common/core/range';
-import { IDebugSessionOptions, State } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSessionOptions, State, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Constants } from 'vs/base/common/uint';
@@ -19,7 +19,15 @@ import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug
 import { generateUuid } from 'vs/base/common/uuid';
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, {
+		getViewModel(): any {
+			return {
+				updateViews(): void {
+					// noop
+				}
+			};
+		}
+	} as IDebugService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {

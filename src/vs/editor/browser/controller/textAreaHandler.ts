@@ -125,6 +125,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
@@ -375,6 +376,7 @@ export class TextAreaHandler extends ViewPart {
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
 			if (options.get(EditorOption.readOnly)) {

@@ -19,6 +19,7 @@ import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGro
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 //#region --- NEW world
 
@@ -312,6 +313,12 @@ export class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of ColorPresentation objects.'
 		});
 
+		this._register('vscode.resolveNotebookContentProviders', this._resolveNotebookContentProviders, {
+			description: 'Resolve Notebook Content Providers',
+			args: [],
+			returns: 'A promise that resolves to an array of NotebookContentProvider static info objects.'
+		});
+
 		// -----------------------------------------------------------------
 		// The following commands are registered on both sides separately.
 		//
@@ -478,6 +485,28 @@ export class ExtHostApiCommands {
 				return new types.CodeLens(
 					typeConverters.Range.to(item.range),
 					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
+			}));
+	}
+
+	private _resolveNotebookContentProviders(): Promise<{
+		viewType: string;
+		displayName: string;
+		filenamePattern: vscode.NotebookFilenamePattern[];
+		options: vscode.NotebookDocumentContentOptions;
+	}[] | undefined> {
+		return this._commands.executeCommand<{
+			viewType: string;
+			displayName: string;
+			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
+		}[]>('_resolveNotebookContentProvider')
+			.then(tryMapWith(item => {
+				return {
+					viewType: item.viewType,
+					displayName: item.displayName,
+					options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+					filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
+				};
 			}));
 	}
 }

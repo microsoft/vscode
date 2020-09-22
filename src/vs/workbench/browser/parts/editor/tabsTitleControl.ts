@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -1231,7 +1231,7 @@ export class TabsTitleControl extends TitleControl {
 		return hasModifiedBorderColor;
 	}
 
-	getPreferredHeight(): number {
+	getDimensions(): IEditorGroupTitleDimensions {
 		let height = TabsTitleControl.TAB_HEIGHT;
 
 		// Multi-line: we need to ask `offsetHeight` to get
@@ -1245,7 +1245,10 @@ export class TabsTitleControl extends TitleControl {
 			height += BreadcrumbsControl.HEIGHT;
 		}
 
-		return height;
+		return {
+			height,
+			offset: TabsTitleControl.TAB_HEIGHT
+		};
 	}
 
 	layout(dimension: Dimension | undefined): void {
