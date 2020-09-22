@@ -2065,27 +2065,32 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == empty"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == empty",
+        "group": "2_open@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder",
+        "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0",
+        "group": "5_scm@1"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount == 0",
+        "group": "2_open@1"
       },
       {
         "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
-        "when": "config.git.enabled && git.state == initialized"
+        "when": "config.git.enabled && git.state == initialized",
+        "group": "5_scm@1"
       }
     ]
   },
