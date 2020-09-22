@@ -28,7 +28,7 @@
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
     "mocha": "mocha test/unit/node/all.js --delay",
-    "precommit": "node build/gulpfile.hygiene.js",
+    "precommit": "node build/hygiene.js",
     "gulp": "gulp --max_old_space_size=8192",
     "electron": "node build/lib/electron",
     "7z": "7z",
