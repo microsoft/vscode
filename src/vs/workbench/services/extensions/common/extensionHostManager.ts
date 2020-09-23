@@ -23,6 +23,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -403,7 +404,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
 				original: 'Measure Extension Host Latency'
 			},
-			category: { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}

@@ -25,6 +25,7 @@ import { CellEditType, CellKind, ICellRange, isDocumentExcludePattern, NotebookC
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -1780,7 +1781,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.inspectLayout',
 			title: localize('notebookActions.inspectLayout', "Inspect Notebook Layout"),
-			category: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
