@@ -181,8 +181,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		let toDelete: string[];
 		if (opts.recursive) {
 			const tree = (await this.tree(resource));
-			console.log({ tree });
-
 			toDelete = tree.map(([path]) => path);
 		} else {
 			if (stat.type === FileType.Directory && (await this.readdir(resource)).length) {
@@ -278,9 +276,12 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 				const request = objectStore.add([], entry.resource.path);
 				// This means it might throw EEXIST errors, which we can safely swallow.
 				request.onerror = (error) => {
-					console.warn('error adding directory entry:', request.error);
-					error.preventDefault();
-					error.stopPropagation();
+					if (request.error?.message.includes('Key already exists in the object store')) {
+						error.preventDefault();
+						error.stopPropagation();
+					} else {
+						console.error('error adding directory entry:', request.error?.message);
+					}
 				};
 			}
 
