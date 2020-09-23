@@ -210,7 +210,9 @@ suite('UndoRedoService', () => {
 	});
 
 	test('UndoRedoGroup.None uses id 0', () => {
-		assert.equal(UndoRedoGroup.None, 0);
+		assert.equal(UndoRedoGroup.None.id, 0);
+		assert.equal(UndoRedoGroup.None.nextOrder(), 0);
+		assert.equal(UndoRedoGroup.None.nextOrder(), 0);
 	});
 
 });

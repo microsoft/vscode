@@ -985,9 +985,9 @@ export class UndoRedoService implements IUndoRedoService {
 		});
 	}
 
-	private _continueUndoInGroup(groupId: number): Promise<void> | void {
+	private _findClosestUndoElementInGroup(groupId: number): [StackElement | null, string | null] {
 		if (!groupId) {
-			return;
+			return [null, null];
 		}
 
 		// find another element with the same groupId and with the highest groupOrder ready to be undone
@@ -1007,6 +1007,15 @@ export class UndoRedoService implements IUndoRedoService {
 			}
 		}
 
+		return [matchedElement, matchedStrResource];
+	}
+
+	private _continueUndoInGroup(groupId: number): Promise<void> | void {
+		if (!groupId) {
+			return;
+		}
+
+		const [, matchedStrResource] = this._findClosestUndoElementInGroup(groupId);
 		if (matchedStrResource) {
 			return this.undo(matchedStrResource);
 		}
@@ -1022,6 +1031,15 @@ export class UndoRedoService implements IUndoRedoService {
 		const element = editStack.getClosestPastElement();
 		if (!element) {
 			return;
+		}
+
+		if (element.groupId) {
+			// this element is a part of a group, we need to make sure undoing in a group is in order
+			const [matchedElement, matchedStrResource] = this._findClosestUndoElementInGroup(element.groupId);
+			if (element !== matchedElement && matchedStrResource) {
+				// there is an element in the same group that should be undone before this one
+				return this.undo(matchedStrResource);
+			}
 		}
 
 		try {
@@ -1190,9 +1208,9 @@ export class UndoRedoService implements IUndoRedoService {
 		});
 	}
 
-	private _continueRedoInGroup(groupId: number): Promise<void> | void {
+	private _findClosestRedoElementInGroup(groupId: number): [StackElement | null, string | null] {
 		if (!groupId) {
-			return;
+			return [null, null];
 		}
 
 		// find another element with the same groupId and with the lowest groupOrder ready to be redone
@@ -1212,6 +1230,15 @@ export class UndoRedoService implements IUndoRedoService {
 			}
 		}
 
+		return [matchedElement, matchedStrResource];
+	}
+
+	private _continueRedoInGroup(groupId: number): Promise<void> | void {
+		if (!groupId) {
+			return;
+		}
+
+		const [, matchedStrResource] = this._findClosestRedoElementInGroup(groupId);
 		if (matchedStrResource) {
 			return this.redo(matchedStrResource);
 		}
@@ -1227,6 +1254,15 @@ export class UndoRedoService implements IUndoRedoService {
 		const element = editStack.getClosestFutureElement();
 		if (!element) {
 			return;
+		}
+
+		if (element.groupId) {
+			// this element is a part of a group, we need to make sure redoing in a group is in order
+			const [matchedElement, matchedStrResource] = this._findClosestRedoElementInGroup(element.groupId);
+			if (element !== matchedElement && matchedStrResource) {
+				// there is an element in the same group that should be redone before this one
+				return this.redo(matchedStrResource);
+			}
 		}
 
 		try {
