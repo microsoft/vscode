@@ -744,7 +744,9 @@ declare module 'vscode' {
 	// TODO@jrieken FileDecoration, FileDecorationProvider etc.
 	// TODO@jrieken Add selector notion to limit decorations to a view.
 	// TODO@jrieken Rename `Decoration.letter` to `short` so that it could be used for coverage et al.
-
+	// TODO@jrieken priority -> DecorationSeverity.INFO,WARN,ERROR
+	// TODO@jrieken title -> tooltip
+	// TODO@jrieken bubble -> propagte
 	export class Decoration {
 
 		/**
