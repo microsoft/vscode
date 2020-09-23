@@ -140,16 +140,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
 	});
 
-	test('startsWith', () => {
-		assert(strings.startsWith('foo', 'f'));
-		assert(strings.startsWith('foo', 'fo'));
-		assert(strings.startsWith('foo', 'foo'));
-		assert(!strings.startsWith('foo', 'o'));
-		assert(!strings.startsWith('', 'f'));
-		assert(strings.startsWith('foo', ''));
-		assert(strings.startsWith('', ''));
-	});
-
 	test('endsWith', () => {
 		assert(strings.endsWith('foo', 'o'));
 		assert(strings.endsWith('foo', 'oo'));
