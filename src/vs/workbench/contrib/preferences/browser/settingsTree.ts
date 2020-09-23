@@ -566,8 +566,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
-		DOM.addClass(_container, 'setting-item');
-		DOM.addClass(_container, 'setting-item-' + typeClass);
+		_container.classList.add('setting-item');
+		_container.classList.add('setting-item-' + typeClass);
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		const titleElement = DOM.append(container, $('.setting-item-title'));
@@ -788,7 +788,7 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 	templateId = SETTINGS_ELEMENT_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IGroupTitleTemplate {
-		DOM.addClass(container, 'group-title');
+		container.classList.add('group-title');
 
 		const template: IGroupTitleTemplate = {
 			parent: container,
@@ -899,12 +899,12 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
 		const errMsg = dataElement.isConfigured && getInvalidTypeError(dataElement.value, dataElement.setting.type);
 		if (errMsg) {
-			DOM.addClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			return;
 		}
 
-		DOM.removeClass(template.containerElement, 'invalid-input');
+		template.containerElement.classList.remove('invalid-input');
 	}
 }
 
@@ -1413,8 +1413,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 	templateId = SETTINGS_BOOL_TEMPLATE_ID;
 
 	renderTemplate(_container: HTMLElement): ISettingBoolItemTemplate {
-		DOM.addClass(_container, 'setting-item');
-		DOM.addClass(_container, 'setting-item-bool');
+		_container.classList.add('setting-item');
+		_container.classList.add('setting-item-bool');
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 
@@ -1616,7 +1616,7 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
-			DOM.addClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
 			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [validationError, errMsg].join(' '));
@@ -1626,7 +1626,7 @@ function renderValidations(dataElement: SettingsTreeSettingElement, template: IS
 			template.inputBox.inputElement.parentElement!.removeAttribute('aria-label');
 		}
 	}
-	DOM.removeClass(template.containerElement, 'invalid-input');
+	template.containerElement.classList.remove('invalid-input');
 	return false;
 }
 
@@ -1636,11 +1636,11 @@ function renderArrayValidations(
 	value: string[] | undefined,
 	calledOnStartup: boolean
 ) {
-	DOM.addClass(template.containerElement, 'invalid-input');
+	template.containerElement.classList.add('invalid-input');
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(value);
 		if (errMsg && errMsg !== '') {
-			DOM.addClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
@@ -1648,7 +1648,7 @@ function renderArrayValidations(
 			return;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
-			DOM.removeClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.remove('invalid-input');
 		}
 	}
 }
