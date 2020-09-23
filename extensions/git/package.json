@@ -1923,6 +1923,33 @@
         }
       },
       {
+        "id": "gitDecoration.stageAddedResourceForeground",
+        "description": "%colors.stageAdded%",
+        "defaults": {
+          "light": "#0a7a62",
+          "dark": "#02c39a",
+          "highContrast": "#00cea1"
+        }
+      },
+      {
+        "id": "gitDecoration.stageModifiedResourceForeground",
+        "description": "%colors.stageModified%",
+        "defaults": {
+          "light": "#FF661F",
+          "dark": "#FFAB85",
+          "highContrast": "#ca541d"
+        }
+      },
+      {
+        "id": "gitDecoration.stageDeletedResourceForeground",
+        "description": "%colors.stageDeleted%",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39"
+        }
+      },
+      {
         "id": "gitDecoration.deletedResourceForeground",
         "description": "%colors.deleted%",
         "defaults": {

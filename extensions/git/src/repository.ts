@@ -205,12 +205,15 @@ export class Resource implements SourceControlResourceState {
 	get color(): ThemeColor {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
+				return new ThemeColor('gitDecoration.stageModifiedResourceForeground');
 			case Status.MODIFIED:
 				return new ThemeColor('gitDecoration.modifiedResourceForeground');
 			case Status.INDEX_DELETED:
+				return new ThemeColor('gitDecoration.stageDeletedResourceForeground');
 			case Status.DELETED:
 				return new ThemeColor('gitDecoration.deletedResourceForeground');
 			case Status.INDEX_ADDED:
+				return new ThemeColor('gitDecoration.stageAddedResourceForeground');
 			case Status.INTENT_TO_ADD:
 				return new ThemeColor('gitDecoration.addedResourceForeground');
 			case Status.INDEX_RENAMED:
