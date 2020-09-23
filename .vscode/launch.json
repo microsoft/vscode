@@ -13,8 +13,7 @@
 			],
 			"env": {
 				"NODE_ENV": "development",
-				"VSCODE_DEV": "1",
-				"GITPOD_CODE_FOLDER": "${env:GITPOD_REPO_ROOT}"
+				"VSCODE_DEV": "1"
 			}
 		},
 		{
