@@ -112,12 +112,15 @@ export class ReplFilterState {
 		if (this._filterText !== filterText) {
 			this._filterText = filterText;
 			this._onDidChange.fire();
+			this.updateFilterStats();
+		}
+	}
 
-			const { total, filtered } = this.filterStatsProvider.getFilterStats();
-			if (this._stats.total !== total || this._stats.filtered !== filtered) {
-				this._stats = { total, filtered };
-				this._onDidStatsChange.fire();
-			}
+	updateFilterStats(): void {
+		const { total, filtered } = this.filterStatsProvider.getFilterStats();
+		if (this._stats.total !== total || this._stats.filtered !== filtered) {
+			this._stats = { total, filtered };
+			this._onDidStatsChange.fire();
 		}
 	}
 }
