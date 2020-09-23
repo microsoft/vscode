@@ -168,8 +168,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		console.log('del');
-
 		await this.initRoot;
 		let stat: IStat;
 		try {
@@ -193,8 +191,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 			}
 			toDelete = [resource.path];
 		}
-		console.log({ toDelete });
-
 		await this.deleteKeys(toDelete);
 		toDelete.forEach(key => this.versions.delete(key));
 		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
@@ -212,12 +208,9 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 					}
 				}));
 			items = items.concat([[resource.path, FileType.Directory]]);
-			console.log({ tree: resource.toString(), items });
-
 			return items;
 		} else {
 			const items: DirEntry[] = [[resource.path, FileType.File]];
-			console.log({ tree: resource.toString(), items });
 			return items;
 		}
 	}
@@ -275,7 +268,6 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 			const dirBatch = this.dirWriteBatch;
 			this.dirWriteBatch = [];
 
-			console.log('writing a batch of ', fileBatch.length, 'files and ', dirBatch.length, 'dirs');
 			const transaction = this.database.transaction([this.store], 'readwrite');
 			transaction.onerror = () => e(transaction.error);
 			transaction.oncomplete = () => c();
