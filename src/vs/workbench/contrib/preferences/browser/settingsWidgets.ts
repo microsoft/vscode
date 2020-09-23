@@ -263,6 +263,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		super();
 
 		this.listElement = DOM.append(container, $('div'));
+		this.listElement.setAttribute('role', 'list');
 		this.getContainerClasses().forEach(c => this.listElement.classList.add(c));
 		this.listElement.setAttribute('tabindex', '0');
 		DOM.append(container, this.renderAddButton());
@@ -379,6 +380,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 
 		actionBar.push(this.getActionsForItem(item, idx), { icon: true, label: true });
 		rowElement.title = this.getLocalizedRowTitle(item);
+		rowElement.setAttribute('aria-label', rowElement.title);
 
 		if (item.selected && listFocused) {
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));

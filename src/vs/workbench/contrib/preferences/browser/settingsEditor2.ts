@@ -914,9 +914,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onSearchModeToggled(): void {
-		DOM.removeClass(this.rootElement, 'no-toc-search');
+		this.rootElement.classList.add('no-toc-search');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			DOM.toggleClass(this.rootElement, 'no-toc-search', !!this.searchResultModel);
+			this.rootElement.classList.toggle('no-toc-search', !!this.searchResultModel);
 		}
 	}
 
@@ -1041,7 +1041,7 @@ export class SettingsEditor2 extends EditorPane {
 				const focusedKey = focusedSetting.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
 				if (focusedKey === key &&
 					// update `list`s live, as they have a separate "submit edit" step built in before this
-					(focusedSetting.parentElement && !DOM.hasClass(focusedSetting.parentElement, 'setting-item-list'))
+					(focusedSetting.parentElement && !focusedSetting.parentElement.classList.contains('setting-item-list'))
 				) {
 
 					this.updateModifiedLabelForKey(key);

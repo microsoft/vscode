@@ -12,7 +12,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
@@ -566,8 +566,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	protected renderCommonTemplate(tree: any, _container: HTMLElement, typeClass: string): ISettingItemTemplate {
-		DOM.addClass(_container, 'setting-item');
-		DOM.addClass(_container, 'setting-item-' + typeClass);
+		_container.classList.add('setting-item');
+		_container.classList.add('setting-item-' + typeClass);
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 		const titleElement = DOM.append(container, $('.setting-item-title'));
@@ -690,9 +690,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.descriptionElement.innerText = element.description;
 		}
 
-		const baseId = (element.displayCategory + '_' + element.displayLabel).replace(/ /g, '_').toLowerCase();
-		template.descriptionElement.id = baseId + '_setting_description';
-
 		template.otherOverridesElement.innerText = '';
 		template.otherOverridesElement.style.display = 'none';
 		if (element.overriddenScopeList.length) {
@@ -776,68 +773,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	protected abstract renderValue(dataElement: SettingsTreeSettingElement, template: ISettingItemTemplate, onChange: (value: any) => void): void;
 
-	protected setElementAriaLabels(dataElement: SettingsTreeSettingElement, templateId: string, template: ISettingItemTemplate): string {
-		// Create base Id for element references
-		const baseId = (dataElement.displayCategory + '_' + dataElement.displayLabel).replace(/ /g, '_').toLowerCase();
-
-		const modifiedText = template.otherOverridesElement.textContent ?
-			template.otherOverridesElement.textContent : (dataElement.isConfigured ? localize('settings.Modified', ' Modified. ') : '');
-
-		let itemElement: HTMLElement | null = null;
-
-		// Use '.' as reader pause
-		let label = dataElement.displayCategory + ' ' + dataElement.displayLabel + '. ';
-
-		// Setup and add ARIA attributes
-		// Create id and label for control/input element - parent is wrapper div
-
-		if (templateId === SETTINGS_TEXT_TEMPLATE_ID) {
-			if (itemElement = (<ISettingTextItemTemplate>template).inputBox.inputElement) {
-				itemElement.setAttribute('role', 'textbox');
-				label += modifiedText;
-			}
-		} else if (templateId === SETTINGS_NUMBER_TEMPLATE_ID) {
-			if (itemElement = (<ISettingNumberItemTemplate>template).inputBox.inputElement) {
-				itemElement.setAttribute('role', 'textbox');
-				label += ' number. ' + modifiedText;
-			}
-		} else if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
-			if (itemElement = (<ISettingBoolItemTemplate>template).checkbox.domNode) {
-				itemElement.setAttribute('role', 'checkbox');
-				label += modifiedText;
-				// Add checkbox target to description clickable and able to toggle checkbox
-				template.descriptionElement.setAttribute('checkbox_label_target_id', baseId + '_setting_item');
-			}
-		} else if (templateId === SETTINGS_ENUM_TEMPLATE_ID) {
-			if (itemElement = <HTMLElement>template.controlElement.firstElementChild) {
-				itemElement.setAttribute('role', 'combobox');
-				label += modifiedText;
-			}
-		} else if (templateId === SETTINGS_OBJECT_TEMPLATE_ID) {
-			if (itemElement = (<ISettingObjectItemTemplate>template).objectWidget.domNode) {
-				itemElement.setAttribute('role', 'list');
-				label += modifiedText;
-			}
-		} else {
-			// Don't change attributes if we don't know what we areFunctions
-			return '';
-		}
-
-		// We don't have control element, return empty label
-		if (!itemElement) {
-			return '';
-		}
-
-		// Labels will not be read on descendent input elements of the parent treeitem
-		// unless defined as roles for input items
-		// voiceover does not seem to use labeledby correctly, set labels directly on input elements
-		itemElement.id = baseId + '_setting_item';
-		itemElement.setAttribute('aria-label', label);
-		itemElement.setAttribute('aria-describedby', baseId + '_setting_description settings_aria_more_actions_shortcut_label');
-
-		return label;
-	}
-
 	disposeTemplate(template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
@@ -853,7 +788,7 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 	templateId = SETTINGS_ELEMENT_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IGroupTitleTemplate {
-		DOM.addClass(container, 'group-title');
+		container.classList.add('group-title');
 
 		const template: IGroupTitleTemplate = {
 			parent: container,
@@ -964,12 +899,12 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
 		const errMsg = dataElement.isConfigured && getInvalidTypeError(dataElement.value, dataElement.setting.type);
 		if (errMsg) {
-			DOM.addClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			return;
 		}
 
-		DOM.removeClass(template.containerElement, 'invalid-input');
+		template.containerElement.classList.remove('invalid-input');
 	}
 }
 
@@ -1187,8 +1122,6 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 			valueSuggester: createObjectValueSuggester(dataElement),
 		});
 
-		this.setElementAriaLabels(dataElement, this.templateId, template);
-
 		template.context = dataElement;
 	}
 }
@@ -1317,17 +1250,15 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
-		const label = this.setElementAriaLabels(dataElement, SETTINGS_TEXT_TEMPLATE_ID, template);
-
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => {
-			if (!renderValidations(dataElement, template, false, label)) {
+			if (!renderValidations(dataElement, template, false)) {
 				onChange(value);
 			}
 		};
 
-		renderValidations(dataElement, template, true, label);
+		renderValidations(dataElement, template, true);
 	}
 }
 
@@ -1404,9 +1335,6 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 
 		template.selectBox.setOptions(displayOptions);
 
-		const label = this.setElementAriaLabels(dataElement, SETTINGS_ENUM_TEMPLATE_ID, template);
-		template.selectBox.setAriaLabel(label);
-
 		let idx = dataElement.setting.enum!.indexOf(dataElement.value);
 		if (idx === -1) {
 			idx = dataElement.setting.enum!.indexOf(dataElement.defaultValue);
@@ -1469,17 +1397,15 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		const nullNumParseFn = (dataElement.valueType === 'nullable-integer' || dataElement.valueType === 'nullable-number')
 			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
 
-		const label = this.setElementAriaLabels(dataElement, SETTINGS_NUMBER_TEMPLATE_ID, template);
-
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => {
-			if (!renderValidations(dataElement, template, false, label)) {
+			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
 			}
 		};
 
-		renderValidations(dataElement, template, true, label);
+		renderValidations(dataElement, template, true);
 	}
 }
 
@@ -1487,8 +1413,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 	templateId = SETTINGS_BOOL_TEMPLATE_ID;
 
 	renderTemplate(_container: HTMLElement): ISettingBoolItemTemplate {
-		DOM.addClass(_container, 'setting-item');
-		DOM.addClass(_container, 'setting-item-bool');
+		_container.classList.add('setting-item');
+		_container.classList.add('setting-item-bool');
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
 
@@ -1512,21 +1438,17 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
-			if (template.onChange) {
-				template.onChange(checkbox.checked);
-			}
+			template.onChange!(checkbox.checked);
 		}));
 
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.add(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.target;
-			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
-			// Make sure we are not a link and the target ID matches
 			// Toggle target checkbox
-			if (targetElement.tagName.toLowerCase() !== 'a' && targetId === template.checkbox.domNode.id) {
-				template.checkbox.checked = template.checkbox.checked ? false : true;
+			if (targetElement.tagName.toLowerCase() !== 'a') {
+				template.checkbox.checked = !template.checkbox.checked;
 				template.onChange!(checkbox.checked);
 			}
 			DOM.EventHelper.stop(e);
@@ -1572,9 +1494,6 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		template.onChange = undefined;
 		template.checkbox.checked = dataElement.value;
 		template.onChange = onChange;
-
-		// Setup and add ARIA attributes
-		this.setElementAriaLabels(dataElement, SETTINGS_BOOL_TEMPLATE_ID, template);
 	}
 }
 
@@ -1693,21 +1612,21 @@ export class SettingTreeRenderers {
 /**
  * Validate and render any error message. Returns true if the value is invalid.
  */
-function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean, originalAriaLabel: string): boolean {
+function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean): boolean {
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
-			DOM.addClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
-			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [originalAriaLabel, validationError, errMsg].join(' '));
+			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', [validationError, errMsg].join(' '));
 			if (!calledOnStartup) { ariaAlert(validationError + ' ' + errMsg); }
 			return true;
 		} else {
-			template.inputBox.inputElement.parentElement!.setAttribute('aria-label', originalAriaLabel);
+			template.inputBox.inputElement.parentElement!.removeAttribute('aria-label');
 		}
 	}
-	DOM.removeClass(template.containerElement, 'invalid-input');
+	template.containerElement.classList.remove('invalid-input');
 	return false;
 }
 
@@ -1717,11 +1636,11 @@ function renderArrayValidations(
 	value: string[] | undefined,
 	calledOnStartup: boolean
 ) {
-	DOM.addClass(template.containerElement, 'invalid-input');
+	template.containerElement.classList.add('invalid-input');
 	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(value);
 		if (errMsg && errMsg !== '') {
-			DOM.addClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.add('invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
 			const validationError = localize('validationError', "Validation Error.");
 			template.containerElement.setAttribute('aria-label', [dataElement.setting.key, validationError, errMsg].join(' '));
@@ -1729,7 +1648,7 @@ function renderArrayValidations(
 			return;
 		} else {
 			template.containerElement.setAttribute('aria-label', dataElement.setting.key);
-			DOM.removeClass(template.containerElement, 'invalid-input');
+			template.containerElement.classList.remove('invalid-input');
 		}
 	}
 }
@@ -1898,6 +1817,28 @@ class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 	}
 }
 
+class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeElement> {
+	getAriaLabel(element: SettingsTreeElement) {
+		if (element instanceof SettingsTreeSettingElement) {
+			const modifiedText = element.isConfigured ? localize('settings.Modified', 'Modified.') : '';
+
+			const otherOverridesStart = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
+			const otherOverridesList = element.overriddenScopeList.join(', ');
+			const otherOverridesLabel = element.overriddenScopeList.length ? `${otherOverridesStart} ${otherOverridesList}. ` : '';
+
+			return `${element.displayCategory} ${element.displayLabel}. ${element.description}. ${modifiedText} ${otherOverridesLabel}`;
+		} else {
+			return element.id;
+		}
+	}
+
+	getWidgetAriaLabel() {
+		return localize('settings', "Settings");
+	}
+}
+
 export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 	constructor(
 		container: HTMLElement,
@@ -1922,15 +1863,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				accessibilityProvider: {
-					getAriaLabel() {
-						// TODO@roblourens https://github.com/microsoft/vscode/issues/95862
-						return '';
-					},
-					getWidgetAriaLabel() {
-						return localize('settings', "Settings");
-					}
-				},
+				accessibilityProvider: new SettingsTreeAccessibilityProvider(),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),

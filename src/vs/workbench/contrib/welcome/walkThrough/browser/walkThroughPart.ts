@@ -280,7 +280,7 @@ export class WalkThroughPart extends EditorPane {
 				}
 
 				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-				if (!strings.endsWith(input.resource.path, '.md')) {
+				if (!input.resource.path.endsWith('.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.decorateContent();

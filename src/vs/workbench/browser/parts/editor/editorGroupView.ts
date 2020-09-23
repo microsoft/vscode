@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -717,8 +717,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count === 0;
 	}
 
-	get preferredTitleHeight(): number {
-		return this.titleAreaControl.getPreferredHeight();
+	get titleDimensions(): IEditorGroupTitleDimensions {
+		return this.titleAreaControl.getDimensions();
 	}
 
 	get isMinimized(): boolean {
@@ -1699,7 +1699,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.dimension = new Dimension(width, height);
 
 		// Ensure editor container gets height as CSS depending on the preferred height of the title control
-		const titleHeight = this.preferredTitleHeight;
+		const titleHeight = this.titleDimensions.height;
 		const editorHeight = Math.max(0, height - titleHeight);
 		this.editorContainer.style.height = `${editorHeight}px`;
 

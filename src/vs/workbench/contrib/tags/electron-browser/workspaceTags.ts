@@ -58,7 +58,7 @@ export class WorkspaceTags implements IWorkbenchContribution {
 		this.getWorkspaceInformation().then(stats => this.diagnosticsService.reportWorkspaceStats(stats));
 	}
 
-	async reportWindowsEdition(): Promise<void> {
+	private async reportWindowsEdition(): Promise<void> {
 		if (!isWindows) {
 			return;
 		}

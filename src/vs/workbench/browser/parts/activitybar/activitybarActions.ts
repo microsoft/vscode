@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -539,5 +539,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 });
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', CATEGORIES.View.value);

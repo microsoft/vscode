@@ -235,12 +235,19 @@ interface IProductQualityChangeHandler {
 	(newQuality: 'insider' | 'stable'): void;
 }
 
-interface ISettingsSyncEnablementHandler {
+/**
+ * Settings sync options
+ */
+interface ISettingsSyncOptions {
+	/**
+	 * Is settings sync enabled
+	 */
+	readonly enabled: boolean;
 
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	(enablement: boolean): void;
+	enablementHandler(enablement: boolean): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -318,19 +325,14 @@ interface IWorkbenchConstructionOptions {
 	 *
 	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
 	 *
-	 * @deprecated Instead use [enableSettingsSync](#enableSettingsSync) to enable/disable settings sync in the workbench.
+	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
 	 */
 	readonly enableSyncByDefault?: boolean;
 
 	/**
-	 * Enable or disable the Settings Sync
+	 * Settings sync options
 	 */
-	readonly enableSettingsSync?: boolean;
-
-	/**
-	 * Support for Settings Sync enablement change
-	 */
-	readonly settingsSyncEnablementHandler?: ISettingsSyncEnablementHandler;
+	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.

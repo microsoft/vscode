@@ -14,6 +14,7 @@ import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -315,8 +316,11 @@ export class NoTabsTitleControl extends TitleControl {
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
 	}
 
-	getPreferredHeight(): number {
-		return NoTabsTitleControl.HEIGHT;
+	getDimensions(): IEditorGroupTitleDimensions {
+		return {
+			height: NoTabsTitleControl.HEIGHT,
+			offset: 0
+		};
 	}
 
 	layout(dimension: Dimension): void {

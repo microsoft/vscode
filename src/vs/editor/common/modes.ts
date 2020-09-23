@@ -358,7 +358,7 @@ export const completionKindToCssClass = (function () {
 	data[CompletionItemKind.User] = 'account';
 	data[CompletionItemKind.Issue] = 'issues';
 
-	return function (kind: CompletionItemKind) {
+	return function (kind: CompletionItemKind): string {
 		const name = data[kind];
 		let codicon = name && iconRegistry.get(name);
 		if (!codicon) {

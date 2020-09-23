@@ -207,7 +207,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 
 		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
 	}
 
 	protected createElement(options: WebviewOptions) {

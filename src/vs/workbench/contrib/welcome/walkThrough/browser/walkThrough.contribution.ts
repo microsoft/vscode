@@ -12,7 +12,7 @@ import { EditorWalkThroughAction, EditorWalkThroughInputFactory } from 'vs/workb
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
@@ -30,7 +30,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(
 		SyncActionDescriptor.from(EditorWalkThroughAction),
-		'Help: Interactive Playground', localize('help', "Help"));
+		'Help: Interactive Playground', CATEGORIES.Help.value);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 

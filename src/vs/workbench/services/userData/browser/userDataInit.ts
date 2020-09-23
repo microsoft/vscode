@@ -60,7 +60,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
-				if (!this.environmentService.options?.enableSyncByDefault && !this.environmentService.options?.enableSettingsSync) {
+				if (!this.environmentService.options?.enableSyncByDefault && !this.environmentService.options?.settingsSyncOptions?.enabled) {
 					this.logService.trace(`Skipping initializing user data as settings sync is not enabled`);
 					return;
 				}
