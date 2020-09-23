@@ -261,7 +261,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 	private dirWriteBatch: { resource: URI }[] = [];
 	private fileWriteBatch: { resource: URI, content: Uint8Array }[] = [];
 	private async writeMany() {
-		return new Promise((c, e) => {
+		return new Promise<void>((c, e) => {
 			const fileBatch = this.fileWriteBatch;
 			this.fileWriteBatch = [];
 			const dirBatch = this.dirWriteBatch;
