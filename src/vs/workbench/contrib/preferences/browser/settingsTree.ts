@@ -857,6 +857,8 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 }
 
 export class SettingComplexRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingComplexItemTemplate> {
+	private static readonly EDIT_IN_JSON_LABEL = localize('editInSettingsJson', "Edit in settings.json");
+
 	templateId = SETTINGS_COMPLEX_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): ISettingComplexItemTemplate {
@@ -865,7 +867,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
 		common.toDispose.add(openSettingsButton);
 		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
-		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
+		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 
 		common.toDispose.add(attachButtonStyler(openSettingsButton, this._themeService, {
@@ -895,6 +897,8 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate, onChange: (value: string) => void): void {
 		template.onChange = () => this._onDidOpenSettings.fire(dataElement.setting.key);
 		this.renderValidations(dataElement, template);
+
+		template.button.element.setAttribute('aria-label', `${SettingComplexRenderer.EDIT_IN_JSON_LABEL}: ${dataElement.setting.key}`);
 	}
 
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
