@@ -33,9 +33,10 @@ class ResourceStackElement {
 	public readonly resourceLabels: string[];
 	public readonly strResources: string[];
 	public readonly groupId: number;
+	public readonly groupOrder: number;
 	public isValid: boolean;
 
-	constructor(actual: IUndoRedoElement, resourceLabel: string, strResource: string, groupId: number) {
+	constructor(actual: IUndoRedoElement, resourceLabel: string, strResource: string, groupId: number, groupOrder: number) {
 		this.actual = actual;
 		this.label = actual.label;
 		this.resourceLabel = resourceLabel;
@@ -43,6 +44,7 @@ class ResourceStackElement {
 		this.resourceLabels = [this.resourceLabel];
 		this.strResources = [this.strResource];
 		this.groupId = groupId;
+		this.groupOrder = groupOrder;
 		this.isValid = true;
 	}
 
@@ -127,15 +129,17 @@ class WorkspaceStackElement {
 	public readonly resourceLabels: string[];
 	public readonly strResources: string[];
 	public readonly groupId: number;
+	public readonly groupOrder: number;
 	public removedResources: RemovedResources | null;
 	public invalidatedResources: RemovedResources | null;
 
-	constructor(actual: IWorkspaceUndoRedoElement, resourceLabels: string[], strResources: string[], groupId: number) {
+	constructor(actual: IWorkspaceUndoRedoElement, resourceLabels: string[], strResources: string[], groupId: number, groupOrder: number) {
 		this.actual = actual;
 		this.label = actual.label;
 		this.resourceLabels = resourceLabels;
 		this.strResources = strResources;
 		this.groupId = groupId;
+		this.groupOrder = groupOrder;
 		this.removedResources = null;
 		this.invalidatedResources = null;
 	}
@@ -497,7 +501,7 @@ export class UndoRedoService implements IUndoRedoService {
 		if (element.type === UndoRedoElementType.Resource) {
 			const resourceLabel = getResourceLabel(element.resource);
 			const strResource = this.getUriComparisonKey(element.resource);
-			this._pushElement(new ResourceStackElement(element, resourceLabel, strResource, group.id));
+			this._pushElement(new ResourceStackElement(element, resourceLabel, strResource, group.id, group.nextOrder()));
 		} else {
 			const seen = new Set<string>();
 			const resourceLabels: string[] = [];
@@ -515,9 +519,9 @@ export class UndoRedoService implements IUndoRedoService {
 			}
 
 			if (resourceLabels.length === 1) {
-				this._pushElement(new ResourceStackElement(element, resourceLabels[0], strResources[0], group.id));
+				this._pushElement(new ResourceStackElement(element, resourceLabels[0], strResources[0], group.id, group.nextOrder()));
 			} else {
-				this._pushElement(new WorkspaceStackElement(element, resourceLabels, strResources, group.id));
+				this._pushElement(new WorkspaceStackElement(element, resourceLabels, strResources, group.id, group.nextOrder()));
 			}
 		}
 		if (DEBUG) {
@@ -561,7 +565,7 @@ export class UndoRedoService implements IUndoRedoService {
 		for (const _element of individualArr) {
 			const resourceLabel = getResourceLabel(_element.resource);
 			const strResource = this.getUriComparisonKey(_element.resource);
-			const element = new ResourceStackElement(_element, resourceLabel, strResource, 0);
+			const element = new ResourceStackElement(_element, resourceLabel, strResource, 0, 0);
 			individualMap.set(element.strResource, element);
 		}
 
@@ -580,7 +584,7 @@ export class UndoRedoService implements IUndoRedoService {
 		for (const _element of individualArr) {
 			const resourceLabel = getResourceLabel(_element.resource);
 			const strResource = this.getUriComparisonKey(_element.resource);
-			const element = new ResourceStackElement(_element, resourceLabel, strResource, 0);
+			const element = new ResourceStackElement(_element, resourceLabel, strResource, 0, 0);
 			individualMap.set(element.strResource, element);
 		}
 
@@ -985,15 +989,26 @@ export class UndoRedoService implements IUndoRedoService {
 		if (!groupId) {
 			return;
 		}
-		// find another element with the same groupId ready to be undone
+
+		// find another element with the same groupId and with the highest groupOrder ready to be undone
+		let matchedElement: StackElement | null = null;
+		let matchedStrResource: string | null = null;
+
 		for (const [strResource, editStack] of this._editStacks) {
-			const pastElement = editStack.getClosestPastElement();
-			if (!pastElement) {
+			const candidate = editStack.getClosestPastElement();
+			if (!candidate) {
 				continue;
 			}
-			if (pastElement.groupId === groupId) {
-				return this.undo(strResource);
+			if (candidate.groupId === groupId) {
+				if (!matchedElement || candidate.groupOrder > matchedElement.groupOrder) {
+					matchedElement = candidate;
+					matchedStrResource = strResource;
+				}
 			}
+		}
+
+		if (matchedStrResource) {
+			return this.undo(matchedStrResource);
 		}
 	}
 
@@ -1179,15 +1194,26 @@ export class UndoRedoService implements IUndoRedoService {
 		if (!groupId) {
 			return;
 		}
-		// find another element with the same groupId ready to be redone
+
+		// find another element with the same groupId and with the lowest groupOrder ready to be redone
+		let matchedElement: StackElement | null = null;
+		let matchedStrResource: string | null = null;
+
 		for (const [strResource, editStack] of this._editStacks) {
-			const futureElement = editStack.getClosestFutureElement();
-			if (!futureElement) {
+			const candidate = editStack.getClosestFutureElement();
+			if (!candidate) {
 				continue;
 			}
-			if (futureElement.groupId === groupId) {
-				return this.redo(strResource);
+			if (candidate.groupId === groupId) {
+				if (!matchedElement || candidate.groupOrder < matchedElement.groupOrder) {
+					matchedElement = candidate;
+					matchedStrResource = strResource;
+				}
 			}
+		}
+
+		if (matchedStrResource) {
+			return this.redo(matchedStrResource);
 		}
 	}
 
