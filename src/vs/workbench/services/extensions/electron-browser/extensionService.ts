@@ -41,6 +41,7 @@ import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlob
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { exists } from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -762,7 +763,7 @@ class RestartExtensionHostAction extends Action2 {
 		super({
 			id: 'workbench.action.restartExtensionHost',
 			title: { value: nls.localize('restartExtensionHost', "Restart Extension Host"), original: 'Restart Extension Host' },
-			category: { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
