@@ -24,6 +24,7 @@
 	 * @type {import('../../browser/pre/main').WebviewHost}
 	 */
 	const host = {
+		onElectron: true,
 		postMessage: (channel, data) => {
 			ipcRenderer.sendToHost(channel, data);
 		},

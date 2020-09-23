@@ -2134,7 +2134,7 @@ declare module 'vscode' {
 	}
 	//#endregion
 
-	//#region
+	//#region https://github.com/microsoft/vscode/issues/91697
 
 	export interface FileSystem {
 		/**
