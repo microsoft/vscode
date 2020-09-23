@@ -570,6 +570,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		_container.classList.add('setting-item-' + typeClass);
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
+		container.classList.add('settings-row-inner-container');
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const labelCategoryContainer = DOM.append(titleElement, $('.setting-item-cat-label-container'));
 		const categoryElement = DOM.append(labelCategoryContainer, $('span.setting-item-category'));
@@ -800,7 +801,7 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 
 	renderElement(element: ITreeNode<SettingsTreeGroupElement, never>, index: number, templateData: IGroupTitleTemplate): void {
 		templateData.parent.innerText = '';
-		const labelElement = DOM.append(templateData.parent, $('div.settings-group-title-label'));
+		const labelElement = DOM.append(templateData.parent, $('div.settings-group-title-label.settings-row-inner-container'));
 		labelElement.classList.add(`settings-group-level-${element.element.level}`);
 		labelElement.textContent = element.element.label;
 
@@ -1417,6 +1418,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		_container.classList.add('setting-item-bool');
 
 		const container = DOM.append(_container, $(AbstractSettingRenderer.CONTENTS_SELECTOR));
+		container.classList.add('settings-row-inner-container');
 
 		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
@@ -1917,14 +1919,12 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 
 			const focusedRowBackgroundColor = theme.getColor(focusedRowBackground);
 			if (focusedRowBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .setting-item-contents,
-					.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .settings-group-title-label { background-color: ${focusedRowBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.focused .settings-row-inner-container { background-color: ${focusedRowBackgroundColor}; }`);
 			}
 
 			const rowHoverBackgroundColor = theme.getColor(rowHoverBackground);
 			if (rowHoverBackgroundColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row .setting-item-contents:hover,
-					.settings-editor > .settings-body > .settings-tree-container .monaco-list-row .settings-group-title-label:hover { background-color: ${rowHoverBackgroundColor}; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover { background-color: ${rowHoverBackgroundColor}; }`);
 			}
 
 			const focusedRowBorderColor = theme.getColor(focusedRowBorder);
@@ -1945,12 +1945,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			if (focusBorderColor) {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
-
-			// const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-			// if (listActiveSelectionBackgroundColor) {
-			// collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .setting-item-contents .setting-item-title { background-color: ${listActiveSelectionBackgroundColor}; }`);
-			// collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-list-row.selected .settings-group-title-label { background-color: ${listActiveSelectionBackgroundColor}; }`);
-			// }
 		}));
 
 		this.getHTMLElement().classList.add('settings-editor-tree');
