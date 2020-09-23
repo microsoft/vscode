@@ -637,7 +637,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
 			this.lastFocusedSettingElement = element.setting.key;
-			this.settingsTree.reveal(element);
+			this.settingsTree.setFocus([element]);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
