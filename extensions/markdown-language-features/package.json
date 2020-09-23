@@ -414,6 +414,12 @@
           "markdownDescription": "%configuration.markdown.editor.drop.enabled%",
           "scope": "resource"
         },
+        "markdown.experimental.editor.pasteLinks.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.markdown.editor.pasteLinks.enabled%",
+          "scope": "resource"
+        },
         "markdown.experimental.validate.enabled": {
           "type": "boolean",
           "scope": "resource",
