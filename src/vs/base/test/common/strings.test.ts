@@ -140,18 +140,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
 	});
 
-	test('endsWith', () => {
-		assert(strings.endsWith('foo', 'o'));
-		assert(strings.endsWith('foo', 'oo'));
-		assert(strings.endsWith('foo', 'foo'));
-		assert(strings.endsWith('foo bar foo', 'foo'));
-		assert(!strings.endsWith('foo', 'f'));
-		assert(!strings.endsWith('', 'f'));
-		assert(strings.endsWith('foo', ''));
-		assert(strings.endsWith('', ''));
-		assert(strings.endsWith('/', '/'));
-	});
-
 	test('ltrim', () => {
 		assert.strictEqual(strings.ltrim('foo', 'f'), 'oo');
 		assert.strictEqual(strings.ltrim('foo', 'o'), 'foo');
