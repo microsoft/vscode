@@ -14,7 +14,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { NativeRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/electron-sandbox/remoteExtensionManagementService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
-import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
@@ -30,7 +29,6 @@ export class ExtensionManagementServerService implements IExtensionManagementSer
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILabelService labelService: ILabelService,
-		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const localExtensionManagementService = new ExtensionManagementChannelClient(sharedProcessService.getChannel('extensions'));
