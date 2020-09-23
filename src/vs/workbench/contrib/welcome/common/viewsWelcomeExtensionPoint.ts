@@ -62,7 +62,7 @@ const viewsWelcomeExtensionPointSchema = Object.freeze<IConfigurationPropertySch
 			},
 			[ViewsWelcomeExtensionPointFields.group]: {
 				type: 'string',
-				description: nls.localize('contributes.viewsWelcome.view.group', "Group into which this welcome content belongs"),
+				description: nls.localize('contributes.viewsWelcome.view.group', "Group to which this welcome content belongs."),
 			},
 		}
 	}
