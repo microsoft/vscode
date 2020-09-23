@@ -914,9 +914,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onSearchModeToggled(): void {
-		DOM.removeClass(this.rootElement, 'no-toc-search');
+		this.rootElement.classList.add('no-toc-search');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			DOM.toggleClass(this.rootElement, 'no-toc-search', !!this.searchResultModel);
+			this.rootElement.classList.toggle('no-toc-search', !!this.searchResultModel);
 		}
 	}
 
