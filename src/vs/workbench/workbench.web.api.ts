@@ -18,7 +18,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
