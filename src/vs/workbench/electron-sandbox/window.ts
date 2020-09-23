@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
@@ -65,9 +65,6 @@ import { IAddressProvider, IAddress } from 'vs/platform/remote/common/remoteAgen
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class NativeWindow extends Disposable {
-
-	private static readonly MIN_WINDOW_WIDTH_SIDE_PANEL_VISIBLE = 600;
-	private static readonly MIN_WINDOW_WIDTH = 400;
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -300,10 +297,10 @@ export class NativeWindow extends Disposable {
 		const panelAndEditorBothVisible = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.isVisible(Parts.EDITOR_PART);
 		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
 		if (panelOnSide && panelAndEditorBothVisible) {
-			return NativeWindow.MIN_WINDOW_WIDTH_SIDE_PANEL_VISIBLE;
+			return WindowMinimumSize.WIDTH_WITH_PANEL;
 		}
 		else {
-			return NativeWindow.MIN_WINDOW_WIDTH;
+			return WindowMinimumSize.WIDTH;
 		}
 	}
 

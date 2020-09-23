@@ -13,6 +13,12 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { ExportData } from 'vs/base/common/performance';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 
+export const WindowMinimumSize = {
+	WIDTH: 400,
+	WIDTH_WITH_PANEL: 600,
+	HEIGHT: 270
+};
+
 export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
 }
