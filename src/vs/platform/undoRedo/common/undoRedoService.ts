@@ -51,7 +51,7 @@ class ResourceStackElement {
 	}
 
 	public toString(): string {
-		return `[${this.id}] [${this.isValid ? 'VALID' : 'INVALID'}] ${this.actual}`;
+		return `[id:${this.id}] [group:${this.groupId}] [${this.isValid ? 'VALID' : 'INVALID'}] ${this.actual}`;
 	}
 }
 
@@ -172,7 +172,7 @@ class WorkspaceStackElement {
 	}
 
 	public toString(): string {
-		return `[${this.id}] [${this.invalidatedResources ? 'INVALID' : 'VALID'}] ${this.actual}`;
+		return `[id:${this.id}] [group:${this.groupId}] [${this.invalidatedResources ? 'INVALID' : 'VALID'}] ${this.actual}`;
 	}
 }
 
