@@ -103,7 +103,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService);
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService);
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
