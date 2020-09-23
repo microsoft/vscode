@@ -1,0 +1,7 @@
+{
+	"displayName": "Gitpod",
+	"description": "Gitpod Integration Support",
+	"openWorkspaces": "Open Workspaces",
+	"openAccessControl": "Open Access Control",
+	"stopWorkspace": "Stop Workspace"
+}
