@@ -23,7 +23,6 @@ export class IndexedDB {
 	private indexedDBPromise: Promise<IDBDatabase | null>;
 
 	constructor() {
-		console.log('using new fsp');
 		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
 	}
 
