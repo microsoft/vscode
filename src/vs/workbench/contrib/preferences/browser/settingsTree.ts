@@ -12,7 +12,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { DefaultStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IObjectTreeOptions } from 'vs/base/browser/ui/tree/objectTree';
@@ -1821,6 +1821,28 @@ class NonCollapsibleObjectTreeModel<T> extends ObjectTreeModel<T> {
 	}
 }
 
+class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<SettingsTreeElement> {
+	getAriaLabel(element: SettingsTreeElement) {
+		if (element instanceof SettingsTreeSettingElement) {
+			const modifiedText = element.isConfigured ? localize('settings.Modified', 'Modified.') : '';
+
+			const otherOverridesStart = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
+			const otherOverridesList = element.overriddenScopeList.join(', ');
+			const otherOverridesLabel = element.overriddenScopeList.length ? `${otherOverridesStart} ${otherOverridesList}. ` : '';
+
+			return `${element.displayCategory} ${element.displayLabel}. ${element.description}. ${modifiedText} ${otherOverridesLabel}`;
+		} else {
+			return element.id;
+		}
+	}
+
+	getWidgetAriaLabel() {
+		return localize('settings', "Settings");
+	}
+}
+
 export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 	constructor(
 		container: HTMLElement,
@@ -1845,19 +1867,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 						return e.id;
 					}
 				},
-				accessibilityProvider: {
-					getAriaLabel(element: SettingsTreeElement) {
-						// const modifiedText = template.otherOverridesElement.textContent ?
-						// 	template.otherOverridesElement.textContent : (dataElement.isConfigured ? localize('settings.Modified', ' Modified. ') : '');
-
-						return (element instanceof SettingsTreeSettingElement) ?
-							`${element.displayCategory} ${element.displayLabel}. ${element.description}` :
-							element.id;
-					},
-					getWidgetAriaLabel() {
-						return localize('settings', "Settings");
-					}
-				},
+				accessibilityProvider: new SettingsTreeAccessibilityProvider(),
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
