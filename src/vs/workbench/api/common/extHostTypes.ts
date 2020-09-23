@@ -2177,10 +2177,6 @@ export class ThemeIcon {
 		this.id = id;
 		this.themeColor = color;
 	}
-
-	with(color: ThemeColor): ThemeIcon {
-		return new ThemeIcon(this.id, color);
-	}
 }
 ThemeIcon.File = new ThemeIcon('file');
 ThemeIcon.Folder = new ThemeIcon('folder');

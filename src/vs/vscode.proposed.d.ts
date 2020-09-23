@@ -2169,11 +2169,18 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/103120 @alexr00
 	export class ThemeIcon2 extends ThemeIcon {
+
 		/**
-		 * Returns a new `ThemeIcon` that will use the specified `ThemeColor`
-		 * @param color The `ThemeColor` to use for the icon.
+		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
 		 */
-		with(color: ThemeColor): ThemeIcon2;
+		public readonly id: string;
+
+		/**
+		 * Creates a reference to a theme icon.
+		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param color optional `ThemeColor` for the icon.
+		 */
+		constructor(id: string, color?: ThemeColor);
 	}
 	//#endregion
 }
