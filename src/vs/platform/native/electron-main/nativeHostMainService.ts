@@ -211,14 +211,14 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 	}
 
-	async setWindowMinimumWidth(windowId: number | undefined, minimumWidth: number): Promise<void> {
+	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			const windowWidth = window.win.getSize()[0];
-			const windowHeight = window.win.getSize()[1];
-			const minWindowHeight = window.win.getMinimumSize()[1];
-			window.win.setMinimumSize(minimumWidth, minWindowHeight);
-			window.win.setSize(Math.max(windowWidth, minimumWidth), windowHeight);
+			const [windowWidth, windowHeight] = window.win.getSize();
+			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
+			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
+			window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
+			window.win.setSize(Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight));
 		}
 	}
 

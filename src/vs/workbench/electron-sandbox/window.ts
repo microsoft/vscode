@@ -66,7 +66,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 
 export class NativeWindow extends Disposable {
 
-	private static readonly MIN_WINDOW_WIDTH_PANEL_SIDE = 600;
+	private static readonly MIN_WINDOW_WIDTH_SIDE_PANEL_VISIBLE = 600;
 	private static readonly MIN_WINDOW_WIDTH = 400;
 
 	private touchBarMenu: IMenu | undefined;
@@ -277,9 +277,9 @@ export class NativeWindow extends Disposable {
 		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
 
 		this._register(this.layoutService.onPartVisibilityChange(() => {
-			this.onDidPanelVisibilityChange(!this.layoutService.isPanelHidden());
+			this.onDidPartVisibilityChange();
 		}));
-		this.onDidPanelVisibilityChange(!this.layoutService.isPanelHidden());
+		this.onDidPartVisibilityChange();
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
@@ -294,24 +294,27 @@ export class NativeWindow extends Disposable {
 		this.layoutService.updateWindowMaximizedState(maximized);
 	}
 
-	private getWindowMinimumWidthPanelVisible(pos: Position): number {
-		switch (pos) {
-			case Position.LEFT: return NativeWindow.MIN_WINDOW_WIDTH_PANEL_SIDE;
-			case Position.RIGHT: return NativeWindow.MIN_WINDOW_WIDTH_PANEL_SIDE;
-			case Position.BOTTOM: return NativeWindow.MIN_WINDOW_WIDTH;
-			default: return NativeWindow.MIN_WINDOW_WIDTH_PANEL_SIDE;
+	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+		// if panel and editor are both visible
+		// and panel is on the side, then return the larger minwidth
+		const panelAndEditorBothVisible = (!this.layoutService.isPanelHidden() && !this.layoutService.isPanelMaximized());
+		const panelOnSide = (panelPosition === Position.LEFT) || (panelPosition === Position.RIGHT);
+		if (panelOnSide && panelAndEditorBothVisible) {
+			return NativeWindow.MIN_WINDOW_WIDTH_SIDE_PANEL_VISIBLE;
+		}
+		else {
+			return NativeWindow.MIN_WINDOW_WIDTH;
 		}
 	}
 
 	private onDidPanelPositionChange(pos: Position): void {
-		const minWidth = this.getWindowMinimumWidthPanelVisible(pos);
-		this.nativeHostService.setWindowMinimumWidth(minWidth);
+		const minWidth = this.getWindowMinimumWidth(pos);
+		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidPanelVisibilityChange(visible: boolean): void {
-		const pos: Position = this.layoutService.getPanelPosition();
-		const minWidth = visible ? this.getWindowMinimumWidthPanelVisible(pos) : NativeWindow.MIN_WINDOW_WIDTH;
-		this.nativeHostService.setWindowMinimumWidth(minWidth);
+	private onDidPartVisibilityChange(): void {
+		const minWidth = this.getWindowMinimumWidth();
+		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
 	private onDidVisibleEditorsChange(): void {
