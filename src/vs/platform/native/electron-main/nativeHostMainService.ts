@@ -217,8 +217,14 @@ export class NativeHostMainService implements INativeHostMainService {
 			const [windowWidth, windowHeight] = window.win.getSize();
 			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
 			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
-			window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
-			window.win.setSize(Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight));
+			const [newWindowWidth, newWindowHeight] = [Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight)];
+
+			if (minWindowWidth !== newMinWindowWidth || minWindowHeight !== newMinWindowHeight) {
+				window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
+			}
+			if (windowWidth !== newWindowWidth || windowHeight !== newWindowHeight) {
+				window.win.setSize(newWindowWidth, newWindowHeight);
+			}
 		}
 	}
 
