@@ -60,7 +60,7 @@ function createCompile(src: string, build: boolean, emitError?: boolean) {
 	const productJson = JSON.stringify(product, undefined, 4);
 
 	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
-	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
+	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: true };
 
 	const compilation = tsb.create(projectPath, overrideOptions, false, err => reporter(err));
 

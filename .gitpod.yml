@@ -9,14 +9,23 @@ tasks:
       yarn compile
       yarn download-builtin-extensions
     command: |
+      gp sync-done init
       export NODE_ENV=development
       export VSCODE_DEV=1
       yarn gulp watch-init
+    name: watch app
   - command: |
+      gp sync-await init
       export NODE_ENV=development
       export VSCODE_DEV=1
+      yarn gulp watch-extension:gitpod
+    name: watch extension
+  - command: |
       gp sync-await init
+      export NODE_ENV=development
+      export VSCODE_DEV=1
       node out/gitpod.js
+    name: run app
     openMode: split-right
 github:
   prebuilds:

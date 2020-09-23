@@ -3,17 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/// <reference types='@gitpod/gitpod-protocol/lib/typings/globals'/>
+
 import { isStandalone } from 'vs/base/browser/browser';
+import { Event, Emitter } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
-import { create, IHomeIndicator, IProductQualityChangeHandler, IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
+import { commands, create, IHomeIndicator, IWorkspace, IWorkspaceProvider } from 'vs/workbench/workbench.web.api';
 import { defaultWebSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { parseLogLevel } from 'vs/platform/log/common/log';
 import { join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
+import { extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
+import type { IDEState } from '@gitpod/gitpod-protocol/lib/ide-service';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { parseLogLevel } from 'vs/platform/log/common/log';
 
 class WorkspaceProvider implements IWorkspaceProvider {
 
@@ -106,22 +113,50 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	}
 }
 
-(async function () {
+const devMode = product.nameShort.endsWith(' Dev');
+
+let _state: IDEState = 'init';
+const onDidChangeEmitter = new Emitter<void>();
+const toStop = new DisposableStore();
+toStop.add(onDidChangeEmitter);
+toStop.add({
+	dispose: () => {
+		_state = 'terminated';
+		onDidChangeEmitter.fire();
+	}
+});
+
+function start(): IDisposable {
+	doStart().then(toDoStop => {
+		toStop.add(toDoStop);
+		_state = 'ready';
+		onDidChangeEmitter.fire();
+	});
+	return toStop;
+}
+
+async function doStart(): Promise<IDisposable> {
 	let supervisorHost = window.location.host;
 	// running from sources
-	if (product.nameShort.endsWith(' Dev')) {
+	if (devMode) {
 		supervisorHost = supervisorHost.substring(supervisorHost.indexOf('-') + 1);
 	}
 	const infoResponse = await fetch(window.location.protocol + '//' + supervisorHost + '/_supervisor/v1/info/workspace', {
 		credentials: 'include'
 	});
+	if (_state === 'terminated') {
+		return Disposable.None;
+	}
+
 	const info: {
 		workspaceLocationFile?: string
 		workspaceLocationFolder?: string
 		userHome: string
 	} = await infoResponse.json();
 
-	const remoteAuthority = window.location.host + ':443';
+
+	const remotePort = location.protocol === 'https:' ? '443' : '80';
+	const remoteAuthority = window.location.host + ':' + remotePort;
 	const remoteUserDataElement = document.getElementById('vscode-remote-user-data-uri');
 	if (remoteUserDataElement) {
 		remoteUserDataElement.setAttribute('data-settings', JSON.stringify({
@@ -136,10 +171,6 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	webviewEndpoint.pathname += 'out/vs/workbench/contrib/webview/browser/pre';
 	webviewEndpoint.search = '';
 	webviewEndpoint.hash = '';
-	const config: IWorkbenchConstructionOptions = {
-		remoteAuthority,
-		webviewEndpoint: webviewEndpoint.toString()
-	};
 
 	// Find workspace to open and payload
 	let foundWorkspace = false;
@@ -214,36 +245,50 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		title: localize('home', "Home")
 	};
 
-
-	// Product Quality Change Handler
-	const productQualityChangeHandler: IProductQualityChangeHandler = (quality) => {
-		let queryString = `quality=${quality}`;
-
-		// Save all other query params we might have
-		const query = new URL(document.location.href).searchParams;
-		query.forEach((value, key) => {
-			if (key !== 'quality') {
-				queryString += `&${key}=${value}`;
-			}
-		});
-
-		window.location.href = `${window.location.origin}?${queryString}`;
-	};
-
-	// Finally create workbench
-	create(document.body, {
-		...config,
-		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
-		homeIndicator,
+	return create(document.body, {
+		remoteAuthority,
+		webviewEndpoint: webviewEndpoint.toString(),
 		webSocketFactory: {
 			create: url => {
-				if (location.protocol.startsWith('https') && url.startsWith('ws:')) {
-					return defaultWebSocketFactory.create('wss:' + url.substr('ws:'.length));
-				}
-				return defaultWebSocketFactory.create(url);
+				const codeServerUrl = new URL(url);
+				codeServerUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+				codeServerUrl.port = remotePort;
+				return defaultWebSocketFactory.create(codeServerUrl.toString());
 			}
 		},
-		productQualityChangeHandler,
-		workspaceProvider
+		workspaceProvider,
+		resolveExternalUri: async (uri) => {
+			const localhost = extractLocalHostUriMetaDataForPortMapping(uri);
+			if (!localhost) {
+				return uri;
+			}
+			const externalPort = await commands.executeCommand('gitpod.resolveExternalPort', localhost.port);
+			return uri.with({
+				authority: `${externalPort}-${supervisorHost}`,
+				scheme: location.protocol.substring(0, location.protocol.length - 1)
+			});
+		},
+		homeIndicator,
+		windowIndicator: {
+			onDidChange: Event.None,
+			label: `$(remote) Gitpod`,
+			tooltip: 'Editing on Gitpod'
+		},
+		initialColorTheme: {
+			themeType: ColorScheme.DARK
+		},
+		logLevel: logLevel ? parseLogLevel(logLevel) : undefined
 	});
-})();
+}
+
+if (devMode) {
+	doStart();
+} else {
+	window.gitpod.ideService = {
+		get state() {
+			return _state;
+		},
+		onDidChange: onDidChangeEmitter.event,
+		start: () => start()
+	};
+}

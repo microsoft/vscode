@@ -1,0 +1,82 @@
+{
+  "name": "gitpod",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "publisher": "gitpod",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.49.0"
+  },
+  "enableProposedApi": true,
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitpod.openWorkspaces",
+        "category": "Gitpod",
+        "title": "%openWorkspaces%"
+      },
+      {
+        "command": "gitpod.openAccessControl",
+        "category": "Gitpod",
+        "title": "%openAccessControl%"
+      },
+      {
+        "command": "gitpod.stopWorkspace",
+        "category": "Gitpod",
+        "title": "%stopWorkspace%"
+      }
+    ],
+    "menus": {
+      "statusBar/windowIndicator": [
+        {
+          "command": "gitpod.openWorkspaces",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitpod.openAccessControl",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitpod.stopWorkspace",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "views": {
+      "remote": [
+        {
+          "id": "gitpod.workspace",
+          "name": "Gitpod Workspace"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:gitpod",
+    "watch": "gulp watch-extension:gitpod",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^10.12.21",
+    "@types/ws": "^7.2.6"
+  },
+  "dependencies": {
+    "@gitpod/gitpod-protocol": "master",
+    "@gitpod/supervisor-api-grpc": "master",
+    "@grpc/grpc-js": "^1.1.7",
+    "bufferutil": "^4.0.1",
+    "utf-8-validate": "^5.0.2",
+    "vscode-nls": "^5.0.0",
+    "ws": "^7.3.1"
+  }
+}
