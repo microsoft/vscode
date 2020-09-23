@@ -92,6 +92,7 @@ export class Keychain {
 			const oldValue = await this.keytar.getPassword(OLD_SERVICE_ID, ACCOUNT_ID);
 			if (oldValue) {
 				await this.setToken(oldValue);
+				await vscode.authentication.deletePassword(OLD_SERVICE_ID);
 			}
 
 			return oldValue;

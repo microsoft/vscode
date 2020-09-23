@@ -21,7 +21,8 @@ export class EncryptionMainService implements ICommonEncryptionService {
 		try {
 			const encryption = await require('vscode-encrypt');
 			return encryption.encrypt(this.machineId, value);
-		} catch (_) {
+		} catch (e) {
+			console.log(e);
 			return value;
 		}
 	}
@@ -30,7 +31,8 @@ export class EncryptionMainService implements ICommonEncryptionService {
 		try {
 			const encryption = await require('vscode-encrypt');
 			return encryption.decrypt(this.machineId, value);
-		} catch (_) {
+		} catch (e) {
+			console.log(e);
 			return value;
 		}
 	}
