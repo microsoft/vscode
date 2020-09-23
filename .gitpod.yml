@@ -9,11 +9,12 @@ tasks:
       yarn compile
       yarn download-builtin-extensions
     command: |
+      export NODE_ENV=development
+      export VSCODE_DEV=1
       yarn gulp watch-init
   - command: |
       export NODE_ENV=development
       export VSCODE_DEV=1
-      export GITPOD_CODE_FOLDER=$GITPOD_REPO_ROOT
       gp sync-await init
       node out/gitpod.js
     openMode: split-right

@@ -2,6 +2,7 @@
  *  Copyright (c) Typefox. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
@@ -64,8 +65,6 @@ import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints'
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { IGetEnvironmentDataArguments, IRemoteAgentEnvironmentDTO, IScanExtensionsArguments } from 'vs/workbench/services/remote/common/remoteAgentEnvironmentChannel';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from 'vs/workbench/services/remote/common/remoteAgentFileSystemChannel';
-
-const { userDataDir }: { userDataDir: string } = <any>require.__$__nodeRequire(path.join(__dirname, '../../../gitpodPaths'));
 
 const uriTransformerPath = path.join(__dirname, '../../../gitpodUriTransformer');
 const rawURITransformerFactory: (remoteAuthority: string) => IRawURITransformer = <any>require.__$__nodeRequire(uriTransformerPath);
@@ -166,7 +165,7 @@ async function main(): Promise<void> {
 	const connectionToken = generateUuid();
 
 	const parsedArgs = parseArgs(process.argv.splice(0, 2), OPTIONS);
-	parsedArgs['user-data-dir'] = URI.file(userDataDir).fsPath;
+	parsedArgs['user-data-dir'] = URI.file(path.join(os.homedir(), product.dataFolderName)).fsPath;
 	const environmentService = new NativeEnvironmentService(parsedArgs);
 
 	await Promise.all<void | undefined>([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath]
@@ -463,6 +462,20 @@ async function main(): Promise<void> {
 				}
 				return serveFile(req, res, fsPath);
 			}
+
+			if (devMode) {
+				if (pathname === '/_supervisor/v1/environment/workspace') {
+					const stat = await util.promisify(fs.stat)(process.env.THEIA_WORKSPACE_ROOT!);
+					res.writeHead(200, { 'Content-Type': 'application/json' });
+					res.end(JSON.stringify({
+						workspace_location: {
+							file: stat.isFile() ? process.env.THEIA_WORKSPACE_ROOT : undefined,
+							folder: stat.isDirectory() ? process.env.THEIA_WORKSPACE_ROOT : undefined
+						},
+						user_home: os.homedir()
+					}));
+				}
+			}
 			//#region headless end
 
 			//#region static
@@ -494,7 +507,6 @@ async function main(): Promise<void> {
 			//#region static end
 
 			// TODO uri callbacks ?
-
 			console.error(`${req.method} ${req.url} not found`);
 			return serveError(req, res, 404, 'Not found.');
 		} catch (error) {

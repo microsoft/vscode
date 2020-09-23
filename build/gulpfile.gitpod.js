@@ -27,7 +27,7 @@ gulp.task(task.define('compile-gitpod', compileBuildTask));
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 gulp.task(task.define('compile-extensions-gitpod', compileExtensionsBuildTask));
 
-gulp.task(task.define('watch-init', require('./lib/compilation').watchTask('out', true)));
+gulp.task(task.define('watch-init', require('./lib/compilation').watchTask('out', false)));
 
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
@@ -61,7 +61,6 @@ const gitpodServerResources = [
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
-	'out-build/gitpodPaths.js',
 	'out-build/gitpodUriTransformer.js',
 
 	// Excludes
