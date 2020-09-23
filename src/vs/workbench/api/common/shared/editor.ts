@@ -32,7 +32,8 @@ export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService
 export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorViewColumn {
 	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
 	if (!group) {
-		throw new Error('Invalid group provided');
+		// If we don't have a valid editorGroup, default to the first column
+		return 0;
 	}
 
 	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
