@@ -32,3 +32,5 @@ coverage/
 test_data/
 test-results/
 yarn-error.log
+vscode.lsif
+vscode.db

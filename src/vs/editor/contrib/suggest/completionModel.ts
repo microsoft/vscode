@@ -56,6 +56,7 @@ export class CompletionModel {
 	private _refilterKind: Refilter;
 	private _filteredItems?: StrictCompletionItem[];
 	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _allProvider?: Set<CompletionItemProvider>; // TODO@jrieken merge incomplete and all provider info
 	private _stats?: ICompletionStats;
 
 	constructor(
@@ -99,6 +100,11 @@ export class CompletionModel {
 		return this._filteredItems!;
 	}
 
+	get allProvider(): Set<CompletionItemProvider> {
+		this._ensureCachedState();
+		return this._allProvider!;
+	}
+
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
 		return this._isIncomplete!;
@@ -136,6 +142,7 @@ export class CompletionModel {
 	private _createCachedState(): void {
 
 		this._isIncomplete = new Set();
+		this._allProvider = new Set();
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
@@ -164,6 +171,7 @@ export class CompletionModel {
 			if (item.container.incomplete) {
 				this._isIncomplete.add(item.provider);
 			}
+			this._allProvider.add(item.provider);
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a

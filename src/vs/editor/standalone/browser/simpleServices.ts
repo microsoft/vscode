@@ -46,7 +46,7 @@ import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { NullLogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SimpleModel implements IResolvedTextEditorModel {
 
@@ -298,9 +298,10 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 		commandService: ICommandService,
 		telemetryService: ITelemetryService,
 		notificationService: INotificationService,
+		logService: ILogService,
 		domNode: HTMLElement
 	) {
-		super(contextKeyService, commandService, telemetryService, notificationService, new NullLogService());
+		super(contextKeyService, commandService, telemetryService, notificationService, logService);
 
 		this._cachedResolver = null;
 		this._dynamicKeybindings = [];

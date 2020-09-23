@@ -1142,7 +1142,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private showsFileTypes(): boolean {
-		return dom.hasClass(this.queryDetails, 'more');
+		return this.queryDetails.classList.contains('more');
 	}
 
 	toggleCaseSensitive(): void {
@@ -1193,13 +1193,13 @@ export class SearchView extends ViewPane {
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		const cls = 'more';
-		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
+		show = typeof show === 'undefined' ? !this.queryDetails.classList.contains(cls) : Boolean(show);
 		this.viewletState['query.queryDetailsExpanded'] = show;
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
-			dom.addClass(this.queryDetails, cls);
+			this.queryDetails.classList.add(cls);
 			if (moveFocus) {
 				if (reverse) {
 					this.inputPatternExcludes.focus();
@@ -1211,7 +1211,7 @@ export class SearchView extends ViewPane {
 			}
 		} else {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
-			dom.removeClass(this.queryDetails, cls);
+			this.queryDetails.classList.remove(cls);
 			if (moveFocus) {
 				this.searchWidget.focus();
 			}
@@ -1317,7 +1317,7 @@ export class SearchView extends ViewPane {
 
 		// Need the full match line to correctly calculate replace text, if this is a search/replace with regex group references ($1, $2, ...).
 		// 10000 chars is enough to avoid sending huge amounts of text around, if you do a replace with a longer match, it may or may not resolve the group refs correctly.
-		// https://github.com/Microsoft/vscode/issues/58374
+		// https://github.com/microsoft/vscode/issues/58374
 		const charsPerLine = content.isRegExp ? 10000 : 1000;
 
 		const options: ITextQueryBuilderOptions = {

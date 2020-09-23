@@ -8,7 +8,6 @@ import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle'
 import { isNumber } from 'vs/base/common/types';
 import { range, binarySearch } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
-import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -27,6 +26,7 @@ import { matchesPrefix } from 'vs/base/common/filters';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IThemable } from 'vs/base/common/styler';
+import { createStyleSheet } from 'vs/base/browser/dom';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -137,11 +137,11 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
-		DOM.toggleClass(container, this._trait, this.contains(index));
+		container.classList.toggle(this._trait, this.contains(index));
 	}
 
 	unrender(container: HTMLElement): void {
-		DOM.removeClass(container, this._trait);
+		container.classList.remove(this._trait);
 	}
 
 	/**
@@ -230,11 +230,11 @@ export function isInputElement(e: HTMLElement): boolean {
 }
 
 export function isMonacoEditor(e: HTMLElement): boolean {
-	if (DOM.hasClass(e, 'monaco-editor')) {
+	if (e.classList.contains('monaco-editor')) {
 		return true;
 	}
 
-	if (DOM.hasClass(e, 'monaco-list')) {
+	if (e.classList.contains('monaco-list')) {
 		return false;
 	}
 
@@ -1225,7 +1225,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		if (_options.styleController) {
 			this.styleController = _options.styleController(this.view.domId);
 		} else {
-			const styleElement = DOM.createStyleSheet(this.view.domNode);
+			const styleElement = createStyleSheet(this.view.domNode);
 			this.styleController = new DefaultStyleController(styleElement, this.view.domId);
 		}
 
@@ -1633,7 +1633,7 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 	private _onFocusChange(): void {
 		const focus = this.focus.get();
-		DOM.toggleClass(this.view.domNode, 'element-focused', focus.length > 0);
+		this.view.domNode.classList.toggle('element-focused', focus.length > 0);
 		this.onDidChangeActiveDescendant();
 	}
 
@@ -1656,9 +1656,9 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	private _onSelectionChange(): void {
 		const selection = this.selection.get();
 
-		DOM.toggleClass(this.view.domNode, 'selection-none', selection.length === 0);
-		DOM.toggleClass(this.view.domNode, 'selection-single', selection.length === 1);
-		DOM.toggleClass(this.view.domNode, 'selection-multiple', selection.length > 1);
+		this.view.domNode.classList.toggle('selection-none', selection.length === 0);
+		this.view.domNode.classList.toggle('selection-single', selection.length === 1);
+		this.view.domNode.classList.toggle('selection-multiple', selection.length > 1);
 	}
 
 	dispose(): void {

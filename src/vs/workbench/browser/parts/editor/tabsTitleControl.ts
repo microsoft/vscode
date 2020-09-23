@@ -32,9 +32,9 @@ import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -64,11 +64,13 @@ export class TabsTitleControl extends TitleControl {
 		large: 10
 	};
 
-	private static readonly TAB_SIZES = {
+	private static readonly TAB_WIDTH = {
 		compact: 38,
 		shrink: 80,
 		fit: 120
 	};
+
+	private static readonly TAB_HEIGHT = 35;
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
@@ -118,29 +120,19 @@ export class TabsTitleControl extends TitleControl {
 		(async () => this.path = await this.pathService.path)();
 	}
 
-	protected registerListeners(): void {
-		super.registerListeners();
-
-		this._register(this.accessor.onDidEditorPartOptionsChange(e => {
-			if (e.oldPartOptions.titleScrollbarSizing !== e.newPartOptions.titleScrollbarSizing) {
-				this.updateTabsScrollbarSizing();
-			}
-		}));
-	}
-
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
 
 		// Tabs and Actions Container (are on a single row with flex side-by-side)
 		this.tabsAndActionsContainer = document.createElement('div');
-		addClass(this.tabsAndActionsContainer, 'tabs-and-actions-container');
+		this.tabsAndActionsContainer.classList.add('tabs-and-actions-container');
 		this.titleContainer.appendChild(this.tabsAndActionsContainer);
 
 		// Tabs Container
 		this.tabsContainer = document.createElement('div');
 		this.tabsContainer.setAttribute('role', 'tablist');
 		this.tabsContainer.draggable = true;
-		addClass(this.tabsContainer, 'tabs-container');
+		this.tabsContainer.classList.add('tabs-container');
 		this._register(Gesture.addTarget(this.tabsContainer));
 
 		// Tabs Scrollbar
@@ -152,7 +144,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Editor Toolbar Container
 		this.editorToolbarContainer = document.createElement('div');
-		addClass(this.editorToolbarContainer, 'editor-actions');
+		this.editorToolbarContainer.classList.add('editor-actions');
 		this.tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
 
 		// Editor Actions Toolbar
@@ -160,7 +152,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Breadcrumbs (are on a separate row below tabs and actions)
 		const breadcrumbsContainer = document.createElement('div');
-		addClass(breadcrumbsContainer, 'tabs-breadcrumbs');
+		breadcrumbsContainer.classList.add('tabs-breadcrumbs');
 		this.titleContainer.appendChild(breadcrumbsContainer);
 		this.createBreadcrumbsControl(breadcrumbsContainer, { showFileIcons: true, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: breadcrumbsBackground });
 	}
@@ -212,7 +204,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Forward scrolling inside the container to our custom scrollbar
 		this._register(addDisposableListener(tabsContainer, EventType.SCROLL, () => {
-			if (hasClass(tabsContainer, 'scroll')) {
+			if (tabsContainer.classList.contains('scroll')) {
 				tabsScrollbar.setScrollPosition({
 					scrollLeft: tabsContainer.scrollLeft // during DND the container gets scrolled so we need to update the custom scrollbar
 				});
@@ -248,7 +240,7 @@ export class TabsTitleControl extends TitleControl {
 			}));
 		});
 
-		// Prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+		// Prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (e.button === 1) {
 				e.preventDefault();
@@ -260,11 +252,11 @@ export class TabsTitleControl extends TitleControl {
 			onDragEnter: e => {
 
 				// Always enable support to scroll while dragging
-				addClass(tabsContainer, 'scroll');
+				tabsContainer.classList.add('scroll');
 
 				// Return if the target is not on the tabs container
 				if (e.target !== tabsContainer) {
-					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
+					this.updateDropFeedback(tabsContainer, false); // fixes https://github.com/microsoft/vscode/issues/52093
 					return;
 				}
 
@@ -308,17 +300,17 @@ export class TabsTitleControl extends TitleControl {
 
 			onDragLeave: e => {
 				this.updateDropFeedback(tabsContainer, false);
-				removeClass(tabsContainer, 'scroll');
+				tabsContainer.classList.remove('scroll');
 			},
 
 			onDragEnd: e => {
 				this.updateDropFeedback(tabsContainer, false);
-				removeClass(tabsContainer, 'scroll');
+				tabsContainer.classList.remove('scroll');
 			},
 
 			onDrop: e => {
 				this.updateDropFeedback(tabsContainer, false);
-				removeClass(tabsContainer, 'scroll');
+				tabsContainer.classList.remove('scroll');
 
 				if (e.target === tabsContainer) {
 					this.onDrop(e, this.group.count, tabsContainer);
@@ -519,7 +511,12 @@ export class TabsTitleControl extends TitleControl {
 			this.computeTabLabels();
 		}
 
-		// Apply new options if something of interest changed
+		// Update tabs scrollbar sizing
+		if (oldOptions.titleScrollbarSizing !== newOptions.titleScrollbarSizing) {
+			this.updateTabsScrollbarSizing();
+		}
+
+		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
@@ -565,14 +562,14 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.draggable = true;
 		tabContainer.tabIndex = 0;
 		tabContainer.setAttribute('role', 'tab');
-		addClass(tabContainer, 'tab');
+		tabContainer.classList.add('tab');
 
 		// Gesture Support
 		this._register(Gesture.addTarget(tabContainer));
 
 		// Tab Border Top
 		const tabBorderTopContainer = document.createElement('div');
-		addClass(tabBorderTopContainer, 'tab-border-top-container');
+		tabBorderTopContainer.classList.add('tab-border-top-container');
 		tabContainer.appendChild(tabBorderTopContainer);
 
 		// Tab Editor Label
@@ -580,7 +577,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab Actions
 		const tabActionsContainer = document.createElement('div');
-		addClass(tabActionsContainer, 'tab-actions');
+		tabActionsContainer.classList.add('tab-actions');
 		tabContainer.appendChild(tabActionsContainer);
 
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
@@ -596,7 +593,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab Border Bottom
 		const tabBorderBottomContainer = document.createElement('div');
-		addClass(tabBorderBottomContainer, 'tab-border-bottom-container');
+		tabBorderBottomContainer.classList.add('tab-border-bottom-container');
 		tabContainer.appendChild(tabBorderBottomContainer);
 
 		// Eventing
@@ -615,7 +612,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/microsoft/vscode/issues/16690)
 				}
 
 				return undefined; // only for left mouse click
@@ -662,7 +659,7 @@ export class TabsTitleControl extends TitleControl {
 		// Close on mouse middle click
 		disposables.add(addDisposableListener(tab, EventType.AUXCLICK, (e: MouseEvent) => {
 			if (e.button === 1 /* Middle Button*/) {
-				EventHelper.stop(e, true /* for https://github.com/Microsoft/vscode/issues/56715 */);
+				EventHelper.stop(e, true /* for https://github.com/microsoft/vscode/issues/56715 */);
 
 				this.blockRevealActiveTabOnce();
 				this.closeEditorAction.run({ groupId: this.group.id, editorIndex: index });
@@ -753,7 +750,7 @@ export class TabsTitleControl extends TitleControl {
 			if (input) {
 				this.onContextMenu(input, e, tab);
 			}
-		}, true /* use capture to fix https://github.com/Microsoft/vscode/issues/19145 */));
+		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
 		// Drag support
 		disposables.add(addDisposableListener(tab, EventType.DRAG_START, (e: DragEvent) => {
@@ -771,9 +768,9 @@ export class TabsTitleControl extends TitleControl {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
 			this.doFillResourceDataTransfers(editor, e);
 
-			// Fixes https://github.com/Microsoft/vscode/issues/18733
-			addClass(tab, 'dragged');
-			scheduleAtNextAnimationFrame(() => removeClass(tab, 'dragged'));
+			// Fixes https://github.com/microsoft/vscode/issues/18733
+			tab.classList.add('dragged');
+			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
 		}));
 
 		// Drop support
@@ -781,7 +778,7 @@ export class TabsTitleControl extends TitleControl {
 			onDragEnter: e => {
 
 				// Update class to signal drag operation
-				addClass(tab, 'dragged-over');
+				tab.classList.add('dragged-over');
 
 				// Return if transfer is unsupported
 				if (!this.isSupportedDropTransfer(e)) {
@@ -821,20 +818,20 @@ export class TabsTitleControl extends TitleControl {
 				this.updateDropFeedback(tab, true, index);
 			},
 
-			onDragLeave: e => {
-				removeClass(tab, 'dragged-over');
+			onDragLeave: () => {
+				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, index);
 			},
 
-			onDragEnd: e => {
-				removeClass(tab, 'dragged-over');
+			onDragEnd: () => {
+				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, index);
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 			},
 
 			onDrop: e => {
-				removeClass(tab, 'dragged-over');
+				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, index);
 
 				this.onDrop(e, index, tabsContainer);
@@ -862,7 +859,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		if (e.dataTransfer && e.dataTransfer.types.length > 0) {
-			return true; // optimistically allow external data (// see https://github.com/Microsoft/vscode/issues/25789)
+			return true; // optimistically allow external data (// see https://github.com/microsoft/vscode/issues/25789)
 		}
 
 		return false;
@@ -1001,10 +998,10 @@ export class TabsTitleControl extends TitleControl {
 		const tabsContainerBorderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
 		if (this.tabsAndActionsContainer) {
 			if (tabsContainerBorderColor) {
-				addClass(this.tabsAndActionsContainer, 'tabs-border-bottom');
+				this.tabsAndActionsContainer.classList.add('tabs-border-bottom');
 				this.tabsAndActionsContainer.style.setProperty('--tabs-border-bottom-color', tabsContainerBorderColor.toString());
 			} else {
-				removeClass(this.tabsAndActionsContainer, 'tabs-border-bottom');
+				this.tabsAndActionsContainer.classList.remove('tabs-border-bottom');
 				this.tabsAndActionsContainer.style.removeProperty('--tabs-border-bottom-color');
 			}
 		}
@@ -1046,25 +1043,22 @@ export class TabsTitleControl extends TitleControl {
 		// Settings
 		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
 		['off', 'left', 'right'].forEach(option => {
-			const domAction = tabActionsVisibility === option ? addClass : removeClass;
-			domAction(tabContainer, `tab-actions-${option}`);
+			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
 		});
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		['fit', 'shrink'].forEach(option => {
-			const domAction = tabSizing === option ? addClass : removeClass;
-			domAction(tabContainer, `sizing-${option}`);
+			tabContainer.classList.toggle(`sizing-${option}`, tabSizing === option);
 		});
 
 		if (options.showIcons && options.hasIcons) {
-			addClass(tabContainer, 'has-icon');
+			tabContainer.classList.add('has-icon');
 		} else {
-			removeClass(tabContainer, 'has-icon');
+			tabContainer.classList.remove('has-icon');
 		}
 
-		['compact', 'shrink', 'normal'].forEach(option => {
-			const domAction = isTabSticky && options.pinnedTabSizing === option ? addClass : removeClass;
-			domAction(tabContainer, `sticky-${option}`);
+		['normal', 'compact', 'shrink'].forEach(option => {
+			tabContainer.classList.toggle(`sticky-${option}`, isTabSticky && options.pinnedTabSizing === option);
 		});
 
 		// Sticky compact/shrink tabs need a position to remain at their location
@@ -1073,10 +1067,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (options.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1147,25 +1141,25 @@ export class TabsTitleControl extends TitleControl {
 		if (this.group.isActive(editor)) {
 
 			// Container
-			addClass(tabContainer, 'active');
+			tabContainer.classList.add('active');
 			tabContainer.setAttribute('aria-selected', 'true');
 			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_ACTIVE_BACKGROUND : TAB_UNFOCUSED_ACTIVE_BACKGROUND) || '';
 
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			if (activeTabBorderColorBottom) {
-				addClass(tabContainer, 'tab-border-bottom');
+				tabContainer.classList.add('tab-border-bottom');
 				tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom.toString());
 			} else {
-				removeClass(tabContainer, 'tab-border-bottom');
+				tabContainer.classList.remove('tab-border-bottom');
 				tabContainer.style.removeProperty('--tab-border-bottom-color');
 			}
 
 			const activeTabBorderColorTop = allowBorderTop ? this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP) : undefined;
 			if (activeTabBorderColorTop) {
-				addClass(tabContainer, 'tab-border-top');
+				tabContainer.classList.add('tab-border-top');
 				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
 			} else {
-				removeClass(tabContainer, 'tab-border-top');
+				tabContainer.classList.remove('tab-border-top');
 				tabContainer.style.removeProperty('--tab-border-top-color');
 			}
 
@@ -1177,7 +1171,7 @@ export class TabsTitleControl extends TitleControl {
 		else {
 
 			// Container
-			removeClass(tabContainer, 'active');
+			tabContainer.classList.remove('active');
 			tabContainer.setAttribute('aria-selected', 'false');
 			tabContainer.style.backgroundColor = this.getColor(isGroupActive ? TAB_INACTIVE_BACKGROUND : TAB_UNFOCUSED_INACTIVE_BACKGROUND) || '';
 			tabContainer.style.boxShadow = '';
@@ -1192,7 +1186,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab: dirty (unless saving)
 		if (editor.isDirty() && !editor.isSaving()) {
-			addClass(tabContainer, 'dirty');
+			tabContainer.classList.add('dirty');
 
 			// Highlight modified tabs with a border if configured
 			if (this.accessor.partOptions.highlightModifiedTabs) {
@@ -1210,28 +1204,34 @@ export class TabsTitleControl extends TitleControl {
 				if (modifiedBorderColor) {
 					hasModifiedBorderColor = true;
 
-					addClass(tabContainer, 'dirty-border-top');
+					tabContainer.classList.add('dirty-border-top');
 					tabContainer.style.setProperty('--tab-dirty-border-top-color', modifiedBorderColor);
 				}
 			} else {
-				removeClass(tabContainer, 'dirty-border-top');
+				tabContainer.classList.remove('dirty-border-top');
 				tabContainer.style.removeProperty('--tab-dirty-border-top-color');
 			}
 		}
 
 		// Tab: not dirty
 		else {
-			removeClass(tabContainer, 'dirty');
-
-			removeClass(tabContainer, 'dirty-border-top');
+			tabContainer.classList.remove('dirty', 'dirty-border-top');
 			tabContainer.style.removeProperty('--tab-dirty-border-top-color');
 		}
 
 		return hasModifiedBorderColor;
 	}
 
-	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
+	getDimensions(): IEditorGroupTitleDimensions {
+		let height = TabsTitleControl.TAB_HEIGHT;
+		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
+			height += BreadcrumbsControl.HEIGHT;
+		}
+
+		return {
+			height,
+			offset: TabsTitleControl.TAB_HEIGHT
+		};
 	}
 
 	layout(dimension: Dimension | undefined): void {
@@ -1309,10 +1309,10 @@ export class TabsTitleControl extends TitleControl {
 			let stickyTabWidth = 0;
 			switch (this.accessor.partOptions.pinnedTabSizing) {
 				case 'compact':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.compact;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.compact;
 					break;
 				case 'shrink':
-					stickyTabWidth = TabsTitleControl.TAB_SIZES.shrink;
+					stickyTabWidth = TabsTitleControl.TAB_WIDTH.shrink;
 					break;
 			}
 
@@ -1324,14 +1324,14 @@ export class TabsTitleControl extends TitleControl {
 		// Special case: we have sticky tabs but the available space for showing tabs
 		// is little enough that we need to disable sticky tabs sticky positioning
 		// so that tabs can be scrolled at naturally.
-		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_SIZES.fit) {
-			addClass(tabsContainer, 'disable-sticky-tabs');
+		if (this.group.stickyCount > 0 && availableTabsContainerWidth < TabsTitleControl.TAB_WIDTH.fit) {
+			tabsContainer.classList.add('disable-sticky-tabs');
 
 			availableTabsContainerWidth = visibleTabsContainerWidth;
 			stickyTabsWidth = 0;
 			activeTabSticky = false;
 		} else {
-			removeClass(tabsContainer, 'disable-sticky-tabs');
+			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
 
 		let activeTabPosX: number | undefined;
@@ -1446,7 +1446,7 @@ export class TabsTitleControl extends TitleControl {
 		EventHelper.stop(e, true);
 
 		this.updateDropFeedback(tabsContainer, false);
-		removeClass(tabsContainer, 'scroll');
+		tabsContainer.classList.remove('scroll');
 
 		// Local Editor DND
 		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {

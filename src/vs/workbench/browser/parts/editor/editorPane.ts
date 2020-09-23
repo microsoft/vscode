@@ -19,6 +19,7 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -60,6 +61,11 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
+
+	/**
+	 * Should be overridden by editors that have their own ScopedContextKeyService
+	 */
+	get scopedContextKeyService(): IContextKeyService | undefined { return undefined; }
 
 	constructor(
 		id: string,

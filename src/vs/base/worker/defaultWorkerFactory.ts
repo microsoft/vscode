@@ -38,8 +38,12 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string, forceDa
 			const myPath = 'vs/base/worker/defaultWorkerFactory.js';
 			const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length);
 			const js = `/*${label}*/self.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};importScripts('${scriptPath}');/*${label}*/`;
-			const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
-			return url;
+			if (forceDataUri) {
+				const url = `data:text/javascript;charset=utf-8,${encodeURIComponent(js)}`;
+				return url;
+			}
+			const blob = new Blob([js], { type: 'application/javascript' });
+			return URL.createObjectURL(blob);
 		}
 	}
 	return scriptPath + '#' + label;

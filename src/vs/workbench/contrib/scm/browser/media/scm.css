@@ -49,6 +49,7 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	min-width: 50px;
 }
 
 .scm-view .scm-provider > .label > .name {

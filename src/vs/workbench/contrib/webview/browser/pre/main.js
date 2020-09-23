@@ -13,6 +13,7 @@
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
  *   fakeLoad?: boolean,
  *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
+ *   onElectron?: boolean
  * }} WebviewHost
  */
 
@@ -286,8 +287,14 @@
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
 			// if needed
-			if (isCopyPasteOrCut(e) || isUndoRedo(e)) {
+			if (isUndoRedo(e)) {
 				e.preventDefault();
+			} else if (isCopyPasteOrCut(e)) {
+				if (host.onElectron) {
+					e.preventDefault();
+				} else {
+					return; // let the browser handle this
+				}
 			}
 
 			host.postMessage('did-keydown', {
@@ -547,7 +554,7 @@
 				 */
 				const onLoad = (contentDocument, contentWindow) => {
 					if (contentDocument && contentDocument.body) {
-						// Workaround for https://github.com/Microsoft/vscode/issues/12865
+						// Workaround for https://github.com/microsoft/vscode/issues/12865
 						// check new scrollY and reset if necessary
 						setInitialScrollPosition(contentDocument.body, contentWindow);
 					}

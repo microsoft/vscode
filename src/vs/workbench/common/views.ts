@@ -10,7 +10,7 @@ import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/comm
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { getOrSet } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -519,6 +519,7 @@ export interface IViewDescriptorService {
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
 	getViewContainerById(id: string): ViewContainer | null;
+	isViewContainerRemovedPermanently(id: string): boolean;
 	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
@@ -538,6 +539,8 @@ export interface IViewDescriptorService {
 
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+
+	reset(): void;
 }
 
 // Custom views
@@ -554,6 +557,8 @@ export interface ITreeView extends IDisposable {
 
 	title: string;
 
+	description: string | undefined;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -567,6 +572,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeActions: Event<void>;
 
 	readonly onDidChangeTitle: Event<string>;
+
+	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
 
@@ -644,8 +651,6 @@ export interface ITreeItem {
 
 	themeIcon?: ThemeIcon;
 
-	iconColor?: ThemeColor;
-
 	resourceUri?: UriComponents;
 
 	tooltip?: string | IMarkdownString;
@@ -668,7 +673,6 @@ export class ResolvableTreeItem implements ITreeItem {
 	icon?: UriComponents;
 	iconDark?: UriComponents;
 	themeIcon?: ThemeIcon;
-	iconColor?: ThemeColor;
 	resourceUri?: UriComponents;
 	tooltip?: string | IMarkdownString;
 	contextValue?: string;

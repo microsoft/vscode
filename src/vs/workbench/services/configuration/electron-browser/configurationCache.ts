@@ -7,12 +7,19 @@ import * as pfs from 'vs/base/node/pfs';
 import { join } from 'vs/base/common/path';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
 
 export class ConfigurationCache implements IConfigurationCache {
 
 	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
 
 	constructor(private readonly environmentService: INativeWorkbenchEnvironmentService) {
+	}
+
+	needsCaching(resource: URI): boolean {
+		// Cache all non native resources
+		return ![Schemas.file, Schemas.userData].includes(resource.scheme);
 	}
 
 	read(key: ConfigurationKey): Promise<string> {

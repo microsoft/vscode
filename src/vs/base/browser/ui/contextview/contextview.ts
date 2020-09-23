@@ -139,7 +139,7 @@ export class ContextView extends Disposable {
 			if (this.shadowRoot) {
 				this.shadowRoot.removeChild(this.view);
 				this.shadowRoot = null;
-				DOM.removeNode(this.shadowRootHostElement!);
+				this.shadowRootHostElement?.remove();
 				this.shadowRootHostElement = null;
 			} else {
 				this.container.removeChild(this.view);
@@ -295,10 +295,10 @@ export class ContextView extends Disposable {
 
 		const left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
 
-		DOM.removeClasses(this.view, 'top', 'bottom', 'left', 'right');
-		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
-		DOM.toggleClass(this.view, 'fixed', this.useFixedPosition);
+		this.view.classList.remove('top', 'bottom', 'left', 'right');
+		this.view.classList.add(anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+		this.view.classList.add(anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		this.view.classList.toggle('fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
 		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
@@ -361,6 +361,10 @@ let SHADOW_ROOT_CSS = /* css */ `
 		user-select: none;
 		-webkit-user-select: none;
 		-ms-user-select: none;
+	}
+
+	:host {
+		font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "HelveticaNeue-Light", system-ui, "Ubuntu", "Droid Sans", sans-serif;
 	}
 
 	:host-context(.mac) { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }

@@ -7,7 +7,6 @@ import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
 import { Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
@@ -262,11 +261,11 @@ export class Workbench extends Layout {
 
 		// Remove all
 		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
-		removeClasses(this.container, ...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+		this.container.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
 
 		// Add specific
 		if (fontAliasingValues.some(option => option === aliasing)) {
-			addClass(this.container, `monaco-font-aliasing-${aliasing}`);
+			this.container.classList.add(`monaco-font-aliasing-${aliasing}`);
 		}
 	}
 
@@ -320,11 +319,11 @@ export class Workbench extends Layout {
 			...this.getLayoutClasses()
 		]);
 
-		addClasses(this.container, ...workbenchClasses);
-		addClass(document.body, platformClass); // used by our fonts
+		this.container.classList.add(...workbenchClasses);
+		document.body.classList.add(platformClass); // used by our fonts
 
 		if (isWeb) {
-			addClass(document.body, 'web');
+			document.body.classList.add('web');
 		}
 
 		// Apply font aliasing
@@ -356,7 +355,7 @@ export class Workbench extends Layout {
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
 		const part = document.createElement(role === 'status' ? 'footer' : 'div'); // Use footer element for status bar #98376
-		addClasses(part, 'part', ...classes);
+		part.classList.add('part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
 		if (role === 'status') {

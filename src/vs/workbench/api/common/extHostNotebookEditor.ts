@@ -6,7 +6,7 @@
 import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { CellKind, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
@@ -37,7 +37,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		}
 	}
 
-	replaceNotebookMetadata(value: vscode.NotebookDocumentMetadata): void {
+	replaceMetadata(value: vscode.NotebookDocumentMetadata): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.DocumentMetadata,
@@ -54,12 +54,6 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
-		console.warn('DEPRECATED use "replaceCellMetadata" instead');
-		this.replaceCellMetadata(index, metadata);
-	}
-
-
 	replaceCellOutput(index: number, outputs: vscode.CellOutput[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
@@ -69,14 +63,11 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceOutput(index: number, outputs: vscode.CellOutput[]): void {
-		console.warn('DEPRECATED use "replaceCellOutput" instead');
-		this.replaceCellOutput(index, outputs);
-	}
-
 	replaceCells(from: number, to: number, cells: vscode.NotebookCellData[]): void {
 		this._throwIfFinalized();
-
+		if (from === to && cells.length === 0) {
+			return;
+		}
 		this._collectedEdits.push({
 			editType: CellEditType.Replace,
 			index: from,
@@ -88,22 +79,6 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 				};
 			})
 		});
-	}
-
-	insert(index: number, content: string | string[], language: string, type: CellKind, outputs: vscode.CellOutput[], metadata: vscode.NotebookCellMetadata | undefined): void {
-		this._throwIfFinalized();
-		this.replaceCells(index, index, [{
-			language,
-			outputs,
-			metadata,
-			cellKind: type,
-			source: Array.isArray(content) ? content.join('\n') : content,
-		}]);
-	}
-
-	delete(index: number): void {
-		this._throwIfFinalized();
-		this.replaceCells(index, 1, []);
 	}
 }
 
@@ -123,6 +98,8 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 	readonly onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
+
+	private _hasDecorationsForKey: { [key: string]: boolean; } = Object.create(null);
 
 	constructor(
 		readonly id: string,
@@ -225,7 +202,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 
 			if (prev.editType === CellEditType.Replace && editData.cellEdits[i].editType === CellEditType.Replace) {
 				const edit = editData.cellEdits[i];
-				if (edit.editType !== CellEditType.DocumentMetadata && prev.index === edit.index) {
+				if ((edit.editType !== CellEditType.DocumentMetadata && edit.editType !== CellEditType.Unknown) && prev.index === edit.index) {
 					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
 					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
 					continue;
@@ -237,6 +214,25 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		}
 
 		return this._proxy.$tryApplyEdits(this._viewType, this.document.uri, editData.documentVersionId, compressedEdits);
+	}
+
+	setDecorations(decorationType: vscode.NotebookEditorDecorationType, range: vscode.NotebookCellRange): void {
+		const willBeEmpty = (range.start === range.end);
+		if (willBeEmpty && !this._hasDecorationsForKey[decorationType.key]) {
+			// avoid no-op call to the renderer
+			return;
+		}
+		if (willBeEmpty) {
+			delete this._hasDecorationsForKey[decorationType.key];
+		} else {
+			this._hasDecorationsForKey[decorationType.key] = true;
+		}
+
+		return this._proxy.$trySetDecorations(
+			this.id,
+			range,
+			decorationType.key
+		);
 	}
 
 	revealRange(range: vscode.NotebookCellRange, revealType?: extHostTypes.NotebookEditorRevealType) {

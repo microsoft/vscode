@@ -69,6 +69,7 @@ export class RawDebugSession implements IDisposable {
 	private readonly _onDidProgressStart = new Emitter<DebugProtocol.ProgressStartEvent>();
 	private readonly _onDidProgressUpdate = new Emitter<DebugProtocol.ProgressUpdateEvent>();
 	private readonly _onDidProgressEnd = new Emitter<DebugProtocol.ProgressEndEvent>();
+	private readonly _onDidInvalidated = new Emitter<DebugProtocol.InvalidatedEvent>();
 	private readonly _onDidCustomEvent = new Emitter<DebugProtocol.Event>();
 	private readonly _onDidEvent = new Emitter<DebugProtocol.Event>();
 
@@ -150,6 +151,9 @@ export class RawDebugSession implements IDisposable {
 				case 'progressEnd':
 					this._onDidProgressEnd.fire(event as DebugProtocol.ProgressEndEvent);
 					break;
+				case 'invalidated':
+					this._onDidInvalidated.fire(event as DebugProtocol.InvalidatedEvent);
+					break;
 				default:
 					this._onDidCustomEvent.fire(event);
 					break;
@@ -228,6 +232,10 @@ export class RawDebugSession implements IDisposable {
 
 	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
 		return this._onDidProgressEnd.event;
+	}
+
+	get onDidInvalidated(): Event<DebugProtocol.InvalidatedEvent> {
+		return this._onDidInvalidated.event;
 	}
 
 	get onDidEvent(): Event<DebugProtocol.Event> {
@@ -624,7 +632,7 @@ export class RawDebugSession implements IDisposable {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, token?: CancellationToken, timeout?: number): Promise<R | undefined> {
-		return new Promise<DebugProtocol.Response>((completeDispatch, errorDispatch) => {
+		return new Promise<DebugProtocol.Response | undefined>((completeDispatch, errorDispatch) => {
 			if (!this.debugAdapter) {
 				if (this.inShutdown) {
 					// We are in shutdown silently complete

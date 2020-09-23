@@ -30,7 +30,7 @@ export class HoverWidget extends Widget {
 	private readonly _linkHandler: (url: string) => any;
 
 	private _isDisposed: boolean = false;
-	private _anchor: AnchorPosition = AnchorPosition.ABOVE;
+	private _anchor: AnchorPosition;
 	private _x: number = 0;
 	private _y: number = 0;
 
@@ -60,11 +60,12 @@ export class HoverWidget extends Widget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hover = this._register(new BaseHoverWidget());
-
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
+
+		this._anchor = options.anchorPosition ?? AnchorPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -165,12 +166,26 @@ export class HoverWidget extends Widget {
 		}
 
 		// Get vertical alignment and position
-		const targetTop = Math.min(...targetBounds.map(e => e.top));
-		if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
-			this._anchor = AnchorPosition.BELOW;
-			this._y = Math.max(...targetBounds.map(e => e.bottom)) - 2;
+		if (this._anchor === AnchorPosition.ABOVE) {
+			const targetTop = Math.min(...targetBounds.map(e => e.top));
+			if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
+				const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
+				this._anchor = AnchorPosition.BELOW;
+				this._y = targetBottom - 2;
+			} else {
+				this._y = targetTop;
+			}
 		} else {
-			this._y = targetTop;
+			console.log('below');
+			const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
+			if (targetBottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
+				console.log(targetBottom, this._hover.containerDomNode.clientHeight, window.innerHeight);
+				const targetTop = Math.min(...targetBounds.map(e => e.top));
+				this._anchor = AnchorPosition.ABOVE;
+				this._y = targetTop;
+			} else {
+				this._y = targetBottom - 2;
+			}
 		}
 
 		this._hover.onContentsChanged();

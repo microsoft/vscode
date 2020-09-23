@@ -838,3 +838,9 @@
 	margin: 5px 4px !important;
 	cursor: none;
 }
+
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-decoration {
+	top: -6px;
+	position: absolute;
+	display: flex;
+}

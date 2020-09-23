@@ -10,7 +10,7 @@ import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/lis
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction } from 'vs/base/common/actions';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -340,19 +340,19 @@ abstract class AbstractCellRenderer {
 			}
 
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true);
+				], true, undefined, () => undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
-				textModel.applyEdit(textModel.versionId, [
+				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true);
+				], true, undefined, () => undefined);
 			}
 		}));
 	}
 
 	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement } {
-		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, ...renderCodiconsAsElement('$(unfold)')));
+		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, ...renderCodicons('$(unfold)')));
 		const expandButton = collapsedPart.querySelector('.codicon') as HTMLElement;
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_CONTENT_COMMAND_ID);
 		let title = localize('cellExpandButtonLabel', "Expand");
@@ -393,7 +393,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
-		const decorationContainer = DOM.append(container, $('.cell-decoration'));
+		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
@@ -418,6 +418,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
+			rootContainer,
 			collapsedPart,
 			expandButton,
 			contextKeyService,
@@ -471,6 +472,19 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+		const removedClassNames: string[] = [];
+		templateData.rootContainer.classList.forEach(className => {
+			if (/^nb\-.*$/.test(className)) {
+				removedClassNames.push(className);
+			}
+		});
+
+		removedClassNames.forEach(className => {
+			templateData.rootContainer.classList.remove(className);
+		});
+
+		templateData.decorationContainer.innerText = '';
+
 		this.commonRenderElement(element, templateData);
 
 		templateData.currentRenderedCell = element;
@@ -483,6 +497,22 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		}
 
 		const elementDisposables = templateData.elementDisposables;
+
+		const generateCellTopDecorations = () => {
+			templateData.decorationContainer.innerText = '';
+
+			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
+				templateData.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
+			});
+		};
+
+		elementDisposables.add(element.onCellDecorationsChanged((e) => {
+			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
+
+			if (modified) {
+				generateCellTopDecorations();
+			}
+		}));
 
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, this.notebookEditor.viewModel?.notebookDocument!, element));
 
@@ -643,7 +673,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const container = DOM.append(rootContainer, DOM.$('.cell-inner-container'));
 		const disposables = new DisposableStore();
 		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
-		const decorationContainer = DOM.append(container, $('.cell-decoration'));
+		const decorationContainer = DOM.append(rootContainer, $('.cell-decoration'));
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
@@ -700,6 +730,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
+			rootContainer,
 			editorPart,
 			collapsedPart,
 			expandButton,
@@ -808,15 +839,17 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		const removedClassNames: string[] = [];
-		templateData.container.classList.forEach(className => {
+		templateData.rootContainer.classList.forEach(className => {
 			if (/^nb\-.*$/.test(className)) {
 				removedClassNames.push(className);
 			}
 		});
 
 		removedClassNames.forEach(className => {
-			templateData.container.classList.remove(className);
+			templateData.rootContainer.classList.remove(className);
 		});
+
+		templateData.decorationContainer.innerText = '';
 
 		this.commonRenderElement(element, templateData);
 
@@ -829,6 +862,24 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputContainer.innerText = '';
 
 		const elementDisposables = templateData.elementDisposables;
+
+		const generateCellTopDecorations = () => {
+			templateData.decorationContainer.innerText = '';
+
+			element.getCellDecorations().filter(options => options.topClassName !== undefined).forEach(options => {
+				templateData.decorationContainer.append(DOM.$(`.${options.topClassName!}`));
+			});
+		};
+
+		elementDisposables.add(element.onCellDecorationsChanged((e) => {
+			const modified = e.added.find(e => e.topClassName) || e.removed.find(e => e.topClassName);
+
+			if (modified) {
+				generateCellTopDecorations();
+			}
+		}));
+
+		generateCellTopDecorations();
 
 		elementDisposables.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
@@ -960,11 +1011,11 @@ export class RunStateRenderer {
 		}
 
 		if (runState === NotebookCellRunState.Success) {
-			DOM.reset(this.element, ...renderCodiconsAsElement('$(check)'));
+			DOM.reset(this.element, ...renderCodicons('$(check)'));
 		} else if (runState === NotebookCellRunState.Error) {
-			DOM.reset(this.element, ...renderCodiconsAsElement('$(error)'));
+			DOM.reset(this.element, ...renderCodicons('$(error)'));
 		} else if (runState === NotebookCellRunState.Running) {
-			DOM.reset(this.element, ...renderCodiconsAsElement('$(sync~spin)'));
+			DOM.reset(this.element, ...renderCodicons('$(sync~spin)'));
 
 			this.spinnerTimer = setTimeout(() => {
 				this.spinnerTimer = undefined;

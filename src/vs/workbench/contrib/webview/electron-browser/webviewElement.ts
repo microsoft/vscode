@@ -25,8 +25,8 @@ import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webvie
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { rewriteVsCodeResourceUrls, WebviewResourceRequestManager } from './resourceLoading';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { WebviewResourceRequestManager, rewriteVsCodeResourceUrls } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
 
 class WebviewKeyboardHandler {
 
@@ -207,7 +207,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 
 		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
 	}
 
 	protected createElement(options: WebviewOptions) {

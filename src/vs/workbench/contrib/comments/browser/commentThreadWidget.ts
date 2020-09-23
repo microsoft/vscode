@@ -550,9 +550,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 				if (input.value === '') {
 					this._pendingComment = '';
-					if (dom.hasClass(this._commentForm, 'expand')) {
-						dom.removeClass(this._commentForm, 'expand');
-					}
+					this._commentForm.classList.remove('expand');
 					this._commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
 					dom.addClass(this._error, 'hidden');
@@ -692,14 +690,14 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		if (label) {
-			this._headingLabel.innerHTML = strings.escape(label);
+			this._headingLabel.textContent = strings.escape(label);
 			this._headingLabel.setAttribute('aria-label', label);
 		}
 	}
 
 	private expandReplyArea() {
-		if (!dom.hasClass(this._commentForm, 'expand')) {
-			dom.addClass(this._commentForm, 'expand');
+		if (!this._commentForm.classList.contains('expand')) {
+			this._commentForm.classList.add('expand');
 			this._commentEditor.focus();
 		}
 	}
@@ -707,9 +705,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	private hideReplyArea() {
 		this._commentEditor.setValue('');
 		this._pendingComment = '';
-		if (dom.hasClass(this._commentForm, 'expand')) {
-			dom.removeClass(this._commentForm, 'expand');
-		}
+		this._commentForm.classList.remove('expand');
 		this._commentEditor.getDomNode()!.style.outline = '';
 		this._error.textContent = '';
 		dom.addClass(this._error, 'hidden');
@@ -725,7 +721,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
 
 		this._commentEditor.onDidBlurEditorWidget(() => {
-			if (this._commentEditor.getModel()!.getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
+			if (this._commentEditor.getModel()!.getValueLength() === 0 && this._commentForm.classList.add('expand')) {
 				dom.removeClass(this._commentForm, 'expand');
 			}
 		});
@@ -916,7 +912,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			font-weight: ${fontInfo.fontWeight};
 		}`);
 
-		this._styleElement.innerHTML = content.join('\n');
+		this._styleElement.textContent = content.join('\n');
 
 		// Editor decorations should also be responsive to theme changes
 		this.setCommentEditorDecorations();

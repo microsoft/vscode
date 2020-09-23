@@ -399,16 +399,6 @@ export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean):
 	return -1;
 }
 
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
-	const index = array.findIndex(fn);
-	return index < 0 ? notFoundValue : array[index];
-}
-
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
 export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
@@ -547,21 +537,6 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 		arr.splice(index, 1);
 		arr.push(value);
 	}
-}
-
-
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
-	for (let i = 0; i < arr.length; i++) {
-		const element = arr[i];
-		if (predicate(element, i, arr)) {
-			return element;
-		}
-	}
-
-	return undefined;
 }
 
 export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
