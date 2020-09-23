@@ -1438,21 +1438,17 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		controlElement.appendChild(checkbox.domNode);
 		toDispose.add(checkbox);
 		toDispose.add(checkbox.onChange(() => {
-			if (template.onChange) {
-				template.onChange(checkbox.checked);
-			}
+			template.onChange!(checkbox.checked);
 		}));
 
 		// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
 		// Also have to ignore embedded links - too buried to stop propagation
 		toDispose.add(DOM.addDisposableListener(descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
 			const targetElement = <HTMLElement>e.target;
-			const targetId = descriptionElement.getAttribute('checkbox_label_target_id');
 
-			// Make sure we are not a link and the target ID matches
 			// Toggle target checkbox
-			if (targetElement.tagName.toLowerCase() !== 'a' && targetId === template.checkbox.domNode.id) {
-				template.checkbox.checked = template.checkbox.checked ? false : true;
+			if (targetElement.tagName.toLowerCase() !== 'a') {
+				template.checkbox.checked = !template.checkbox.checked;
 				template.onChange!(checkbox.checked);
 			}
 			DOM.EventHelper.stop(e);
