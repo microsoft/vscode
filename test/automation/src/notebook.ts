@@ -156,7 +156,7 @@ export class Notebook {
 
 		await this._waitForActiveCellEditorContents(c => {
 			c = c.replace(/\n/g, '').trim();
-			text = text.replace(/\n\n/g, ' ').replace(/\n/g, '').trim();
+			text = text.replace(/\n/g, '').trim();
 
 			return c.includes(text);
 		});
