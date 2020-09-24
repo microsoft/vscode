@@ -5,6 +5,9 @@
 
 import * as assert from 'assert';
 import * as dom from 'vs/base/browser/dom';
+import { Schemas } from 'vs/base/common/network';
+import { isNative } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 const $ = dom.$;
 
 suite('dom', () => {
@@ -134,5 +137,17 @@ suite('dom', () => {
 			assert.equal(firstChild.tagName, undefined);
 			assert.equal(firstChild.textContent, 'foobar');
 		});
+	});
+
+	test('asDomUri', function () {
+		const fileUri = URI.file('something');
+
+		const domUri = dom.asDomUri(fileUri);
+
+		if (isNative) {
+			assert.equal(domUri.scheme, Schemas.vscodeFileResource);
+		} else {
+			assert.equal(domUri.scheme, fileUri.scheme);
+		}
 	});
 });
