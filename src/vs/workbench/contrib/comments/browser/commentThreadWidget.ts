@@ -553,7 +553,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					this._commentForm.classList.remove('expand');
 					this._commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
-					dom.addClass(this._error, 'hidden');
+					this._error.classList.add('hidden');
 				}
 			}
 		}));
@@ -708,7 +708,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentForm.classList.remove('expand');
 		this._commentEditor.getDomNode()!.style.outline = '';
 		this._error.textContent = '';
-		dom.addClass(this._error, 'hidden');
+		this._error.classList.add('hidden');
 	}
 
 	private createReplyButton() {
@@ -721,8 +721,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._disposables.add(dom.addDisposableListener(this._reviewThreadReplyButton, 'focus', _ => this.expandReplyArea()));
 
 		this._commentEditor.onDidBlurEditorWidget(() => {
-			if (this._commentEditor.getModel()!.getValueLength() === 0 && this._commentForm.classList.add('expand')) {
-				dom.removeClass(this._commentForm, 'expand');
+			if (this._commentEditor.getModel()!.getValueLength() === 0 && this._commentForm.classList.contains('expand')) {
+				this._commentForm.classList.remove('expand');
 			}
 		});
 	}

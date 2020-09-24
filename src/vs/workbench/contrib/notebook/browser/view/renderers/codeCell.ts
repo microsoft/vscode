@@ -84,7 +84,7 @@ export class CodeCell extends Disposable {
 				templateData.editor?.focus();
 			}
 
-			DOM.toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 		};
 		const updateForCollapseState = () => {
 			this.viewUpdate();
@@ -223,7 +223,7 @@ export class CodeCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					DOM.addClass(templateData.rootContainer, options.className);
+					templateData.rootContainer.classList.add(options.className);
 				}
 
 				if (options.outputClassName) {
@@ -233,7 +233,7 @@ export class CodeCell extends Disposable {
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					DOM.removeClass(templateData.rootContainer, options.className);
+					templateData.rootContainer.classList.remove(options.className);
 				}
 
 				if (options.outputClassName) {
@@ -245,7 +245,7 @@ export class CodeCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				DOM.addClass(templateData.rootContainer, options.className);
+				templateData.rootContainer.classList.add(options.className);
 			}
 
 			if (options.outputClassName) {
@@ -459,7 +459,7 @@ export class CodeCell extends Disposable {
 			if (transformedDisplayOutput.orderedMimeTypes!.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
-				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
+				mimeTypePicker.classList.add('codicon', 'codicon-code');
 				mimeTypePicker.tabIndex = 0;
 				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", transformedDisplayOutput.orderedMimeTypes!.map(mimeType => mimeType.mimeType).join(', '));
 				outputItemDiv.appendChild(mimeTypePicker);
@@ -520,8 +520,7 @@ export class CodeCell extends Disposable {
 			this.viewCell.selfSizeMonitoring = true;
 			this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index));
 		} else {
-			DOM.addClass(outputItemDiv, 'foreground');
-			DOM.addClass(outputItemDiv, 'output-element');
+			outputItemDiv.classList.add('foreground', 'output-element');
 			outputItemDiv.style.position = 'absolute';
 		}
 
