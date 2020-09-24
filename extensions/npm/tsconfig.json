@@ -1,8 +1,7 @@
 {
 	"extends": "../shared.tsconfig.json",
 	"compilerOptions": {
-		"outDir": "./out",
-		"esModuleInterop": true,
+		"outDir": "./out"
 	},
 	"include": [
 		"src/**/*"

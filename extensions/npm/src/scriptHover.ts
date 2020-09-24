@@ -97,14 +97,13 @@ export class NpmScriptHoverProvider implements HoverProvider {
 		return `${prefix}[${label}](command:${cmd}?${encodedArgs} "${tooltip}")`;
 	}
 
-	public runScriptFromHover(args: any) {
+	public async runScriptFromHover(args: any) {
 		let script = args.script;
 		let documentUri = args.documentUri;
 		let folder = workspace.getWorkspaceFolder(documentUri);
 		if (folder) {
-			createTask(script, `run ${script}`, folder, documentUri).then((task) => {
-				tasks.executeTask(task);
-			});
+			let task = await createTask(script, `run ${script}`, folder, documentUri);
+			tasks.executeTask(task);
 		}
 	}
 

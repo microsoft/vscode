@@ -22,7 +22,6 @@
     "find-yarn-workspace-root2": "^1.2.22",
     "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "path-exists": "^4.0.0",
     "request-light": "^0.4.0",
     "vscode-nls": "^4.1.1",
     "which-pm": "^2.0.0"

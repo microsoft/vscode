@@ -4,12 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { findWorkspaceRoot } from 'find-yarn-workspace-root2';
-import findUp from 'find-up';
-import path from 'path';
-import pathExists from 'path-exists';
-import whichPM from 'which-pm';
+import findUp = require('find-up');
+import * as path from 'path';
+import whichPM = require('which-pm');
+import { Uri, workspace } from 'vscode';
 
-const isPNPMPreferred = async (pkgPath: string) => {
+async function pathExists(filePath: string) {
+	try {
+		await workspace.fs.stat(Uri.file(filePath));
+	} catch {
+		return false;
+	}
+	return true;
+}
+
+async function isPNPMPreferred(pkgPath: string) {
 	if (await pathExists(path.join(pkgPath, 'pnpm-lock.yaml'))) {
 		return true;
 	}
@@ -21,9 +30,9 @@ const isPNPMPreferred = async (pkgPath: string) => {
 	}
 
 	return false;
-};
+}
 
-const isYarnPreferred = async (pkgPath: string) => {
+async function isYarnPreferred(pkgPath: string) {
 	if (await pathExists(path.join(pkgPath, 'yarn.lock'))) {
 		return true;
 	}
@@ -35,13 +44,13 @@ const isYarnPreferred = async (pkgPath: string) => {
 	} catch (err) { }
 
 	return false;
-};
+}
 
 const isNPMPreferred = (pkgPath: string) => {
 	return pathExists(path.join(pkgPath, 'package-lock.json'));
 };
 
-const findPreferredPM = async (pkgPath: string) => {
+export async function findPreferredPM(pkgPath: string): Promise<{ name: string, multiplePMDetected: boolean }> {
 	const detectedPackageManagers = [];
 
 	if (await isNPMPreferred(pkgPath)) {
@@ -68,6 +77,4 @@ const findPreferredPM = async (pkgPath: string) => {
 		name: detectedPackageManagers[0] || 'npm',
 		multiplePMDetected
 	};
-};
-
-export default findPreferredPM;
+}
