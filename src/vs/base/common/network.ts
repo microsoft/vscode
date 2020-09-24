@@ -80,7 +80,8 @@ export namespace Schemas {
 	export const extension = 'extension';
 
 	/**
-	 * Scheme used to load top level resources for the app
+	 * Scheme used as a replacement of `file` scheme to load
+	 * files with our custom protocol handler (desktop only).
 	 */
 	export const vscodeFileResource = 'vscode-file';
 }
