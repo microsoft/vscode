@@ -297,7 +297,7 @@ export class NativeWindow extends Disposable {
 		const panelAndEditorBothVisible = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.isVisible(Parts.EDITOR_PART);
 		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
 		if (panelOnSide && panelAndEditorBothVisible) {
-			return WindowMinimumSize.WIDTH_WITH_PANEL;
+			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
 		}
 		else {
 			return WindowMinimumSize.WIDTH;

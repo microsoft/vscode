@@ -15,7 +15,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const WindowMinimumSize = {
 	WIDTH: 400,
-	WIDTH_WITH_PANEL: 600,
+	WIDTH_WITH_VERTICAL_PANEL: 600,
 	HEIGHT: 270
 };
 
