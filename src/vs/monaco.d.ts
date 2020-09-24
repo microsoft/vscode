@@ -5413,31 +5413,6 @@ declare namespace monaco.languages {
 		provideHover(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<Hover>;
 	}
 
-	/**
-	 * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
-	 * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
-	 */
-	export interface EvaluatableExpression {
-		/**
-		 * The range to which this expression applies.
-		 */
-		range: IRange;
-		expression?: string;
-	}
-
-	/**
-	 * The hover provider interface defines the contract between extensions and
-	 * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
-	 */
-	export interface EvaluatableExpressionProvider {
-		/**
-		 * Provide a hover for the given position and document. Multiple hovers at the same
-		 * position will be merged by the editor. A hover can have a range which defaults
-		 * to the word range at the position when omitted.
-		 */
-		provideEvaluatableExpression(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<EvaluatableExpression>;
-	}
-
 	export enum CompletionItemKind {
 		Method = 0,
 		Function = 1,
