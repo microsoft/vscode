@@ -459,7 +459,7 @@ export class CodeCell extends Disposable {
 			if (transformedDisplayOutput.orderedMimeTypes!.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
-				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
+				mimeTypePicker.classList.add('codicon', 'codicon-code');
 				mimeTypePicker.tabIndex = 0;
 				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", transformedDisplayOutput.orderedMimeTypes!.map(mimeType => mimeType.mimeType).join(', '));
 				outputItemDiv.appendChild(mimeTypePicker);
