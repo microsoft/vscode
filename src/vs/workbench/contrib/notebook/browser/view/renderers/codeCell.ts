@@ -233,7 +233,7 @@ export class CodeCell extends Disposable {
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					DOM.removeClass(templateData.rootContainer, options.className);
+					templateData.rootContainer.classList.remove(options.className);
 				}
 
 				if (options.outputClassName) {

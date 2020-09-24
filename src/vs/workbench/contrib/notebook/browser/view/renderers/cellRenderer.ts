@@ -1083,9 +1083,9 @@ export class ListTopCellToolbar extends Disposable {
 
 	private updateClass() {
 		if (this.notebookEditor.viewModel?.length === 0) {
-			DOM.addClass(this.topCellToolbar, 'emptyNotebook');
+			this.topCellToolbar.classList.add('emptyNotebook');
 		} else {
-			DOM.removeClass(this.topCellToolbar, 'emptyNotebook');
+			this.topCellToolbar.classList.remove('emptyNotebook');
 		}
 	}
 

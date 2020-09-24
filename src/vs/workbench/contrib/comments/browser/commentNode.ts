@@ -521,7 +521,7 @@ export class CommentNode extends Disposable {
 		if (!this._clearTimeout) {
 			dom.addClass(this.domNode, 'focus');
 			this._clearTimeout = setTimeout(() => {
-				dom.removeClass(this.domNode, 'focus');
+				this.domNode.classList.remove('focus');
 			}, 3000);
 		}
 	}

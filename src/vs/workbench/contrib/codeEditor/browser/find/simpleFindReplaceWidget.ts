@@ -402,13 +402,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._domNode, 'visible-transition');
+			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._domNode, 'visible');
+				this._domNode.classList.remove('visible');
 			}, 200);
 		}
 	}
