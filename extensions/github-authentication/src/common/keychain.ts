@@ -75,7 +75,7 @@ export class Keychain {
 			const oldValue = await keytar.getPassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			if (oldValue) {
 				await this.setToken(oldValue);
-				await vscode.authentication.deletePassword(`${vscode.env.uriScheme}-github.login`);
+				await keytar.deletePassword(`${vscode.env.uriScheme}-github.login`, 'account');
 			}
 
 			return oldValue;

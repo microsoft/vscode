@@ -10,6 +10,10 @@ export const IEncryptionMainService = createDecorator<IEncryptionMainService>('e
 
 export interface IEncryptionMainService extends ICommonEncryptionService { }
 
+export interface Encryption {
+	encrypt(salt: string, value: string): Promise<string>;
+	decrypt(salt: string, value: string): Promise<string>;
+}
 export class EncryptionMainService implements ICommonEncryptionService {
 	declare readonly _serviceBrand: undefined;
 	constructor(
@@ -17,9 +21,13 @@ export class EncryptionMainService implements ICommonEncryptionService {
 
 	}
 
+	private encryption(): Promise<Encryption> {
+		return new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));
+	}
+
 	async encrypt(value: string): Promise<string> {
 		try {
-			const encryption = await require('vscode-encrypt');
+			const encryption = await this.encryption();
 			return encryption.encrypt(this.machineId, value);
 		} catch (e) {
 			console.log(e);
@@ -29,7 +37,7 @@ export class EncryptionMainService implements ICommonEncryptionService {
 
 	async decrypt(value: string): Promise<string> {
 		try {
-			const encryption = await require('vscode-encrypt');
+			const encryption = await this.encryption();
 			return encryption.decrypt(this.machineId, value);
 		} catch (e) {
 			console.log(e);
