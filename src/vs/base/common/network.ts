@@ -137,16 +137,44 @@ export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
 class LocalFileAccessImpl {
 
+	private readonly FALLBACK_AUTHORITY = 'vscode-app';
+
 	/**
-	 * Returns a `vscode-file` URI by from the provided URI.
+	 * Returns a `vscode-file` URI by from the provided `file` URI.
 	 */
 	rewrite(uri: URI, query?: string): URI {
+		if (uri.scheme !== Schemas.file) {
+			throw new Error(`Only ${Schemas.file}: URIs are supported.`);
+		}
+
 		return uri.with({
 			scheme: Schemas.vscodeFileResource,
 			// We need to provide an authority here so that it can serve
 			// as origin for network and loading matters in chromium.
-			authority: 'app',
-			query
+			// If the URI is not coming with an authority already, we
+			// add our own
+			authority: uri.authority || this.FALLBACK_AUTHORITY,
+			query,
+			fragment: null
+		});
+	}
+
+	/**
+	 * Returns the `file` URI from the proided `vscode-file` URI.
+	 */
+	restore(uri: URI, includeQuery: boolean): URI {
+		if (uri.scheme !== Schemas.vscodeFileResource) {
+			throw new Error(`Only ${Schemas.vscodeFileResource}: URIs are supported.`);
+		}
+
+		return uri.with({
+			scheme: Schemas.file,
+			// Only preserve the `authority` if it is different from
+			// our fallback authority. This ensures we properly preserve
+			// Windows UNC paths that come with their own authority.
+			authority: uri.authority !== this.FALLBACK_AUTHORITY ? uri.authority : null,
+			query: includeQuery ? uri.query : null,
+			fragment: null
 		});
 	}
 

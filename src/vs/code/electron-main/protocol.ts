@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { LocalFileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { session } from 'electron';
@@ -51,15 +51,19 @@ export class FileProtocolHandler extends Disposable {
 	}
 
 	private async handleResourceRequest(request: Electron.Request, validRoots: URI[], callback: ProtocolCallback) {
-		const uri = URI.parse(request.url).with({ scheme: Schemas.file, authority: null, query: null, fragment: null });
+		const uri = URI.parse(request.url);
 
-		if (validRoots.some(validRoot => extUriBiasedIgnorePathCase.isEqualOrParent(uri, validRoot))) {
+		// Restore the `vscode-file` URI to a `file` URI so that we can
+		// ensure the root is valid and properly tell Chrome where the
+		// resource is at.
+		const restoredUri = LocalFileAccess.restore(uri, false /* includeQuery */);
+		if (validRoots.some(validRoot => extUriBiasedIgnorePathCase.isEqualOrParent(restoredUri, validRoot))) {
 			return callback({
-				path: uri.fsPath
+				path: restoredUri.fsPath
 			});
 		}
 
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${uri.fsPath}}`);
+		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${restoredUri.fsPath}}`);
 		callback({ error: -3 /* ABORTED */ });
 	}
 }
