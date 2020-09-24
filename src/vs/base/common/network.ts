@@ -133,25 +133,24 @@ class RemoteAuthoritiesImpl {
 	}
 }
 
-const vscodeFileResourceAuthority = 'app';
+export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
 class LocalFileAccessImpl {
-	rewrite(uri: URI): URI {
+	rewrite(uri: URI, query?: string): URI {
 		return uri.with({
 			scheme: Schemas.vscodeFileResource,
-			authority: vscodeFileResourceAuthority
+			// We need to provide an authority here so that it can serve
+			// as origin for network and loading matters in chromium.
+			authority: 'app',
+			query
 		});
 	}
 }
 
-export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 export const LocalFileAccess = new LocalFileAccessImpl();
 
 export function toCodeFileUri(path: string, query?: string): URI {
 	const url = require.toUrl(path);
-	return URI.parse(url).with({
-		scheme: Schemas.vscodeFileResource,
-		authority: vscodeFileResourceAuthority,
-		query
-	});
+
+	return LocalFileAccess.rewrite(URI.parse(url), query);
 }
