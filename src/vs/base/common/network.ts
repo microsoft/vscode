@@ -5,6 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
+import { getUriFromAmdModule } from 'vs/base/common/amd';
 
 export namespace Schemas {
 
@@ -184,12 +185,7 @@ class LocalFileAccessImpl {
 	 * path on disk.
 	 */
 	fromModuleId(moduleId: string, query?: string): URI {
-
-		// Use `require` to get the absolute URL for the module identifier
-		const url = require.toUrl(moduleId);
-
-		// Rewrite the URL to allow for local access
-		return this.rewrite(URI.parse(url), query);
+		return this.rewrite(getUriFromAmdModule(require, moduleId), query);
 	}
 }
 
