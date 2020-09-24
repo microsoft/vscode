@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { BrowserWindow, ipcMain, WebContents, Event as ElectronEvent } from 'electron';
@@ -15,6 +14,7 @@ import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainServ
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { LocalFileAccess } from 'vs/base/common/network';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class SharedProcess implements ISharedProcess {
 
@@ -42,7 +42,7 @@ export class SharedProcess implements ISharedProcess {
 			show: false,
 			backgroundColor: this.themeMainService.getBackgroundColor(),
 			webPreferences: {
-				preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+				preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 				v8CacheOptions: this.environmentService.v8CacheOptions,
 				nodeIntegration: true,
 				enableWebSQL: false,

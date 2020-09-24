@@ -525,6 +525,10 @@ suite('ExtHostTypes', function () {
 		assert.equal(string.value, '${1|b,a,r|}');
 
 		string = new types.SnippetString();
+		string.appendChoice(['b,1', 'a,2', 'r,3']);
+		assert.equal(string.value, '${1|b\\,1,a\\,2,r\\,3|}');
+
+		string = new types.SnippetString();
 		string.appendChoice(['b', 'a', 'r'], 0);
 		assert.equal(string.value, '${0|b,a,r|}');
 

@@ -608,7 +608,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		};
 
 		// Prevent clicks from being handled by list
-		toDispose.add(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
+		toDispose.add(DOM.addDisposableListener(controlElement, DOM.EventType.MOUSE_DOWN, e => e.stopPropagation()));
 
 		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
 		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));

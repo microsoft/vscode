@@ -36,6 +36,7 @@ import { IStorageMainService } from 'vs/platform/storage/node/storageMainService
 import { IFileService } from 'vs/platform/files/common/files';
 import { LocalFileAccess } from 'vs/base/common/network';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -167,7 +168,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
+					preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 					v8CacheOptions: this.environmentService.v8CacheOptions,
 					enableWebSQL: false,
 					enableRemoteModule: false,
@@ -841,11 +842,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Main workbench file is being loaded via `vscode-file` protocol for security reasons
 		return LocalFileAccess.fromModuleId(workbench, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
-	}
-
-	private doGetPreloadUrl(): string {
-		// Preload file is loaded normally via `file` protocol and node.js in Electron
-		return require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js');
 	}
 
 	serializeWindowState(): IWindowState {
