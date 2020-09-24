@@ -50,6 +50,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class Item extends BreadcrumbsItem {
 
@@ -540,7 +541,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'breadcrumbs.toggle',
 		title: { value: localize('cmd.toggle', "Toggle Breadcrumbs"), original: 'Toggle Breadcrumbs' },
-		category: { value: localize('cmd.category', "View"), original: 'View' }
+		category: CATEGORIES.View
 	}
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {

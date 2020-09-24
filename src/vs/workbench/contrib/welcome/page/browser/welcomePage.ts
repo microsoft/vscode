@@ -6,7 +6,6 @@
 import 'vs/css!./welcomePage';
 import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
@@ -78,7 +77,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								.then(folder => {
 									const files = folder.children ? folder.children.map(child => child.name) : [];
 
-									const file = files.sort().find(file => strings.startsWith(file.toLowerCase(), 'readme'));
+									const file = files.sort().find(file => file.toLowerCase().startsWith('readme'));
 									if (file) {
 										return joinPath(folderUri, file);
 									}
@@ -88,7 +87,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							.then<any>(readmes => {
 								if (!editorService.activeEditor) {
 									if (readmes.length) {
-										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
 										return Promise.all([
 											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
 											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))

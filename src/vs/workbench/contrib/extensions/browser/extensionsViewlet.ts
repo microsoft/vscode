@@ -36,7 +36,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -59,8 +59,8 @@ import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 
-const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -280,7 +280,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'workbench.views.extensions.workspaceRecommendations',
 			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
 			ctorDescriptor: new SyncDescriptor(WorkspaceRecommendedExtensionsView),
-			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), WorkbenchStateContext.notEqualsTo('empty')),
 			order: 1
 		});
 
@@ -328,7 +328,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	private readonly _onSearchChange: Emitter<string> = this._register(new Emitter<string>());
 	private readonly onSearchChange: EventOf<string> = this._onSearchChange.event;
-	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private defaultViewsContextKey: IContextKey<boolean>;
 	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
 	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
@@ -369,7 +368,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.searchDelayer = new Delayer(500);
-		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.defaultViewsContextKey = DefaultViewsContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchIntalledExtensionsContext.bindTo(contextKeyService);
@@ -612,7 +610,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
-		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 		this.defaultViewsContextKey.set(!value);
 
 		return this.progress(Promise.all(this.panes.map(view =>

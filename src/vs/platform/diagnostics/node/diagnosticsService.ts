@@ -10,7 +10,6 @@ import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/common/product';
-import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
@@ -435,7 +434,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 	private expandGPUFeatures(gpuFeatures: any): string {
 		const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
 		// Make columns aligned by adding spaces after feature name
-		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${repeat(' ', longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
+		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 	}
 
 	private formatWorkspaceMetadata(info: IMainProcessInfo): Promise<string> {
@@ -500,14 +499,15 @@ export class DiagnosticsService implements IDiagnosticsService {
 		if (isRoot) {
 			name = item.pid === mainPid ? `${product.applicationName} main` : 'remote agent';
 		} else {
-			name = `${repeat('  ', indent)} ${item.name}`;
+			name = `${'  '.repeat(indent)} ${item.name}`;
 
 			if (item.name === 'window') {
 				name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 			}
 		}
+
 		const memory = process.platform === 'win32' ? item.mem : (osLib.totalmem() * (item.mem / 100));
-		output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
+		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(memory / MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {

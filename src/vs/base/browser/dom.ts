@@ -695,13 +695,13 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (hasClass(node, clazz)) {
+		if (node.classList.contains(clazz)) {
 			return node;
 		}
 
 		if (stopAtClazzOrNode) {
 			if (typeof stopAtClazzOrNode === 'string') {
-				if (hasClass(node, stopAtClazzOrNode)) {
+				if (node.classList.contains(stopAtClazzOrNode)) {
 					return null;
 				}
 			} else {

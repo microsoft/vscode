@@ -1142,7 +1142,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private showsFileTypes(): boolean {
-		return dom.hasClass(this.queryDetails, 'more');
+		return this.queryDetails.classList.contains('more');
 	}
 
 	toggleCaseSensitive(): void {
@@ -1193,13 +1193,13 @@ export class SearchView extends ViewPane {
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		const cls = 'more';
-		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
+		show = typeof show === 'undefined' ? !this.queryDetails.classList.contains(cls) : Boolean(show);
 		this.viewletState['query.queryDetailsExpanded'] = show;
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
-			dom.addClass(this.queryDetails, cls);
+			this.queryDetails.classList.add(cls);
 			if (moveFocus) {
 				if (reverse) {
 					this.inputPatternExcludes.focus();
@@ -1211,7 +1211,7 @@ export class SearchView extends ViewPane {
 			}
 		} else {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
-			dom.removeClass(this.queryDetails, cls);
+			this.queryDetails.classList.remove(cls);
 			if (moveFocus) {
 				this.searchWidget.focus();
 			}

@@ -41,6 +41,7 @@ import 'vs/workbench/services/accessibility/electron-sandbox/accessibilityServic
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
+import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';

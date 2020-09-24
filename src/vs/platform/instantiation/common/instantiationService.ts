@@ -183,9 +183,15 @@ export class InstantiationService implements IInstantiationService {
 			}
 
 			for (const { data } of roots) {
-				// create instance and overwrite the service collections
-				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
-				this._setServiceInstance(data.id, instance);
+				// Repeat the check for this still being a service sync descriptor. That's because
+				// instantiating a dependency might have side-effect and recursively trigger instantiation
+				// so that some dependencies are now fullfilled already.
+				const instanceOrDesc = this._getServiceInstanceOrDescriptor(data.id);
+				if (instanceOrDesc instanceof SyncDescriptor) {
+					// create instance and overwrite the service collections
+					const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
+					this._setServiceInstance(data.id, instance);
+				}
 				graph.removeNode(data);
 			}
 		}

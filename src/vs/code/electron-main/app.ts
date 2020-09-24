@@ -693,8 +693,8 @@ export class CodeApplication extends Disposable {
 			});
 		}
 
-		// new window if "-n" or "--remote" was used without paths
-		if ((args['new-window'] || args.remote) && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
+		// new window if "-n"
+		if (args['new-window'] && !hasCliArgs && !hasFolderURIs && !hasFileURIs) {
 			return windowsMainService.open({
 				context,
 				cli: args,
