@@ -52,6 +52,7 @@ import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/d
 import { ILogService } from 'vs/platform/log/common/log';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1780,7 +1781,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${require.toUrl(letterpress)}')
+			background-image: url('${getPathFromAmdModule(require, letterpress)}')
 		}
 	`);
 
