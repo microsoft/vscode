@@ -1,5 +1,3 @@
 azure-pipelines/**/*.js
-builtin/**/*.js
 darwin/**/*.js
 lib/**/*.js
-monaco/**/*.js
