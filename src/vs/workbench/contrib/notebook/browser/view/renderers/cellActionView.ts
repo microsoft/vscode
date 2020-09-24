@@ -23,7 +23,7 @@ export class VerticalSeparator extends Action {
 
 export class VerticalSeparatorViewItem extends BaseActionViewItem {
 	render(container: HTMLElement) {
-		DOM.addClass(container, 'verticalSeparator');
+		container.classList.add('verticalSeparator');
 		// const iconContainer = DOM.append(container, $('.verticalSeparator'));
 		// DOM.addClasses(iconContainer, 'codicon', 'codicon-chrome-minimize');
 	}

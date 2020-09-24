@@ -223,7 +223,7 @@ export class CodeCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					DOM.addClass(templateData.rootContainer, options.className);
+					templateData.rootContainer.classList.add(options.className);
 				}
 
 				if (options.outputClassName) {
@@ -245,7 +245,7 @@ export class CodeCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				DOM.addClass(templateData.rootContainer, options.className);
+				templateData.rootContainer.classList.add(options.className);
 			}
 
 			if (options.outputClassName) {
@@ -520,8 +520,7 @@ export class CodeCell extends Disposable {
 			this.viewCell.selfSizeMonitoring = true;
 			this.notebookEditor.createInset(this.viewCell, result as any, this.viewCell.getOutputOffset(index));
 		} else {
-			DOM.addClass(outputItemDiv, 'foreground');
-			DOM.addClass(outputItemDiv, 'output-element');
+			outputItemDiv.classList.add('foreground', 'output-element');
 			outputItemDiv.style.position = 'absolute';
 		}
 

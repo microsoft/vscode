@@ -553,7 +553,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					this._commentForm.classList.remove('expand');
 					this._commentEditor.getDomNode()!.style.outline = '';
 					this._error.textContent = '';
-					dom.addClass(this._error, 'hidden');
+					this._error.classList.add('hidden');
 				}
 			}
 		}));
@@ -708,7 +708,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentForm.classList.remove('expand');
 		this._commentEditor.getDomNode()!.style.outline = '';
 		this._error.textContent = '';
-		dom.addClass(this._error, 'hidden');
+		this._error.classList.add('hidden');
 	}
 
 	private createReplyButton() {

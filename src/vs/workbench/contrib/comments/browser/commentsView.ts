@@ -60,7 +60,7 @@ export class CommentsPanel extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'comments-panel');
+		container.classList.add('comments-panel');
 
 		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));

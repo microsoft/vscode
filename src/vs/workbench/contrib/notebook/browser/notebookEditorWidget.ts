@@ -428,18 +428,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private _createBody(parent: HTMLElement): void {
 		this._body = document.createElement('div');
-		DOM.addClass(this._body, 'cell-list-container');
+		this._body.classList.add('cell-list-container');
 		this._createCellList();
 		DOM.append(parent, this._body);
 
 		this._overflowContainer = document.createElement('div');
-		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
-		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
 	}
 
 	private _createCellList(): void {
-		DOM.addClass(this._body, 'cell-list-container');
+		this._body.classList.add('cell-list-container');
 
 		this._dndController = this._register(new CellDragAndDropController(this, this._body));
 		const getScopedContextKeyService = (container?: HTMLElement) => this._list!.contextKeyService.createScoped(container);

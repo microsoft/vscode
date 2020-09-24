@@ -81,8 +81,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-text-diff-editor'));
 		this._overflowContainer = document.createElement('div');
-		DOM.addClass(this._overflowContainer, 'notebook-overflow-widget-container');
-		DOM.addClass(this._overflowContainer, 'monaco-editor');
+		this._overflowContainer.classList.add('notebook-overflow-widget-container', 'monaco-editor');
 		DOM.append(parent, this._overflowContainer);
 
 		const renderer = this.instantiationService.createInstance(CellDiffRenderer, this);
