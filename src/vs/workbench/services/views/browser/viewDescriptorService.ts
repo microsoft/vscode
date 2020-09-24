@@ -166,7 +166,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			// This is needed when statically-registered views are moved to
 			// other statically registered containers as they will both try to add on startup
 			const viewsToAdd = containerData.views.filter(view => this.getViewContainerModel(viewContainer).allViewDescriptors.filter(vd => vd.id === view.id).length === 0);
-			this.addViews(viewContainer, viewsToAdd, ViewVisibilityState.Default);
+			this.addViews(viewContainer, viewsToAdd);
 		}
 	}
 
@@ -197,7 +197,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			const viewContainer = this.viewsRegistry.getViewContainer(viewId);
 			const viewDescriptor = this.getViewDescriptorById(viewId);
 			if (viewContainer && viewDescriptor) {
-				this.addViews(viewContainer, [viewDescriptor], ViewVisibilityState.Default);
+				this.addViews(viewContainer, [viewDescriptor]);
 			}
 		}
 	}
@@ -697,7 +697,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			// Add views that were registered prior to this view container
 			const viewsToRegister = this.getViewsByContainer(viewContainer).filter(view => this.getDefaultContainerById(view.id) !== viewContainer);
 			if (viewsToRegister.length) {
-				this.addViews(viewContainer, viewsToRegister, ViewVisibilityState.Default);
+				this.addViews(viewContainer, viewsToRegister);
 				this.contextKeyService.bufferChangeEvents(() => {
 					viewsToRegister.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
 				});
