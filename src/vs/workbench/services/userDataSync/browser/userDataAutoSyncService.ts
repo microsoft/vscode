@@ -9,7 +9,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 
 export class WebUserDataAutoSyncService extends UserDataAutoSyncService implements IUserDataAutoSyncService {
 
-	private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService = <IWorkbenchEnvironmentService>this.environmentService;
+	private get workbenchEnvironmentService(): IWorkbenchEnvironmentService { return <IWorkbenchEnvironmentService>this.environmentService; }
 	private enabled: boolean | undefined = undefined;
 
 	isEnabled(): boolean {

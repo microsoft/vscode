@@ -203,6 +203,7 @@
 	pointer-events: none;
 	z-index: 10;
 	position: absolute;
+	top: 1px; /* Leave room for the settings list focus outline above */
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {
@@ -283,8 +284,8 @@
 	max-width: 1000px;
 	margin: auto;
 	box-sizing: border-box;
-	padding-left: 204px;
-	padding-right: 5px;
+	padding-left: 211px;
+	padding-right: 24px;
 	overflow: visible;
 }
 
@@ -310,7 +311,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents {
 	position: relative;
-	padding: 12px 15px 18px;
+	padding: 12px 14px 18px;
 	white-space: normal;
 }
 
@@ -334,7 +335,7 @@
 	border-left-style: solid;
 	left: 5px;
 	top: 15px;
-	bottom: 16px;
+	bottom: 18px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-contents.is-configured .setting-item-modified-indicator,

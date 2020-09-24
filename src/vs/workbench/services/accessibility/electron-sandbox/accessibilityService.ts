@@ -29,6 +29,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 	declare readonly _serviceBrand: undefined;
 
 	private didSendTelemetry = false;
+	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
 
 	constructor(
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
@@ -46,8 +47,12 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 			return false;
 		}
 
-		const value = await this.nativeHostService.windowsGetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
-		return value === '1';
+		if (typeof this.shouldAlwaysUnderlineAccessKeys !== 'boolean') {
+			const windowsKeyboardAccessibility = await this.nativeHostService.windowsGetStringRegKey('HKEY_CURRENT_USER', 'Control Panel\\Accessibility\\Keyboard Preference', 'On');
+			this.shouldAlwaysUnderlineAccessKeys = (windowsKeyboardAccessibility === '1');
+		}
+
+		return this.shouldAlwaysUnderlineAccessKeys;
 	}
 
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void {

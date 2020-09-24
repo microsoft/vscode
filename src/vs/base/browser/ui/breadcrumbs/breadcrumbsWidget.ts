@@ -336,7 +336,7 @@ export class BreadcrumbsWidget {
 		item.render(container);
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
-		dom.addClasses(container, 'monaco-breadcrumb-item');
+		container.classList.add('monaco-breadcrumb-item');
 		const iconContainer = dom.$(breadcrumbSeparatorIcon.cssSelector);
 		container.appendChild(iconContainer);
 	}

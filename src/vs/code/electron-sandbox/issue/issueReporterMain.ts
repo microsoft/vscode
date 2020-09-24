@@ -9,7 +9,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
-import { $, reset, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
+import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import * as collections from 'vs/base/common/collections';
@@ -56,7 +56,7 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 
 export function startup(configuration: IssueReporterConfiguration) {
 	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
-	addClass(document.body, platformClass); // used by our fonts
+	document.body.classList.add(platformClass); // used by our fonts
 
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);

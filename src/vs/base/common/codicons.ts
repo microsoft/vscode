@@ -480,6 +480,8 @@ export namespace Codicon {
 	export const exportIcon = new Codicon('export', { character: '\\ebac' });
 	export const graphLeft = new Codicon('graph-left', { character: '\\ebad' });
 	export const magnet = new Codicon('magnet', { character: '\\ebae' });
+	export const notebook = new Codicon('notebook', { character: '\\ebaf' });
+	export const redo = new Codicon('redo', { character: '\\ebb0' });
 }
 
 

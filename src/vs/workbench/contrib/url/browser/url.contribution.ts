@@ -17,6 +17,7 @@ import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/bro
 import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
 import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class OpenUrlAction extends Action2 {
 
@@ -24,7 +25,7 @@ class OpenUrlAction extends Action2 {
 		super({
 			id: 'workbench.action.url.openUrl',
 			title: { value: localize('openUrl', "Open URL"), original: 'Open URL' },
-			category: { value: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
