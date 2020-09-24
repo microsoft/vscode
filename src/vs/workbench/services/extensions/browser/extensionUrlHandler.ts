@@ -22,9 +22,10 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -380,7 +381,10 @@ class ManageAuthorizedExtensionURIsAction extends Action2 {
 			id: 'workbench.extensions.action.manageAuthorizedExtensionURIs',
 			title: { value: localize('manage', "Manage Authorized Extension URIs..."), original: 'Manage Authorized Extension URIs...' },
 			category: { value: localize('extensions', "Extensions"), original: 'Extensions' },
-			f1: true
+			menu: {
+				id: MenuId.CommandPalette,
+				when: IsWebContext.toNegated()
+			}
 		});
 	}
 
