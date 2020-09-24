@@ -94,7 +94,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 
 			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
-			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
+			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
 				this.activeActions = actions;
