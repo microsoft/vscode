@@ -782,7 +782,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = SnippetString._escape(values.toString());
+		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
