@@ -136,6 +136,10 @@ class RemoteAuthoritiesImpl {
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
 class LocalFileAccessImpl {
+
+	/**
+	 * Returns a `vscode-file` URI by from the provided URI.
+	 */
 	rewrite(uri: URI, query?: string): URI {
 		return uri.with({
 			scheme: Schemas.vscodeFileResource,
@@ -145,12 +149,19 @@ class LocalFileAccessImpl {
 			query
 		});
 	}
+
+	/**
+	 * Returns a `vscode-file` URI by resolving the `moduleId` to an absolute
+	 * path on disk.
+	 */
+	fromModuleId(moduleId: string, query?: string): URI {
+
+		// Use `require` to get the absolute URL for the module identifier
+		const url = require.toUrl(moduleId);
+
+		// Rewrite the URL to allow for local access
+		return this.rewrite(URI.parse(url), query);
+	}
 }
 
 export const LocalFileAccess = new LocalFileAccessImpl();
-
-export function toCodeFileUri(path: string, query?: string): URI {
-	const url = require.toUrl(path);
-
-	return LocalFileAccess.rewrite(URI.parse(url), query);
-}

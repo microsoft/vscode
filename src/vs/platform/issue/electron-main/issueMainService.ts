@@ -21,7 +21,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { toCodeFileUri } from 'vs/base/common/network';
+import { LocalFileAccess } from 'vs/base/common/network';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -452,5 +452,5 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		}
 	}
 
-	return toCodeFileUri(pathToHtml, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
+	return LocalFileAccess.fromModuleId(pathToHtml, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
 }
