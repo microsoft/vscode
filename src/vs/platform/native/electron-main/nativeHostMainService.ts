@@ -610,6 +610,42 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 	}
 
+	//#endregion
+
+	//#region Credentials
+
+	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		return keytar.getPassword(service, account);
+	}
+
+	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
+		const keytar = await import('keytar');
+
+		return keytar.setPassword(service, account, password);
+	}
+
+	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
+		const keytar = await import('keytar');
+
+		return keytar.deletePassword(service, account);
+	}
+
+	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		return keytar.findPassword(service);
+	}
+
+	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
+		const keytar = await import('keytar');
+
+		return keytar.findCredentials(service);
+	}
+
+	//#endregion
+
 	private windowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
 			return undefined;
