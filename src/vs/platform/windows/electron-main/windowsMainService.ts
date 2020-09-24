@@ -972,7 +972,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 						if (pathToOpen?.folderUri) {
 							windowsToOpen.push(pathToOpen);
 						}
-					} else if (restoreWindows !== 'folders' && openedWindow.backupPath && !openedWindow.remoteAuthority) { // Local windows that were empty. Empty windows with backups will always be restored in open()
+					} else if (restoreWindows !== 'folders' && openedWindow.backupPath) { // Empty window, potentially editors open to be restored
 						windowsToOpen.push({ backupPath: openedWindow.backupPath, remoteAuthority: openedWindow.remoteAuthority });
 					}
 				}
