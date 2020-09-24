@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 
@@ -195,7 +195,7 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
-							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,
@@ -261,7 +261,7 @@ export class IssueMainService implements ICommonIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
-							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,

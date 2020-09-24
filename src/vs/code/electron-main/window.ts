@@ -35,6 +35,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -166,7 +167,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
+					preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					spellcheck: false,
@@ -836,10 +837,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return `${require.toUrl(workbench)}?config=${encodeURIComponent(JSON.stringify(config))}`;
-	}
-
-	private doGetPreloadUrl(): string {
-		return require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js');
 	}
 
 	serializeWindowState(): IWindowState {
