@@ -13,6 +13,10 @@
 
 'use strict';
 
+import * as eslint from 'eslint';
+import { TSESTree } from '@typescript-eslint/experimental-utils';
+import * as ESTree from 'estree';
+
 //------------------------------------------------------------------------------
 // Rule Definition
 //------------------------------------------------------------------------------
@@ -50,29 +54,29 @@ module.exports = {
 		]
 	},
 
-	create(context) {
+	create(context: eslint.Rule.RuleContext) {
 		const config = context.options[0] || {},
 			allowShortCircuit = config.allowShortCircuit || false,
 			allowTernary = config.allowTernary || false,
 			allowTaggedTemplates = config.allowTaggedTemplates || false;
 
 		// eslint-disable-next-line jsdoc/require-description
-        /**
-         * @param {ASTNode} node any node
-         * @returns {boolean} whether the given node structurally represents a directive
-         */
-		function looksLikeDirective(node) {
+		/**
+		 * @param node any node
+		 * @returns whether the given node structurally represents a directive
+		 */
+		function looksLikeDirective(node: TSESTree.Node): boolean {
 			return node.type === 'ExpressionStatement' &&
 				node.expression.type === 'Literal' && typeof node.expression.value === 'string';
 		}
 
 		// eslint-disable-next-line jsdoc/require-description
-        /**
-         * @param {Function} predicate ([a] -> Boolean) the function used to make the determination
-         * @param {a[]} list the input list
-         * @returns {a[]} the leading sequence of members in the given list that pass the given predicate
-         */
-		function takeWhile(predicate, list) {
+		/**
+		 * @param predicate ([a] -> Boolean) the function used to make the determination
+		 * @param list the input list
+		 * @returns the leading sequence of members in the given list that pass the given predicate
+		 */
+		function takeWhile<T>(predicate: (item: T) => boolean, list: T[]): T[] {
 			for (let i = 0; i < list.length; ++i) {
 				if (!predicate(list[i])) {
 					return list.slice(0, i);
@@ -82,21 +86,21 @@ module.exports = {
 		}
 
 		// eslint-disable-next-line jsdoc/require-description
-        /**
-         * @param {ASTNode} node a Program or BlockStatement node
-         * @returns {ASTNode[]} the leading sequence of directive nodes in the given node's body
-         */
-		function directives(node) {
+		/**
+		 * @param node a Program or BlockStatement node
+		 * @returns the leading sequence of directive nodes in the given node's body
+		 */
+		function directives(node: TSESTree.Program | TSESTree.BlockStatement): TSESTree.Node[] {
 			return takeWhile(looksLikeDirective, node.body);
 		}
 
 		// eslint-disable-next-line jsdoc/require-description
-        /**
-         * @param {ASTNode} node any node
-         * @param {ASTNode[]} ancestors the given node's ancestors
-         * @returns {boolean} whether the given node is considered a directive in its current position
-         */
-		function isDirective(node, ancestors) {
+		/**
+		 * @param node any node
+		 * @param ancestors the given node's ancestors
+		 * @returns whether the given node is considered a directive in its current position
+		 */
+		function isDirective(node: TSESTree.Node, ancestors: TSESTree.Node[]): boolean {
 			const parent = ancestors[ancestors.length - 1],
 				grandparent = ancestors[ancestors.length - 2];
 
@@ -105,12 +109,12 @@ module.exports = {
 				directives(parent).indexOf(node) >= 0;
 		}
 
-        /**
-         * Determines whether or not a given node is a valid expression. Recurses on short circuit eval and ternary nodes if enabled by flags.
-         * @param {ASTNode} node any node
-         * @returns {boolean} whether the given node is a valid expression
-         */
-		function isValidExpression(node) {
+		/**
+		 * Determines whether or not a given node is a valid expression. Recurses on short circuit eval and ternary nodes if enabled by flags.
+		 * @param node any node
+		 * @returns whether the given node is a valid expression
+		 */
+		function isValidExpression(node: TSESTree.Node): boolean {
 			if (allowTernary) {
 
 				// Recursive check for ternary and logical expressions
@@ -134,9 +138,9 @@ module.exports = {
 		}
 
 		return {
-			ExpressionStatement(node) {
-				if (!isValidExpression(node.expression) && !isDirective(node, context.getAncestors())) {
-					context.report({ node, message: 'Expected an assignment or function call and instead saw an expression.' });
+			ExpressionStatement(node: TSESTree.ExpressionStatement) {
+				if (!isValidExpression(node.expression) && !isDirective(node, <TSESTree.Node[]>context.getAncestors())) {
+					context.report({ node: <ESTree.Node>node, message: 'Expected an assignment or function call and instead saw an expression.' });
 				}
 			}
 		};
