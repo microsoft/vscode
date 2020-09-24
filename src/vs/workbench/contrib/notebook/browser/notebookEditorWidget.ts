@@ -815,7 +815,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				|| kernelsFromSameExtension.find(kernel => kernel.id === cachedKernelId)
 				|| kernelsFromSameExtension[0];
 			this.activeKernel = preferedKernel;
-			await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			if (this.activeKernel) {
+				await this._loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+			}
 
 			if (tokenSource.token.isCancellationRequested) {
 				return;
