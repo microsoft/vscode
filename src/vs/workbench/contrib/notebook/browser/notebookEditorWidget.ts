@@ -861,8 +861,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const notebookMetadata = this.viewModel!.metadata;
 		this._editorEditable?.set(!!notebookMetadata?.editable);
 		this._editorRunnable?.set(!!notebookMetadata?.runnable);
-		DOM.toggleClass(this._overlayContainer, 'notebook-editor-editable', !!notebookMetadata?.editable);
-		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!notebookMetadata?.editable);
+		this._overflowContainer.classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
+		this.getDomNode().classList.toggle('notebook-editor-editable', !!notebookMetadata?.editable);
 
 		this._notebookExecuting?.set(notebookMetadata.runState === NotebookRunState.Running);
 	}

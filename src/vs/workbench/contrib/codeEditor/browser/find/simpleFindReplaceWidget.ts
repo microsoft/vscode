@@ -314,7 +314,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 	}
 

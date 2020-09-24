@@ -84,7 +84,7 @@ export class CodeCell extends Disposable {
 				templateData.editor?.focus();
 			}
 
-			DOM.toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+			templateData.container.classList.toggle('cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 		};
 		const updateForCollapseState = () => {
 			this.viewUpdate();
