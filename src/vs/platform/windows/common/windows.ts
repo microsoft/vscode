@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMacintosh, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, isWeb, IProcessEnvironment } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { ExportData } from 'vs/base/common/performance';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IBaseOpenWindowsOptions {
 	forceReuseWindow?: boolean;
@@ -129,7 +133,7 @@ export function getTitleBarStyle(configurationService: IConfigurationService, en
 
 		const useSimpleFullScreen = isMacintosh && configuration.nativeFullScreen === false;
 		if (useSimpleFullScreen) {
-			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/Microsoft/vscode/issues/63291)
+			return 'native'; // simple fullscreen does not work well with custom title style (https://github.com/microsoft/vscode/issues/63291)
 		}
 
 		const style = configuration.titleBarStyle;
@@ -186,20 +190,20 @@ export interface IOpenFileRequest {
 }
 
 /**
- * Additional context for the request on desktop only.
+ * Additional context for the request on native only.
  */
-export interface IDesktopOpenFileRequest extends IOpenFileRequest {
+export interface INativeOpenFileRequest extends IOpenFileRequest {
 	termProgram?: string;
 	filesToWait?: IPathsToWaitForData;
 }
 
-export interface IDesktopRunActionInWindowRequest {
+export interface INativeRunActionInWindowRequest {
 	id: string;
 	from: 'menu' | 'touchbar' | 'mouse';
 	args?: any[];
 }
 
-export interface IDesktopRunKeybindingInWindowRequest {
+export interface INativeRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
 }
 
@@ -208,11 +212,39 @@ export interface IWindowConfiguration {
 
 	remoteAuthority?: string;
 
-	highContrast?: boolean;
+	colorScheme: ColorScheme;
 	autoDetectHighContrast?: boolean;
 
 	filesToOpenOrCreate?: IPath[];
 	filesToDiff?: IPath[];
+}
+
+export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs {
+	mainPid: number;
+
+	windowId: number;
+	machineId: string;
+
+	appRoot: string;
+	execPath: string;
+	backupPath?: string;
+
+	nodeCachedDataDir?: string;
+	partsSplashPath: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	isInitialStartup?: boolean;
+	logLevel: LogLevel;
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	maximized?: boolean;
+	accessibilitySupport?: boolean;
+	perfEntries: ExportData;
+
+	userEnv: IProcessEnvironment;
+	filesToWait?: IPathsToWaitFor;
 }
 
 /**

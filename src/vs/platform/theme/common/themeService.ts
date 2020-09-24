@@ -10,6 +10,7 @@ import * as platform from 'vs/platform/registry/common/platform';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export const IThemeService = createDecorator<IThemeService>('themeService');
 
@@ -24,10 +25,11 @@ export function themeColorFromId(id: ColorIdentifier) {
 // theme icon
 export interface ThemeIcon {
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 }
 
 export namespace ThemeIcon {
-	export function isThemeIcon(obj: any): obj is ThemeIcon {
+	export function isThemeIcon(obj: any): obj is ThemeIcon | { id: string } {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string';
 	}
 
@@ -65,16 +67,10 @@ export namespace ThemeIcon {
 export const FileThemeIcon = { id: 'file' };
 export const FolderThemeIcon = { id: 'folder' };
 
-// base themes
-export const DARK: ThemeType = 'dark';
-export const LIGHT: ThemeType = 'light';
-export const HIGH_CONTRAST: ThemeType = 'hc';
-export type ThemeType = 'light' | 'dark' | 'hc';
-
-export function getThemeTypeSelector(type: ThemeType): string {
+export function getThemeTypeSelector(type: ColorScheme): string {
 	switch (type) {
-		case DARK: return 'vs-dark';
-		case HIGH_CONTRAST: return 'hc-black';
+		case ColorScheme.DARK: return 'vs-dark';
+		case ColorScheme.HIGH_CONTRAST: return 'hc-black';
 		default: return 'vs';
 	}
 }
@@ -88,7 +84,7 @@ export interface ITokenStyle {
 
 export interface IColorTheme {
 
-	readonly type: ThemeType;
+	readonly type: ColorScheme;
 
 	readonly label: string;
 

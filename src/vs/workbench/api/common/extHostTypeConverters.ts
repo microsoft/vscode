@@ -32,6 +32,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface PositionLike {
 	line: number;
@@ -537,10 +538,11 @@ export namespace WorkspaceEdit {
 				} else if (entry._type === types.FileEditType.Cell) {
 					result.edits.push(<extHostProtocol.IWorkspaceCellEditDto>{
 						_type: extHostProtocol.WorkspaceEditType.Cell,
+						metadata: entry.metadata,
 						resource: entry.uri,
 						edit: entry.edit,
-						metadata: entry.metadata,
-						modelVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
+						notebookMetadata: entry.notebookMetadata,
+						notebookVersionId: notebooks?.lookupNotebookDocument(entry.uri)?.notebookDocument.version
 					});
 				}
 			}
@@ -1290,5 +1292,88 @@ export namespace LogLevel {
 			default:
 				return types.LogLevel.Info;
 		}
+	}
+}
+
+export namespace NotebookExclusiveDocumentPattern {
+	export function from(pattern: { include: vscode.GlobPattern | undefined, exclude: vscode.GlobPattern | undefined }): { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined };
+	export function from(pattern: vscode.GlobPattern): string | types.RelativePattern;
+	export function from(pattern: undefined): undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined;
+	export function from(pattern: { include: vscode.GlobPattern | undefined | null, exclude: vscode.GlobPattern | undefined } | vscode.GlobPattern | undefined): string | types.RelativePattern | { include: string | types.RelativePattern | undefined, exclude: string | types.RelativePattern | undefined } | undefined {
+		if (pattern === null || pattern === undefined) {
+			return undefined;
+		}
+
+		if (pattern instanceof types.RelativePattern) {
+			return pattern;
+		}
+
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+
+		if (isRelativePattern(pattern)) {
+			return new types.RelativePattern(pattern.base, pattern.pattern);
+		}
+
+		if (isExclusivePattern(pattern)) {
+			return {
+				include: GlobPattern.from(pattern.include) || undefined,
+				exclude: GlobPattern.from(pattern.exclude) || undefined
+			};
+		}
+
+		return undefined; // preserve `undefined`
+
+	}
+
+	export function to(pattern: string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern }): { include: vscode.GlobPattern, exclude: vscode.GlobPattern } | vscode.GlobPattern {
+		if (typeof pattern === 'string') {
+			return pattern;
+		}
+
+		if (isRelativePattern(pattern)) {
+			return {
+				base: pattern.base,
+				pattern: pattern.pattern
+			};
+		}
+
+		return {
+			include: pattern.include,
+			exclude: pattern.exclude
+		};
+	}
+
+	function isExclusivePattern(obj: any): obj is { include: types.RelativePattern | undefined | null, exclude: types.RelativePattern | undefined | null } {
+		const ep = obj as { include: vscode.GlobPattern, exclude: vscode.GlobPattern };
+		const include = GlobPattern.from(ep.include);
+		if (!(include && include instanceof types.RelativePattern || typeof include === 'string')) {
+			return false;
+		}
+
+		const exclude = GlobPattern.from(ep.exclude);
+		if (!(exclude && exclude instanceof types.RelativePattern || typeof exclude === 'string')) {
+			return false;
+		}
+
+		return true;
+	}
+
+	function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+		const rp = obj as vscode.RelativePattern;
+		return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	}
+}
+
+export namespace NotebookDecorationRenderOptions {
+	export function from(options: vscode.NotebookDecorationRenderOptions): INotebookDecorationRenderOptions {
+		return {
+			backgroundColor: <string | types.ThemeColor>options.backgroundColor,
+			borderColor: <string | types.ThemeColor>options.borderColor,
+			top: options.top ? ThemableDecorationAttachmentRenderOptions.from(options.top) : undefined
+		};
 	}
 }

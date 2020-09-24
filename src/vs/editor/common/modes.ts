@@ -358,7 +358,7 @@ export const completionKindToCssClass = (function () {
 	data[CompletionItemKind.User] = 'account';
 	data[CompletionItemKind.Issue] = 'issues';
 
-	return function (kind: CompletionItemKind) {
+	return function (kind: CompletionItemKind): string {
 		const name = data[kind];
 		let codicon = name && iconRegistry.get(name);
 		if (!codicon) {
@@ -653,6 +653,11 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
+
+	/**
+	 * Given a code action fill in the edit. Will only invoked when missing.
+	 */
+	resolveCodeAction?(codeAction: CodeAction, token: CancellationToken): ProviderResult<CodeAction>;
 
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.

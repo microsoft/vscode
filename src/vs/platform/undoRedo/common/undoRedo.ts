@@ -60,6 +60,27 @@ export class ResourceEditStackSnapshot {
 	) { }
 }
 
+export class UndoRedoGroup {
+	private static _ID = 0;
+
+	public readonly id: number;
+	private order: number;
+
+	constructor() {
+		this.id = UndoRedoGroup._ID++;
+		this.order = 1;
+	}
+
+	public nextOrder(): number {
+		if (this.id === 0) {
+			return 0;
+		}
+		return this.order++;
+	}
+
+	public static None = new UndoRedoGroup();
+}
+
 export interface IUndoRedoService {
 	readonly _serviceBrand: undefined;
 
@@ -79,7 +100,7 @@ export interface IUndoRedoService {
 	 * Add a new element to the `undo` stack.
 	 * This will destroy the `redo` stack.
 	 */
-	pushElement(element: IUndoRedoElement): void;
+	pushElement(element: IUndoRedoElement, group?: UndoRedoGroup): void;
 
 	/**
 	 * Get the last pushed element for a resource.

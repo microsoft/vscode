@@ -18,7 +18,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -147,11 +147,22 @@ interface IWindowIndicator {
 	command?: string;
 }
 
+enum ColorScheme {
+	DARK = 'dark',
+	LIGHT = 'light',
+	HIGH_CONTRAST = 'hc'
+}
+
+
 interface IInitialColorTheme {
-	themeType: 'light' | 'dark' | 'hc';
 
 	/**
-	 * a list of workbench colors
+	 * Initial color theme type.
+	 */
+	themeType: ColorScheme;
+
+	/**
+	 * A list of workbench colors to apply initially.
 	 */
 	colors?: { [colorId: string]: string };
 }
@@ -224,6 +235,21 @@ interface IProductQualityChangeHandler {
 	(newQuality: 'insider' | 'stable'): void;
 }
 
+/**
+ * Settings sync options
+ */
+interface ISettingsSyncOptions {
+	/**
+	 * Is settings sync enabled
+	 */
+	readonly enabled: boolean;
+
+	/**
+	 * Handler is being called when the user changes Settings Sync enablement.
+	 */
+	enablementHandler?(enablement: boolean): void;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -241,6 +267,8 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Session id of the current authenticated user
+	 *
+	 * @deprecated Instead pass current authenticated user info through [credentialsProvider](#credentialsProvider)
 	 */
 	readonly authenticationSessionId?: string;
 
@@ -293,9 +321,18 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 * Enables Settings Sync by default.
+	 *
+	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
+	 *
+	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
 	 */
 	readonly enableSyncByDefault?: boolean;
+
+	/**
+	 * Settings sync options
+	 */
+	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -306,12 +343,6 @@ interface IWorkbenchConstructionOptions {
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
 	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
-
-	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Service end-point hosting builtin extensions
-	 */
-	readonly builtinExtensionsServiceUrl?: string;
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -554,6 +585,7 @@ export {
 	IHomeIndicator,
 	IProductConfiguration,
 	IWindowIndicator,
+	IInitialColorTheme,
 
 	// Default layout
 	IDefaultView,

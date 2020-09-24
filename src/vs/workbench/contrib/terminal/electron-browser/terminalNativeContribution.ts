@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IDesktopOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { getWindowsBuildNumber, linuxDistro } from 'vs/workbench/contrib/terminal/node/terminal';
@@ -13,7 +13,7 @@ import { execFile } from 'child_process';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-browser/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -26,12 +26,12 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
-		@IElectronService readonly electronService: IElectronService
+		@INativeHostService readonly nativeHostService: INativeHostService
 	) {
 		super();
 
-		ipcRenderer.on('vscode:openFiles', (_: unknown, request: IDesktopOpenFileRequest) => this._onOpenFileRequest(request));
-		this._register(electronService.onOSResume(() => this._onOsResume()));
+		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
+		this._register(nativeHostService.onOSResume(() => this._onOsResume()));
 
 		this._terminalService.setLinuxDistro(linuxDistro);
 		this._terminalService.setNativeWindowsDelegate({
@@ -46,14 +46,10 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
-		const activeTab = this._terminalService.getActiveTab();
-		if (!activeTab) {
-			return;
-		}
-		activeTab.terminalInstances.forEach(instance => instance.forceRedraw());
+		this._terminalService.terminalInstances.forEach(instance => instance.forceRedraw());
 	}
 
-	private async _onOpenFileRequest(request: IDesktopOpenFileRequest): Promise<void> {
+	private async _onOpenFileRequest(request: INativeOpenFileRequest): Promise<void> {
 		// if the request to open files is coming in from the integrated terminal (identified though
 		// the termProgram variable) and we are instructed to wait for editors close, wait for the
 		// marker file to get deleted and then focus back to the integrated terminal.

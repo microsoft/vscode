@@ -11,9 +11,9 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IGalleryExtension, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -74,12 +74,12 @@ export class Main {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) { }
 
-	async run(argv: ParsedArgs): Promise<void> {
+	async run(argv: NativeParsedArgs): Promise<void> {
 		if (argv['install-source']) {
 			await this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
@@ -295,11 +295,11 @@ export class Main {
 
 const eventPrefix = 'monacoworkbench';
 
-export async function main(argv: ParsedArgs): Promise<void> {
+export async function main(argv: NativeParsedArgs): Promise<void> {
 	const services = new ServiceCollection();
 	const disposables = new DisposableStore();
 
-	const environmentService = new EnvironmentService(argv, process.execPath);
+	const environmentService = new NativeEnvironmentService(argv);
 	const logService: ILogService = new SpdLogService('cli', environmentService.logsPath, getLogLevel(environmentService));
 	process.once('exit', () => logService.dispose());
 	logService.info('main', argv);
@@ -321,6 +321,8 @@ export async function main(argv: ParsedArgs): Promise<void> {
 	await configurationService.initialize();
 
 	services.set(IEnvironmentService, environmentService);
+	services.set(INativeEnvironmentService, environmentService);
+
 	services.set(ILogService, logService);
 	services.set(IConfigurationService, configurationService);
 	services.set(IStateService, new SyncDescriptor(StateService));

@@ -6,7 +6,6 @@
 import 'vs/css!./welcomePage';
 import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
@@ -76,9 +75,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							const folderUri = folder.uri;
 							return fileService.resolve(folderUri)
 								.then(folder => {
-									const files = folder.children ? folder.children.map(child => child.name) : [];
+									const files = folder.children ? folder.children.map(child => child.name).sort() : [];
 
-									const file = arrays.find(files.sort(), file => strings.startsWith(file.toLowerCase(), 'readme'));
+									const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+
 									if (file) {
 										return joinPath(folderUri, file);
 									}
@@ -88,7 +88,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							.then<any>(readmes => {
 								if (!editorService.activeEditor) {
 									if (readmes.length) {
-										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
 										return Promise.all([
 											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
 											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
@@ -328,7 +328,7 @@ class WelcomePage extends Disposable {
 
 		const prodName = container.querySelector('.welcomePage .title .caption') as HTMLElement;
 		if (prodName) {
-			prodName.innerHTML = this.productService.nameLong;
+			prodName.textContent = this.productService.nameLong;
 		}
 
 		recentlyOpened.then(({ workspaces }) => {
@@ -462,7 +462,7 @@ class WelcomePage extends Disposable {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = arrays.first(extensions, extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
+			const installedExtension = extensions.find(extension => areSameExtensions(extension.identifier, { id: extensionSuggestion.id }));
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {

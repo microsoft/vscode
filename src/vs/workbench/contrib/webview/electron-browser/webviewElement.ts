@@ -14,7 +14,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -26,8 +25,8 @@ import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webvie
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { rewriteVsCodeResourceUrls, WebviewResourceRequestManager } from './resourceLoading';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { WebviewResourceRequestManager, rewriteVsCodeResourceUrls } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
 
 class WebviewKeyboardHandler {
 
@@ -121,13 +120,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@ILogService private readonly _myLogService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService noficationService: INotificationService,
 	) {
-		super(id, options, contentOptions, extension, _webviewThemeDataProvider, noficationService, _myLogService, telemetryService, environmentService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, noficationService, _myLogService, telemetryService, environmentService);
 
 		/* __GDPR__
 			"webview.createWebview" : {
@@ -209,7 +207,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 
 		this.element!.preload = require.toUrl('./pre/electron-index.js');
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
 	}
 
 	protected createElement(options: WebviewOptions) {

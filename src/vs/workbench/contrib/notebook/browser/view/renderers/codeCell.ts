@@ -223,7 +223,7 @@ export class CodeCell extends Disposable {
 		this._register(viewCell.onCellDecorationsChanged((e) => {
 			e.added.forEach(options => {
 				if (options.className) {
-					DOM.addClass(templateData.container, options.className);
+					DOM.addClass(templateData.rootContainer, options.className);
 				}
 
 				if (options.outputClassName) {
@@ -233,7 +233,7 @@ export class CodeCell extends Disposable {
 
 			e.removed.forEach(options => {
 				if (options.className) {
-					DOM.removeClass(templateData.container, options.className);
+					DOM.removeClass(templateData.rootContainer, options.className);
 				}
 
 				if (options.outputClassName) {
@@ -245,7 +245,7 @@ export class CodeCell extends Disposable {
 
 		viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
-				DOM.addClass(templateData.container, options.className);
+				DOM.addClass(templateData.rootContainer, options.className);
 			}
 
 			if (options.outputClassName) {

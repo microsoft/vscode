@@ -798,7 +798,7 @@ export class DebugService implements IDebugService {
 					const lineNumber = stackFrame.range.startLineNumber;
 					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
 						const lineContent = control.getModel().getLineContent(lineNumber);
-						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
+						aria.alert(nls.localize('debuggingPaused', "{1}:{2}, debugging paused {0}, {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
 					}
 				}
 			}
@@ -860,10 +860,11 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): Promise<IBreakpoint[]> {
+	async addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce = true): Promise<IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
-		breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
-		breakpoints.forEach(bp => this.telemetry.logDebugAddBreakpoint(bp, context));
+		if (ariaAnnounce) {
+			breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
+		}
 
 		// In some cases we need to store breakpoints before we send them because sending them can take a long time
 		// And after sending them because the debug adapter can attach adapter data to a breakpoint

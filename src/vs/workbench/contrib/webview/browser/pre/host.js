@@ -111,6 +111,7 @@
 		onMessage: hostMessaging.onMessage.bind(hostMessaging),
 		ready: workerReady,
 		fakeLoad: !onElectron,
+		onElectron: onElectron,
 		rewriteCSP: onElectron
 			? (csp) => {
 				return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');

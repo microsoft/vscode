@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
+import { createChannelSender, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { WatcherChannelClient } from 'vs/platform/files/node/watcher/unix/watcherIpc';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IWatcherRequest, IWatcherOptions, IWatcherService } from 'vs/platform/files/node/watcher/unix/watcher';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class FileWatcher extends Disposable {
+
 	private static readonly MAX_RESTARTS = 5;
 
 	private isDisposed: boolean;
 	private restartCounter: number;
-	private service: WatcherChannelClient | undefined;
+	private service: IWatcherService | undefined;
 
 	constructor(
 		private folders: IWatcherRequest[],
@@ -62,14 +62,11 @@ export class FileWatcher extends Disposable {
 		}));
 
 		// Initialize watcher
-		const channel = getNextTickChannel(client.getChannel('watcher'));
-		this.service = new WatcherChannelClient(channel);
+		this.service = createChannelSender<IWatcherService>(getNextTickChannel(client.getChannel('watcher')));
+		this.service.init({ ...this.watcherOptions, verboseLogging: this.verboseLogging });
 
-		this.service.setVerboseLogging(this.verboseLogging);
-
-		this._register(this.service.watch(this.watcherOptions)(e => !this.isDisposed && this.onDidFilesChange(e)));
-
-		this._register(this.service.onLogMessage(m => this.onLogMessage(m)));
+		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
+		this._register(this.service.onDidLogMessage(m => this.onLogMessage(m)));
 
 		// Start watching
 		this.service.setRoots(this.folders);

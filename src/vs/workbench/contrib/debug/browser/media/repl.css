@@ -88,7 +88,7 @@
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
 
-.monaco-action-bar .action-item.panel-action-tree-filter-container {
+.monaco-action-bar .action-item.repl-panel-filter-container {
 	cursor: default;
 	display: flex;
 }
@@ -114,13 +114,26 @@
 	height: 25px;
 }
 
-.panel > .title .monaco-action-bar .action-item.panel-action-tree-filter-container {
-	max-width: 400px;
+.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container {
 	min-width: 300px;
 	margin-right: 10px;
 }
 
-.monaco-action-bar .action-item.panel-action-tree-filter-container,
-.panel > .title .monaco-action-bar .action-item.panel-action-tree-filter-container.grow {
-	flex: 1;
+.repl-panel-filter-container .repl-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge {
+	margin: 4px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge.hidden {
+	display: none;
 }

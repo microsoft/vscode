@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ExtensionRecommendationSource, ExtensionRecommendationReason, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ImportantExtensionTip, IProductService } from 'vs/platform/product/common/productService';
 import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { ITextModel } from 'vs/editor/common/model';
@@ -24,9 +22,7 @@ import { MIME_UNKNOWN, guessMimeTypes } from 'vs/base/common/mime';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { setImmediate } from 'vs/base/common/platform';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 type FileExtensionSuggestionClassification = {
@@ -87,22 +83,18 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 	}
 
 	constructor(
-		isExtensionAllowedToBeRecommended: (extensionId: string) => boolean,
-		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		promptedExtensionRecommendations: PromptedExtensionRecommendations,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewletService private readonly viewletService: IViewletService,
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService,
 		@IProductService productService: IProductService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotificationService notificationService: INotificationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IStorageService storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
-		super(isExtensionAllowedToBeRecommended, instantiationService, configurationService, notificationService, telemetryService, storageService, extensionsWorkbenchService, extensionManagementService, storageKeysSyncRegistryService);
+		super(promptedExtensionRecommendations);
 
 		if (productService.extensionTips) {
 			forEach(productService.extensionTips, ({ key, value }) => this.extensionTips.set(key.toLowerCase(), value));
@@ -217,7 +209,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 		this.storeCachedRecommendations();
 
-		if (this.hasToIgnoreRecommendationNotifications()) {
+		if (this.promptedExtensionRecommendations.hasToIgnoreRecommendationNotifications()) {
 			return;
 		}
 
@@ -242,7 +234,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	private async promptRecommendedExtensionForFileType(name: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
 
-		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
+		recommendations = this.promptedExtensionRecommendations.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
 			return false;
 		}
@@ -258,7 +250,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`);
+		this.promptedExtensionRecommendations.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`);
 		return true;
 	}
 

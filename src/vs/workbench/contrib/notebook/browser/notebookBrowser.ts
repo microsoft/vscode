@@ -22,7 +22,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { RunStateRenderer, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor, INotebookKernelInfo2, IInsetRenderOutput, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, IEditor, INotebookKernelInfo2, IInsetRenderOutput, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -50,6 +50,7 @@ export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', 
 export const NOTEBOOK_CELL_TYPE = new RawContextKey<string>('notebookCellType', undefined); // code, markdown
 export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false); // bool
 export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false); // bool
+export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false); // bool
 export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRunnable', false); // bool
 export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
 export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
@@ -167,6 +168,7 @@ export interface INotebookCellDecorationOptions {
 	className?: string;
 	gutterClassName?: string;
 	outputClassName?: string;
+	topClassName?: string;
 }
 
 export interface INotebookDeltaDecoration {
@@ -218,7 +220,7 @@ export interface INotebookEditor extends IEditor {
 	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
 	readonly onDidFocusEditorWidget: Event<void>;
 	readonly isNotebookEditor: boolean;
-	activeKernel: INotebookKernelInfo | INotebookKernelInfo2 | undefined;
+	activeKernel: INotebookKernelInfo2 | undefined;
 	multipleKernelsAvailable: boolean;
 	readonly onDidChangeAvailableKernels: Event<void>;
 	readonly onDidChangeKernel: Event<void>;
@@ -232,6 +234,7 @@ export interface INotebookEditor extends IEditor {
 	getDomNode(): HTMLElement;
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
+	getSelectionHandles(): number[];
 
 	/**
 	 * Focus the notebook editor cell list
@@ -436,6 +439,9 @@ export interface INotebookEditor extends IEditor {
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
+	setEditorDecorations(key: string, range: ICellRange): void;
+	removeEditorDecorations(key: string): void;
+
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
@@ -506,13 +512,14 @@ export interface INotebookCellList {
 	layout(height?: number, width?: number): void;
 	dispose(): void;
 
-	// TODO resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
+	// TODO@roblourens resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
 	getFocus(): number[];
 	setFocus(indexes: number[]): void;
 	setSelection(indexes: number[]): void;
 }
 
 export interface BaseCellRenderTemplate {
+	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
 	collapsedPart: HTMLElement;
 	expandButton: HTMLElement;
@@ -697,7 +704,7 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 }
 
 export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
-	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
+	// TODO@rebornix can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
 	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
 	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }

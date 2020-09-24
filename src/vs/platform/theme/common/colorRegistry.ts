@@ -443,6 +443,18 @@ export const problemsErrorIconForeground = registerColor('problemsErrorIcon.fore
 export const problemsWarningIconForeground = registerColor('problemsWarningIcon.foreground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('problemsWarningIconForeground', "The color used for the problems warning icon."));
 export const problemsInfoIconForeground = registerColor('problemsInfoIcon.foreground', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('problemsInfoIconForeground', "The color used for the problems info icon."));
 
+/**
+ * Chart colors
+ */
+export const chartsForeground = registerColor('charts.foreground', { dark: foreground, light: foreground, hc: foreground }, nls.localize('chartsForeground', "The foreground color used in charts."));
+export const chartsLines = registerColor('charts.lines', { dark: transparent(foreground, .5), light: transparent(foreground, .5), hc: transparent(foreground, .5) }, nls.localize('chartsLines', "The color used for horizontal lines in charts."));
+export const chartsRed = registerColor('charts.red', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('chartsRed', "The red color used charts."));
+export const chartsBlue = registerColor('charts.blue', { dark: editorInfoForeground, light: editorInfoForeground, hc: editorInfoForeground }, nls.localize('chartsBlue', "The blue color used charts."));
+export const chartsYellow = registerColor('charts.yellow', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('chartsYellow', "The yellow color used charts."));
+export const chartsOrange = registerColor('charts.orange', { dark: minimapFindMatch, light: minimapFindMatch, hc: minimapFindMatch }, nls.localize('chartsOrange', "The orange color used charts."));
+export const chartsGreen = registerColor('charts.green', { dark: '#89D185', light: '#388A34', hc: '#89D185' }, nls.localize('chartsGreen', "The green color used charts."));
+export const chartsPurple = registerColor('charts.purple', { dark: '#B180D7', light: '#652D90', hc: '#B180D7' }, nls.localize('chartsPurple', "The purple color used charts."));
+
 // ----- color functions
 
 export function darken(colorValue: ColorValue, factor: number): ColorFunction {

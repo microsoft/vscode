@@ -5,7 +5,6 @@
 
 import 'vs/css!./media/explorerviewlet';
 import { localize } from 'vs/nls';
-import * as DOM from 'vs/base/browser/dom';
 import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -189,7 +188,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
 	create(parent: HTMLElement): void {
 		super.create(parent);
-		DOM.addClass(parent, 'explorer-viewlet');
+		parent.classList.add('explorer-viewlet');
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {

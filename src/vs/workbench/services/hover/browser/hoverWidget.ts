@@ -17,6 +17,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const $ = dom.$;
 
@@ -29,7 +30,7 @@ export class HoverWidget extends Widget {
 	private readonly _linkHandler: (url: string) => any;
 
 	private _isDisposed: boolean = false;
-	private _anchor: AnchorPosition = AnchorPosition.ABOVE;
+	private _anchor: AnchorPosition;
 	private _x: number = 0;
 	private _y: number = 0;
 
@@ -59,11 +60,12 @@ export class HoverWidget extends Widget {
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
 		this._hover = this._register(new BaseHoverWidget());
-
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
+
+		this._anchor = options.anchorPosition ?? AnchorPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -78,7 +80,8 @@ export class HoverWidget extends Widget {
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
-		const markdownElement = renderMarkdown(options.text, {
+		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text) : options.text;
+		const markdownElement = renderMarkdown(markdown, {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
@@ -118,7 +121,20 @@ export class HoverWidget extends Widget {
 		}
 
 		const mouseTrackerTargets = [...this._target.targetElements];
-		if (!options.hideOnHover || (options.actions && options.actions.length > 0)) {
+		let hideOnHover: boolean;
+		if (options.hideOnHover === undefined) {
+			if (options.actions && options.actions.length > 0) {
+				// If there are actions, require hover so they can be accessed
+				hideOnHover = false;
+			} else {
+				// Defaults to true when string, false when markdown as it may contain links
+				hideOnHover = typeof options.text === 'string';
+			}
+		} else {
+			// It's set explicitly
+			hideOnHover = options.hideOnHover;
+		}
+		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hover.containerDomNode);
 		}
 		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
@@ -143,19 +159,33 @@ export class HoverWidget extends Widget {
 		// Get horizontal alignment and position
 		let targetLeft = this._target.x !== undefined ? this._target.x : Math.min(...targetBounds.map(e => e.left));
 		if (targetLeft + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-			this._x = document.documentElement.clientWidth - (this._workbenchLayoutService.hasWindowBorder() ? 3 : 1);
+			this._x = document.documentElement.clientWidth - this._workbenchLayoutService.getWindowBorderWidth() - 1;
 			this._hover.containerDomNode.classList.add('right-aligned');
 		} else {
 			this._x = targetLeft;
 		}
 
 		// Get vertical alignment and position
-		const targetTop = Math.min(...targetBounds.map(e => e.top));
-		if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
-			this._anchor = AnchorPosition.BELOW;
-			this._y = Math.max(...targetBounds.map(e => e.bottom)) - 2;
+		if (this._anchor === AnchorPosition.ABOVE) {
+			const targetTop = Math.min(...targetBounds.map(e => e.top));
+			if (targetTop - this._hover.containerDomNode.clientHeight < 0) {
+				const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
+				this._anchor = AnchorPosition.BELOW;
+				this._y = targetBottom - 2;
+			} else {
+				this._y = targetTop;
+			}
 		} else {
-			this._y = targetTop;
+			console.log('below');
+			const targetBottom = Math.max(...targetBounds.map(e => e.bottom));
+			if (targetBottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
+				console.log(targetBottom, this._hover.containerDomNode.clientHeight, window.innerHeight);
+				const targetTop = Math.min(...targetBounds.map(e => e.top));
+				this._anchor = AnchorPosition.ABOVE;
+				this._y = targetTop;
+			} else {
+				this._y = targetBottom - 2;
+			}
 		}
 
 		this._hover.onContentsChanged();

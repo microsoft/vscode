@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IProcessedOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEventDto, NotebookDataDto, IMainCellDto, INotebookDocumentFilter, INotebookKernelInfoDto2, TransientMetadata, INotebookCellStatusBarEntry, ICellRange, INotebookDecorationRenderOptions, INotebookExclusiveDocumentFilter } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -263,6 +263,10 @@ export interface ITextDocumentShowOptions {
 	selection?: IRange;
 }
 
+export interface MainThreadBulkEditsShape extends IDisposable {
+	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto): Promise<boolean>;
+}
+
 export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
@@ -275,7 +279,6 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): Promise<void>;
 	$trySetSelections(id: string, selections: ISelection[]): Promise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
-	$tryApplyWorkspaceEdit(workspaceEditDto: IWorkspaceEditDto): Promise<boolean>;
 	$tryInsertSnippet(id: string, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<editorCommon.ILineChange[]>;
 }
@@ -285,7 +288,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem; }): Promise<void>;
 	$reveal(treeViewId: string, treeItem: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void>;
 	$setMessage(treeViewId: string, message: string): void;
-	$setTitle(treeViewId: string, title: string): void;
+	$setTitle(treeViewId: string, title: string, description: string | undefined): void;
 }
 
 export interface MainThreadDownloadServiceShape extends IDisposable {
@@ -377,7 +380,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], stopPattern: IRegExpDto | undefined): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void;
+	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerOnTypeFormattingSupport(handle: number, selector: IDocumentFilterDto[], autoFormatTriggerCharacters: string[], extensionId: ExtensionIdentifier): void;
@@ -640,6 +643,9 @@ export interface MainThreadWebviewViewsShape extends IDisposable {
 	$unregisterWebviewViewProvider(viewType: string): void;
 
 	$setWebviewViewTitle(handle: WebviewHandle, value: string | undefined): void;
+	$setWebviewViewDescription(handle: WebviewHandle, value: string | undefined): void;
+
+	$show(handle: WebviewHandle, preserveFocus: boolean): void;
 }
 
 export interface WebviewPanelViewStateData {
@@ -680,7 +686,7 @@ export interface ExtHostCustomEditorsShape {
 }
 
 export interface ExtHostWebviewViewsShape {
-	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, state: any, cancellation: CancellationToken): Promise<void>;
+	$resolveWebviewView(webviewHandle: WebviewHandle, viewType: string, title: string | undefined, state: any, cancellation: CancellationToken): Promise<void>;
 
 	$onDidChangeWebviewViewVisibility(webviewHandle: WebviewHandle, visible: boolean): void;
 
@@ -729,23 +735,26 @@ export enum NotebookEditorRevealType {
 export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarEntry>;
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: { transientOutputs: boolean; transientMetadata: TransientMetadata }): Promise<void>;
-	$onNotebookChange(viewType: string, resource: UriComponents): Promise<void>;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, supportBackup: boolean, options: {
+		transientOutputs: boolean;
+		transientMetadata: TransientMetadata;
+		viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
+	}): Promise<void>;
+	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientMetadata: TransientMetadata; }): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
-	$registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void>;
 	$registerNotebookKernelProvider(extension: NotebookExtensionDescription, handle: number, documentFilter: INotebookDocumentFilter): Promise<void>;
 	$unregisterNotebookKernelProvider(handle: number): Promise<void>;
-	$onNotebookKernelChange(handle: number): void;
-	$unregisterNotebookKernel(id: string): Promise<void>;
+	$onNotebookKernelChange(handle: number, uri: UriComponents | undefined): void;
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
-	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
-	$updateNotebookCellMetadata(viewType: string, resource: UriComponents, handle: number, metadata: NotebookCellMetadata | undefined): Promise<void>;
 	$spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[]): Promise<void>;
 	$postMessage(editorId: string, forRendererId: string | undefined, value: any): Promise<boolean>;
 	$setStatusBarEntry(id: number, statusBarEntry: INotebookCellStatusBarEntryDto): Promise<void>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
+	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	$removeNotebookEditorDecorationType(key: string): void;
+	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
+	$onUndoableContentChange(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
 	$onContentChange(resource: UriComponents, viewType: string): void;
 }
 
@@ -778,7 +787,7 @@ export interface IFileChangeDto {
 }
 
 export interface MainThreadFileSystemShape extends IDisposable {
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): void;
+	$registerFileSystemProvider(handle: number, scheme: string, capabilities: files.FileSystemProviderCapabilities): Promise<void>;
 	$unregisterProvider(handle: number): void;
 	$onFileSystemChange(handle: number, resource: IFileChangeDto[]): void;
 
@@ -1034,6 +1043,10 @@ export interface ExtHostWorkspaceShape {
 	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
 }
 
+export interface ExtHostFileSystemInfoShape {
+	$acceptProviderInfos(scheme: string, capabilities: number | null): void;
+}
+
 export interface ExtHostFileSystemShape {
 	$stat(handle: number, resource: UriComponents): Promise<files.IStat>;
 	$readdir(handle: number, resource: UriComponents): Promise<[string, files.FileType][]>;
@@ -1274,7 +1287,7 @@ export interface IWorkspaceCellEditDto {
 	_type: WorkspaceEditType.Cell;
 	resource: UriComponents;
 	edit: ICellEditOperation;
-	modelVersionId?: number;
+	notebookVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }
 
@@ -1305,6 +1318,7 @@ export function reviveWorkspaceEditDto(data: IWorkspaceEditDto | undefined): mod
 export type ICommandDto = ObjectIdentifier & modes.Command;
 
 export interface ICodeActionDto {
+	cacheId?: ChainedCacheId;
 	title: string;
 	edit?: IWorkspaceEditDto;
 	diagnostics?: IMarkerData[];
@@ -1315,7 +1329,7 @@ export interface ICodeActionDto {
 }
 
 export interface ICodeActionListDto {
-	cacheId: number;
+	cacheId: CacheId;
 	actions: ReadonlyArray<ICodeActionDto>;
 }
 
@@ -1383,6 +1397,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: IRegExpDto; } | undefined>;
 	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext, token: CancellationToken): Promise<ILocationDto[] | undefined>;
 	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext, token: CancellationToken): Promise<ICodeActionListDto | undefined>;
+	$resolveCodeAction(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<IWorkspaceEditDto | undefined>;
 	$releaseCodeActions(handle: number, cacheId: number): void;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions, token: CancellationToken): Promise<ISingleEditOperation[] | undefined>;
@@ -1641,21 +1656,21 @@ export interface INotebookVisibleRangesEvent {
 
 export interface INotebookEditorPropertiesChangeData {
 	visibleRanges: INotebookVisibleRangesEvent | null;
+	selections: INotebookSelectionChangeEvent | null;
 }
 
 export interface INotebookDocumentPropertiesChangeData {
 	metadata: NotebookDocumentMetadata | null;
-	selections: INotebookSelectionChangeEvent | null;
 }
 
 export interface INotebookModelAddedData {
 	uri: UriComponents;
-	handle: number;
 	versionId: number;
 	cells: IMainCellDto[],
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
 	attachedEditor?: { id: string; selections: number[]; visibleRanges: ICellRange[] }
+	contentOptions: { transientOutputs: boolean; transientMetadata: TransientMetadata; }
 }
 
 export interface INotebookEditorAddData {
@@ -1675,7 +1690,7 @@ export interface INotebookDocumentsAndEditorsDelta {
 }
 
 export interface ExtHostNotebookShape {
-	$resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto | undefined>;
+	$resolveNotebookData(viewType: string, uri: UriComponents, backupId?: string): Promise<NotebookDataDto>;
 	$resolveNotebookEditor(viewType: string, uri: UriComponents, editorId: string): Promise<void>;
 	$provideNotebookKernels(handle: number, uri: UriComponents, token: CancellationToken): Promise<INotebookKernelInfoDto2[]>;
 	$resolveNotebookKernel(handle: number, editorId: string, uri: UriComponents, kernelId: string, token: CancellationToken): Promise<void>;
@@ -1688,7 +1703,7 @@ export interface ExtHostNotebookShape {
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$acceptNotebookActiveKernelChange(event: { uri: UriComponents, providerHandle: number | undefined, kernelId: string | undefined }): void;
 	$onDidReceiveMessage(editorId: string, rendererId: string | undefined, message: unknown): void;
-	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent, isDirty: boolean): void;
+	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
@@ -1725,6 +1740,7 @@ export interface ExtHostTimelineShape {
 
 export const MainContext = {
 	MainThreadAuthentication: createMainId<MainThreadAuthenticationShape>('MainThreadAuthentication'),
+	MainThreadBulkEdits: createMainId<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadClipboard: createMainId<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
@@ -1785,6 +1801,7 @@ export const ExtHostContext = {
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
+	ExtHostFileSystemInfo: createExtId<ExtHostFileSystemInfoShape>('ExtHostFileSystemInfo'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),

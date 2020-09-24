@@ -13,7 +13,7 @@ import { IAction, IRunEvent, WorkbenchActionExecutedEvent, WorkbenchActionExecut
 import * as arrays from 'vs/base/common/arrays';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { getCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, createAndFillInContextMenuActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ExecuteCommandAction, IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
@@ -31,8 +31,8 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceData
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, EditorPinnedContext, EditorStickyContext } from 'vs/workbench/common/editor';
+import { IEditorGroupsAccessor, IEditorGroupTitleDimensions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -86,8 +86,8 @@ export abstract class TitleControl extends Themable {
 		super(themeService);
 
 		this.resourceContext = this._register(instantiationService.createInstance(ResourceContextKey));
-		this.editorPinnedContext = EditorPinnedContext.bindTo(contextKeyService);
-		this.editorStickyContext = EditorStickyContext.bindTo(contextKeyService);
+		this.editorPinnedContext = ActiveEditorPinnedContext.bindTo(contextKeyService);
+		this.editorStickyContext = ActiveEditorStickyContext.bindTo(contextKeyService);
 
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
@@ -137,7 +137,7 @@ export abstract class TitleControl extends Themable {
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
-			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
+			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
 			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT
@@ -193,7 +193,7 @@ export abstract class TitleControl extends Themable {
 			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
 			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
 			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
-			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
+			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/microsoft/vscode/issues/16298
 		) {
 			const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
 			editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions);
@@ -237,8 +237,7 @@ export abstract class TitleControl extends Themable {
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.group.activeEditorPane;
 		if (activeEditorPane instanceof EditorPane) {
-			const codeEditor = getCodeEditor(activeEditorPane.getControl());
-			const scopedContextKeyService = codeEditor?.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
+			const scopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.editorToolBarMenuDisposables.add(titleBarMenu);
 			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
@@ -410,7 +409,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract layout(dimension: Dimension): void;
 
-	abstract getPreferredHeight(): number;
+	abstract getDimensions(): IEditorGroupTitleDimensions;
 
 	dispose(): void {
 		dispose(this.breadcrumbsControl);

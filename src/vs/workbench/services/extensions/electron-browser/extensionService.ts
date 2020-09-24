@@ -31,8 +31,7 @@ import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteA
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
@@ -42,6 +41,7 @@ import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkGlob
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { exists } from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class DeltaExtensionsQueueItem {
 	constructor(
@@ -61,7 +61,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService protected readonly _environmentService: INativeWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
@@ -72,7 +72,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
@@ -133,7 +133,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// extension host more (LifecyclePhase.Restored) because
 		// some editors require the extension host to restore
 		// and this would result in a deadlock
-		// see https://github.com/Microsoft/vscode/issues/41322
+		// see https://github.com/microsoft/vscode/issues/41322
 		this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
 			runWhenIdle(() => {
@@ -460,13 +460,29 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._notificationService.prompt(Severity.Error, nls.localize('extensionService.crash', "Extension host terminated unexpectedly."),
 				[{
 					label: nls.localize('devTools', "Open Developer Tools"),
-					run: () => this._electronService.openDevTools()
+					run: () => this._nativeHostService.openDevTools()
 				},
 				{
 					label: nls.localize('restart', "Restart Extension Host"),
 					run: () => this.startExtensionHost()
 				}]
 			);
+
+			type ExtensionHostCrashClassification = {
+				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				extensionIds: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			};
+			type ExtensionHostCrashEvent = {
+				code: number;
+				signal: string | null;
+				extensionIds: string[];
+			};
+			this._telemetryService.publicLog2<ExtensionHostCrashEvent, ExtensionHostCrashClassification>('extensionHostCrash', {
+				code,
+				signal,
+				extensionIds: activatedExtensions.map(e => e.value)
+			});
 		}
 	}
 
@@ -613,10 +629,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	public _onExtensionHostExit(code: number): void {
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
-			this._electronService.exit(code);
+			this._nativeHostService.exit(code);
 		} else {
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
-			this._electronService.closeWindow();
+			this._nativeHostService.closeWindow();
 		}
 	}
 
@@ -747,7 +763,7 @@ class RestartExtensionHostAction extends Action2 {
 		super({
 			id: 'workbench.action.restartExtensionHost',
 			title: { value: nls.localize('restartExtensionHost', "Restart Extension Host"), original: 'Restart Extension Host' },
-			category: { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}

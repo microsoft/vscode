@@ -6,8 +6,7 @@
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
-import { isEditStackPastFutureElements } from 'vs/editor/common/services/modelServiceImpl';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IUndoRedoDelegate, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 
 export class ModelUndoRedoParticipant extends Disposable implements IUndoRedoDelegate {
@@ -23,16 +22,13 @@ export class ModelUndoRedoParticipant extends Disposable implements IUndoRedoDel
 			if (elements.past.length === 0 && elements.future.length === 0) {
 				return;
 			}
-			if (!isEditStackPastFutureElements(elements)) {
-				return;
-			}
 			for (const element of elements.past) {
-				if (element.type === UndoRedoElementType.Workspace) {
+				if (element instanceof MultiModelEditStackElement) {
 					element.setDelegate(this);
 				}
 			}
 			for (const element of elements.future) {
-				if (element.type === UndoRedoElementType.Workspace) {
+				if (element instanceof MultiModelEditStackElement) {
 					element.setDelegate(this);
 				}
 			}

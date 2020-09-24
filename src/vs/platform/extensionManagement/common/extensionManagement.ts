@@ -84,6 +84,7 @@ export interface IGalleryExtension {
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
 	preview: boolean;
+	webResource?: URI;
 }
 
 export interface IGalleryMetadata {
@@ -261,5 +262,7 @@ export interface IExtensionTipsService {
 
 export const DefaultIconPath = require.toUrl('./media/defaultIcon.png');
 export const ExtensionsLabel = localize('extensions', "Extensions");
+export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
 export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");
+export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };

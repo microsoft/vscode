@@ -12,8 +12,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import product from 'vs/platform/product/common/product';
 import { State, IUpdate, StateType, AvailableForDownload, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createUpdateURL, AbstractUpdateService, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
@@ -64,7 +63,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService,
 		@IFileService private readonly fileService: IFileService

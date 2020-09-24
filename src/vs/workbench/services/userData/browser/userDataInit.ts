@@ -30,6 +30,7 @@ export const IUserDataInitializationService = createDecorator<IUserDataInitializ
 export interface IUserDataInitializationService {
 	_serviceBrand: any;
 
+	requiresInitialization(): Promise<boolean>;
 	initializeRequiredResources(): Promise<void>;
 	initializeOtherResources(): Promise<void>;
 	initializeExtensions(instantiationService: IInstantiationService): Promise<void>;
@@ -59,8 +60,8 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
-				if (!this.environmentService.options?.enableSyncByDefault) {
-					this.logService.trace(`Skipping initializing user data as sync is not enabled by default`);
+				if (!this.environmentService.options?.enableSyncByDefault && !this.environmentService.options?.settingsSyncOptions?.enabled) {
+					this.logService.trace(`Skipping initializing user data as settings sync is not enabled`);
 					return;
 				}
 
@@ -105,15 +106,24 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 		return this._userDataSyncStoreClientPromise;
 	}
 
+	async requiresInitialization(): Promise<boolean> {
+		this.logService.trace(`UserDataInitializationService#requiresInitialization`);
+		const userDataSyncStoreClient = await this.createUserDataSyncStoreClient();
+		return !!userDataSyncStoreClient;
+	}
+
 	async initializeRequiredResources(): Promise<void> {
+		this.logService.trace(`UserDataInitializationService#initializeRequiredResources`);
 		return this.initialize([SyncResource.Settings, SyncResource.GlobalState]);
 	}
 
 	async initializeOtherResources(): Promise<void> {
+		this.logService.trace(`UserDataInitializationService#initializeOtherResources`);
 		return this.initialize([SyncResource.Keybindings, SyncResource.Snippets]);
 	}
 
 	async initializeExtensions(instantiationService: IInstantiationService): Promise<void> {
+		this.logService.trace(`UserDataInitializationService#initializeExtensions`);
 		return this.initialize([SyncResource.Extensions], instantiationService);
 	}
 

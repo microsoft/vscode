@@ -306,7 +306,10 @@ class GetErrRequest {
 		public readonly files: ResourceMap<void>,
 		onDone: () => void
 	) {
-		const allFiles = coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)));
+		const allFiles = coalesce(Array.from(files.entries)
+			.filter(entry => client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
+			.map(entry => client.normalizedPath(entry.resource)));
+
 		if (!allFiles.length || !client.capabilities.has(ClientCapability.Semantic)) {
 			this._done = true;
 			setImmediate(onDone);
@@ -529,7 +532,7 @@ export default class BufferSyncSupport extends Disposable {
 		this.triggerDiagnostics();
 	}
 
-	public getErr(resources: vscode.Uri[]): any {
+	public getErr(resources: readonly vscode.Uri[]): any {
 		const handledResources = resources.filter(resource => this.handles(resource));
 		if (!handledResources.length) {
 			return;

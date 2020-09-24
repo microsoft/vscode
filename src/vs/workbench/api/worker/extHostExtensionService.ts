@@ -32,7 +32,7 @@ class WorkerRequireInterceptor extends RequireInterceptor {
 }
 
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
-	readonly extensionRuntime = ExtensionRuntime.Node;
+	readonly extensionRuntime = ExtensionRuntime.Webworker;
 
 	private _fakeModules?: WorkerRequireInterceptor;
 
