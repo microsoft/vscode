@@ -27,7 +27,7 @@ class UnusualLineTerminatorsDetector extends Disposable implements IEditorContri
 
 	public static readonly ID = 'editor.contrib.unusualLineTerminatorsDetector';
 
-	private _config: 'off' | 'prompt' | 'auto';
+	private _config: 'auto' | 'off' | 'prompt';
 
 	constructor(
 		private readonly _editor: ICodeEditor,

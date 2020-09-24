@@ -10,7 +10,7 @@ export function deepClone<T>(obj: T): T {
 		return obj;
 	}
 	if (obj instanceof RegExp) {
-		// See https://github.com/Microsoft/TypeScript/issues/10990
+		// See https://github.com/microsoft/TypeScript/issues/10990
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
@@ -110,18 +110,6 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 			}
 		});
 	}
-	return destination;
-}
-
-/**
- * @deprecated ES6
- */
-export function assign<T>(destination: T): T;
-export function assign<T, U>(destination: T, u: U): T & U;
-export function assign<T, U, V>(destination: T, u: U, v: V): T & U & V;
-export function assign<T, U, V, W>(destination: T, u: U, v: V, w: W): T & U & V & W;
-export function assign(destination: any, ...sources: any[]): any {
-	sources.forEach(source => Object.keys(source).forEach(key => destination[key] = source[key]));
 	return destination;
 }
 

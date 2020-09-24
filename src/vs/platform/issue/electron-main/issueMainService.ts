@@ -6,20 +6,19 @@
 import { localize } from 'vs/nls';
 import * as os from 'os';
 import product from 'vs/platform/product/common/product';
-import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
-import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { URI } from 'vs/base/common/uri';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 
@@ -39,7 +38,7 @@ export class IssueMainService implements ICommonIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
@@ -196,7 +195,7 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
-							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,
@@ -262,7 +261,7 @@ export class IssueMainService implements ICommonIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
-							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,
@@ -442,7 +441,7 @@ export class IssueMainService implements ICommonIssueService {
 
 function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 	const environment = parseArgs(process.argv, OPTIONS);
-	const config = objects.assign(environment, windowConfiguration);
+	const config = Object.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
 		const key = keyValue as keyof typeof config;
 		if (config[key] === undefined || config[key] === null || config[key] === '') {

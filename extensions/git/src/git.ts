@@ -445,7 +445,7 @@ export class Git {
 					const [, letter] = match;
 
 					try {
-						const networkPath = await new Promise<string>(resolve =>
+						const networkPath = await new Promise<string | undefined>(resolve =>
 							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
 								resolve(err !== null ? undefined : resolvedPath),
 							),
@@ -1887,7 +1887,7 @@ export class Repository {
 				remote.pushUrl = url;
 			}
 
-			// https://github.com/Microsoft/vscode/issues/45271
+			// https://github.com/microsoft/vscode/issues/45271
 			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
 		}
 

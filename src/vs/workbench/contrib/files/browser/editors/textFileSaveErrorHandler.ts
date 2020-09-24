@@ -142,7 +142,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
 			const triedToMakeWriteable = isReadonly && fileOperationError.options && (fileOperationError.options as IWriteTextFileOptions).overwriteReadonly;
 			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
-			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/Microsoft/vscode/issues/48659
+			const canHandlePermissionOrReadonlyErrors = resource.scheme === Schemas.file; // https://github.com/microsoft/vscode/issues/48659
 
 			// Save Elevated
 			if (canHandlePermissionOrReadonlyErrors && (isPermissionDenied || triedToMakeWriteable)) {

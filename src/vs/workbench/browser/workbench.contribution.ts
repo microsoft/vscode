@@ -88,12 +88,12 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
-				'enum': ['compact', 'shrink', 'normal'],
-				'default': 'shrink',
+				'enum': ['normal', 'compact', 'shrink'],
+				'default': 'normal',
 				'enumDescriptions': [
+					nls.localize('workbench.editor.pinnedTabSizing.normal', "A pinned tab inherits the look of non pinned tabs."),
 					nls.localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
-					nls.localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name."),
-					nls.localize('workbench.editor.pinnedTabSizing.normal', "A pinned tab inherits the look of non pinned tabs.")
+					nls.localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
 				],
 				'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the sizing of pinned editor tabs. Pinned tabs are sorted to the begining of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is `false`.")
 			},
@@ -232,6 +232,17 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'enum': ['left', 'bottom', 'right'],
 				'default': 'bottom',
 				'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom, right, or left of the workbench.")
+			},
+			'workbench.panel.opensMaximized': {
+				'type': 'string',
+				'enum': ['always', 'never', 'preserve'],
+				'default': 'preserve',
+				'description': nls.localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
+				'enumDescriptions': [
+					nls.localize('workbench.panel.opensMaximized.always', "Always maximize the panel when opening it."),
+					nls.localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it. The panel will open un-maximized."),
+					nls.localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
+				]
 			},
 			'workbench.statusBar.visible': {
 				'type': 'boolean',

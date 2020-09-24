@@ -44,7 +44,6 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 suite('ExtensionsListView Tests', () => {
 
@@ -104,7 +103,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService));
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService);
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }

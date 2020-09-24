@@ -57,7 +57,7 @@ async function splitEditor() {
 }
 
 async function saveFileAndCloseAll(resource: vscode.Uri) {
-	const documentClosed = new Promise((resolve, _reject) => {
+	const documentClosed = new Promise<void>((resolve, _reject) => {
 		const d = vscode.notebook.onDidCloseNotebookDocument(e => {
 			if (e.uri.toString() === resource.toString()) {
 				d.dispose();
@@ -71,7 +71,7 @@ async function saveFileAndCloseAll(resource: vscode.Uri) {
 }
 
 async function saveAllFilesAndCloseAll(resource: vscode.Uri | undefined) {
-	const documentClosed = new Promise((resolve, _reject) => {
+	const documentClosed = new Promise<void>((resolve, _reject) => {
 		if (!resource) {
 			return resolve();
 		}

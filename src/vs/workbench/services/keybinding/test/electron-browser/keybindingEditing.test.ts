@@ -38,7 +38,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestBackupFileService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestBackupFileService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestPathService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -64,7 +64,7 @@ import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uri
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(TestWorkbenchConfiguration);
+		super(TestWorkbenchConfiguration, TestProductService);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }

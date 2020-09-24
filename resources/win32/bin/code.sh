@@ -28,8 +28,8 @@ else
 		else
 			# If running under older WSL, don't pass cli.js to Electron as
 			# environment vars cannot be transferred from WSL to Windows
-			# See: https://github.com/Microsoft/BashOnWindows/issues/1363
-			#      https://github.com/Microsoft/BashOnWindows/issues/1494
+			# See: https://github.com/microsoft/BashOnWindows/issues/1363
+			#      https://github.com/microsoft/BashOnWindows/issues/1494
 			"$ELECTRON" "$@"
 			exit $?
 		fi

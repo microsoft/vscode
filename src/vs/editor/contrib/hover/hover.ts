@@ -78,7 +78,6 @@ export class ModesHoverController implements IEditorContribution {
 
 		this._didChangeConfigurationHandler = this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
-				this._hideWidgets();
 				this._unhookEvents();
 				this._hookEvents();
 			}
@@ -100,7 +99,7 @@ export class ModesHoverController implements IEditorContribution {
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 			this._toUnhook.add(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
 		} else {
-			this._toUnhook.add(this._editor.onMouseMove(hideWidgetsEventHandler));
+			this._toUnhook.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onEditorMouseMove(e)));
 			this._toUnhook.add(this._editor.onKeyDown((e: IKeyboardEvent) => this._onKeyDown(e)));
 		}
 

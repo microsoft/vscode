@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+export const INativeEnvironmentService = createDecorator<INativeEnvironmentService>('nativeEnvironmentService');
 
 export interface IDebugParams {
 	port: number | null;
@@ -51,7 +52,6 @@ export interface IEnvironmentService {
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
 	sync: 'on' | 'off' | undefined;
-	enableSyncByDefault: boolean;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -95,6 +95,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
+	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
 	backupHome: string;

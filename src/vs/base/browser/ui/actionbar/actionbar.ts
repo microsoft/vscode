@@ -35,6 +35,7 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
+	readonly respectOrientationForPreviousAndNextKey?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -101,30 +102,30 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.domNode.className = 'monaco-action-bar';
 
 		if (options.animated !== false) {
-			DOM.addClass(this.domNode, 'animated');
+			this.domNode.classList.add('animated');
 		}
 
-		let previousKey: KeyCode;
-		let nextKey: KeyCode;
+		let previousKeys: KeyCode[];
+		let nextKeys: KeyCode[];
 
 		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKey = KeyCode.LeftArrow;
-				nextKey = KeyCode.RightArrow;
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKey = KeyCode.RightArrow;
-				nextKey = KeyCode.LeftArrow;
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.RightArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKey = KeyCode.UpArrow;
-				nextKey = KeyCode.DownArrow;
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKey = KeyCode.DownArrow;
-				nextKey = KeyCode.UpArrow;
+				previousKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.DownArrow] : [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = this.options.respectOrientationForPreviousAndNextKey ? [KeyCode.UpArrow] : [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -133,9 +134,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(previousKey)) {
+			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				eventHandled = this.focusPrevious();
-			} else if (event.equals(nextKey)) {
+			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				eventHandled = this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this._onDidCancel.fire();

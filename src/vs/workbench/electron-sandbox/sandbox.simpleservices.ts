@@ -12,7 +12,6 @@ import { ISignService } from 'vs/platform/sign/common/sign';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
-import { IRemoteAuthorityResolverService, IRemoteConnectionData, ResolvedAuthority, ResolvedOptions, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { Event } from 'vs/base/common/event';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
@@ -20,7 +19,7 @@ import { IAddressProvider, ISocketFactory } from 'vs/platform/remote/common/remo
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { ITelemetryData, ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { SimpleConfigurationService as BaseSimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { InMemoryStorageService } from 'vs/platform/storage/common/storage';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -39,14 +38,11 @@ import { isWindows, OS } from 'vs/base/common/platform';
 import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
-import { EnablementState, ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IGrammar, ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
+import { ExtensionRecommendationReason, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
 import { IUserDataSyncAccount, IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
-import { AbstractTimerService, IStartupMetrics, ITimerService, Writeable } from 'vs/workbench/services/timer/browser/timerService';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
 import { Action } from 'vs/base/common/actions';
@@ -54,13 +50,11 @@ import { LinkedMap } from 'vs/base/common/map';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
 import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IReportedExtension, IGalleryMetadata, IExtensionIdentifier, IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceTagsService, Tags } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { AsbtractOutputChannelModelService, IOutputChannelModelService } from 'vs/workbench/services/output/common/outputChannelModel';
-import { Color, RGBA } from 'vs/base/common/color';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/integrity/common/integrity';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
@@ -71,7 +65,7 @@ import { Schemas } from 'vs/base/common/network';
 
 //#region Environment
 
-export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
+export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -91,7 +85,9 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
+	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
 	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
+	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
 
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
@@ -102,19 +98,16 @@ export class SimpleWorkbenchEnvironmentService implements INativeWorkbenchEnviro
 	skipReleaseNotes: boolean = undefined!;
 	keyboardLayoutResource: URI = undefined!;
 	sync: 'on' | 'off' | undefined;
-	enableSyncByDefault: boolean = false;
 	debugExtensionHost: IExtensionHostDebugParams = undefined!;
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;
 	extensionTestsLocationURI?: URI | undefined;
-	logsPath: string = undefined!;
 	logLevel?: string | undefined;
 
 	args: NativeParsedArgs = Object.create(null);
 
 	execPath: string = undefined!;
-	cliPath: string = undefined!;
 	appRoot: string = undefined!;
 	userHome: URI = undefined!;
 	appSettingsHome: URI = undefined!;
@@ -436,19 +429,6 @@ export class SimpleResourceIdentityService implements IResourceIdentityService {
 
 //#region Remote
 
-export class SimpleRemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidChangeConnectionData: Event<void> = Event.None;
-	resolveAuthority(authority: string): Promise<ResolverResult> { throw new Error('Method not implemented.'); }
-	getConnectionData(authority: string): IRemoteConnectionData | null { return null; }
-	_clearResolvedAuthority(authority: string): void { }
-	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void { }
-	_setResolvedAuthorityError(authority: string, err: any): void { }
-	_setAuthorityConnectionToken(authority: string, connectionToken: string): void { }
-}
-
 export class SimpleRemoteAgentService implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
@@ -499,36 +479,6 @@ registerSingleton(IExtensionService, SimpleExtensionService);
 
 //#endregion
 
-
-//#region Extensions Workbench (TODO@sandbox TODO@ben remove when 'semver-umd' can be loaded)
-
-class SimpleExtensionsWorkbenchService implements IExtensionsWorkbenchService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onChange = Event.None;
-
-	local = [];
-	installed = [];
-	outdated = [];
-
-	queryGallery(...args: any[]): any { throw new Error('Method not implemented.'); }
-	install(...args: any[]): any { throw new Error('Method not implemented.'); }
-	queryLocal(server?: IExtensionManagementServer): Promise<any[]> { throw new Error('Method not implemented.'); }
-	canInstall(extension: any): boolean { throw new Error('Method not implemented.'); }
-	uninstall(extension: any): Promise<void> { throw new Error('Method not implemented.'); }
-	installVersion(extension: any, version: string): Promise<any> { throw new Error('Method not implemented.'); }
-	reinstall(extension: any): Promise<any> { throw new Error('Method not implemented.'); }
-	setEnablement(extensions: any | any[], enablementState: EnablementState): Promise<void> { throw new Error('Method not implemented.'); }
-	open(extension: any, options?: { sideByside?: boolean | undefined; preserveFocus?: boolean | undefined; pinned?: boolean | undefined; }): Promise<any> { throw new Error('Method not implemented.'); }
-	checkForUpdates(): Promise<void> { throw new Error('Method not implemented.'); }
-	isExtensionIgnoredToSync(extension: any): boolean { throw new Error('Method not implemented.'); }
-	toggleExtensionIgnoredToSync(extension: any): Promise<void> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(IExtensionsWorkbenchService, SimpleExtensionsWorkbenchService);
-
-//#endregion
 
 //#region Telemetry
 
@@ -640,25 +590,6 @@ registerSingleton(IExtensionManagementServerService, SimpleExtensionManagementSe
 //#endregion
 
 
-//#region Textmate
-
-TokenizationRegistry.setColorMap([null!, new Color(new RGBA(212, 212, 212, 1)), new Color(new RGBA(30, 30, 30, 1))]);
-
-class SimpleTextMateService implements ITextMateService {
-
-	declare readonly _serviceBrand: undefined;
-
-	readonly onDidEncounterLanguage: Event<LanguageId> = Event.None;
-
-	async createGrammar(modeId: string): Promise<IGrammar | null> { return null; }
-	startDebugMode(printFn: (str: string) => void, onStop: () => void): void { }
-}
-
-registerSingleton(ITextMateService, SimpleTextMateService);
-
-//#endregion
-
-
 //#region Tunnel
 
 class SimpleTunnelService implements ITunnelService {
@@ -766,6 +697,8 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 
 	declare readonly _serviceBrand: undefined;
 
+	onDidChangeUserDataSyncStore = Event.None;
+
 	userDataSyncStore: IUserDataSyncStore | undefined = undefined;
 
 	async switch(type: UserDataSyncStoreType): Promise<void> { }
@@ -774,20 +707,6 @@ class SimpleIUserDataSyncStoreManagementService implements IUserDataSyncStoreMan
 }
 
 registerSingleton(IUserDataSyncStoreManagementService, SimpleIUserDataSyncStoreManagementService);
-
-//#endregion
-
-
-//#region Timer
-
-class SimpleTimerService extends AbstractTimerService {
-	protected _isInitialStartup(): boolean { return true; }
-	protected _didUseCachedData(): boolean { return false; }
-	protected async _getWindowCount(): Promise<number> { return 1; }
-	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> { }
-}
-
-registerSingleton(ITimerService, SimpleTimerService);
 
 //#endregion
 
@@ -834,35 +753,6 @@ class SimpleTaskService implements ITaskService {
 }
 
 registerSingleton(ITaskService, SimpleTaskService);
-
-//#endregion
-
-
-//#region Extension Management
-
-class SimpleExtensionManagementService implements IExtensionManagementService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onInstallExtension = Event.None;
-	onDidInstallExtension = Event.None;
-	onUninstallExtension = Event.None;
-	onDidUninstallExtension = Event.None;
-
-	async zip(extension: ILocalExtension): Promise<URI> { throw new Error('Method not implemented.'); }
-	async unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('Method not implemented.'); }
-	async getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('Method not implemented.'); }
-	async install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	async canInstall(extension: IGalleryExtension): Promise<boolean> { throw new Error('Method not implemented.'); }
-	async installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-	async uninstall(extension: ILocalExtension, force?: boolean): Promise<void> { }
-	async reinstallFromGallery(extension: ILocalExtension): Promise<void> { }
-	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> { return []; }
-	async getExtensionsReport(): Promise<IReportedExtension[]> { return []; }
-	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(IExtensionManagementService, SimpleExtensionManagementService);
 
 //#endregion
 

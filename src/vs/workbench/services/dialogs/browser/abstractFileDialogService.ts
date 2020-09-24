@@ -19,7 +19,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import Severity from 'vs/base/common/severity';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -78,7 +78,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Check for current workspace config file first...
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			const configuration = this.contextService.getWorkspace().configuration;
-			if (configuration && !isUntitledWorkspace(configuration, this.environmentService)) {
+			if (configuration && configuration.scheme === schemeFilter && !isUntitledWorkspace(configuration, this.environmentService)) {
 				return resources.dirname(configuration) || undefined;
 			}
 		}
@@ -264,7 +264,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 				return null;
 			}
 
-			const filter: IFilter = { name: languageName, extensions: extensions.slice(0, 10).map(e => trim(e, '.')) };
+			const filter: IFilter = { name: languageName, extensions: distinct(extensions).slice(0, 10).map(e => trim(e, '.')) };
 
 			if (ext && extensions.indexOf(ext) >= 0) {
 				matchingFilter = filter;

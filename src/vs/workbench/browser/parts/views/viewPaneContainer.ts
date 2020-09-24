@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ColorIdentifier, activeContrastBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, PANEL_SECTION_HEADER_FOREGROUND, PANEL_SECTION_HEADER_BACKGROUND, PANEL_SECTION_HEADER_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SECTION_BORDER } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, isAncestor, Dimension, addDisposableListener, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, isAncestor, Dimension, addDisposableListener, createCSSRule, asCSSUrl } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IAction, Separator, IActionViewItem } from 'vs/base/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -361,7 +361,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 
 		if (cssClass) {
-			addClasses(this.iconContainer, cssClass);
+			this.iconContainer.classList.add(...cssClass.split(' '));
 		}
 
 		const calculatedTitle = this.calculateTitle(title);
@@ -640,7 +640,7 @@ type BoundingRect = { top: number, left: number, bottom: number, right: number }
 
 class ViewPaneDropOverlay extends Themable {
 
-	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
+	private static readonly OVERLAY_ID = 'monaco-pane-drop-overlay';
 
 	private container!: HTMLElement;
 	private overlay!: HTMLElement;

@@ -191,42 +191,42 @@ export function isEqual(pathA: string, pathB: string, ignoreCase?: boolean): boo
 	return equalsIgnoreCase(pathA, pathB);
 }
 
-export function isEqualOrParent(path: string, candidate: string, ignoreCase?: boolean, separator = sep): boolean {
-	if (path === candidate) {
+export function isEqualOrParent(base: string, parentCandidate: string, ignoreCase?: boolean, separator = sep): boolean {
+	if (base === parentCandidate) {
 		return true;
 	}
 
-	if (!path || !candidate) {
+	if (!base || !parentCandidate) {
 		return false;
 	}
 
-	if (candidate.length > path.length) {
+	if (parentCandidate.length > base.length) {
 		return false;
 	}
 
 	if (ignoreCase) {
-		const beginsWith = startsWithIgnoreCase(path, candidate);
+		const beginsWith = startsWithIgnoreCase(base, parentCandidate);
 		if (!beginsWith) {
 			return false;
 		}
 
-		if (candidate.length === path.length) {
+		if (parentCandidate.length === base.length) {
 			return true; // same path, different casing
 		}
 
-		let sepOffset = candidate.length;
-		if (candidate.charAt(candidate.length - 1) === separator) {
+		let sepOffset = parentCandidate.length;
+		if (parentCandidate.charAt(parentCandidate.length - 1) === separator) {
 			sepOffset--; // adjust the expected sep offset in case our candidate already ends in separator character
 		}
 
-		return path.charAt(sepOffset) === separator;
+		return base.charAt(sepOffset) === separator;
 	}
 
-	if (candidate.charAt(candidate.length - 1) !== separator) {
-		candidate += separator;
+	if (parentCandidate.charAt(parentCandidate.length - 1) !== separator) {
+		parentCandidate += separator;
 	}
 
-	return path.indexOf(candidate) === 0;
+	return base.indexOf(parentCandidate) === 0;
 }
 
 export function isWindowsDriveLetter(char0: number): boolean {

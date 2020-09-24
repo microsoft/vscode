@@ -478,7 +478,26 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean) {
+		const oldMetadata = this.metadata;
 		this.metadata = metadata;
+
+		if (computeUndoRedo) {
+			const that = this;
+			this._operationManager.pushEditOperation(new class implements IResourceUndoRedoElement {
+				readonly type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
+				get resource() {
+					return that.uri;
+				}
+				readonly label = 'Update Notebook Metadata';
+				undo() {
+					that._updateNotebookMetadata(oldMetadata, false);
+				}
+				redo() {
+					that._updateNotebookMetadata(metadata, false);
+				}
+			}(), undefined, undefined);
+		}
+
 		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeDocumentMetadata, metadata: this.metadata, transient: false }, true);
 	}
 
@@ -520,7 +539,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _isCellMetadataChanged(a: NotebookCellMetadata, b: NotebookCellMetadata) {
 		const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
 		for (let key of keys) {
-			if (
+			if (key === 'custom') {
+				if (!this._customMetadataEqual(a[key], b[key])
+					&&
+					!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
+				) {
+					return true;
+				}
+			} else if (
 				(a[key as keyof NotebookCellMetadata] !== b[key as keyof NotebookCellMetadata])
 				&&
 				!(this.transientOptions.transientMetadata[key as keyof NotebookCellMetadata])
@@ -530,6 +556,33 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 
 		return false;
+	}
+
+	private _customMetadataEqual(a: any, b: any) {
+		if (!a && !b) {
+			// both of them are nullish or undefined
+			return true;
+		}
+
+		if (!a || !b) {
+			return false;
+		}
+
+		const aProps = Object.getOwnPropertyNames(a);
+		const bProps = Object.getOwnPropertyNames(b);
+
+		if (aProps.length !== bProps.length) {
+			return false;
+		}
+
+		for (let i = 0; i < aProps.length; i++) {
+			const propName = aProps[i];
+			if (a[propName] !== b[propName]) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	private _changeCellMetadata(handle: number, metadata: NotebookCellMetadata, computeUndoRedo: boolean) {
@@ -565,11 +618,31 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _changeCellLanguage(handle: number, languageId: string, computeUndoRedo: boolean) {
 		const cell = this._mapping.get(handle);
-		if (cell && cell.language !== languageId) {
-			cell.language = languageId;
-
-			this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true);
+		if (!cell || cell.language === languageId) {
+			return;
 		}
+
+		const oldLanguage = cell.language;
+		cell.language = languageId;
+
+		if (computeUndoRedo) {
+			const that = this;
+			this._operationManager.pushEditOperation(new class implements IResourceUndoRedoElement {
+				readonly type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
+				get resource() {
+					return that.uri;
+				}
+				readonly label = 'Update Cell Language';
+				undo() {
+					that._changeCellLanguage(cell.handle, oldLanguage, false);
+				}
+				redo() {
+					that._changeCellLanguage(cell.handle, languageId, false);
+				}
+			}(), undefined, undefined);
+		}
+
+		this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._cells.indexOf(cell), language: languageId, transient: false }, true);
 	}
 
 	private _spliceNotebookCellOutputs(cellHandle: number, splices: NotebookCellOutputsSplice[], computeUndoRedo: boolean): void {

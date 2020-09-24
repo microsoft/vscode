@@ -193,7 +193,7 @@
     "jsonValidation": [
       {
         "fileMatch": "*.html-data.json",
-        "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+        "url": "https://raw.githubusercontent.com/microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
       },
       {
         "fileMatch": "package.json",

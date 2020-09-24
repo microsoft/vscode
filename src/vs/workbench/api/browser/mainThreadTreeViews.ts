@@ -86,12 +86,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		}
 	}
 
-	$setTitle(treeViewId: string, title: string): void {
-		this.logService.trace('MainThreadTreeViews#$setTitle', treeViewId, title);
+	$setTitle(treeViewId: string, title: string, description: string | undefined): void {
+		this.logService.trace('MainThreadTreeViews#$setTitle', treeViewId, title, description);
 
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
 			viewer.title = title;
+			viewer.description = description;
 		}
 	}
 

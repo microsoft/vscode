@@ -24,7 +24,7 @@ import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -40,7 +40,7 @@ import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
@@ -102,7 +102,7 @@ class CodeMain {
 
 		// We need to buffer the spdlog logs until we are sure
 		// we are the only instance running, otherwise we'll have concurrent
-		// log file access on Windows (https://github.com/Microsoft/vscode/issues/41218)
+		// log file access on Windows (https://github.com/microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
 
 		const [instantiationService, instanceEnvironment, environmentService] = this.createServices(args, bufferLogService);
@@ -149,9 +149,10 @@ class CodeMain {
 	private createServices(args: NativeParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
 		const services = new ServiceCollection();
 
-		const environmentService = new EnvironmentService(args);
+		const environmentService = new NativeEnvironmentService(args);
 		const instanceEnvironment = this.patchEnvironment(environmentService); // Patch `process.env` with the instance's environment
 		services.set(IEnvironmentService, environmentService);
+		services.set(INativeEnvironmentService, environmentService);
 
 		const logService = new MultiplexLogService([new ConsoleLogMainService(getLogLevel(environmentService)), bufferLogService]);
 		process.once('exit', () => logService.dispose());
@@ -298,7 +299,7 @@ class CodeMain {
 					// Create a diagnostic service connected to the existing shared process
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
 					const diagnosticsChannel = sharedProcessClient.getChannel('diagnostics');
-					const diagnosticsService = new DiagnosticsService(diagnosticsChannel);
+					const diagnosticsService = createChannelSender<IDiagnosticsService>(diagnosticsChannel);
 					const mainProcessInfo = await launchService.getMainProcessInfo();
 					const remoteDiagnostics = await launchService.getRemoteDiagnostics({ includeProcesses: true, includeWorkspaceMetadata: true });
 					const diagnostics = await diagnosticsService.getDiagnostics(mainProcessInfo, remoteDiagnostics);
@@ -474,7 +475,7 @@ class CodeMain {
 
 		// Trim trailing quotes
 		if (isWindows) {
-			path = rtrim(path, '"'); // https://github.com/Microsoft/vscode/issues/1498
+			path = rtrim(path, '"'); // https://github.com/microsoft/vscode/issues/1498
 		}
 
 		// Trim whitespaces

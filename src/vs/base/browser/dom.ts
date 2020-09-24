@@ -22,15 +22,6 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
-/**
- * @deprecated use `node.remove()` instead
- */
-export function removeNode(node: HTMLElement): void {
-	if (node.parentNode) {
-		node.parentNode.removeChild(node);
-	}
-}
-
 export function isInDOM(node: Node | null): boolean {
 	while (node) {
 		if (node === document.body) {
@@ -704,13 +695,13 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (hasClass(node, clazz)) {
+		if (node.classList.contains(clazz)) {
 			return node;
 		}
 
 		if (stopAtClazzOrNode) {
 			if (typeof stopAtClazzOrNode === 'string') {
-				if (hasClass(node, stopAtClazzOrNode)) {
+				if (node.classList.contains(stopAtClazzOrNode)) {
 					return null;
 				}
 			} else {
@@ -1196,7 +1187,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 }
 
 /**
- * See https://github.com/Microsoft/monaco-editor/issues/601
+ * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
  * to change the location of the current page.
@@ -1205,7 +1196,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 export function windowOpenNoOpener(url: string): void {
 	if (platform.isNative || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
+		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
 		window.open(url);
 	} else {
 		let newTab = window.open();
@@ -1276,4 +1267,67 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 
 	// Ensure to remove the element from DOM eventually
 	setTimeout(() => document.body.removeChild(anchor));
+}
+
+export enum DetectedFullscreenMode {
+
+	/**
+	 * The document is fullscreen, e.g. because an element
+	 * in the document requested to be fullscreen.
+	 */
+	DOCUMENT = 1,
+
+	/**
+	 * The browser is fullsreen, e.g. because the user enabled
+	 * native window fullscreen for it.
+	 */
+	BROWSER
+}
+
+export interface IDetectedFullscreen {
+
+	/**
+	 * Figure out if the document is fullscreen or the browser.
+	 */
+	mode: DetectedFullscreenMode;
+
+	/**
+	 * Wether we know for sure that we are in fullscreen mode or
+	 * it is a guess.
+	 */
+	guess: boolean;
+}
+
+export function detectFullscreen(): IDetectedFullscreen | null {
+
+	// Browser fullscreen: use DOM APIs to detect
+	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
+	}
+
+	// There is no standard way to figure out if the browser
+	// is using native fullscreen. Via checking on screen
+	// height and comparing that to window height, we can guess
+	// it though.
+
+	if (window.innerHeight === screen.height) {
+		// if the height of the window matches the screen height, we can
+		// safely assume that the browser is fullscreen because no browser
+		// chrome is taking height away (e.g. like toolbars).
+		return { mode: DetectedFullscreenMode.BROWSER, guess: false };
+	}
+
+	if (platform.isMacintosh || platform.isLinux) {
+		// macOS and Linux do not properly report `innerHeight`, only Windows does
+		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
+			// if the height of the browser matches the screen height, we can
+			// only guess that we are in fullscreen. It is also possible that
+			// the user has turned off taskbars in the OS and the browser is
+			// simply able to span the entire size of the screen.
+			return { mode: DetectedFullscreenMode.BROWSER, guess: true };
+		}
+	}
+
+	// Not in fullscreen
+	return null;
 }

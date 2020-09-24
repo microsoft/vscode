@@ -36,4 +36,5 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           requestVerificationComment: "This bug has been fixed in to the latest release of [VS Code Insiders](https://code.visualstudio.com/insiders/)!\n\n@${author}, you can help us out by commenting `/verified` if things are now working as expected.\n\nIf things still don't seem right, please ensure you're on version ${commit} of Insiders (today's or later - you can use `Help: About` in the command pallette to check), and leave a comment letting us know what isn't working as expected.\n\nHappy Coding!"
           pendingReleaseLabel: awaiting-insiders-release
+          verifiedLabel: verified
           authorVerificationRequestedLabel: author-verification-requested

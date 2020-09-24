@@ -6,8 +6,8 @@
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, BrowserWindowConstructorOptions, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 type LoginEvent = {
 	event: ElectronEvent;
@@ -59,7 +59,7 @@ export class ProxyAuthHandler extends Disposable {
 			show: true,
 			title: 'VS Code',
 			webPreferences: {
-				preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+				preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
 				sandbox: true,
 				contextIsolation: true,
 				enableWebSQL: false,

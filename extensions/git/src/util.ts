@@ -336,7 +336,7 @@ export function* splitInChunks(array: string[], maxChunkLength: number): Iterabl
 
 interface ILimitedTaskFactory<T> {
 	factory: () => Promise<T>;
-	c: (value?: T | Promise<T>) => void;
+	c: (value: T | Promise<T>) => void;
 	e: (error?: any) => void;
 }
 

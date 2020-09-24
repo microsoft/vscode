@@ -1,0 +1,3 @@
+azure-pipelines/**/*.js
+darwin/**/*.js
+lib/**/*.js

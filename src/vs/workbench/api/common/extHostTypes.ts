@@ -9,7 +9,6 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
-import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -469,7 +468,7 @@ export class RemoteAuthorityResolverError extends Error {
 		this._detail = detail;
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 		}
@@ -637,7 +636,9 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+		if (start !== end || cells.length > 0) {
+			this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+		}
 	}
 
 	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -780,7 +781,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = SnippetString._escape(values.toString());
+		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -1169,7 +1170,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
 	}
 }
 CodeActionKind.Empty = new CodeActionKind('');
@@ -2170,9 +2171,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 
-	constructor(id: string) {
+	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
+		this.themeColor = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2401,7 +2404,7 @@ export class FileSystemError extends Error {
 		markAsFileSystemProviderError(this, code);
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
 		}

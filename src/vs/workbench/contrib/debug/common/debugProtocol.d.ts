@@ -375,6 +375,23 @@ declare module DebugProtocol {
 		};
 	}
 
+	/** Event message for 'invalidated' event type.
+		This event signals that some state in the debug adapter has changed and requires that the client needs to re-render the data snapshot previously requested.
+		Debug adapters do not have to emit this event for runtime changes like stopped or thread events because in that case the client refetches the new state anyway. But the event can be used for example to refresh the UI after rendering formatting has changed in the debug adapter.
+		This event should only be sent if the debug adapter has received a value true for the 'supportsInvalidatedEvent' capability of the 'initialize' request.
+	*/
+	export interface InvalidatedEvent extends Event {
+		// event: 'invalidated';
+		body: {
+			/** Optional set of logical areas that got invalidated. If this property is missing or empty, a single value 'all' is assumed. */
+			areas?: InvalidatedAreas[];
+			/** If specified, the client only needs to refetch data related to this thread. */
+			threadId?: number;
+			/** If specified, the client only needs to refetch data related to this stack frame (and the 'threadId' is ignored). */
+			stackFrameId?: number;
+		};
+	}
+
 	/** RunInTerminal request; value of command field is 'runInTerminal'.
 		This optional request is sent from the debug adapter to the client to run a command in a terminal.
 		This is typically used to launch the debuggee in a terminal provided by the client.
@@ -449,6 +466,8 @@ declare module DebugProtocol {
 		supportsMemoryReferences?: boolean;
 		/** Client supports progress reporting. */
 		supportsProgressReporting?: boolean;
+		/** Client supports the invalidated event. */
+		supportsInvalidatedEvent?: boolean;
 	}
 
 	/** Response to 'initialize' request. */
@@ -2158,5 +2177,13 @@ declare module DebugProtocol {
 		/** The end column of the range that corresponds to this instruction, if any. */
 		endColumn?: number;
 	}
+
+	/** Logical areas that can be invalidated by the 'invalidated' event.
+		'all': All previously fetched data has become invalid and needs to be refetched.
+		'stacks': Previously fetched stack related data has become invalid and needs to be refetched.
+		'threads': Previously fetched thread related data has become invalid and needs to be refetched.
+		'variables': Previously fetched variable data has become invalid and needs to be refetched.
+	*/
+	export type InvalidatedAreas = 'all' | 'stacks' | 'threads' | 'variables';
 }
 

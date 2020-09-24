@@ -144,41 +144,6 @@ export function stripWildcards(pattern: string): string {
 	return pattern.replace(/\*/g, '');
 }
 
-/**
- * @deprecated ES6: use `String.startsWith`
- */
-export function startsWith(haystack: string, needle: string): boolean {
-	if (haystack.length < needle.length) {
-		return false;
-	}
-
-	if (haystack === needle) {
-		return true;
-	}
-
-	for (let i = 0; i < needle.length; i++) {
-		if (haystack[i] !== needle[i]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-/**
- * @deprecated ES6: use `String.endsWith`
- */
-export function endsWith(haystack: string, needle: string): boolean {
-	const diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
-	}
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;

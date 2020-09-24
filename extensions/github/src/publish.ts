@@ -177,8 +177,9 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		}
 
 		progress.report({ message: 'Uploading files', increment: 25 });
+		const branch = await repository.getBranch('HEAD');
 		await repository.addRemote('origin', createdGithubRepository.clone_url);
-		await repository.push('origin', 'master', true);
+		await repository.push('origin', branch.name, true);
 
 		return createdGithubRepository;
 	});

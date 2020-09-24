@@ -40,9 +40,9 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IHoverService, IHoverOptions, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 
 class Root implements ITreeItem {
 	label = { label: 'root' };
@@ -99,6 +99,9 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private readonly _onDidChangeTitle: Emitter<string> = this._register(new Emitter<string>());
 	readonly onDidChangeTitle: Event<string> = this._onDidChangeTitle.event;
+
+	private readonly _onDidChangeDescription: Emitter<string | undefined> = this._register(new Emitter<string | undefined>());
+	readonly onDidChangeDescription: Event<string | undefined> = this._onDidChangeDescription.event;
 
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
@@ -160,6 +163,7 @@ export class TreeView extends Disposable implements ITreeView {
 		}
 
 		if (dataProvider) {
+			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				private _isEmpty: boolean = true;
 				private _onDidChangeEmpty: Emitter<void> = new Emitter();
@@ -169,11 +173,12 @@ export class TreeView extends Disposable implements ITreeView {
 					return this._isEmpty;
 				}
 
-				async getChildren(node: ITreeItem): Promise<ITreeItem[]> {
+				async getChildren(node?: ITreeItem): Promise<ITreeItem[]> {
 					let children: ITreeItem[];
 					if (node && node.children) {
 						children = node.children;
 					} else {
+						node = node ?? self.root;
 						children = await (node instanceof Root ? dataProvider.getChildren() : dataProvider.getChildren(node));
 						node.children = children;
 					}
@@ -218,6 +223,16 @@ export class TreeView extends Disposable implements ITreeView {
 	set title(name: string) {
 		this._title = name;
 		this._onDidChangeTitle.fire(this._title);
+	}
+
+	private _description: string | undefined;
+	get description(): string | undefined {
+		return this._description;
+	}
+
+	set description(description: string | undefined) {
+		this._description = description;
+		this._onDidChangeDescription.fire(this._description);
 	}
 
 	get canSelectMany(): boolean {
@@ -759,6 +774,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		}) : undefined;
 		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? node.icon : node.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
+		const canResolve = node instanceof ResolvableTreeItem && node.hasResolve;
+		const title = node.tooltip ? (isString(node.tooltip) ? node.tooltip : undefined) : (resource ? undefined : (canResolve ? undefined : label));
 
 		// reset
 		templateData.actionBar.clear();
@@ -768,7 +785,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			const labelResource = resource ? resource : URI.parse('missing:_icon_resource');
 			templateData.resourceLabel.setResource({ name: label, description, resource: labelResource }, {
 				fileKind: this.getFileKind(node),
-				title: '',
+				title,
 				hideIcon: !!iconUrl,
 				fileDecorations,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
@@ -778,7 +795,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			fallbackHover = this.labelService.getUriLabel(labelResource);
 		} else {
 			templateData.resourceLabel.setResource({ name: label, description }, {
-				title: '',
+				title,
 				hideIcon: true,
 				extraClasses: ['custom-view-tree-node-item-resourceLabel'],
 				matches: matches ? matches : createMatches(element.filterData),
@@ -793,6 +810,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			let iconClass: string | undefined;
 			if (node.themeIcon && !this.isFileKindThemeIcon(node.themeIcon)) {
 				iconClass = ThemeIcon.asClassName(node.themeIcon);
+				if (node.themeIcon.themeColor) {
+					templateData.icon.style.color = this.themeService.getColorTheme().getColor(node.themeIcon.themeColor.id)?.toString() ?? '';
+				}
 			}
 			templateData.icon.className = iconClass ? `custom-view-tree-node-item-icon ${iconClass}` : '';
 			templateData.icon.style.backgroundImage = '';
@@ -813,6 +833,11 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setupHovers(node: ITreeItem, htmlElement: HTMLElement, disposableStore: DisposableStore, label: string | undefined): void {
+		if (!(node instanceof ResolvableTreeItem) || (node.tooltip && isString(node.tooltip)) || (!node.tooltip && !node.hasResolve)) {
+			return;
+		}
+		const resolvableNode: ResolvableTreeItem = node;
+
 		const hoverService = this.hoverService;
 		// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 		// On Mac, the delay is 1500.
@@ -830,20 +855,18 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			this.addEventListener(DOM.EventType.MOUSE_LEAVE, mouseLeave, { passive: true });
 			this.addEventListener(DOM.EventType.MOUSE_MOVE, mouseMove, { passive: true });
 			setTimeout(async () => {
-				if (node instanceof ResolvableTreeItem) {
-					await node.resolve();
-				}
-				let tooltip: IMarkdownString | string | undefined = node.tooltip ?? label;
+				await resolvableNode.resolve();
+				const tooltip = resolvableNode.tooltip ?? label;
 				if (isHovering && tooltip) {
 					if (!hoverOptions) {
 						const target: IHoverTarget = {
 							targetElements: [this],
 							dispose: () => { }
 						};
-						hoverOptions = { text: tooltip, target };
+						hoverOptions = { text: tooltip, target, anchorPosition: AnchorPosition.BELOW };
 					}
 					if (mouseX !== undefined) {
-						(<IHoverTarget>hoverOptions.target).x = mouseX;
+						(<IHoverTarget>hoverOptions.target).x = mouseX + 10;
 					}
 					hoverService.showHover(hoverOptions);
 				}
