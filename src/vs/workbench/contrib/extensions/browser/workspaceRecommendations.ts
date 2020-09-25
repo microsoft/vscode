@@ -66,7 +66,6 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				if (invalidRecommendations.indexOf(extensionId) === -1) {
 					this._recommendations.push({
 						extensionId,
-						source: this.contextService.getWorkspace(),
 						reason: {
 							reasonId: ExtensionRecommendationReason.Workspace,
 							reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")

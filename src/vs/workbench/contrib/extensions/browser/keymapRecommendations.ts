@@ -23,7 +23,6 @@ export class KeymapRecommendations extends ExtensionRecommendations {
 		if (this.productService.keymapExtensionTips) {
 			this._recommendations = this.productService.keymapExtensionTips.map(extensionId => (<ExtensionRecommendation>{
 				extensionId: extensionId.toLowerCase(),
-				source: 'application',
 				reason: {
 					reasonId: ExtensionRecommendationReason.Application,
 					reasonText: ''

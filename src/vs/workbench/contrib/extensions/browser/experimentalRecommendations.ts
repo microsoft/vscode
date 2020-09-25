@@ -29,7 +29,6 @@ export class ExperimentalRecommendations extends ExtensionRecommendations {
 			if (state === ExperimentState.Run && isNonEmptyArray(action?.properties?.recommendations) && action?.properties?.recommendationReason) {
 				action.properties.recommendations.forEach((extensionId: string) => this._recommendations.push({
 					extensionId: extensionId.toLowerCase(),
-					source: 'experimental',
 					reason: {
 						reasonId: ExtensionRecommendationReason.Experimental,
 						reasonText: action.properties.recommendationReason
