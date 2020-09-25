@@ -1295,6 +1295,28 @@ export namespace LogLevel {
 	}
 }
 
+export namespace NotebookCellOutputList {
+	export function from(output: types.NotebookCellOutputList): IDisplayOutput {
+
+		let data: { [key: string]: unknown; } = {};
+		let custom: { [key: string]: unknown; } = {};
+		let hasMetadata = false;
+
+		for (let item of output.outputs) {
+			data[item.mime] = item.value;
+			if (item.metadata) {
+				custom[item.mime] = item.metadata;
+				hasMetadata = true;
+			}
+		}
+		return {
+			outputKind: CellOutputKind.Rich,
+			data,
+			metadata: hasMetadata ? { custom } : undefined
+		};
+	}
+}
+
 export namespace NotebookCellOutput {
 	export function from(output: types.NotebookCellOutput): IDisplayOutput {
 		return {

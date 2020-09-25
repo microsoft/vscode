@@ -1235,6 +1235,14 @@ declare module 'vscode' {
 		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
 	}
 
+	export class NotebookCellOutputList {
+
+		readonly outputs: NotebookCellOutput[];
+		readonly metadata?: Record<string, string | number | boolean>;
+
+		constructor(outputs: NotebookCellOutput[], metadata?: Record<string, string | number | boolean>);
+	}
+
 	export enum NotebookCellRunState {
 		Running = 1,
 		Idle = 2,
@@ -1423,7 +1431,7 @@ declare module 'vscode' {
 	export interface NotebookEditorEdit {
 		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
+		replaceCellOutput(index: number, outputs: (NotebookCellOutputList | CellOutput)[]): void;
 		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 	}
 

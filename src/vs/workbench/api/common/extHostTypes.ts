@@ -2785,6 +2785,18 @@ export class NotebookCellOutput {
 	) { }
 }
 
+export class NotebookCellOutputList {
+
+	static isNotebookCellOutputList(obj: unknown): obj is vscode.NotebookCellOutputList {
+		return obj instanceof NotebookCellOutputList;
+	}
+
+	constructor(
+		readonly outputs: NotebookCellOutput[],
+		readonly metadata?: Record<string, string | number | boolean>
+	) { }
+}
+
 export enum CellKind {
 	Markdown = 1,
 	Code = 2

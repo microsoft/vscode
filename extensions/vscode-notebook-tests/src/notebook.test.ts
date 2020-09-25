@@ -423,27 +423,24 @@ suite('Notebook API tests', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellOutput(0, [
+			editBuilder.replaceCellOutput(0, [new vscode.NotebookCellOutputList([
 				new vscode.NotebookCellOutput('application/foo', 'bar'),
 				new vscode.NotebookCellOutput('application/json', { data: true }, { metadata: true }),
-			]);
+			])]);
 		});
 
 		const document = vscode.notebook.activeNotebookEditor?.document!;
 		assert.strictEqual(document.isDirty, true);
 		assert.strictEqual(document.cells.length, 1);
-		assert.strictEqual(document.cells[0].outputs.length, 2);
+		assert.strictEqual(document.cells[0].outputs.length, 1);
 
-		// consuming is OLD api
-		const [one, two] = document.cells[0].outputs;
+		// consuming is OLD api (for now)
+		const [output] = document.cells[0].outputs;
 
-		assert.strictEqual(one.outputKind, vscode.CellOutputKind.Rich);
-		assert.strictEqual((<vscode.CellDisplayOutput>one).data['application/foo'], 'bar');
-		assert.strictEqual((<vscode.CellDisplayOutput>one).metadata, undefined);
-
-		assert.strictEqual(two.outputKind, vscode.CellOutputKind.Rich);
-		assert.deepStrictEqual((<vscode.CellDisplayOutput>two).data['application/json'], { data: true });
-		assert.deepStrictEqual((<vscode.CellDisplayOutput>two).metadata, { custom: { metadata: true } });
+		assert.strictEqual(output.outputKind, vscode.CellOutputKind.Rich);
+		assert.strictEqual((<vscode.CellDisplayOutput>output).data['application/foo'], 'bar');
+		assert.deepStrictEqual((<vscode.CellDisplayOutput>output).data['application/json'], { data: true });
+		assert.deepStrictEqual((<vscode.CellDisplayOutput>output).metadata, { custom: { 'application/json': { metadata: true } } });
 
 		await saveAllFilesAndCloseAll(undefined);
 	});
