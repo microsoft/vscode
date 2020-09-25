@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -84,9 +84,6 @@ const enum ReadyState {
 }
 
 export class CodeWindow extends Disposable implements ICodeWindow {
-
-	private static readonly MIN_WIDTH = 600;
-	private static readonly MIN_HEIGHT = 270;
 
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
@@ -162,8 +159,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				x: this.windowState.x,
 				y: this.windowState.y,
 				backgroundColor: this.themeMainService.getBackgroundColor(),
-				minWidth: CodeWindow.MIN_WIDTH,
-				minHeight: CodeWindow.MIN_HEIGHT,
+				minWidth: WindowMinimumSize.WIDTH,
+				minHeight: WindowMinimumSize.HEIGHT,
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
