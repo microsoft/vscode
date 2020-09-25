@@ -39,7 +39,6 @@ import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensio
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { AbstractTextFileService } from 'vs/workbench/services/textfile/browser/textFileService';
 import { IExtensionManagementServer, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ITunnelProvider, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IManualSyncTask, IResourcePreview, ISyncResourceHandle, ISyncTask, IUserDataAutoSyncService, IUserDataSyncService, IUserDataSyncStore, IUserDataSyncStoreManagementService, SyncResource, SyncStatus, UserDataSyncStoreType } from 'vs/platform/userDataSync/common/userDataSync';
@@ -766,13 +765,6 @@ class SimpleExtensionTipsService implements IExtensionTipsService {
 
 	onRecommendationChange = Event.None;
 
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason; reasonText: string; }; } { return Object.create(null); }
-	getFileBasedRecommendations(): IExtensionRecommendation[] { return []; }
-	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> { return []; }
-	async getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> { return []; }
-	getKeymapRecommendations(): IExtensionRecommendation[] { return []; }
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void { }
-	getAllIgnoredRecommendations(): { global: string[]; workspace: string[]; } { return Object.create(null); }
 	async getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> { return []; }
 	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> { return []; }
 	async getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> { return []; }

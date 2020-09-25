@@ -107,7 +107,6 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 	private toExtensionRecommendation(extensionId: string, folder: IWorkspaceFolder): ExtensionRecommendation {
 		return {
 			extensionId: extensionId.toLowerCase(),
-			source: 'dynamic',
 			reason: {
 				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
 				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", folder.name)

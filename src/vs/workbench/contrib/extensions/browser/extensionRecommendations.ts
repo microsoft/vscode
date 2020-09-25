@@ -10,7 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { localize } from 'vs/nls';
 import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { ExtensionRecommendationSource, IExtensionRecommendationReson } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationReson } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionsConfiguration, ConfigurationKey, IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -35,7 +35,6 @@ const choiceNever = localize('neverShowAgain', "Don't Show Again");
 
 export type ExtensionRecommendation = {
 	readonly extensionId: string,
-	readonly source: ExtensionRecommendationSource;
 	readonly reason: IExtensionRecommendationReson;
 };
 
