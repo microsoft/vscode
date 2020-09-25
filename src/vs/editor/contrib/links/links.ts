@@ -298,7 +298,7 @@ export class LinkDetector implements IEditorContribution {
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
 			if (typeof uri === 'string' && this.editor.hasModel()) {
 				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && uri.startsWith('file:')) {
+				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
 					const parsedUri = URI.parse(uri);
 					if (parsedUri.scheme === Schemas.file) {
 						const fsPath = resources.originalFSPath(parsedUri);

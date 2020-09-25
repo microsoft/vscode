@@ -37,6 +37,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { LocalFileAccess } from 'vs/base/common/network';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -1296,7 +1297,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: NativeImage | undefined;
-			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === 'file') {
+			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === Schemas.file) {
 				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;

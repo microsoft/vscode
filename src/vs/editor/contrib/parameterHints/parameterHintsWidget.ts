@@ -152,7 +152,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = true;
 		setTimeout(() => {
 			if (this.domNodes) {
-				dom.addClass(this.domNodes.element, 'visible');
+				this.domNodes.element.classList.add('visible');
 			}
 		}, 100);
 		this.editor.layoutContentWidget(this);
@@ -169,7 +169,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = false;
 		this.announcedLabel = null;
 		if (this.domNodes) {
-			dom.removeClass(this.domNodes.element, 'visible');
+			this.domNodes.element.classList.remove('visible');
 		}
 		this.editor.layoutContentWidget(this);
 	}
@@ -225,7 +225,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 				documentation.textContent = activeParameter.documentation;
 			} else {
 				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
-				dom.addClass(renderedContents.element, 'markdown-docs');
+				renderedContents.element.classList.add('markdown-docs');
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
@@ -237,7 +237,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
 			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
-			dom.addClass(renderedContents.element, 'markdown-docs');
+			renderedContents.element.classList.add('markdown-docs');
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
