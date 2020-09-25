@@ -131,3 +131,8 @@
 	border-bottom: 1px solid transparent;
 	text-underline-position: under;
 }
+
+.monaco-hover .hover-contents span {
+	margin-bottom: 4px;
+	display: inline-block;
+}
