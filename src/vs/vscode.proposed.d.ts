@@ -739,7 +739,7 @@ declare module 'vscode' {
 		 * A flag expressing that this decoration should be
 		 * propagated to its parents.
 		 */
-		propagte?: boolean;
+		propagate?: boolean;
 
 		/**
 		 * Creates a new decoration.
