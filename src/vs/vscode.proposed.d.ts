@@ -1226,6 +1226,7 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	//TODO@jrieken rename to NotebookCellOutputItem
 	export class NotebookCellOutput {
 
 		readonly mime: string;
@@ -1235,6 +1236,8 @@ declare module 'vscode' {
 		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
 	}
 
+	//TODO@jrieken rename to NotebookCellOutput
+	//TODO@jrieken add id?
 	export class NotebookCellOutputList {
 
 		readonly outputs: NotebookCellOutput[];
