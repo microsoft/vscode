@@ -137,17 +137,23 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
+interface IAMDModule {
+	moduleId: string;
+	requireFn: typeof require;
+}
+
 class LocalFileAccessImpl {
 
 	private readonly FALLBACK_AUTHORITY = 'vscode-app';
 
 	/**
-	 * Returns a `vscode-file` URI by from the provided `file` URI.
+	 * Returns a `vscode-file` URI to use in contexts where
+	 * the browser is responsible for loading (e.g. fetch())
 	 */
-	rewrite(uri: URI, query?: string): URI {
-		if (uri.scheme !== Schemas.file) {
-			throw new Error(`Only ${Schemas.file}: URIs are supported.`);
-		}
+	asCodeUri(uri: URI): URI;
+	asCodeUri(module: IAMDModule): URI;
+	asCodeUri(uriOrModule: URI | IAMDModule): URI {
+		const uri = this.toUri(uriOrModule);
 
 		return uri.with({
 			scheme: Schemas.vscodeFileResource,
@@ -156,18 +162,19 @@ class LocalFileAccessImpl {
 			// If the URI is not coming with an authority already, we
 			// add our own
 			authority: uri.authority || this.FALLBACK_AUTHORITY,
-			query,
+			query: null,
 			fragment: null
 		});
 	}
 
 	/**
-	 * Returns the `file` URI from the proided `vscode-file` URI.
+	 * Returns the `file` URI to use in contexts where node.js
+	 * is responsible for loading.
 	 */
-	restore(uri: URI, includeQuery = false): URI {
-		if (uri.scheme !== Schemas.vscodeFileResource) {
-			throw new Error(`Only ${Schemas.vscodeFileResource}: URIs are supported.`);
-		}
+	asFileUri(uri: URI): URI;
+	asFileUri(module: IAMDModule): URI;
+	asFileUri(uriOrModule: URI | IAMDModule): URI {
+		const uri = this.toUri(uriOrModule);
 
 		return uri.with({
 			scheme: Schemas.file,
@@ -175,17 +182,17 @@ class LocalFileAccessImpl {
 			// our fallback authority. This ensures we properly preserve
 			// Windows UNC paths that come with their own authority.
 			authority: uri.authority !== this.FALLBACK_AUTHORITY ? uri.authority : null,
-			query: includeQuery ? uri.query : null,
+			query: null,
 			fragment: null
 		});
 	}
 
-	/**
-	 * Returns a `vscode-file` URI by resolving the `moduleId` to an absolute
-	 * path on disk.
-	 */
-	fromModuleId(moduleId: string, query?: string): URI {
-		return this.rewrite(getUriFromAmdModule(require, moduleId), query);
+	private toUri(uriOrModule: URI | IAMDModule): URI {
+		if (URI.isUri(uriOrModule)) {
+			return uriOrModule;
+		}
+
+		return getUriFromAmdModule(uriOrModule.requireFn, uriOrModule.moduleId);
 	}
 }
 

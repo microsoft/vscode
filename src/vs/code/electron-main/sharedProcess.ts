@@ -62,10 +62,12 @@ export class SharedProcess implements ISharedProcess {
 			windowId: this.window.id
 		};
 
-		const fileUrl = LocalFileAccess.fromModuleId(
-			'vs/code/electron-browser/sharedProcess/sharedProcess.html',
-			`config=${encodeURIComponent(JSON.stringify(config))}`);
-		this.window.loadURL(fileUrl.toString(true));
+		const windowUrl = LocalFileAccess.asCodeUri(
+			{
+				moduleId: 'vs/code/electron-browser/sharedProcess/sharedProcess.html',
+				requireFn: require
+			}).with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` });
+		this.window.loadURL(windowUrl.toString(true));
 
 		// Prevent the window from dying
 		const onClose = (e: ElectronEvent) => {

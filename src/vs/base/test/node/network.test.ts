@@ -10,43 +10,36 @@ import { isEqual } from 'vs/base/common/resources';
 
 suite('network', () => {
 
-	test('LocalFileAccess', () => {
+	test('LocalFileAccess: URI', () => {
 
-		// fromModuleId()
-		const fromModuleId = LocalFileAccess.fromModuleId('vs/base/test/node/network.test');
-		assert.equal(fromModuleId.scheme, Schemas.vscodeFileResource);
-
-		// rewrite(): throws for non-file URIs
-		let error: Error | undefined = undefined;
-		try {
-			LocalFileAccess.rewrite(URI.parse('some:value'));
-		} catch (e) {
-			error = e;
-		}
-		assert.ok(error);
-
-		// restore(): throws for non-vscode-file URIs
-		error = undefined;
-		try {
-			LocalFileAccess.restore(URI.parse('some:value'));
-		} catch (e) {
-			error = e;
-		}
-		assert.ok(error);
-
-		// rewrite() & restore(): simple, without authority
+		// asCodeUri() & asFileUri(): simple, without authority
 		let originalFileUri = URI.file(__filename);
-		let rewrittenUri = LocalFileAccess.rewrite(originalFileUri);
-		assert.ok(rewrittenUri.authority.length > 0);
-		let restoredUri = LocalFileAccess.restore(rewrittenUri);
-		assert.equal(restoredUri.authority.length, 0);
-		assert(isEqual(originalFileUri, restoredUri));
+		let codeUri = LocalFileAccess.asCodeUri(originalFileUri);
+		assert.ok(codeUri.authority.length > 0);
+		let fileUri = LocalFileAccess.asFileUri(codeUri);
+		assert.equal(fileUri.authority.length, 0);
+		assert(isEqual(originalFileUri, fileUri));
 
-		// rewrite() & restore(): with authority
+		// asCodeUri() & asFileUri(): with authority
 		originalFileUri = URI.file(__filename).with({ authority: 'test-authority' });
-		rewrittenUri = LocalFileAccess.rewrite(originalFileUri);
-		assert.equal(rewrittenUri.authority, originalFileUri.authority);
-		restoredUri = LocalFileAccess.restore(rewrittenUri);
-		assert(isEqual(originalFileUri, restoredUri));
+		codeUri = LocalFileAccess.asCodeUri(originalFileUri);
+		assert.equal(codeUri.authority, originalFileUri.authority);
+		fileUri = LocalFileAccess.asFileUri(codeUri);
+		assert(isEqual(originalFileUri, fileUri));
+	});
+
+	test('LocalFileAccess: moduleId', () => {
+		const codeUri = LocalFileAccess.asCodeUri({ moduleId: 'vs/base/test/node/network.test', requireFn: require });
+		assert.equal(codeUri.scheme, Schemas.vscodeFileResource);
+
+		const fileUri = LocalFileAccess.asFileUri({ moduleId: 'vs/base/test/node/network.test', requireFn: require });
+		assert.equal(fileUri.scheme, Schemas.file);
+	});
+
+	test('LocalFileAccess: query and fragment is dropped', () => {
+		let originalFileUri = URI.file(__filename).with({ query: 'foo=bar', fragment: 'something' });
+		let codeUri = LocalFileAccess.asCodeUri(originalFileUri);
+		assert.equal(codeUri.query, '');
+		assert.equal(codeUri.fragment, '');
 	});
 });

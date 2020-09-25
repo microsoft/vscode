@@ -840,8 +840,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		// Main workbench file is being loaded via `vscode-file` protocol for security reasons
-		return LocalFileAccess.fromModuleId(workbench, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
+		return LocalFileAccess
+			.asCodeUri({ moduleId: workbench, requireFn: require })
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+			.toString(true);
 	}
 
 	serializeWindowState(): IWindowState {

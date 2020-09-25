@@ -297,7 +297,7 @@ export class IssueMainService implements ICommonIssueService {
 					};
 
 					this._processExplorerWindow.loadURL(
-						toLauchUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
+						toWindowUrl('vs/code/electron-sandbox/processExplorer/processExplorer.html', windowConfiguration));
 
 					this._processExplorerWindow.on('close', () => this._processExplorerWindow = null);
 
@@ -438,11 +438,11 @@ export class IssueMainService implements ICommonIssueService {
 			}
 		};
 
-		return toLauchUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
+		return toWindowUrl('vs/code/electron-sandbox/issue/issueReporter.html', windowConfiguration);
 	}
 }
 
-function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
+function toWindowUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 	const environment = parseArgs(process.argv, OPTIONS);
 	const config = Object.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
@@ -452,5 +452,8 @@ function toLauchUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 		}
 	}
 
-	return LocalFileAccess.fromModuleId(pathToHtml, `config=${encodeURIComponent(JSON.stringify(config))}`).toString(true);
+	return LocalFileAccess
+		.asCodeUri({ moduleId: pathToHtml, requireFn: require })
+		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+		.toString(true);
 }

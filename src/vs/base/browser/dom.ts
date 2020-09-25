@@ -1231,7 +1231,7 @@ export function asDomUri(uri: URI): URI {
 
 	// Local access support
 	if (platform.isNative && Schemas.file === uri.scheme) {
-		return LocalFileAccess.rewrite(uri);
+		return LocalFileAccess.asCodeUri(uri);
 	}
 
 	return uri;
