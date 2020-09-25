@@ -137,11 +137,6 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
-interface IAMDModule {
-	moduleId: string;
-	requireFn: typeof require;
-}
-
 class LocalFileAccessImpl {
 
 	private readonly FALLBACK_AUTHORITY = 'vscode-app';
@@ -151,9 +146,9 @@ class LocalFileAccessImpl {
 	 * the browser is responsible for loading (e.g. fetch())
 	 */
 	asCodeUri(uri: URI): URI;
-	asCodeUri(module: IAMDModule): URI;
-	asCodeUri(uriOrModule: URI | IAMDModule): URI {
-		const uri = this.toUri(uriOrModule);
+	asCodeUri(moduleId: string, requireFn: typeof require): URI;
+	asCodeUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
+		const uri = this.toUri(uriOrModule, requireFn);
 
 		return uri.with({
 			scheme: Schemas.vscodeFileResource,
@@ -172,9 +167,9 @@ class LocalFileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(uri: URI): URI;
-	asFileUri(module: IAMDModule): URI;
-	asFileUri(uriOrModule: URI | IAMDModule): URI {
-		const uri = this.toUri(uriOrModule);
+	asFileUri(moduleId: string, requireFn: typeof require): URI;
+	asFileUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
+		const uri = this.toUri(uriOrModule, requireFn);
 
 		return uri.with({
 			scheme: Schemas.file,
@@ -187,12 +182,12 @@ class LocalFileAccessImpl {
 		});
 	}
 
-	private toUri(uriOrModule: URI | IAMDModule): URI {
+	private toUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
 
-		return getUriFromAmdModule(uriOrModule.requireFn, uriOrModule.moduleId);
+		return getUriFromAmdModule(requireFn!, uriOrModule);
 	}
 }
 

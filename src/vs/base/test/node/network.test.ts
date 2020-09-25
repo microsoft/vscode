@@ -29,10 +29,10 @@ suite('network', () => {
 	});
 
 	test('LocalFileAccess: moduleId', () => {
-		const codeUri = LocalFileAccess.asCodeUri({ moduleId: 'vs/base/test/node/network.test', requireFn: require });
+		const codeUri = LocalFileAccess.asCodeUri('vs/base/test/node/network.test', require);
 		assert.equal(codeUri.scheme, Schemas.vscodeFileResource);
 
-		const fileUri = LocalFileAccess.asFileUri({ moduleId: 'vs/base/test/node/network.test', requireFn: require });
+		const fileUri = LocalFileAccess.asFileUri('vs/base/test/node/network.test', require);
 		assert.equal(fileUri.scheme, Schemas.file);
 	});
 

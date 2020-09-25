@@ -77,7 +77,7 @@ export class ProxyAuthHandler extends Disposable {
 		}
 
 		const win = new BrowserWindow(opts);
-		const windowUrl = LocalFileAccess.asCodeUri({ moduleId: 'vs/code/electron-sandbox/proxy/auth.html', requireFn: require });
+		const windowUrl = LocalFileAccess.asCodeUri('vs/code/electron-sandbox/proxy/auth.html', require);
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");
 		const message = localize('proxyauth', "The proxy {0} requires authentication.", proxyUrl);

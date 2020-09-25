@@ -841,7 +841,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return LocalFileAccess
-			.asCodeUri({ moduleId: workbench, requireFn: require })
+			.asCodeUri(workbench, require)
 			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 			.toString(true);
 	}

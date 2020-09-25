@@ -442,7 +442,7 @@ export class IssueMainService implements ICommonIssueService {
 	}
 }
 
-function toWindowUrl<T>(pathToHtml: string, windowConfiguration: T): string {
+function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): string {
 	const environment = parseArgs(process.argv, OPTIONS);
 	const config = Object.assign(environment, windowConfiguration);
 	for (const keyValue of Object.keys(config)) {
@@ -453,7 +453,7 @@ function toWindowUrl<T>(pathToHtml: string, windowConfiguration: T): string {
 	}
 
 	return LocalFileAccess
-		.asCodeUri({ moduleId: pathToHtml, requireFn: require })
+		.asCodeUri(modulePathToHtml, require)
 		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 		.toString(true);
 }
