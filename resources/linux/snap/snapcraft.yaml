@@ -31,6 +31,7 @@ parts:
       - libgconf-2-4
       - libglib2.0-bin
       - libgnome-keyring0
+      - libgbm1
       - libgtk-3-0
       - libnotify4
       - libnspr4
