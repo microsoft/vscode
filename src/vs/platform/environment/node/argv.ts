@@ -111,6 +111,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'force-user-env': { type: 'boolean' },
 	'open-devtools': { type: 'boolean' },
 	'__sandbox': { type: 'boolean' },
+	'__v8-cache-options': { type: 'string' }, //TODO@Ben remove, only for testing
 
 	// chromium flags
 	'no-proxy-server': { type: 'boolean' },

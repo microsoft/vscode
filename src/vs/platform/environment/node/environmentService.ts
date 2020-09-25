@@ -217,6 +217,16 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	get sandbox(): boolean { return !!this._args['__sandbox']; }
 
+	@memoize
+	get v8CacheOptions(): 'none' | 'code' | 'bypassHeatCheck' | 'bypassHeatCheckAndEagerCompile' {
+		const commandLineArg = this._args['__v8-cache-options'];
+		if (commandLineArg === 'none' || commandLineArg === 'code' || commandLineArg === 'bypassHeatCheck' || commandLineArg === 'bypassHeatCheckAndEagerCompile') {
+			return commandLineArg;
+		}
+
+		return 'bypassHeatCheck';
+	}
+
 	constructor(private _args: NativeParsedArgs) {
 		if (!process.env['VSCODE_LOGS']) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');

@@ -196,6 +196,7 @@ export class IssueMainService implements ICommonIssueService {
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
 							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+							v8CacheOptions: this.environmentService.v8CacheOptions,
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,
@@ -262,6 +263,7 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
 							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+							v8CacheOptions: this.environmentService.v8CacheOptions,
 							enableWebSQL: false,
 							enableRemoteModule: false,
 							spellcheck: false,

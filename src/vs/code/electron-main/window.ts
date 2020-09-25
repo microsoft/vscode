@@ -168,6 +168,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				title: product.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
+					v8CacheOptions: this.environmentService.v8CacheOptions,
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					spellcheck: false,
@@ -188,6 +189,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						}
 				}
 			};
+
+			this.logService.trace(`window#ctor: using V8 cache options: ${this.environmentService.v8CacheOptions}`);
 
 			// Apply icon to window
 			// Linux: always

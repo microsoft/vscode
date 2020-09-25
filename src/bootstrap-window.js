@@ -90,21 +90,17 @@
 
 		window.document.documentElement.setAttribute('lang', locale);
 
-		// do not advertise AMD to avoid confusing UMD modules loaded with nodejs
-		if (!sandbox) {
-			window['define'] = undefined;
-		}
-
 		// replace the patched electron fs with the original node fs for all AMD code (TODO@sandbox non-sandboxed only)
 		if (!sandbox) {
-			require.define('fs', ['original-fs'], function (originalFS) { return originalFS; });
+			require.define('fs', [], function () { return require.__$__nodeRequire('original-fs'); });
 		}
 
 		window['MonacoEnvironment'] = {};
 
 		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32' })}/out`,
-			'vs/nls': nlsConfig
+			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
+			'vs/nls': nlsConfig,
+			preferScriptTags: true
 		};
 
 		// Enable loading of node modules:

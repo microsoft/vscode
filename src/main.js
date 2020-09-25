@@ -124,6 +124,15 @@ protocol.registerSchemesAsPrivileged([
 			corsEnabled: true,
 		}
 	},
+	{
+		scheme: 'vscode-file',
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true,
+			corsEnabled: true
+		}
+	}
 ]);
 
 // Global app listeners
