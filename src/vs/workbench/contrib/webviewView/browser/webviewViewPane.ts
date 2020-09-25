@@ -30,7 +30,6 @@ declare const ResizeObserver: any;
 
 const storageKeys = {
 	webviewState: 'webviewState',
-	title: 'title'
 } as const;
 
 export class WebviewViewPane extends ViewPane {
@@ -70,11 +69,6 @@ export class WebviewViewPane extends ViewPane {
 
 		this.memento = new Memento(`webviewView.${this.id}`, storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE);
-
-		const storedTitle = this.viewState[storageKeys.title];
-		if (typeof storedTitle === 'string') {
-			this.updateTitle(storedTitle);
-		}
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this.updateTreeVisibility();
@@ -124,7 +118,6 @@ export class WebviewViewPane extends ViewPane {
 		if (this._webview) {
 			this.viewState[storageKeys.webviewState] = this._webview.state;
 		}
-		this.viewState[storageKeys.title] = this.setTitle;
 
 		this.memento.saveMemento();
 		super.saveState();

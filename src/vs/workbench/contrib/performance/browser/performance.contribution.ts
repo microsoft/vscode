@@ -8,6 +8,7 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as Input, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { PerfviewContrib, PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
@@ -42,7 +43,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'perfview.show',
 			title: { value: localize('show.label', "Startup Performance"), original: 'Startup Performance' },
-			category: { value: localize({ key: 'show.cat', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}

@@ -5,7 +5,7 @@
 
 import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
 export class KeymapRecommendations extends ExtensionRecommendations {
 
@@ -23,7 +23,6 @@ export class KeymapRecommendations extends ExtensionRecommendations {
 		if (this.productService.keymapExtensionTips) {
 			this._recommendations = this.productService.keymapExtensionTips.map(extensionId => (<ExtensionRecommendation>{
 				extensionId: extensionId.toLowerCase(),
-				source: 'application',
 				reason: {
 					reasonId: ExtensionRecommendationReason.Application,
 					reasonText: ''

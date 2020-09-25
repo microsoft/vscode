@@ -6,7 +6,8 @@
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ExtensionRecommendationSource, ExtensionRecommendationReason, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
@@ -41,7 +42,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 	private readonly fileBasedRecommendationsByPattern = new Map<string, string[]>();
 	private readonly fileBasedRecommendationsByLanguage = new Map<string, string[]>();
-	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number, sources: ExtensionRecommendationSource[] }>();
+	private readonly fileBasedRecommendations = new Map<string, { recommendedTime: number }>();
 	private readonly processedFileExtensions: string[] = [];
 	private readonly processedLanguages: string[] = [];
 
@@ -60,16 +61,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				return this.fileBasedRecommendations.get(a)!.recommendedTime > this.fileBasedRecommendations.get(b)!.recommendedTime ? -1 : 1;
 			})
 			.forEach(extensionId => {
-				for (const source of this.fileBasedRecommendations.get(extensionId)!.sources) {
-					recommendations.push({
-						extensionId,
-						source,
-						reason: {
-							reasonId: ExtensionRecommendationReason.File,
-							reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
-						}
-					});
-				}
+				recommendations.push({
+					extensionId,
+					reason: {
+						reasonId: ExtensionRecommendationReason.File,
+						reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
+					}
+				});
 			});
 		return recommendations;
 	}
@@ -138,7 +136,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		forEach(cachedRecommendations, ({ key, value }) => {
 			const diff = (now - value) / milliSecondsInADay;
 			if (diff <= 7 && allRecommendations.indexOf(key) > -1) {
-				this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value, sources: ['cached'] });
+				this.fileBasedRecommendations.set(key.toLowerCase(), { recommendedTime: value });
 			}
 		});
 
@@ -201,9 +199,6 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		for (const recommendation of fileBasedRecommendations) {
 			const filedBasedRecommendation = this.fileBasedRecommendations.get(recommendation) || { recommendedTime: Date.now(), sources: [] };
 			filedBasedRecommendation.recommendedTime = Date.now();
-			if (!filedBasedRecommendation.sources.some(s => s instanceof URI && s.toString() === uri.toString())) {
-				filedBasedRecommendation.sources.push(uri);
-			}
 			this.fileBasedRecommendations.set(recommendation, filedBasedRecommendation);
 		}
 

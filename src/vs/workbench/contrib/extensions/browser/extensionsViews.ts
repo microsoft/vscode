@@ -9,7 +9,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
 import { SortBy, SortOrder, IQueryOptions, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendationsService, IExtensionRecommendation, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -592,11 +593,10 @@ export class ExtensionsListView extends ViewPane {
 		return new PagedModel([]);
 	}
 
-	protected async getInstallableRecommendations(recommendations: IExtensionRecommendation[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
+	protected async getInstallableRecommendations(recommendations: string[], options: IQueryOptions, token: CancellationToken): Promise<IExtension[]> {
 		const extensions: IExtension[] = [];
 		if (recommendations.length) {
-			const names = recommendations.map(({ extensionId }) => extensionId);
-			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names, pageSize: names.length }, token);
+			const pager = await this.extensionsWorkbenchService.queryGallery({ ...options, names: recommendations, pageSize: recommendations.length }, token);
 			for (const extension of pager.firstPage) {
 				if (extension.gallery && (await this.extensionManagementService.canInstall(extension.gallery))) {
 					extensions.push(extension);
@@ -606,11 +606,11 @@ export class ExtensionsListView extends ViewPane {
 		return extensions;
 	}
 
-	protected async getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
+	protected async getWorkspaceRecommendations(): Promise<string[]> {
 		const recommendations = await this.extensionRecommendationsService.getWorkspaceRecommendations();
 		const { important } = await this.extensionRecommendationsService.getConfigBasedRecommendations();
 		for (const configBasedRecommendation of important) {
-			if (!recommendations.find(r => r.extensionId === configBasedRecommendation.extensionId)) {
+			if (!recommendations.find(extensionId => extensionId === configBasedRecommendation)) {
 				recommendations.push(configBasedRecommendation);
 			}
 		}
@@ -623,7 +623,7 @@ export class ExtensionsListView extends ViewPane {
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-workspace' }, token))
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
 		this.telemetryService.publicLog2<{ count: number }, WorkspaceRecommendationsClassification>('extensionWorkspaceRecommendations:open', { count: installableRecommendations.length });
-		const result: IExtension[] = coalesce(recommendations.map(({ extensionId: id }) => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
+		const result: IExtension[] = coalesce(recommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}
 
@@ -649,7 +649,7 @@ export class ExtensionsListView extends ViewPane {
 			.filter(e => e.type === ExtensionType.User)
 			.map(e => e.identifier.id.toLowerCase());
 		const workspaceRecommendations = (await this.getWorkspaceRecommendations())
-			.map(r => r.extensionId.toLowerCase());
+			.map(extensionId => extensionId.toLowerCase());
 
 		const otherRecommendations = distinct(
 			flatten(await Promise.all([
@@ -657,13 +657,13 @@ export class ExtensionsListView extends ViewPane {
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(({ extensionId }) => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
-			), r => r.extensionId.toLowerCase());
+			])).filter(extensionId => !local.includes(extensionId.toLowerCase()) && !workspaceRecommendations.includes(extensionId.toLowerCase())
+			), extensionId => extensionId.toLowerCase());
 
 		const installableRecommendations = (await this.getInstallableRecommendations(otherRecommendations, { ...options, source: 'recommendations-other', sortBy: undefined }, token))
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
 
-		const result: IExtension[] = coalesce(otherRecommendations.map(({ extensionId: id }) => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
+		const result: IExtension[] = coalesce(otherRecommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result);
 	}
 
@@ -680,11 +680,11 @@ export class ExtensionsListView extends ViewPane {
 				this.extensionRecommendationsService.getImportantRecommendations(),
 				this.extensionRecommendationsService.getFileBasedRecommendations(),
 				this.extensionRecommendationsService.getOtherRecommendations()
-			])).filter(({ extensionId }) => !local.includes(extensionId.toLowerCase())
-			), r => r.extensionId.toLowerCase());
+			])).filter(extensionId => !local.includes(extensionId.toLowerCase())
+			), extensionId => extensionId.toLowerCase());
 
 		const installableRecommendations = await this.getInstallableRecommendations(allRecommendations, { ...options, source: 'recommendations-all', sortBy: undefined }, token);
-		const result: IExtension[] = coalesce(allRecommendations.map(({ extensionId: id }) => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
+		const result: IExtension[] = coalesce(allRecommendations.map(id => installableRecommendations.find(i => areSameExtensions(i.identifier, { id }))));
 		return new PagedModel(result.slice(0, 8));
 	}
 
@@ -1030,7 +1030,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		const installed = (await this.extensionsWorkbenchService.queryLocal())
 			.filter(l => l.enablementState !== EnablementState.DisabledByExtensionKind); // Filter extensions disabled by kind
 		const recommendations = (await this.getWorkspaceRecommendations())
-			.filter(({ extensionId }) => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
+			.filter(extensionId => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
 		return this.getInstallableRecommendations(recommendations, { source: 'install-all-workspace-recommendations' }, CancellationToken.None);
 	}
 

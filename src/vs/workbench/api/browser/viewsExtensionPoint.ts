@@ -26,7 +26,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } f
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -408,7 +408,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			registry.registerWorkbenchAction(
 				SyncActionDescriptor.create(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
 				`View: Show ${title}`,
-				localize('view', "View")
+				CATEGORIES.View.value
 			);
 		}
 
@@ -476,11 +476,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					const type = this.getViewType(item.type);
 					if (!type) {
 						collector.error(localize('unknownViewType', "Unknown view type `{0}`.", item.type));
-						return null;
-					}
-
-					if (type === ViewType.Webview && !extension.description.enableProposedApi) {
-						collector.error(localize('webviewViewsRequireProposed', "Webview views are proposed api and are only supported when running out of dev or with the following command line switch: --enable-proposed-api"));
 						return null;
 					}
 

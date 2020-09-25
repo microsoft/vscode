@@ -135,7 +135,7 @@
 	transition-property: width;
 }
 
-#monaco-workbench-pane-drop-overlay {
+#monaco-pane-drop-overlay {
 	position: absolute;
 	z-index: 10000;
 	width: 100%;
@@ -144,7 +144,7 @@
 	box-sizing: border-box;
 }
 
-#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator {
+#monaco-pane-drop-overlay > .pane-overlay-indicator {
 	position: absolute;
 	width: 100%;
 	height: 100%;
@@ -155,6 +155,6 @@
 	transition: opacity 150ms ease-out;
 }
 
-#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
+#monaco-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
 	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

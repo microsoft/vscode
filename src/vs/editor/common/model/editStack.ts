@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
 import * as buffer from 'vs/base/common/buffer';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
 
 function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();
@@ -339,6 +340,14 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 
 	public split(): IResourceUndoRedoElement[] {
 		return this._editStackElementsArr;
+	}
+
+	public toString(): string {
+		let result: string[] = [];
+		for (const editStackElement of this._editStackElementsArr) {
+			result.push(`${basename(editStackElement.resource)}: ${editStackElement}`);
+		}
+		return `{${result.join(', ')}}`;
 	}
 }
 

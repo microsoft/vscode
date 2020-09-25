@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ChildProcess, fork } from 'child_process';
 import { Server, Socket, createServer } from 'net';
 import { CrashReporterStartOptions } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 import { timeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -215,7 +215,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				}
 
 				// Run Extension Host as fork of current process
-				this._extensionHostProcess = fork(getPathFromAmdModule(require, 'bootstrap-fork'), ['--type=extensionHost'], opts);
+				this._extensionHostProcess = fork(FileAccess.asFileUri('bootstrap-fork', require).fsPath, ['--type=extensionHost'], opts);
 
 				// Catch all output coming from the extension host process
 				type Output = { data: string, format: string[] };

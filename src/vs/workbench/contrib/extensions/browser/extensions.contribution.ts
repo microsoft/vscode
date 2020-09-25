@@ -9,7 +9,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionsLabel, ExtensionsLocalizedLabel, ExtensionsChannelId, IExtensionManagementService, IExtensionGalleryService, PreferencesLocalizedLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionManagementServerService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -54,6 +55,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -387,7 +389,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				super({
 					id: OpenExtensionsViewletAction.ID,
 					title: { value: OpenExtensionsViewletAction.LABEL, original: 'Show Extensions' },
-					category: { value: localize('view', "View"), original: 'View' },
+					category: CATEGORIES.View,
 					menu: {
 						id: MenuId.CommandPalette,
 					},
@@ -765,7 +767,7 @@ class ExtensionsContributions implements IWorkbenchContribution {
 				super({
 					id: ReinstallAction.ID,
 					title: { value: ReinstallAction.LABEL, original: 'Reinstall Extension...' },
-					category: localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"),
+					category: CATEGORIES.Developer,
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyAndExpr.create([CONTEXT_HAS_GALLERY, ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER])])

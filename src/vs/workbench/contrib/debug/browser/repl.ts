@@ -527,6 +527,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				// Only scroll if we were scrolled all the way down before tree refreshed #10486
 				revealLastElement(this.tree);
 			}
+			// Repl elements count changed, need to update filter stats on the badge
+			this.filterState.updateFilterStats();
 		}, Repl.REFRESH_DELAY);
 	}
 

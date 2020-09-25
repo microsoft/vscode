@@ -403,7 +403,22 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	protected _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
-		const filteredMetadata: { [key: string]: any } = metadata;
+		let filteredMetadata: { [key: string]: any } = {};
+
+		if (this.notebookEditor.textModel) {
+			const transientMetadata = this.notebookEditor.textModel!.transientOptions.transientMetadata;
+
+			const keys = new Set([...Object.keys(metadata)]);
+			for (let key of keys) {
+				if (!(transientMetadata[key as keyof NotebookCellMetadata])
+				) {
+					filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+				}
+			}
+		} else {
+			filteredMetadata = metadata;
+		}
+
 		const content = JSON.stringify({
 			language,
 			...filteredMetadata

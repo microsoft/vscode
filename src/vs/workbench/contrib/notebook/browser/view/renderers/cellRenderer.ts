@@ -785,7 +785,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	private updateForMetadata(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
-		DOM.toggleClass(templateData.container, 'runnable', !!metadata.runnable);
+		templateData.container.classList.toggle('runnable', !!metadata.runnable);
 		this.updateExecutionOrder(metadata, templateData);
 		templateData.statusBar.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
 
@@ -826,7 +826,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private updateForHover(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		DOM.toggleClass(templateData.container, 'cell-output-hover', element.outputIsHovered);
+		templateData.container.classList.toggle('cell-output-hover', element.outputIsHovered);
 	}
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
@@ -1083,9 +1083,9 @@ export class ListTopCellToolbar extends Disposable {
 
 	private updateClass() {
 		if (this.notebookEditor.viewModel?.length === 0) {
-			DOM.addClass(this.topCellToolbar, 'emptyNotebook');
+			this.topCellToolbar.classList.add('emptyNotebook');
 		} else {
-			DOM.removeClass(this.topCellToolbar, 'emptyNotebook');
+			this.topCellToolbar.classList.remove('emptyNotebook');
 		}
 	}
 

@@ -1314,11 +1314,11 @@ export class SimpleButton extends Widget {
 	public setExpanded(expanded: boolean): void {
 		this._domNode.setAttribute('aria-expanded', String(!!expanded));
 		if (expanded) {
-			dom.removeClasses(this._domNode, findCollapsedIcon.classNames);
-			dom.addClasses(this._domNode, findExpandedIcon.classNames);
+			this._domNode.classList.remove(...findCollapsedIcon.classNames.split(' '));
+			this._domNode.classList.add(...findExpandedIcon.classNames.split(' '));
 		} else {
-			dom.removeClasses(this._domNode, findExpandedIcon.classNames);
-			dom.addClasses(this._domNode, findCollapsedIcon.classNames);
+			this._domNode.classList.remove(...findExpandedIcon.classNames.split(' '));
+			this._domNode.classList.add(...findCollapsedIcon.classNames.split(' '));
 		}
 	}
 }

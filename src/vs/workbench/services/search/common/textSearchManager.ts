@@ -13,6 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { TextSearchProvider, TextSearchResult, TextSearchMatch, TextSearchComplete, Range, TextSearchOptions, TextSearchQuery } from 'vs/workbench/services/search/common/searchExtTypes';
 import { nextTick } from 'vs/base/common/process';
+import { Schemas } from 'vs/base/common/network';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -117,7 +118,7 @@ export class TextSearchManager {
 					return;
 				}
 
-				const hasSibling = folderQuery.folder.scheme === 'file' ?
+				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
 					glob.hasSiblingPromiseFn(() => {
 						return this.fileUtils.readdir(resources.dirname(result.uri));
 					}) :

@@ -6,7 +6,7 @@
 import { IExtensionTipsService, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { localize } from 'vs/nls';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Emitter } from 'vs/base/common/event';
 
@@ -73,7 +73,6 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 	private toExtensionRecommendation(tip: IConfigBasedExtensionTip): ExtensionRecommendation {
 		return {
 			extensionId: tip.extensionId,
-			source: 'config',
 			reason: {
 				reasonId: ExtensionRecommendationReason.WorkspaceConfig,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because of the current workspace configuration")

@@ -187,6 +187,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -232,6 +233,11 @@ export class TestNativeHostService implements INativeHostService {
 	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 	async sendInputEvent(event: MouseInputEvent): Promise<void> { }
 	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
+	async getPassword(service: string, account: string): Promise<string | null> { return null; }
+	async setPassword(service: string, account: string, password: string): Promise<void> { }
+	async deletePassword(service: string, account: string): Promise<boolean> { return false; }
+	async findPassword(service: string): Promise<string | null> { return null; }
+	async findCredentials(service: string): Promise<{ account: string; password: string; }[]> { return []; }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {

@@ -84,6 +84,17 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		return this._range;
 	}
 
+	private readonly _onDidChangeReadOnly = new Emitter<boolean>();
+	get onDidChangeReadOnly(): Event<boolean> { return this._onDidChangeReadOnly.event; }
+	set readOnly(state: boolean) {
+		this._readOnly = state;
+		this._onDidChangeReadOnly.fire(this._readOnly);
+	}
+
+	get readOnly() {
+		return this._readOnly;
+	}
+
 	private readonly _onDidChangeRange = new Emitter<IRange>();
 	public onDidChangeRange = this._onDidChangeRange.event;
 
@@ -112,7 +123,8 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		public extensionId: string,
 		public threadId: string,
 		public resource: string,
-		private _range: IRange
+		private _range: IRange,
+		private _readOnly: boolean
 	) {
 		this._isDisposed = false;
 	}
@@ -126,6 +138,7 @@ export class MainThreadCommentThread implements modes.CommentThread {
 		if (modified('contextValue')) { this._contextValue = changes.contextValue; }
 		if (modified('comments')) { this._comments = changes.comments; }
 		if (modified('collapseState')) { this._collapsibleState = changes.collapseState; }
+		if (modified('readOnly')) { this.readOnly = changes.readOnly!; }
 	}
 
 	dispose() {
@@ -214,7 +227,8 @@ export class MainThreadCommentController {
 			extensionId,
 			threadId,
 			URI.revive(resource).toString(),
-			range
+			range,
+			false
 		);
 
 		this._threads.set(commentThreadHandle, thread);

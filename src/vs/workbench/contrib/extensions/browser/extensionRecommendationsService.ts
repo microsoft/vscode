@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, IExtensionGalleryService, InstallOperation, DidInstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, ExtensionRecommendationReason, RecommendationChangeNotification, IExtensionRecommendation, ExtensionRecommendationSource } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason, RecommendationChangeNotification } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ShowRecommendationsOnlyOnDemandKey } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -151,7 +151,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return output;
 	}
 
-	async getConfigBasedRecommendations(): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
+	async getConfigBasedRecommendations(): Promise<{ important: string[], others: string[] }> {
 		await this.configBasedRecommendations.activate();
 		return {
 			important: this.toExtensionRecommendations(this.configBasedRecommendations.importantRecommendations),
@@ -159,7 +159,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		};
 	}
 
-	async getOtherRecommendations(): Promise<IExtensionRecommendation[]> {
+	async getOtherRecommendations(): Promise<string[]> {
 		await this.activateProactiveRecommendations();
 
 		const recommendations = [
@@ -174,13 +174,10 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 		shuffle(extensionIds, this.sessionSeed);
 
-		return extensionIds.map(extensionId => {
-			const sources: ExtensionRecommendationSource[] = distinct(recommendations.filter(r => r.extensionId === extensionId).map(r => r.source));
-			return (<IExtensionRecommendation>{ extensionId, sources });
-		});
+		return extensionIds;
 	}
 
-	async getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+	async getImportantRecommendations(): Promise<string[]> {
 		await this.activateProactiveRecommendations();
 
 		const recommendations = [
@@ -194,17 +191,14 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 
 		shuffle(extensionIds, this.sessionSeed);
 
-		return extensionIds.map(extensionId => {
-			const sources: ExtensionRecommendationSource[] = distinct(recommendations.filter(r => r.extensionId === extensionId).map(r => r.source));
-			return (<IExtensionRecommendation>{ extensionId, sources });
-		});
+		return extensionIds;
 	}
 
-	getKeymapRecommendations(): IExtensionRecommendation[] {
+	getKeymapRecommendations(): string[] {
 		return this.toExtensionRecommendations(this.keymapRecommendations.recommendations);
 	}
 
-	async getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]> {
+	async getWorkspaceRecommendations(): Promise<string[]> {
 		if (!this.isEnabled()) {
 			return [];
 		}
@@ -212,14 +206,14 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return this.toExtensionRecommendations(this.workspaceRecommendations.recommendations);
 	}
 
-	async getExeBasedRecommendations(exe?: string): Promise<{ important: IExtensionRecommendation[], others: IExtensionRecommendation[] }> {
+	async getExeBasedRecommendations(exe?: string): Promise<{ important: string[], others: string[] }> {
 		await this.exeBasedRecommendations.activate();
 		const { important, others } = exe ? this.exeBasedRecommendations.getRecommendations(exe)
 			: { important: this.exeBasedRecommendations.importantRecommendations, others: this.exeBasedRecommendations.otherRecommendations };
 		return { important: this.toExtensionRecommendations(important), others: this.toExtensionRecommendations(others) };
 	}
 
-	getFileBasedRecommendations(): IExtensionRecommendation[] {
+	getFileBasedRecommendations(): string[] {
 		return this.toExtensionRecommendations(this.fileBasedRecommendations.recommendations);
 	}
 
@@ -264,14 +258,11 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		}
 	}
 
-	private toExtensionRecommendations(recommendations: ReadonlyArray<ExtensionRecommendation>): IExtensionRecommendation[] {
+	private toExtensionRecommendations(recommendations: ReadonlyArray<ExtensionRecommendation>): string[] {
 		const extensionIds = distinct(recommendations.map(e => e.extensionId))
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
-		return extensionIds.map(extensionId => {
-			const sources: ExtensionRecommendationSource[] = distinct(recommendations.filter(r => r.extensionId === extensionId).map(r => r.source));
-			return (<IExtensionRecommendation>{ extensionId, sources });
-		});
+		return extensionIds;
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {

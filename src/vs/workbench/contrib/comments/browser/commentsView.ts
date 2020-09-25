@@ -60,7 +60,7 @@ export class CommentsPanel extends ViewPane {
 	public renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		dom.addClass(container, 'comments-panel');
+		container.classList.add('comments-panel');
 
 		let domContainer = dom.append(container, dom.$('.comments-panel-container'));
 		this.treeContainer = dom.append(domContainer, dom.$('.tree-container'));
@@ -113,7 +113,7 @@ export class CommentsPanel extends ViewPane {
 	}
 
 	private async renderComments(): Promise<void> {
-		dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
+		this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 		await this.tree.setInput(this.commentsModel);
 		this.renderMessage();
 	}
@@ -144,7 +144,7 @@ export class CommentsPanel extends ViewPane {
 
 	private renderMessage(): void {
 		this.messageBox.textContent = this.commentsModel.getMessage();
-		dom.toggleClass(this.messageBoxContainer, 'hidden', this.commentsModel.hasCommentThreads());
+		this.messageBoxContainer.classList.toggle('hidden', this.commentsModel.hasCommentThreads());
 	}
 
 	private createTree(): void {
@@ -237,7 +237,7 @@ export class CommentsPanel extends ViewPane {
 				this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 			}
 
-			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
+			this.treeContainer.classList.toggle('hidden', !this.commentsModel.hasCommentThreads());
 			this.tree.updateChildren().then(() => {
 				this.renderMessage();
 			}, (e) => {

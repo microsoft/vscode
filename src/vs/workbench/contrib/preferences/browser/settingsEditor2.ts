@@ -28,7 +28,6 @@ import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } f
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -47,7 +46,7 @@ import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickE
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -120,8 +119,6 @@ export class SettingsEditor2 extends EditorPane {
 	private tocTreeContainer!: HTMLElement;
 	private tocTree!: TOCTree;
 
-	private settingsAriaExtraLabelsContainer!: HTMLElement;
-
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
@@ -165,7 +162,6 @@ export class SettingsEditor2 extends EditorPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService
@@ -216,12 +212,7 @@ export class SettingsEditor2 extends EditorPane {
 	private set searchResultModel(value: SearchResultModel | null) {
 		this._searchResultModel = value;
 
-		DOM.toggleClass(this.rootElement, 'search-mode', !!this._searchResultModel);
-	}
-
-	private get currentSettingsContextMenuKeyBindingLabel(): string {
-		const keybinding = this.keybindingService.lookupKeybinding(SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU);
-		return (keybinding && keybinding.getAriaLabel()) || '';
+		this.rootElement.classList.toggle('search-mode', !!this._searchResultModel);
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -351,16 +342,6 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	focusSettings(focusSettingInput = false): void {
-		// TODO@roblourens is this in the right place?
-		// Update ARIA global labels
-		const labelElement = this.settingsAriaExtraLabelsContainer.querySelector('#settings_aria_more_actions_shortcut_label');
-		if (labelElement) {
-			const settingsContextMenuShortcut = this.currentSettingsContextMenuKeyBindingLabel;
-			if (settingsContextMenuShortcut) {
-				labelElement.setAttribute('aria-label', localize('settingsContextMenuAriaShortcut', "For more actions, Press {0}.", settingsContextMenuShortcut));
-			}
-		}
-
 		const focused = this.settingsTree.getFocus();
 		if (!focused.length) {
 			this.settingsTree.focusFirst();
@@ -648,14 +629,6 @@ export class SettingsEditor2 extends EditorPane {
 	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
-		// Add  ARIA extra labels div
-		this.settingsAriaExtraLabelsContainer = DOM.append(this.settingsTreeContainer, $('.settings-aria-extra-labels'));
-		this.settingsAriaExtraLabelsContainer.id = 'settings_aria_extra_labels';
-		// Add global labels here
-		const labelDiv = DOM.append(this.settingsAriaExtraLabelsContainer, $('.settings-aria-extra-label'));
-		labelDiv.id = 'settings_aria_more_actions_shortcut_label';
-		labelDiv.setAttribute('aria-label', '');
-
 		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
@@ -664,7 +637,7 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
 			this.lastFocusedSettingElement = element.setting.key;
-			this.settingsTree.reveal(element);
+			this.settingsTree.setFocus([element]);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
@@ -914,9 +887,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onSearchModeToggled(): void {
-		DOM.removeClass(this.rootElement, 'no-toc-search');
+		this.rootElement.classList.add('no-toc-search');
 		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			DOM.toggleClass(this.rootElement, 'no-toc-search', !!this.searchResultModel);
+			this.rootElement.classList.toggle('no-toc-search', !!this.searchResultModel);
 		}
 	}
 
@@ -1358,7 +1331,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTreeContainer.style.height = `${settingsTreeHeight}px`;
 		this.settingsTree.layout(settingsTreeHeight, dimension.width);
 
-		const tocTreeHeight = listHeight - 16;
+		const tocTreeHeight = listHeight - 17;
 		this.tocTreeContainer.style.height = `${tocTreeHeight}px`;
 		this.tocTree.layout(tocTreeHeight);
 	}

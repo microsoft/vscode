@@ -19,7 +19,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import { URI } from 'vs/base/common/uri';
 import { parse as parsePList } from 'vs/workbench/services/themes/common/plistParser';
-import { startsWith } from 'vs/base/common/strings';
 import { TokenStyle, SemanticTokenRule, ProbeScope, getTokenClassificationRegistry, TokenStyleValue, TokenStyleData, parseClassifierString } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { MatcherWithPriority, Matcher, createMatchers } from 'vs/workbench/services/themes/common/textMateScopeMatcher';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
@@ -641,7 +640,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 }
 
 function toCSSSelector(extensionId: string, path: string) {
-	if (startsWith(path, './')) {
+	if (path.startsWith('./')) {
 		path = path.substr(2);
 	}
 	let str = `${extensionId}-${path}`;

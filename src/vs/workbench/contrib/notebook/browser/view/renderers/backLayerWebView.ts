@@ -368,7 +368,11 @@ export class BackLayerWebView extends Disposable {
 		const baseUrl = asWebviewUri(this.environmentService, this.id, dirname(this.documentUri));
 
 		if (!isWeb) {
-			coreDependencies = `<script src="${loader}"></script>`;
+			coreDependencies = `<script src="${loader}"></script><script>
+			var requirejs = (function() {
+				return require;
+			}());
+			</script>`;
 			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
 			this.initialize(htmlContent);
 			resolveFunc!();
@@ -383,6 +387,11 @@ export class BackLayerWebView extends Disposable {
 				coreDependencies = `
 <script>
 ${loaderJs}
+</script>
+<script>
+var requirejs = (function() {
+	return require;
+}());
 </script>
 `;
 

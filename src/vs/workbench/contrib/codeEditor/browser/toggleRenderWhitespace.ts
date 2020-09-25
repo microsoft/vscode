@@ -9,7 +9,7 @@ import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 
 export class ToggleRenderWhitespaceAction extends Action {
 
@@ -39,7 +39,7 @@ export class ToggleRenderWhitespaceAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleRenderWhitespaceAction), 'View: Toggle Render Whitespace', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleRenderWhitespaceAction), 'View: Toggle Render Whitespace', CATEGORIES.View.value);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '5_editor',

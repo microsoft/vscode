@@ -75,6 +75,7 @@ import 'vs/workbench/services/label/common/labelService';
 import 'vs/workbench/services/extensionManagement/common/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/common/extensionEnablementService';
 import 'vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService';
+import 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
 import 'vs/workbench/services/remote/common/remoteExplorerService';

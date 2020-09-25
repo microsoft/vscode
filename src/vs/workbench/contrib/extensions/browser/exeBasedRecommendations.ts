@@ -10,7 +10,7 @@ import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
-import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
 type ExeExtensionRecommendationsClassification = {
@@ -151,7 +151,6 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 	private toExtensionRecommendation(tip: IExecutableBasedExtensionTip): ExtensionRecommendation {
 		return {
 			extensionId: tip.extensionId.toLowerCase(),
-			source: 'executable',
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName || basename(tip.windowsPath!))

@@ -58,6 +58,7 @@ import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspac
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkpsaceExtensionsConfigService, WorkspaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -301,6 +302,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
+		instantiationService.stub(IWorkpsaceExtensionsConfigService, instantiationService.createInstance(WorkspaceExtensionsConfigService));
 		const fileService = new FileService(new NullLogService());
 		fileService.registerProvider(Schemas.file, new DiskFileSystemProvider(new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
@@ -506,9 +508,9 @@ suite('ExtensionRecommendationsService Test', () => {
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
-				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
-				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.some(extensionId => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.some(extensionId => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
+				assert.ok(recommendations.every(extensionId => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
 			});
 		});
 	});
@@ -525,10 +527,10 @@ suite('ExtensionRecommendationsService Test', () => {
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
-				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
-				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
-				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'lukehoban.Go')); //stored recommendation that is older than a week
+				assert.ok(recommendations.some(extensionId => extensionId === 'ms-dotnettools.csharp')); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.some(extensionId => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
+				assert.ok(recommendations.every(extensionId => extensionId !== 'ms-vscode.vscode-typescript-tslint-plugin')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.every(extensionId => extensionId !== 'lukehoban.Go')); //stored recommendation that is older than a week
 			});
 		});
 	});

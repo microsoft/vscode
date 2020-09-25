@@ -28,7 +28,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -620,7 +620,7 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 		primary: 0
 	}),
 	'View: Show Remote Explorer',
-	nls.localize('view', "View")
+	CATEGORIES.View.value
 );
 
 class VisibleProgress {
@@ -841,6 +841,8 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 }
 
 class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
+	private contextServiceListener: IDisposable;
+
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -854,12 +856,20 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		if (this.environmentService.configuration.remoteAuthority) {
 			this.startUrlFinder();
 		}
+		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
+				this.startUrlFinder();
+			}
+		}));
 	}
 
+	private isStarted = false;
 	private startUrlFinder() {
-		if (!forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
+		if (!this.isStarted && !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
 			return;
 		}
+		this.contextServiceListener.dispose();
+		this.isStarted = true;
 		const urlFinder = this._register(new UrlFinder(this.terminalService));
 		this._register(urlFinder.onDidMatchLocalUrl(async (localUrl) => {
 			const forwarded = await this.remoteExplorerService.forward(localUrl);

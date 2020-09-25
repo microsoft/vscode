@@ -4,18 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EXTENSION_IDENTIFIER_PATTERN, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { IFileService } from 'vs/platform/files/common/files';
-import { distinct, flatten, coalesce } from 'vs/base/common/arrays';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
+import { distinct, flatten } from 'vs/base/common/arrays';
 import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IExtensionsConfigContent, ExtensionRecommendationSource, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { parse } from 'vs/base/common/json';
-import { EXTENSIONS_CONFIG } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsConfigContent, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
+import { IWorkpsaceExtensionsConfigService } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
 
 export class WorkspaceRecommendations extends ExtensionRecommendations {
 
@@ -31,9 +29,9 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	constructor(
 		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkpsaceExtensionsConfigService private readonly workpsaceExtensionsConfigService: IWorkpsaceExtensionsConfigService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
-		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(promptedExtensionRecommendations);
@@ -49,26 +47,25 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	 */
 	private async fetch(): Promise<void> {
 
-		const extensionsConfigBySource = await this.fetchExtensionsConfigBySource();
+		const extensionsConfigs = await this.workpsaceExtensionsConfigService.getExtensionsConfigs();
 
-		const { invalidRecommendations, message } = await this.validateExtensions(extensionsConfigBySource.map(({ contents }) => contents));
+		const { invalidRecommendations, message } = await this.validateExtensions(extensionsConfigs);
 		if (invalidRecommendations.length) {
 			this.notificationService.warn(`The ${invalidRecommendations.length} extension(s) below, in workspace recommendations have issues:\n${message}`);
 		}
 
 		this._ignoredRecommendations = [];
 
-		for (const extensionsConfig of extensionsConfigBySource) {
-			for (const unwantedRecommendation of extensionsConfig.contents.unwantedRecommendations) {
+		for (const extensionsConfig of extensionsConfigs) {
+			for (const unwantedRecommendation of extensionsConfig.unwantedRecommendations) {
 				if (invalidRecommendations.indexOf(unwantedRecommendation) === -1) {
 					this._ignoredRecommendations.push(unwantedRecommendation);
 				}
 			}
-			for (const extensionId of extensionsConfig.contents.recommendations) {
+			for (const extensionId of extensionsConfig.recommendations) {
 				if (invalidRecommendations.indexOf(extensionId) === -1) {
 					this._recommendations.push({
 						extensionId,
-						source: extensionsConfig.source,
 						reason: {
 							reasonId: ExtensionRecommendationReason.Workspace,
 							reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
@@ -77,41 +74,6 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				}
 			}
 		}
-	}
-
-	private async fetchExtensionsConfigBySource(): Promise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource }[]> {
-		const workspace = this.contextService.getWorkspace();
-		const result = await Promise.all([
-			this.resolveWorkspaceExtensionConfig(workspace),
-			...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))
-		]);
-		return coalesce(result);
-	}
-
-	private async resolveWorkspaceExtensionConfig(workspace: IWorkspace): Promise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource } | null> {
-		try {
-			if (workspace.configuration) {
-				const content = await this.fileService.readFile(workspace.configuration);
-				const extensionsConfigContent = <IExtensionsConfigContent | undefined>parse(content.value.toString())['extensions'];
-				const contents = this.parseExtensionConfig(extensionsConfigContent);
-				if (contents) {
-					return { contents, source: workspace };
-				}
-			}
-		} catch (e) { /* Ignore */ }
-		return null;
-	}
-
-	private async resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): Promise<{ contents: IExtensionsConfigContent, source: ExtensionRecommendationSource } | null> {
-		try {
-			const content = await this.fileService.readFile(workspaceFolder.toResource(EXTENSIONS_CONFIG));
-			const extensionsConfigContent = <IExtensionsConfigContent>parse(content.value.toString());
-			const contents = this.parseExtensionConfig(extensionsConfigContent);
-			if (contents) {
-				return { contents, source: workspaceFolder };
-			}
-		} catch (e) { /* ignore */ }
-		return null;
 	}
 
 	private async validateExtensions(contents: IExtensionsConfigContent[]): Promise<{ validRecommendations: string[], invalidRecommendations: string[], message: string }> {
@@ -163,16 +125,6 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				this._onDidChangeRecommendations.fire();
 			}
 		}
-	}
-
-	private parseExtensionConfig(extensionsConfigContent: IExtensionsConfigContent | undefined): IExtensionsConfigContent | null {
-		if (extensionsConfigContent) {
-			return {
-				recommendations: distinct((extensionsConfigContent.recommendations || []).map(e => e.toLowerCase())),
-				unwantedRecommendations: distinct((extensionsConfigContent.unwantedRecommendations || []).map(e => e.toLowerCase()))
-			};
-		}
-		return null;
 	}
 
 }
