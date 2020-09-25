@@ -19,13 +19,15 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ExtensionIdentifier, IExtensionDescription, ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, ExtensionKind, IExtension } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
 import { Schemas } from 'vs/base/common/network';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -41,6 +43,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
@@ -56,6 +60,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionEnablementService,
 			fileService,
 			productService,
+			extensionManagementService,
+			contextService,
 		);
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
@@ -72,6 +78,13 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	dispose(): void {
 		this._disposables.dispose();
 		super.dispose();
+	}
+
+	protected async _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
+		return null;
+	}
+
+	protected async _updateExtensionsOnExtHosts(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
 	}
 
 	private _initFetchFileSystem(): void {
