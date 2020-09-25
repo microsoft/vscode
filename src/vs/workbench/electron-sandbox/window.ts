@@ -272,11 +272,6 @@ export class NativeWindow extends Disposable {
 			this.onDidPanelPositionChange(positionFromString(pos));
 		}));
 		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
-
-		this._register(this.layoutService.onPartVisibilityChange(() => {
-			this.onDidPartVisibilityChange();
-		}));
-		this.onDidPartVisibilityChange();
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
@@ -304,11 +299,6 @@ export class NativeWindow extends Disposable {
 
 	private onDidPanelPositionChange(pos: Position): void {
 		const minWidth = this.getWindowMinimumWidth(pos);
-		this.nativeHostService.setMinimumSize(minWidth, undefined);
-	}
-
-	private onDidPartVisibilityChange(): void {
-		const minWidth = this.getWindowMinimumWidth();
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
