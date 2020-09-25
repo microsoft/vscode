@@ -27,7 +27,8 @@ export class FileProtocolHandler extends Disposable {
 		// Define a set of roots we allow loading from
 		const validRoots = coalesce([
 			URI.file(environmentService.appRoot),
-			environmentService.extensionsPath ? URI.file(environmentService.extensionsPath) : undefined
+			environmentService.extensionsPath ? URI.file(environmentService.extensionsPath) : undefined,
+			...environmentService.extensionDevelopmentLocationURI ?? []
 		]);
 
 		// Register vscode-file:// handler
