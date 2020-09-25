@@ -13,7 +13,7 @@ import { GitErrorCodes, Status } from './api/git';
 
 class GitIgnoreDecorationProvider implements FileDecorationProvider {
 
-	private static Decoration: FileDecoration = { priority: 3, color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
+	private static Decoration: FileDecoration = { color: new ThemeColor('gitDecoration.ignoredResourceForeground') };
 
 	readonly onDidChange: Event<Uri[]>;
 	private queue = new Map<string, { repository: Repository; queue: Map<string, PromiseSource<FileDecoration | undefined>>; }>();

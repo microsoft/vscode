@@ -717,7 +717,7 @@ declare module 'vscode' {
 
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
-	// TODO@jrieken priority -> DecorationSeverity.INFO,WARN,ERROR
+
 	export class FileDecoration {
 
 		/**
@@ -734,11 +734,6 @@ declare module 'vscode' {
 		 * The color of this decoration.
 		 */
 		color?: ThemeColor;
-
-		/**
-		 * The priority of this decoration.
-		 */
-		priority?: number;
 
 		/**
 		 * A flag expressing that this decoration should be
