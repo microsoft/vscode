@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -132,9 +133,8 @@ export abstract class AbstractPathService implements IPathService {
 			}
 		}
 
-		// return new _URI('file', authority, path, '', '');
 		return URI.from({
-			scheme: 'file',
+			scheme: Schemas.file,
 			authority,
 			path: _path,
 			query: '',

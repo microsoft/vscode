@@ -352,7 +352,7 @@ export class TimelinePane extends ViewPane {
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
-			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this.uri?.scheme === 'file' || this.uri?.scheme === 'git'))) {
+			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
 			// If the uri hasn't changed, make sure we have valid caches
 			for (const source of this.timelineService.getSources()) {

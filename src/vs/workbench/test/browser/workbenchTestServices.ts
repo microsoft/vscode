@@ -852,10 +852,10 @@ export class TestFileService implements IFileService {
 	}
 
 	activateProvider(_scheme: string): Promise<void> { throw new Error('not implemented'); }
-	canHandleResource(resource: URI): boolean { return resource.scheme === 'file' || this.providers.has(resource.scheme); }
+	canHandleResource(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
 	listCapabilities() {
 		return [
-			{ scheme: 'file', capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
+			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
 			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
 		];
 	}
