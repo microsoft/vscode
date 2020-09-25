@@ -9,7 +9,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LocalFileAccess, Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
@@ -27,7 +27,6 @@ import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOpt
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { WebviewResourceRequestManager, rewriteVsCodeResourceUrls } from 'vs/workbench/contrib/webview/electron-sandbox/resourceLoading';
-import { getUriFromAmdModule } from 'vs/base/common/amd';
 
 class WebviewKeyboardHandler {
 
@@ -210,7 +209,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// We must ensure to put a `file:` URI as the preload attribute
 		// and not the `vscode-file` URI because preload scripts are loaded
 		// via node.js from the main side and only allow `file:` protocol
-		this.element!.preload = LocalFileAccess.restore(getUriFromAmdModule(require, './pre/electron-index.js')).toString(true);
+		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
 		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser/index.html?platform=electron`;
 	}
 
