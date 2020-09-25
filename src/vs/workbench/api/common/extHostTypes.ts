@@ -2765,6 +2765,19 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
+export class NotebookCellOutput {
+
+	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
+		return obj instanceof NotebookCellOutput;
+	}
+
+	constructor(
+		readonly mime: string,
+		readonly value: unknown, // JSON'able
+		readonly metadata?: Record<string, string | number | boolean>
+	) { }
+}
+
 export enum CellKind {
 	Markdown = 1,
 	Code = 2

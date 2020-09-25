@@ -32,7 +32,7 @@ import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IDisplayOutput, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface PositionLike {
 	line: number;
@@ -1292,6 +1292,16 @@ export namespace LogLevel {
 			default:
 				return types.LogLevel.Info;
 		}
+	}
+}
+
+export namespace NotebookCellOutput {
+	export function from(output: types.NotebookCellOutput): IDisplayOutput {
+		return {
+			outputKind: CellOutputKind.Rich,
+			data: { [output.mime]: output.value },
+			metadata: output.metadata && { custom: output.metadata }
+		};
 	}
 }
 

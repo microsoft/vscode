@@ -7,6 +7,7 @@ import { readonly } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { addIdToOutput, CellEditType, ICellEditOperation, ICellReplaceEdit, INotebookEditData, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
@@ -54,12 +55,18 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellOutput(index: number, outputs: vscode.CellOutput[]): void {
+	replaceCellOutput(index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Output,
 			index,
-			outputs: outputs.map(output => addIdToOutput(output))
+			outputs: outputs.map(output => {
+				if (extHostTypes.NotebookCellOutput.isNotebookCellOutput(output)) {
+					return addIdToOutput(NotebookCellOutput.from(output));
+				} else {
+					return addIdToOutput(output);
+				}
+			})
 		});
 	}
 
