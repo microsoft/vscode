@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
-import { getUriFromAmdModule } from 'vs/base/common/amd';
 
 export namespace Schemas {
 
@@ -137,29 +136,34 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
-class LocalFileAccessImpl {
+class FileAccessImpl {
 
 	private readonly FALLBACK_AUTHORITY = 'vscode-app';
 
 	/**
-	 * Returns a `vscode-file` URI to use in contexts where
-	 * the browser is responsible for loading (e.g. fetch())
+	 * Returns a URI to use in contexts where the browser is responsible
+	 * for loading (e.g. fetch()) or when used within the DOM.
 	 */
-	asCodeUri(uri: URI): URI;
-	asCodeUri(moduleId: string, requireFn: typeof require): URI;
-	asCodeUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
+	asBrowserUri(uri: URI): URI;
+	asBrowserUri(moduleId: string, requireFn: typeof require): URI;
+	asBrowserUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
 		const uri = this.toUri(uriOrModule, requireFn);
 
-		return uri.with({
-			scheme: Schemas.vscodeFileResource,
-			// We need to provide an authority here so that it can serve
-			// as origin for network and loading matters in chromium.
-			// If the URI is not coming with an authority already, we
-			// add our own
-			authority: uri.authority || this.FALLBACK_AUTHORITY,
-			query: null,
-			fragment: null
-		});
+		// Only convert the URI if we are in a native context and it has `file:` scheme
+		if (platform.isNative && uri.scheme === Schemas.file) {
+			return uri.with({
+				scheme: Schemas.vscodeFileResource,
+				// We need to provide an authority here so that it can serve
+				// as origin for network and loading matters in chromium.
+				// If the URI is not coming with an authority already, we
+				// add our own
+				authority: uri.authority || this.FALLBACK_AUTHORITY,
+				query: null,
+				fragment: null
+			});
+		}
+
+		return uri;
 	}
 
 	/**
@@ -171,15 +175,20 @@ class LocalFileAccessImpl {
 	asFileUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
 		const uri = this.toUri(uriOrModule, requireFn);
 
-		return uri.with({
-			scheme: Schemas.file,
-			// Only preserve the `authority` if it is different from
-			// our fallback authority. This ensures we properly preserve
-			// Windows UNC paths that come with their own authority.
-			authority: uri.authority !== this.FALLBACK_AUTHORITY ? uri.authority : null,
-			query: null,
-			fragment: null
-		});
+		// Only convert the URI if it is not already `file:` scheme
+		if (uri.scheme !== Schemas.file) {
+			return uri.with({
+				scheme: Schemas.file,
+				// Only preserve the `authority` if it is different from
+				// our fallback authority. This ensures we properly preserve
+				// Windows UNC paths that come with their own authority.
+				authority: uri.authority !== this.FALLBACK_AUTHORITY ? uri.authority : null,
+				query: null,
+				fragment: null
+			});
+		}
+
+		return uri;
 	}
 
 	private toUri(uriOrModule: URI | string, requireFn?: typeof require): URI {
@@ -187,8 +196,8 @@ class LocalFileAccessImpl {
 			return uriOrModule;
 		}
 
-		return getUriFromAmdModule(requireFn!, uriOrModule);
+		return URI.parse(requireFn!.toUrl(uriOrModule));
 	}
 }
 
-export const LocalFileAccess = new LocalFileAccessImpl();
+export const FileAccess = new FileAccessImpl();

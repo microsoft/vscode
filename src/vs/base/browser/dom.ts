@@ -13,7 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Schemas, LocalFileAccess, RemoteAuthorities } from 'vs/base/common/network';
+import { Schemas, FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
@@ -1224,17 +1224,11 @@ export function asDomUri(uri: URI): URI {
 		return uri;
 	}
 
-	// Remote support
-	if (Schemas.vscodeRemote === uri.scheme) {
+	if (uri.scheme === Schemas.vscodeRemote) {
 		return RemoteAuthorities.rewrite(uri);
 	}
 
-	// Local access support
-	if (platform.isNative && Schemas.file === uri.scheme) {
-		return LocalFileAccess.asCodeUri(uri);
-	}
-
-	return uri;
+	return FileAccess.asBrowserUri(uri);
 }
 
 /**

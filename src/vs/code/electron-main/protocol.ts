@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { LocalFileAccess, Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { session } from 'electron';
@@ -57,14 +57,14 @@ export class FileProtocolHandler extends Disposable {
 		// Restore the `vscode-file` URI to a `file` URI so that we can
 		// ensure the root is valid and properly tell Chrome where the
 		// resource is at.
-		const restoredUri = LocalFileAccess.restore(uri, false /* includeQuery */);
-		if (validRoots.some(validRoot => extUriBiasedIgnorePathCase.isEqualOrParent(restoredUri, validRoot))) {
+		const fileUri = FileAccess.asFileUri(uri);
+		if (validRoots.some(validRoot => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, validRoot))) {
 			return callback({
-				path: restoredUri.fsPath
+				path: fileUri.fsPath
 			});
 		}
 
-		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${restoredUri.fsPath}}`);
+		this.logService.error(`${Schemas.vscodeFileResource}: Refused to load resource ${fileUri.fsPath}}`);
 		callback({ error: -3 /* ABORTED */ });
 	}
 }

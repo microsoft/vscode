@@ -18,10 +18,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
-import { LocalFileAccess } from 'vs/base/common/network';
+import { FileAccess } from 'vs/base/common/network';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -196,7 +195,7 @@ export class IssueMainService implements ICommonIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
-							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 							v8CacheOptions: this.environmentService.v8CacheOptions,
 							enableWebSQL: false,
 							enableRemoteModule: false,
@@ -263,7 +262,7 @@ export class IssueMainService implements ICommonIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
-							preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+							preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 							v8CacheOptions: this.environmentService.v8CacheOptions,
 							enableWebSQL: false,
 							enableRemoteModule: false,
@@ -452,8 +451,8 @@ function toWindowUrl<T>(modulePathToHtml: string, windowConfiguration: T): strin
 		}
 	}
 
-	return LocalFileAccess
-		.asCodeUri(modulePathToHtml, require)
+	return FileAccess
+		.asBrowserUri(modulePathToHtml, require)
 		.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
 		.toString(true);
 }

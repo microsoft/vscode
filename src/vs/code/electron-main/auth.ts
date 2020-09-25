@@ -6,9 +6,8 @@
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { LocalFileAccess } from 'vs/base/common/network';
+import { FileAccess } from 'vs/base/common/network';
 import { BrowserWindow, BrowserWindowConstructorOptions, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 type LoginEvent = {
 	event: ElectronEvent;
@@ -60,7 +59,7 @@ export class ProxyAuthHandler extends Disposable {
 			show: true,
 			title: 'VS Code',
 			webPreferences: {
-				preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				sandbox: true,
 				contextIsolation: true,
 				enableWebSQL: false,
@@ -77,7 +76,7 @@ export class ProxyAuthHandler extends Disposable {
 		}
 
 		const win = new BrowserWindow(opts);
-		const windowUrl = LocalFileAccess.asCodeUri('vs/code/electron-sandbox/proxy/auth.html', require);
+		const windowUrl = FileAccess.asBrowserUri('vs/code/electron-sandbox/proxy/auth.html', require);
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");
 		const message = localize('proxyauth', "The proxy {0} requires authentication.", proxyUrl);
