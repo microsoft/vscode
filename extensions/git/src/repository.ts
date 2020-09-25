@@ -254,13 +254,9 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get resourceDecoration(): FileDecoration {
-		return {
-			propagte: this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED,
-			tooltip: this.tooltip,
-			badge: this.letter,
-			color: this.color,
-			priority: this.priority
-		};
+		const res = new FileDecoration(this.letter, this.tooltip, this.color);
+		res.propagate = this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED;
+		return res;
 	}
 
 	constructor(
