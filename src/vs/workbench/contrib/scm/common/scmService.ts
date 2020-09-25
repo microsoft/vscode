@@ -9,6 +9,10 @@ import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator }
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+<<<<<<< HEAD
+=======
+import { isEmptyObject } from 'vs/base/common/types';
+>>>>>>> d2a5768231... minor changes
 
 class SCMInput implements ISCMInput {
 
