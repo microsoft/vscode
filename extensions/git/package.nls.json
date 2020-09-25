@@ -52,6 +52,7 @@
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
 	"command.deleteTag": "Delete Tag",
+	"command.deleteRemoteTag": "Delete Remote Tag",
 	"command.fetch": "Fetch",
 	"command.fetchPrune": "Fetch (Prune)",
 	"command.fetchAll": "Fetch From All Remotes",

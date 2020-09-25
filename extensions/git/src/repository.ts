@@ -305,6 +305,7 @@ export const enum Operation {
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	DeleteTag = 'DeleteTag',
+	DeleteRemoteTag = 'DeleteRemoteTag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
 	GetObjectDetails = 'GetObjectDetails',
@@ -1075,6 +1076,10 @@ export class Repository implements Disposable {
 
 	async deleteTag(name: string): Promise<void> {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
+	}
+
+	async deleteRemoteTag(remote: string, tag: string): Promise<void> {
+		await this.run(Operation.DeleteRemoteTag, () => this.repository.deleteRemoteTag(remote, tag));
 	}
 
 	async checkout(treeish: string): Promise<void> {

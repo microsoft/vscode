@@ -1890,6 +1890,42 @@ export class CommandCenter {
 		await repository.deleteTag(choice.label);
 	}
 
+	@command('git.deleteRemoteTag', { repository: true })
+	async deleteRemoteTag(repository: Repository): Promise<void> {
+		const picks = repository.refs.filter(ref => ref.type === RefType.Tag)
+			.map(ref => new TagItem(ref));
+
+		if (picks.length === 0) {
+			window.showWarningMessage(localize('no tags', "This repository has no tags."));
+			return;
+		}
+
+		const placeHolder = localize('select a tag to delete from remote', 'Select a tag to delete from remote');
+		const tag = await window.showQuickPick(picks, { placeHolder });
+
+		if (!tag) {
+			return;
+		}
+
+		const remotes = repository.remotes;
+
+		if (remotes.length === 0) {
+			window.showErrorMessage(localize('no remotes added', "Your repository has no remotes."));
+			return;
+		}
+
+		const picksRemote = remotes.map(r => r.name);
+		const placeHolderRemote = localize('select remote', "Pick a remote to delete the tag from");
+
+		const remoteName = await window.showQuickPick(picksRemote, { placeHolderRemote });
+
+		if (!remoteName) {
+			return;
+		}
+
+		await repository.deleteRemoteTag(remoteName, tag.label);
+	}
+
 	@command('git.fetch', { repository: true })
 	async fetch(repository: Repository): Promise<void> {
 		if (repository.remotes.length === 0) {
