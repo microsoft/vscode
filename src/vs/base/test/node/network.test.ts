@@ -28,7 +28,7 @@ suite('network', () => {
 		// restore(): throws for non-vscode-file URIs
 		error = undefined;
 		try {
-			LocalFileAccess.restore(URI.parse('some:value'), false);
+			LocalFileAccess.restore(URI.parse('some:value'));
 		} catch (e) {
 			error = e;
 		}
@@ -38,7 +38,7 @@ suite('network', () => {
 		let originalFileUri = URI.file(__filename);
 		let rewrittenUri = LocalFileAccess.rewrite(originalFileUri);
 		assert.ok(rewrittenUri.authority.length > 0);
-		let restoredUri = LocalFileAccess.restore(rewrittenUri, false);
+		let restoredUri = LocalFileAccess.restore(rewrittenUri);
 		assert.equal(restoredUri.authority.length, 0);
 		assert(isEqual(originalFileUri, restoredUri));
 
@@ -46,7 +46,7 @@ suite('network', () => {
 		originalFileUri = URI.file(__filename).with({ authority: 'test-authority' });
 		rewrittenUri = LocalFileAccess.rewrite(originalFileUri);
 		assert.equal(rewrittenUri.authority, originalFileUri.authority);
-		restoredUri = LocalFileAccess.restore(rewrittenUri, false);
+		restoredUri = LocalFileAccess.restore(rewrittenUri);
 		assert(isEqual(originalFileUri, restoredUri));
 	});
 });

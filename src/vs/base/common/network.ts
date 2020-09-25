@@ -164,7 +164,7 @@ class LocalFileAccessImpl {
 	/**
 	 * Returns the `file` URI from the proided `vscode-file` URI.
 	 */
-	restore(uri: URI, includeQuery: boolean): URI {
+	restore(uri: URI, includeQuery = false): URI {
 		if (uri.scheme !== Schemas.vscodeFileResource) {
 			throw new Error(`Only ${Schemas.vscodeFileResource}: URIs are supported.`);
 		}
