@@ -5,9 +5,9 @@
 
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
-import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { env } from 'vs/base/common/process';
+import { FileAccess } from 'vs/base/common/network';
+import { dirname, joinPath } from 'vs/base/common/resources';
 
 let product: IProductConfiguration;
 
@@ -43,10 +43,10 @@ if (isWeb || typeof require === 'undefined' || typeof require.__$__nodeRequire !
 else {
 
 	// Obtain values from product.json and package.json
-	const rootPath = path.dirname(getPathFromAmdModule(require, ''));
+	const rootPath = dirname(FileAccess.asFileUri('', require));
 
-	product = require.__$__nodeRequire(path.join(rootPath, 'product.json'));
-	const pkg = require.__$__nodeRequire(path.join(rootPath, 'package.json')) as { version: string; };
+	product = require.__$__nodeRequire(joinPath(rootPath, 'product.json').fsPath);
+	const pkg = require.__$__nodeRequire(joinPath(rootPath, 'package.json').fsPath) as { version: string; };
 
 	// Running out of sources
 	if (env['VSCODE_DEV']) {
