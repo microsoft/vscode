@@ -1914,16 +1914,22 @@ export class CommandCenter {
 			return;
 		}
 
-		const picksRemote = remotes.map(r => r.name);
+		const picksRemote = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
+
+		if (picksRemote.length === 0) {
+			window.showWarningMessage(localize('no remotes', "This repository has no remotes."));
+			return;
+		}
+
 		const placeHolderRemote = localize('select remote', "Pick a remote to delete the tag from");
 
-		const remoteName = await window.showQuickPick(picksRemote, { placeHolderRemote });
+		const remoteName = await window.showQuickPick(picksRemote, { placeHolder: placeHolderRemote });
 
 		if (!remoteName) {
 			return;
 		}
 
-		await repository.deleteRemoteTag(remoteName, tag.label);
+		await repository.deleteRemoteTag(remoteName.label, tag.label);
 	}
 
 	@command('git.fetch', { repository: true })
