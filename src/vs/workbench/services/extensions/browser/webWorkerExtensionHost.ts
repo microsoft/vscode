@@ -29,6 +29,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { WEB_WORKER_IFRAME } from 'vs/workbench/services/extensions/common/webWorkerIframe';
 import { Barrier } from 'vs/base/common/async';
+import { FileAccess } from 'vs/base/common/network';
 
 export interface IWebWorkerExtensionHostInitData {
 	readonly autoStart: boolean;
@@ -92,7 +93,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
-		const workerUrl = require.toUrl('../worker/extensionHostWorkerMain.js');
+		const workerUrl = FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true);
 		const workerSrc = getWorkerBootstrapUrl(workerUrl, 'WorkerExtensionHost', true);
 		const escapeAttribute = (value: string): string => {
 			return value.replace(/"/g, '&quot;');
@@ -173,7 +174,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	private async _startOutsideIframe(): Promise<IMessagePassingProtocol> {
 		const emitter = new Emitter<VSBuffer>();
 
-		const url = getWorkerBootstrapUrl(require.toUrl('../worker/extensionHostWorkerMain.js'), 'WorkerExtensionHost');
+		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
 		const worker = new Worker(url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
