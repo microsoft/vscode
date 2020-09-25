@@ -255,7 +255,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
@@ -489,6 +490,22 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	getAriaLabel(element: ExplorerItem): string {
 		return element.name;
+	}
+
+	getAriaLevel(element: ExplorerItem): number {
+		// We need to comput aria level on our own since children of compact folders will otherwise have an incorrect level	#107235
+		let depth = 0;
+		let parent = element.parent;
+		while (parent) {
+			parent = parent.parent;
+			depth++;
+		}
+
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			depth = depth + 1;
+		}
+
+		return depth;
 	}
 
 	getActiveDescendantId(stat: ExplorerItem): string | undefined {
