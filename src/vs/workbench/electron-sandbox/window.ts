@@ -292,11 +292,9 @@ export class NativeWindow extends Disposable {
 	}
 
 	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
-		// if panel and editor are both visible
-		// and panel is on the side, then return the larger minwidth
-		const panelAndEditorBothVisible = this.layoutService.isVisible(Parts.PANEL_PART) && this.layoutService.isVisible(Parts.EDITOR_PART);
+		// if panel is on the side, then return the larger minwidth
 		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
-		if (panelOnSide && panelAndEditorBothVisible) {
+		if (panelOnSide) {
 			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
 		}
 		else {
