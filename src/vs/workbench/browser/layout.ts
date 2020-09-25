@@ -1543,6 +1543,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+		const wasHidden = this.state.panel.hidden;
 		this.state.panel.hidden = hidden;
 
 		// Return if not initialized fully #105480
@@ -1581,21 +1582,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.toggleMaximizedPanel();
 		}
 
-		// Propagate layout changes to grid
-		if (!skipLayout) {
-			this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
-			// If in process of showing, toggle whether or not panel is maximized
-			if (!hidden) {
-				if (isPanelMaximized !== panelOpensMaximized) {
-					this.toggleMaximizedPanel();
-				}
-			}
-			else {
-				// If in process of hiding, remember whether the panel is maximized or not
-				this.state.panel.wasLastMaximized = isPanelMaximized;
-			}
+		// Don't proceed if we have already done this before
+		if (wasHidden === hidden) {
+			return;
 		}
 
+		// Propagate layout changes to grid
+		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
+		// If in process of showing, toggle whether or not panel is maximized
+		if (!hidden) {
+			if (isPanelMaximized !== panelOpensMaximized) {
+				this.toggleMaximizedPanel();
+			}
+		}
+		else {
+			// If in process of hiding, remember whether the panel is maximized or not
+			this.state.panel.wasLastMaximized = isPanelMaximized;
+		}
 		// Remember in settings
 		if (!hidden) {
 			this.storageService.store(Storage.PANEL_HIDDEN, 'false', StorageScope.WORKSPACE);
