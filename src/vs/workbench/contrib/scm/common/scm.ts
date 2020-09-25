@@ -11,7 +11,6 @@ import { Command } from 'vs/editor/common/modes';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
