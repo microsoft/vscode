@@ -16,30 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region https://github.com/microsoft/vscode/issues/106410
-
-	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
-
-		/**
-		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property, changes to
-		 * all other properties, like title, are ignored. A code action that has an edit
-		 * will not be resolved.
-		 *
-		 * *Note* that a code action provider that returns commands, not code actions, cannot successfully
-		 * implement this function. Returning commands is deprecated and instead code actions should be
-		 * returned.
-		 *
-		 * @param codeAction A code action.
-		 * @param token A cancellation token.
-		 * @return The resolved code action or a thenable that resolve to such. It is OK to return the given
-		 * `item`. When no result is returned, the given `item` will be used.
-		 */
-		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
-	}
-
-	//#endregion
-
-
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
