@@ -149,6 +149,11 @@ class FileAccessImpl {
 	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
+		// Handle remote URIs via `RemoteAuthorities`
+		if (uri.scheme === Schemas.vscodeRemote) {
+			return RemoteAuthorities.rewrite(uri);
+		}
+
 		// Only convert the URI if we are in a native context and it has `file:` scheme
 		if (platform.isNative && uri.scheme === Schemas.file) {
 			return uri.with({

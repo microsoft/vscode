@@ -60,4 +60,10 @@ suite('network', () => {
 		const browserUri = FileAccess.asBrowserUri(originalHttpsUri);
 		assert.equal(originalHttpsUri.toString(), browserUri.toString());
 	});
+
+	test('FileAccess: remote URIs', () => {
+		const originalRemoteUri = URI.file('network.test.ts').with({ scheme: Schemas.vscodeRemote });
+		const browserUri = FileAccess.asBrowserUri(originalRemoteUri);
+		assert.notEqual(originalRemoteUri.scheme, browserUri.scheme);
+	});
 });
