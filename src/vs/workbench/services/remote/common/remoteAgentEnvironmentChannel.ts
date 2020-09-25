@@ -22,6 +22,13 @@ export interface IScanExtensionsArguments {
 	skipExtensions: ExtensionIdentifier[];
 }
 
+export interface IScanSingleExtensionArguments {
+	language: string;
+	remoteAuthority: string;
+	isBuiltin: boolean;
+	extensionLocation: UriComponents;
+}
+
 export interface IRemoteAgentEnvironmentDTO {
 	pid: number;
 	connectionToken: string;
