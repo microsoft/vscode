@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
+import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, FileDecoration } from 'vscode';
 import * as nls from 'vscode-nls';
 import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
 import { AutoFetcher } from './autofetch';
@@ -253,11 +253,11 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
-	get resourceDecoration(): Decoration {
+	get resourceDecoration(): FileDecoration {
 		return {
-			bubble: this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED,
-			title: this.tooltip,
-			letter: this.letter,
+			propagte: this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED,
+			tooltip: this.tooltip,
+			badge: this.letter,
 			color: this.color,
 			priority: this.priority
 		};

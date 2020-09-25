@@ -2729,22 +2729,29 @@ export enum ExtensionKind {
 	Workspace = 2
 }
 
-export class Decoration {
+export class FileDecoration {
 
-	static validate(d: Decoration): void {
-		if (d.letter && d.letter.length !== 1) {
+	static validate(d: FileDecoration): void {
+		if (d.badge && d.badge.length !== 1) {
 			throw new Error(`The 'letter'-property must be undefined or a single character`);
 		}
-		if (!d.bubble && !d.color && !d.letter && !d.priority && !d.title) {
+		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
 		}
 	}
 
-	letter?: string;
-	title?: string;
+	badge?: string;
+	tooltip?: string;
 	color?: vscode.ThemeColor;
 	priority?: number;
-	bubble?: boolean;
+	propagate?: boolean;
+
+
+	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+		this.badge = badge;
+		this.tooltip = tooltip;
+		this.color = color;
+	}
 }
 
 //#region Theming
