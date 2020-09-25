@@ -54,7 +54,7 @@ import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { getUriFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -423,13 +423,13 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: getUriFromAmdModule(require, 'vs/workbench/browser/parts/editor/media/back-tb.png') } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/back-tb.png', require) } },
 		group: 'navigation',
 		order: 0
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: getUriFromAmdModule(require, 'vs/workbench/browser/parts/editor/media/forward-tb.png') } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/forward-tb.png', require) } },
 		group: 'navigation',
 		order: 1
 	});

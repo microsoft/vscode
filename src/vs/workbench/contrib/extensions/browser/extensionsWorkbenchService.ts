@@ -40,6 +40,7 @@ import { asDomUri } from 'vs/base/browser/dom';
 import { getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isWeb } from 'vs/base/common/platform';
 import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { FileAccess } from 'vs/base/common/network';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -151,10 +152,10 @@ class Extension implements IExtension {
 		if (this.type === ExtensionType.System && this.local) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
-					return require.toUrl('./media/theme-icon.png');
+					return FileAccess.asBrowserUri('./media/theme-icon.png', require).toString(true);
 				}
 				if (Array.isArray(this.local.manifest.contributes.grammars) && this.local.manifest.contributes.grammars.length) {
-					return require.toUrl('./media/language-icon.svg');
+					return FileAccess.asBrowserUri('./media/language-icon.svg', require).toString(true);
 				}
 			}
 		}

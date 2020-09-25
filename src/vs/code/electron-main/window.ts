@@ -34,9 +34,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { Schemas } from 'vs/base/common/network';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -168,7 +167,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					spellcheck: false,
@@ -841,7 +840,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		return `${require.toUrl(workbench)}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		return FileAccess
+			.asBrowserUri(workbench, require)
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+			.toString(true);
 	}
 
 	serializeWindowState(): IWindowState {

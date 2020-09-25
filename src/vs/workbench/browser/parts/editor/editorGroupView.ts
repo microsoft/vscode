@@ -46,13 +46,12 @@ import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1781,7 +1780,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${getPathFromAmdModule(require, letterpress)}')
+			background-image: url('${FileAccess.asBrowserUri(letterpress, require).fsPath}')
 		}
 	`);
 
