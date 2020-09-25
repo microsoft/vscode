@@ -34,10 +34,9 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { LocalFileAccess } from 'vs/base/common/network';
+import { LocalFileAccess, Schemas } from 'vs/base/common/network';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { Schemas } from 'vs/base/common/network';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;

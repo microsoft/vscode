@@ -1223,12 +1223,17 @@ export function asDomUri(uri: URI): URI {
 	if (!uri) {
 		return uri;
 	}
+
+	// Remote support
 	if (Schemas.vscodeRemote === uri.scheme) {
 		return RemoteAuthorities.rewrite(uri);
 	}
+
+	// Local access support
 	if (platform.isNative && Schemas.file === uri.scheme) {
 		return LocalFileAccess.rewrite(uri);
 	}
+
 	return uri;
 }
 
