@@ -15,6 +15,13 @@ class SCMInput implements ISCMInput {
 	private _value = '';
 
 	get value(): string {
+		if (this.root) {
+			const key = `scm/input:${this.repository.provider.label}:${this.root.path}`;
+			let storedValue = this.storageService.get(key, StorageScope.WORKSPACE);
+			if (storedValue) {
+				return storedValue;
+			}
+		}
 		return this._value;
 	}
 
@@ -22,12 +29,14 @@ class SCMInput implements ISCMInput {
 		if (value === this._value) {
 			return;
 		}
-
 		this._value = value;
-		this.store(value);
+		if (this.root) {
+			const key = `scm/input:${this.repository.provider.label}:${this.root.path}`;
+			this.storageService.store(key, value, StorageScope.WORKSPACE);
+		}
 		this._onDidChange.fire(value);
 	}
-
+	private root;
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChange: Event<string> = this._onDidChange.event;
 
@@ -57,7 +66,8 @@ class SCMInput implements ISCMInput {
 	}
 
 	private readonly _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility
+		.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -73,22 +83,12 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
-	constructor(readonly repository: ISCMRepository, @IStorageService private storageService: IStorageService) {
-		this._value = this.storedValue() ?? '';
-	}
-
-	store(value: string) {
-		let root = this.repository.provider.rootUri;
-		if (root) {
-			this.storageService.store(root.path, value, StorageScope.WORKSPACE);
-		}
-	}
-	storedValue() {
-		let root = this.repository.provider.rootUri;
-		if (root) {
-			return this.storageService.get(root.path, StorageScope.WORKSPACE) ?? '';
-		}
-		return '';
+	constructor(
+		readonly repository: ISCMRepository,
+		@IStorageService private storageService: IStorageService
+	) {
+		this.root = this.repository.provider.rootUri;
+		this._value = this.value;
 	}
 }
 
