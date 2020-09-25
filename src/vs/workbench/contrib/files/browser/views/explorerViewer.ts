@@ -163,10 +163,12 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 
 	private updateLabels(templateData: IFileTemplateData): void {
 		this._labels = Array.from(templateData.container.querySelectorAll('.label-name')) as HTMLElement[];
-
+		let parents = '';
 		for (let i = 0; i < this.labels.length; i++) {
-			this.labels[i].setAttribute('aria-label', this.items[i].name);
+			const ariaLabel = parents.length ? `${this.items[i].name}, compact, ${parents}` : this.items[i].name;
+			this.labels[i].setAttribute('aria-label', ariaLabel);
 			this.labels[i].setAttribute('aria-level', `${this.depth + i}`);
+			parents = parents.length ? `${this.items[i].name} ${parents}` : this.items[i].name;
 		}
 		this.updateCollapsed(this.collapsed);
 
