@@ -1148,8 +1148,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookRunState: extHostTypes.NotebookRunState,
 			NotebookCellStatusBarAlignment: extHostTypes.NotebookCellStatusBarAlignment,
 			NotebookEditorRevealType: extHostTypes.NotebookEditorRevealType,
-			NotebookCellOutputList: extHostTypes.NotebookCellOutputList,
 			NotebookCellOutput: extHostTypes.NotebookCellOutput,
+			NotebookCellOutputItem: extHostTypes.NotebookCellOutputItem,
 		};
 	};
 }

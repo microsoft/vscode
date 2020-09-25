@@ -55,13 +55,13 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellOutput(index: number, outputs: (vscode.NotebookCellOutputList | vscode.CellOutput)[]): void {
+	replaceCellOutput(index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[]): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Output,
 			index,
 			outputs: outputs.map(output => {
-				if (extHostTypes.NotebookCellOutputList.isNotebookCellOutputList(output)) {
+				if (extHostTypes.NotebookCellOutput.isNotebookCellOutputList(output)) {
 					return addIdToOutput(NotebookCellOutputList.from(output));
 				} else {
 					return addIdToOutput(output);

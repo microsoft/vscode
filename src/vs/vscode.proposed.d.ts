@@ -1226,8 +1226,7 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
-	//TODO@jrieken rename to NotebookCellOutputItem
-	export class NotebookCellOutput {
+	export class NotebookCellOutputItem {
 
 		readonly mime: string;
 		readonly value: unknown;
@@ -1236,14 +1235,13 @@ declare module 'vscode' {
 		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
 	}
 
-	//TODO@jrieken rename to NotebookCellOutput
 	//TODO@jrieken add id?
-	export class NotebookCellOutputList {
+	export class NotebookCellOutput {
 
-		readonly outputs: NotebookCellOutput[];
+		readonly outputs: NotebookCellOutputItem[];
 		readonly metadata?: Record<string, string | number | boolean>;
 
-		constructor(outputs: NotebookCellOutput[], metadata?: Record<string, string | number | boolean>);
+		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
 	}
 
 	export enum NotebookCellRunState {
@@ -1434,7 +1432,7 @@ declare module 'vscode' {
 	export interface NotebookEditorEdit {
 		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: (NotebookCellOutputList | CellOutput)[]): void;
+		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
 		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 	}
 

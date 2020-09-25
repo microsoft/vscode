@@ -423,9 +423,9 @@ suite('Notebook API tests', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellOutput(0, [new vscode.NotebookCellOutputList([
-				new vscode.NotebookCellOutput('application/foo', 'bar'),
-				new vscode.NotebookCellOutput('application/json', { data: true }, { metadata: true }),
+			editBuilder.replaceCellOutput(0, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('application/foo', 'bar'),
+				new vscode.NotebookCellOutputItem('application/json', { data: true }, { metadata: true }),
 			])]);
 		});
 

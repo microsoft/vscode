@@ -2772,10 +2772,10 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
-export class NotebookCellOutput {
+export class NotebookCellOutputItem {
 
-	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
-		return obj instanceof NotebookCellOutput;
+	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutputItem {
+		return obj instanceof NotebookCellOutputItem;
 	}
 
 	constructor(
@@ -2785,14 +2785,14 @@ export class NotebookCellOutput {
 	) { }
 }
 
-export class NotebookCellOutputList {
+export class NotebookCellOutput {
 
-	static isNotebookCellOutputList(obj: unknown): obj is vscode.NotebookCellOutputList {
-		return obj instanceof NotebookCellOutputList;
+	static isNotebookCellOutputList(obj: unknown): obj is vscode.NotebookCellOutput {
+		return obj instanceof NotebookCellOutput;
 	}
 
 	constructor(
-		readonly outputs: NotebookCellOutput[],
+		readonly outputs: NotebookCellOutputItem[],
 		readonly metadata?: Record<string, string | number | boolean>
 	) { }
 }
