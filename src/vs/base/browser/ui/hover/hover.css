@@ -132,7 +132,7 @@
 	text-underline-position: under;
 }
 
-.monaco-hover .hover-contents span {
+.monaco-hover .markdown-hover .hover-contents span {
 	margin-bottom: 4px;
 	display: inline-block;
 }
