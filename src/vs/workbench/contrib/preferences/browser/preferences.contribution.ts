@@ -51,7 +51,6 @@ const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.editFocuse
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
-const SETTINGS_EDITOR_COMMAND_FOCUS_TOC2 = 'settings.action.focusTOC2';
 const SETTINGS_EDITOR_COMMAND_FOCUS_CONTROL = 'settings.action.focusSettingControl';
 
 const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
@@ -168,6 +167,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 
 const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
 
+const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
+
 class PreferencesActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
@@ -189,7 +190,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 	private registerSettingsActions() {
 		const that = this;
-		const category = { value: nls.localize('preferences', "Preferences"), original: 'Preferences' };
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -226,7 +226,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openSettings2',
 					title: { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -239,7 +239,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openSettingsJson',
 					title: { value: nls.localize('openSettingsJson', "Open Settings (JSON)"), original: 'Open Settings (JSON)' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -252,7 +252,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openGlobalSettings',
 					title: { value: nls.localize('openGlobalSettings', "Open User Settings"), original: 'Open User Settings' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -265,7 +265,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: 'workbench.action.openRawDefaultSettings',
 					title: { value: nls.localize('openRawDefaultSettings', "Open Default Settings (JSON)"), original: 'Open Default Settings (JSON)' },
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -318,7 +318,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					id: ConfigureLanguageBasedSettingsAction.ID,
 					title: ConfigureLanguageBasedSettingsAction.LABEL,
 					category,
-					menu: { id: MenuId.CommandPalette }
+					f1: true,
 				});
 			}
 			run(accessor: ServicesAccessor) {
@@ -522,30 +522,15 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
 						primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
 						weight: KeybindingWeight.EditorContrib,
 						when: null
 					},
-					title: nls.localize('settings.focusSearch', "Focus settings search")
-				});
-			}
-
-			run(accessor: ServicesAccessor) { settingsEditorFocusSearch(accessor); }
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: SETTINGS_EDITOR_COMMAND_SEARCH,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS),
-					keybinding: {
-						primary: KeyCode.Escape,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
-					},
-					title: nls.localize('settings.focusSearch', "Focus settings search")
+					category,
+					f1: true,
+					title: nls.localize('settings.focusSearch', "Focus Settings Search")
 				});
 			}
 
@@ -556,13 +541,15 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS,
-					precondition: CONTEXT_SETTINGS_SEARCH_FOCUS,
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
 						primary: KeyCode.Escape,
 						weight: KeybindingWeight.EditorContrib,
-						when: null
+						when: CONTEXT_SETTINGS_SEARCH_FOCUS
 					},
-					title: nls.localize('settings.clearResults', "Clear settings search results")
+					category,
+					f1: true,
+					title: nls.localize('settings.clearResults', "Clear Settings Search Results")
 				});
 			}
 
@@ -714,6 +701,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC,
+					precondition: CONTEXT_SETTINGS_EDITOR,
+					f1: true,
 					keybinding: [
 						{
 							primary: KeyCode.Escape,
@@ -725,7 +714,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							weight: KeybindingWeight.WorkbenchContrib,
 							when: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR, CONTEXT_TOC_ROW_FOCUS.negate(), InputFocusedContext.negate())
 						}],
-					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
+					category,
+					title: nls.localize('settings.focusSettingsTOC', "Focus Settings Table of Contents")
 				});
 			}
 
@@ -752,7 +742,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						primary: KeyCode.Enter,
 						weight: KeybindingWeight.WorkbenchContrib,
 					},
-					title: nls.localize('settings.focusSettingControl', "Focus setting control")
+					title: nls.localize('settings.focusSettingControl', "Focus Setting Control")
 				});
 			}
 
@@ -771,33 +761,16 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: SETTINGS_EDITOR_COMMAND_FOCUS_TOC2,
-
-					title: nls.localize('settings.focusSettingsTOC', "Focus settings TOC tree")
-				});
-			}
-
-			run(accessor: ServicesAccessor): void {
-				const preferencesEditor = getPreferencesEditor(accessor);
-				if (!(preferencesEditor instanceof SettingsEditor2)) {
-					return;
-				}
-
-				preferencesEditor.focusTOC();
-			}
-		});
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
 					id: SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU,
-					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_EDITOR),
+					precondition: CONTEXT_SETTINGS_EDITOR,
 					keybinding: {
 						primary: KeyMod.Shift | KeyCode.F9,
 						weight: KeybindingWeight.WorkbenchContrib,
 						when: null
 					},
-					title: nls.localize('settings.showContextMenu', "Show context menu")
+					f1: true,
+					category,
+					title: nls.localize('settings.showContextMenu', "Show Setting Context Menu")
 				});
 			}
 
