@@ -18,6 +18,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import * as dom from 'vs/base/browser/dom';
+import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/controller/cursorAtomicMoveOperations';
 
 export interface IViewZoneData {
 	viewZoneId: string;
@@ -998,6 +999,19 @@ export class MouseTargetFactory {
 		};
 	}
 
+	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
+		if (viewModel.getTextModelOptions().atomicSoftTabs) {
+			const minColumn = viewModel.getLineMinColumn(position.lineNumber);
+			const lineContent = viewModel.getLineContent(position.lineNumber);
+			const { tabSize } = viewModel.getTextModelOptions();
+			const newPosition = AtomicTabMoveOperations.atomicPosition(lineContent, position.column - minColumn, tabSize, Direction.Nearest);
+			if (newPosition !== -1) {
+				return new Position(position.lineNumber, newPosition + minColumn);
+			}
+		}
+		return position;
+	}
+
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): IHitTestResult {
 		// State of the art (18.10.2012):
 		// The spec says browsers should support document.caretPositionFromPoint, but nobody implemented it (http://dev.w3.org/csswg/cssom-view/)
@@ -1016,24 +1030,24 @@ export class MouseTargetFactory {
 
 		// Thank you browsers for making this so 'easy' :)
 
+		let result: IHitTestResult;
 		if (typeof document.caretRangeFromPoint === 'function') {
-
-			return this._doHitTestWithCaretRangeFromPoint(ctx, request);
-
+			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
-
-			return this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
-
+			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
 		} else if ((<any>document.body).createTextRange) {
-
-			return this._doHitTestWithMoveToPoint(ctx, request.pos.toClientCoordinates());
-
+			result = this._doHitTestWithMoveToPoint(ctx, request.pos.toClientCoordinates());
+		} else {
+			return {
+				position: null,
+				hitTarget: null
+			};
 		}
-
-		return {
-			position: null,
-			hitTarget: null
-		};
+		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
+		if (result.position !== null && ctx.model.getTextModelOptions().atomicSoftTabs) {
+			result.position = this._snapToSoftTabBoundary(result.position, ctx.model);
+		}
+		return result;
 	}
 }
 
