@@ -310,6 +310,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (currentOptions
 			&& (currentOptions.detectIndentation === newOptions.detectIndentation)
 			&& (currentOptions.insertSpaces === newOptions.insertSpaces)
+			&& (currentOptions.atomicSoftTabs === newOptions.atomicSoftTabs)
 			&& (currentOptions.tabSize === newOptions.tabSize)
 			&& (currentOptions.indentSize === newOptions.indentSize)
 			&& (currentOptions.trimAutoWhitespace === newOptions.trimAutoWhitespace)
@@ -321,11 +322,13 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (newOptions.detectIndentation) {
 			model.detectIndentation(newOptions.insertSpaces, newOptions.tabSize);
 			model.updateOptions({
+				atomicSoftTabs: newOptions.atomicSoftTabs,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
 			});
 		} else {
 			model.updateOptions({
 				insertSpaces: newOptions.insertSpaces,
+				atomicSoftTabs: newOptions.atomicSoftTabs,
 				tabSize: newOptions.tabSize,
 				indentSize: newOptions.indentSize,
 				trimAutoWhitespace: newOptions.trimAutoWhitespace
