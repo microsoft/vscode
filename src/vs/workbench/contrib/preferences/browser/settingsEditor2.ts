@@ -53,6 +53,13 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
+const enum SettingsFocusContext {
+	Search,
+	TableOfContents,
+	SettingTree,
+	SettingControl
+}
+
 function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
 	return Iterable.map(group.children, g => {
 		return {
@@ -138,7 +145,7 @@ export class SettingsEditor2 extends EditorPane {
 	private searchFocusContextKey: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
-	private lastFocusedSettingElement: string | null = null;
+	private lastFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
@@ -213,6 +220,15 @@ export class SettingsEditor2 extends EditorPane {
 		this._searchResultModel = value;
 
 		this.rootElement.classList.toggle('search-mode', !!this._searchResultModel);
+	}
+
+	private get focusedSettingDOMElement(): HTMLElement | undefined {
+		const focused = this.settingsTree.getFocus()[0];
+		if (!(focused instanceof SettingsTreeSettingElement)) {
+			return;
+		}
+
+		return this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), focused.setting.key)[0];
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -311,23 +327,27 @@ export class SettingsEditor2 extends EditorPane {
 		const monacoWidth = innerWidth - 10 - this.countElement.clientWidth - this.controlsElement.clientWidth - 12;
 		this.searchWidget.layout({ height: 20, width: monacoWidth });
 
-		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
-		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
+		this.rootElement.classList.toggle('mid-width', dimension.width < 1000 && dimension.width >= 600);
+		this.rootElement.classList.toggle('narrow-width', dimension.width < 600);
 	}
 
 	focus(): void {
-		if (this.lastFocusedSettingElement) {
-			const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), this.lastFocusedSettingElement);
-			if (elements.length) {
-				const control = elements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
+		if (this.lastFocusContext === SettingsFocusContext.Search) {
+			this.focusSearch();
+		} else if (this.lastFocusContext === SettingsFocusContext.SettingControl) {
+			const element = this.focusedSettingDOMElement;
+			if (element) {
+				const control = element.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
 					(<HTMLElement>control).focus();
 					return;
 				}
 			}
+		} else if (this.lastFocusContext === SettingsFocusContext.SettingTree) {
+			this.settingsTree.domFocus();
+		} else if (this.lastFocusContext === SettingsFocusContext.TableOfContents) {
+			this.tocTree.domFocus();
 		}
-
-		this.focusSearch();
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -363,12 +383,10 @@ export class SettingsEditor2 extends EditorPane {
 
 	showContextMenu(): void {
 		const focused = this.settingsTree.getFocus()[0];
-		if (!(focused instanceof SettingsTreeSettingElement)) {
-			return;
+		const rowElement = this.focusedSettingDOMElement;
+		if (rowElement && focused instanceof SettingsTreeSettingElement) {
+			this.settingRenderers.showContextMenu(focused, rowElement);
 		}
-
-		const rowElement = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), focused.setting.key)[0];
-		this.settingRenderers.showContextMenu(focused, rowElement);
 	}
 
 	focusSearch(filter?: string, selectAll = true): void {
@@ -417,11 +435,9 @@ export class SettingsEditor2 extends EditorPane {
 			placeholderText: searchBoxLabel,
 			focusContextKey: this.searchFocusContextKey,
 			// TODO: Aria-live
-		})
-		);
-
+		}));
 		this._register(this.searchWidget.onFocus(() => {
-			this.lastFocusedSettingElement = '';
+			this.lastFocusContext = SettingsFocusContext.Search;
 		}));
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
@@ -585,6 +601,10 @@ export class SettingsEditor2 extends EditorPane {
 			})),
 			this.viewState));
 
+		this._register(this.tocTree.onDidFocus(() => {
+			this.lastFocusContext = SettingsFocusContext.TableOfContents;
+		}));
+
 		this._register(this.tocTree.onDidChangeFocus(e => {
 			const element: SettingsTreeGroupElement | null = e.elements[0];
 			if (this.tocFocusedElement === element) {
@@ -624,8 +644,8 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
-			this.lastFocusedSettingElement = element.setting.key;
 			this.settingsTree.setFocus([element]);
+			this.lastFocusContext = SettingsFocusContext.SettingControl;
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
@@ -657,6 +677,10 @@ export class SettingsEditor2 extends EditorPane {
 			setTimeout(() => {
 				this.updateTreeScrollSync();
 			}, 0);
+		}));
+
+		this._register(this.settingsTree.onDidFocus(() => {
+			this.lastFocusContext = SettingsFocusContext.SettingTree;
 		}));
 
 		// There is no different select state in the settings tree
@@ -1270,7 +1294,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.layout(this.dimension);
 			}
 
-			DOM.removeClass(this.rootElement, 'no-results');
+			this.rootElement.classList.remove('no-results');
 			return;
 		}
 
@@ -1286,7 +1310,7 @@ export class SettingsEditor2 extends EditorPane {
 				this.countElement.style.display = 'block';
 				this.layout(this.dimension);
 			}
-			DOM.toggleClass(this.rootElement, 'no-results', count === 0);
+			this.rootElement.classList.toggle('no-results', count === 0);
 		}
 	}
 
