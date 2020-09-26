@@ -362,25 +362,13 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	showContextMenu(): void {
-		const activeElement = this.getActiveElementInSettingsTree();
-		if (!activeElement) {
+		const focused = this.settingsTree.getFocus()[0];
+		if (!(focused instanceof SettingsTreeSettingElement)) {
 			return;
 		}
 
-		const settingDOMElement = this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
-		if (!settingDOMElement) {
-			return;
-		}
-
-		const focusedKey = this.settingRenderers.getKeyForDOMElementInSetting(settingDOMElement);
-		if (!focusedKey) {
-			return;
-		}
-
-		const elements = this.currentSettingsModel.getElementsByName(focusedKey);
-		if (elements && elements[0]) {
-			this.settingRenderers.showContextMenu(elements[0], settingDOMElement);
-		}
+		const rowElement = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), focused.setting.key)[0];
+		this.settingRenderers.showContextMenu(focused, rowElement);
 	}
 
 	focusSearch(filter?: string, selectAll = true): void {
@@ -984,7 +972,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private getActiveElementInSettingsTree(): HTMLElement | null {
+	private getActiveControlInSettingsTree(): HTMLElement | null {
 		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
 			<HTMLElement>document.activeElement :
 			null;
@@ -1006,7 +994,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		// If a setting control is currently focused, schedule a refresh for later
-		const activeElement = this.getActiveElementInSettingsTree();
+		const activeElement = this.getActiveControlInSettingsTree();
 		const focusedSetting = activeElement && this.settingRenderers.getSettingDOMElementForDOMElement(activeElement);
 		if (focusedSetting && !force) {
 			// If a single setting is being refreshed, it's ok to refresh now if that is not the focused setting
@@ -1067,7 +1055,7 @@ export class SettingsEditor2 extends EditorPane {
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
 		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
 		if (elements && elements[0]) {
-			DOM.toggleClass(elements[0], 'is-configured', !!isModified);
+			elements[0].classList.toggle('is-configured', !!isModified);
 		}
 	}
 
