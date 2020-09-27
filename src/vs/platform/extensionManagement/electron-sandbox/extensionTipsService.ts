@@ -12,7 +12,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { forEach } from 'vs/base/common/collections';
+import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
@@ -20,6 +20,7 @@ import { timeout } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -32,6 +33,8 @@ type IExeBasedExtensionTips = {
 	readonly recommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[];
 };
 
+const promptedExecutableTipsStorageKey = 'extensionTips/promptedExecutableTips';
+
 export class ExtensionTipsService extends BaseExtensionTipsService {
 
 	_serviceBrand: any;
@@ -43,6 +46,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
@@ -108,13 +112,14 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		}
 
 		const recommendationsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
+		const promptedExecutableTips = this.getPromptedExecutableTips();
 		for (const extensionId of recommendations) {
 			const tip = importantExeBasedRecommendations.get(extensionId);
-			if (tip) {
-				let tips = recommendationsByExe.get(tip.exeFriendlyName);
+			if (tip && (!promptedExecutableTips[tip.exeName] || !promptedExecutableTips[tip.exeName].includes(tip.extensionId))) {
+				let tips = recommendationsByExe.get(tip.exeName);
 				if (!tips) {
 					tips = [];
-					recommendationsByExe.set(tip.exeFriendlyName, tips);
+					recommendationsByExe.set(tip.exeName, tips);
 				}
 				tips.push(tip);
 			}
@@ -123,8 +128,23 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		for (const [, tips] of recommendationsByExe) {
 			const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
 			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-			this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
+			this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`)
+				.then(result => {
+					if (result) {
+						this.addToRecommendedExecutables(tips[0].exeName, extensionIds);
+					}
+				});
 		}
+	}
+
+	private getPromptedExecutableTips(): IStringDictionary<string[]> {
+		return JSON.parse(this.storageService.get(promptedExecutableTipsStorageKey, StorageScope.GLOBAL, '{}'));
+	}
+
+	private addToRecommendedExecutables(exeName: string, extensions: string[]) {
+		const promptedExecutableTips = this.getPromptedExecutableTips();
+		promptedExecutableTips[exeName] = extensions;
+		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL);
 	}
 
 	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
