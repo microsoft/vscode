@@ -46,14 +46,14 @@ import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickE
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
-const enum SettingsFocusContext {
+export const enum SettingsFocusContext {
 	Search,
 	TableOfContents,
 	SettingTree,
@@ -141,11 +141,12 @@ export class SettingsEditor2 extends EditorPane {
 	private _searchResultModel: SearchResultModel | null = null;
 
 	private tocRowFocused: IContextKey<boolean>;
+	private settingRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
 	private scheduledRefreshes: Map<string, DOM.IFocusTracker>;
-	private lastFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
+	private _currentFocusContext: SettingsFocusContext = SettingsFocusContext.Search;
 
 	/** Don't spam warnings */
 	private hasWarnedMissingSettings = false;
@@ -187,6 +188,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
+		this.settingRowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
 
 		this.scheduledRefreshes = new Map<string, DOM.IFocusTracker>();
 
@@ -229,6 +231,10 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		return this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), focused.setting.key)[0];
+	}
+
+	get currentFocusContext() {
+		return this._currentFocusContext;
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -332,9 +338,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	focus(): void {
-		if (this.lastFocusContext === SettingsFocusContext.Search) {
+		if (this._currentFocusContext === SettingsFocusContext.Search) {
 			this.focusSearch();
-		} else if (this.lastFocusContext === SettingsFocusContext.SettingControl) {
+		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
 			const element = this.focusedSettingDOMElement;
 			if (element) {
 				const control = element.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
@@ -343,9 +349,9 @@ export class SettingsEditor2 extends EditorPane {
 					return;
 				}
 			}
-		} else if (this.lastFocusContext === SettingsFocusContext.SettingTree) {
+		} else if (this._currentFocusContext === SettingsFocusContext.SettingTree) {
 			this.settingsTree.domFocus();
-		} else if (this.lastFocusContext === SettingsFocusContext.TableOfContents) {
+		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
 			this.tocTree.domFocus();
 		}
 	}
@@ -437,7 +443,7 @@ export class SettingsEditor2 extends EditorPane {
 			// TODO: Aria-live
 		}));
 		this._register(this.searchWidget.onFocus(() => {
-			this.lastFocusContext = SettingsFocusContext.Search;
+			this._currentFocusContext = SettingsFocusContext.Search;
 		}));
 
 		this._register(attachSuggestEnabledInputBoxStyler(this.searchWidget, this.themeService, {
@@ -602,7 +608,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.viewState));
 
 		this._register(this.tocTree.onDidFocus(() => {
-			this.lastFocusContext = SettingsFocusContext.TableOfContents;
+			this._currentFocusContext = SettingsFocusContext.TableOfContents;
 		}));
 
 		this._register(this.tocTree.onDidChangeFocus(e => {
@@ -645,7 +651,8 @@ export class SettingsEditor2 extends EditorPane {
 		this._register(this.settingRenderers.onDidClickSettingLink(settingName => this.onDidClickSetting(settingName)));
 		this._register(this.settingRenderers.onDidFocusSetting(element => {
 			this.settingsTree.setFocus([element]);
-			this.lastFocusContext = SettingsFocusContext.SettingControl;
+			this._currentFocusContext = SettingsFocusContext.SettingControl;
+			this.settingRowFocused.set(false);
 		}));
 		this._register(this.settingRenderers.onDidClickOverrideElement((element: ISettingOverrideClickEvent) => {
 			if (element.scope.toLowerCase() === 'workspace') {
@@ -680,7 +687,12 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			this.lastFocusContext = SettingsFocusContext.SettingTree;
+			this._currentFocusContext = SettingsFocusContext.SettingTree;
+			this.settingRowFocused.set(true);
+		}));
+
+		this._register(this.settingsTree.onDidBlur(() => {
+			this.settingRowFocused.set(false);
 		}));
 
 		// There is no different select state in the settings tree
