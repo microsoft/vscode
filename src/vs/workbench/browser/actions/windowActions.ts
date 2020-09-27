@@ -276,6 +276,24 @@ class ToggleFullScreenAction extends Action {
 	}
 }
 
+class ExitFullScreenAction extends Action {
+
+	static readonly ID = 'workbench.action.exitFullScreen';
+	static readonly LABEL = nls.localize('exitFullScreen', "Exit Full Screen");
+
+	constructor(
+		id: string,
+		label: string,
+		@IHostService private readonly hostService: IHostService
+	) {
+		super(id, label);
+	}
+
+	run(): Promise<void> {
+		return this.hostService.exitFullScreen();
+	}
+}
+
 export class ReloadWindowAction extends Action {
 
 	static readonly ID = 'workbench.action.reloadWindow';
@@ -342,6 +360,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickPickRecentAction
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenRecentAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleFullScreenAction, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ExitFullScreenAction, { primary: KeyCode.Escape }), 'View: Exit Full Screen', CATEGORIES.View.value);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowAction), 'Developer: Reload Window', CATEGORIES.Developer.value, IsWebContext.toNegated());
 
