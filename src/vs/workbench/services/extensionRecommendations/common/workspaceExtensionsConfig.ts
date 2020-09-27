@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce, distinct, flatten } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -22,19 +24,26 @@ export const IWorkpsaceExtensionsConfigService = createDecorator<IWorkpsaceExten
 export interface IWorkpsaceExtensionsConfigService {
 	readonly _serviceBrand: undefined;
 
+	onDidChangeExtensionsConfigs: Event<void>;
 	getExtensionsConfigs(): Promise<IExtensionsConfigContent[]>;
 	getUnwantedRecommendations(): Promise<string[]>;
 
 }
 
-export class WorkspaceExtensionsConfigService implements IWorkpsaceExtensionsConfigService {
+export class WorkspaceExtensionsConfigService extends Disposable implements IWorkpsaceExtensionsConfigService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeExtensionsConfigs = this._register(new Emitter<void>());
+	readonly onDidChangeExtensionsConfigs = this._onDidChangeExtensionsConfigs.event;
 
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
-	) { }
+	) {
+		super();
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(e => this._onDidChangeExtensionsConfigs.fire()));
+	}
 
 	async getExtensionsConfigs(): Promise<IExtensionsConfigContent[]> {
 		const workspace = this.workspaceContextService.getWorkspace();
@@ -47,7 +56,7 @@ export class WorkspaceExtensionsConfigService implements IWorkpsaceExtensionsCon
 
 	async getUnwantedRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.unwantedRecommendations)));
+		return distinct(flatten(configs.map(c => c.unwantedRecommendations.map(c => c.toLowerCase()))));
 	}
 
 	private async resolveWorkspaceExtensionConfig(workspace: IWorkspace): Promise<IExtensionsConfigContent | null> {

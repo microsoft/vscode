@@ -56,9 +56,12 @@ import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/brow
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ExtensionRecommendationNotificationService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationNotificationService';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
+registerSingleton(IExtensionRecommendationNotificationService, ExtensionRecommendationNotificationService);
 registerSingleton(IExtensionRecommendationsService, ExtensionRecommendationsService);
 
 Registry.as<IOutputChannelRegistry>(OutputExtensions.OutputChannels)

@@ -19,7 +19,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExtensionManifest, IKeyBinding, IView, IViewContainer, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -189,6 +189,7 @@ export class ExtensionEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
+		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IWorkbenchThemeService private readonly workbenchThemeService: IWorkbenchThemeService,
@@ -471,36 +472,27 @@ export class ExtensionEditor extends EditorPane {
 		this.transientDisposables.add(ignoreAction);
 		this.transientDisposables.add(undoIgnoreAction);
 
-		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-			ignoreAction.enabled = true;
-			template.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
-			show(template.subtextContainer);
-		} else if (this.extensionRecommendationsService.getIgnoredRecommendations().indexOf(extension.identifier.id.toLowerCase()) !== -1) {
-			undoIgnoreAction.enabled = true;
-			template.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-			show(template.subtextContainer);
-		}
-		else {
-			template.subtext.textContent = '';
-		}
-
-		this.extensionRecommendationsService.onRecommendationChange(change => {
-			if (change.extensionId.toLowerCase() === extension.identifier.id.toLowerCase()) {
-				if (change.isRecommended) {
-					undoIgnoreAction.enabled = false;
-					const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
-					if (extRecommendations[extension.identifier.id.toLowerCase()]) {
-						ignoreAction.enabled = true;
-						template.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
-					}
-				} else {
-					undoIgnoreAction.enabled = true;
-					ignoreAction.enabled = false;
-					template.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-				}
+		const updateRecommendationFn = () => {
+			const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
+			if (extRecommendations[extension.identifier.id.toLowerCase()]) {
+				ignoreAction.enabled = true;
+				undoIgnoreAction.enabled = false;
+				template.subtext.textContent = extRecommendations[extension.identifier.id.toLowerCase()].reasonText;
+				show(template.subtextContainer);
+			} else if (this.extensionIgnoredRecommendationsService.globalIgnoredRecommendations.indexOf(extension.identifier.id.toLowerCase()) !== -1) {
+				ignoreAction.enabled = false;
+				undoIgnoreAction.enabled = true;
+				template.subtext.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+				show(template.subtextContainer);
+			} else {
+				ignoreAction.enabled = false;
+				undoIgnoreAction.enabled = false;
+				template.subtext.textContent = '';
+				hide(template.subtextContainer);
 			}
-		});
+		};
+		updateRecommendationFn();
+		this.transientDisposables.add(this.extensionRecommendationsService.onDidChangeRecommendations(() => updateRecommendationFn()));
 
 		this.transientDisposables.add(reloadAction.onDidChange(e => {
 			if (e.tooltip) {
