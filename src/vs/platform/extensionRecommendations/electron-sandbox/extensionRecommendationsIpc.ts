@@ -39,7 +39,7 @@ export class ExtensionRecommendationNotificationServiceChannel implements IServe
 
 	call(_: unknown, command: string, args?: any): Promise<any> {
 		switch (command) {
-			case 'promptImportantExtensionsInstallNotification': this.service.promptImportantExtensionsInstallNotification(args[0], args[1], args[2]); return Promise.resolve();
+			case 'promptImportantExtensionsInstallNotification': return this.service.promptImportantExtensionsInstallNotification(args[0], args[1], args[2]);
 		}
 
 		throw new Error(`Call not found: ${command}`);
