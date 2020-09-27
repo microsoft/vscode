@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { isNumber } from 'vs/base/common/types';
-import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 
@@ -30,7 +30,6 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
 	constructor(
-		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
 		@IWorkspaceTagsService private readonly workspaceTagsService: IWorkspaceTagsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -38,7 +37,7 @@ export class DynamicWorkspaceRecommendations extends ExtensionRecommendations {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
-		super(promptedExtensionRecommendations);
+		super();
 	}
 
 	protected async doActivate(): Promise<void> {

@@ -23,6 +23,9 @@ import { ExtensionsAutoProfiler } from 'vs/workbench/contrib/extensions/electron
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { OpenExtensionsFolderAction } from 'vs/workbench/contrib/extensions/electron-sandbox/extensionsActions';
 import { ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { ExtensionRecommendationNotificationServiceChannel } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 
 // Singletons
 registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService, true);
@@ -64,8 +67,11 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ShowRuntimeExte
 class ExtensionsContributions implements IWorkbenchContribution {
 
 	constructor(
-		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
+		@IExtensionRecommendationNotificationService extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
+		@ISharedProcessService sharedProcessService: ISharedProcessService,
 	) {
+		sharedProcessService.registerChannel('IExtensionRecommendationNotificationService', new ExtensionRecommendationNotificationServiceChannel(extensionRecommendationNotificationService));
 		if (environmentService.extensionsPath) {
 			const openExtensionsFolderActionDescriptor = SyncActionDescriptor.from(OpenExtensionsFolderAction);
 			actionRegistry.registerWorkbenchAction(openExtensionsFolderActionDescriptor, 'Extensions: Open Extensions Folder', ExtensionsLabel);

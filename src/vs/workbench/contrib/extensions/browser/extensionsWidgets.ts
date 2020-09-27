@@ -199,7 +199,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.render()));
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
 	}
 
 	private clear(): void {

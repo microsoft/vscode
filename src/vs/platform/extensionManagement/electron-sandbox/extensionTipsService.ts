@@ -4,18 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { join, } from 'vs/base/common/path';
+import { basename, join, } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isWindows } from 'vs/base/common/platform';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IExecutableBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExecutableBasedExtensionTip, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { forEach } from 'vs/base/common/collections';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
+import { timeout } from 'vs/base/common/async';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { localize } from 'vs/nls';
+
+type ExeExtensionRecommendationsClassification = {
+	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+	exeName: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
+};
 
 type IExeBasedExtensionTips = {
 	readonly exeFriendlyName: string,
@@ -32,6 +41,9 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
+		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRequestService requestService: IRequestService,
@@ -57,6 +69,12 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 				}
 			});
 		}
+
+		/*
+			3s has come out to be the good number to fetch and prompt important exe based recommendations
+			Also fetch important exe based recommendations for reporting telemetry
+		*/
+		timeout(3000).then(() => this.promptImportantExeBasedRecommendations());
 	}
 
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
@@ -65,6 +83,61 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return this.getValidExecutableBasedExtensionTips(this.allOtherExecutableTips);
+	}
+
+	private async promptImportantExeBasedRecommendations(): Promise<void> {
+		const importantExeBasedRecommendations = new Map<string, IExecutableBasedExtensionTip>();
+		const importantExeBasedTips = await this.getImportantExecutableBasedTips();
+		importantExeBasedTips.forEach(tip => importantExeBasedRecommendations.set(tip.extensionId.toLowerCase(), tip));
+
+		const local = await this.extensionManagementService.getInstalled();
+		const { installed, uninstalled: recommendations } = this.groupByInstalled([...importantExeBasedRecommendations.keys()], local);
+
+		/* Log installed and uninstalled exe based recommendations */
+		for (const extensionId of installed) {
+			const tip = importantExeBasedRecommendations.get(extensionId);
+			if (tip) {
+				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:alreadyInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			}
+		}
+		for (const extensionId of recommendations) {
+			const tip = importantExeBasedRecommendations.get(extensionId);
+			if (tip) {
+				this.telemetryService.publicLog2<{ exeName: string, extensionId: string }, ExeExtensionRecommendationsClassification>('exeExtensionRecommendations:notInstalled', { extensionId, exeName: basename(tip.windowsPath!) });
+			}
+		}
+
+		const recommendationsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
+		for (const extensionId of recommendations) {
+			const tip = importantExeBasedRecommendations.get(extensionId);
+			if (tip) {
+				let tips = recommendationsByExe.get(tip.exeFriendlyName);
+				if (!tips) {
+					tips = [];
+					recommendationsByExe.set(tip.exeFriendlyName, tips);
+				}
+				tips.push(tip);
+			}
+		}
+
+		for (const [, tips] of recommendationsByExe) {
+			const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
+			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
+			this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`);
+		}
+	}
+
+	private groupByInstalled(recommendationsToSuggest: string[], local: ILocalExtension[]): { installed: string[], uninstalled: string[] } {
+		const installed: string[] = [], uninstalled: string[] = [];
+		const installedExtensionsIds = local.reduce((result, i) => { result.add(i.identifier.id.toLowerCase()); return result; }, new Set<string>());
+		recommendationsToSuggest.forEach(id => {
+			if (installedExtensionsIds.has(id.toLowerCase())) {
+				installed.push(id);
+			} else {
+				uninstalled.push(id);
+			}
+		});
+		return { installed, uninstalled };
 	}
 
 	private async getValidExecutableBasedExtensionTips(executableTips: Map<string, IExeBasedExtensionTips>): Promise<IExecutableBasedExtensionTip[]> {
