@@ -5,19 +5,19 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { EnablementState, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionIgnoredRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 
@@ -42,9 +42,11 @@ const ignoreImportantExtensionRecommendation = 'extensionsAssistant/importantRec
 const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 
-export class ExtensionRecommendationNotificationService extends Disposable implements IExtensionRecommendationNotificationService {
+export class ExtensionRecommendationNotificationService implements IExtensionRecommendationNotificationService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly tasExperimentService: ITASExperimentService | undefined;
 
 	// Ignored Important Recommendations
 	get ignoredRecommendations(): string[] {
@@ -62,9 +64,10 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
-		super();
 		storageKeysSyncRegistryService.registerStorageKey({ key: ignoreImportantExtensionRecommendation, version: 1 });
+		this.tasExperimentService = tasExperimentService;
 	}
 
 	hasToIgnoreRecommendationNotifications(): boolean {
@@ -85,6 +88,10 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 		const extensions = await this.getInstallableExtensions(extensionIds);
 		if (!extensions.length) {
 			return false;
+		}
+
+		if (this.tasExperimentService && extensionIds.indexOf('ms-vscode-remote.remote-wsl') !== -1) {
+			await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 		}
 
 		this.notificationService.prompt(Severity.Info, message,
