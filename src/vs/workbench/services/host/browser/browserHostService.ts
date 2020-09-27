@@ -328,6 +328,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async exitFullScreen(): Promise<void> {
+
 		// Chromium
 		if (document.fullscreen !== undefined) {
 			if (document.fullscreen) {
