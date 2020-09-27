@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
+import { distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,7 +39,7 @@ type ExtensionWorkspaceRecommendationsNotificationClassification = {
 	userReaction: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
-const ignoreImportantExtensionRecommendation = 'extensionsAssistant/importantRecommendationsIgnore';
+const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';
 const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 
@@ -50,7 +51,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 	// Ignored Important Recommendations
 	get ignoredRecommendations(): string[] {
-		return [...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendation, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase());
+		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase()));
 	}
 
 	constructor(
@@ -66,7 +67,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
-		storageKeysSyncRegistryService.registerStorageKey({ key: ignoreImportantExtensionRecommendation, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: ignoreImportantExtensionRecommendationStorageKey, version: 1 });
 		this.tasExperimentService = tasExperimentService;
 	}
 
@@ -80,7 +81,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			return false;
 		}
 
-		extensionIds = this.filterIgnoredOrNotAllowed(extensionIds);
+		const ignoredRecommendations = [...this.extensionIgnoredRecommendationsService.ignoredRecommendations, ...this.ignoredRecommendations];
+		extensionIds = extensionIds.filter(id => !ignoredRecommendations.includes(id));
 		if (!extensionIds.length) {
 			return false;
 		}
@@ -221,11 +223,6 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		return extensions;
 	}
 
-	private filterIgnoredOrNotAllowed(recommendationsToSuggest: string[]): string[] {
-		const ignoredRecommendations = [...this.extensionIgnoredRecommendationsService.ignoredRecommendations, ...this.ignoredRecommendations];
-		return recommendationsToSuggest.filter(id => !ignoredRecommendations.includes(id));
-	}
-
 	private async runAction(action: IAction): Promise<void> {
 		try {
 			await action.run();
@@ -235,9 +232,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	}
 
 	private addToImportantRecommendationsIgnore(id: string) {
-		const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendation, StorageScope.GLOBAL, '[]'));
-		importantRecommendationsIgnoreList.push(id.toLowerCase());
-		this.storageService.store(ignoreImportantExtensionRecommendation, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.GLOBAL);
+		const importantRecommendationsIgnoreList = [...this.ignoredRecommendations];
+		if (!importantRecommendationsIgnoreList.includes(id.toLowerCase())) {
+			importantRecommendationsIgnoreList.push(id.toLowerCase());
+			this.storageService.store(ignoreImportantExtensionRecommendationStorageKey, JSON.stringify(importantRecommendationsIgnoreList), StorageScope.GLOBAL);
+		}
 	}
 
 	private setIgnoreRecommendationsConfig(configVal: boolean) {
