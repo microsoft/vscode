@@ -16,7 +16,7 @@ import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionM
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationTimes, ExtensionPointContribution, IExtensionService, IExtensionsStatus, IMessage, IWillActivateEvent, IResponsiveStateChangeEvent, toExtension, IExtensionHost, ActivationKind, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
@@ -154,6 +154,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 	}
 
+	protected _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {
+		for (const extensionHostManager of this._extensionHostManagers) {
+			if (extensionHostManager.kind === kind) {
+				return extensionHostManager;
+			}
+		}
+		return null;
+	}
+
 	//#region deltaExtensions
 
 	private async _handleDeltaExtensions(item: DeltaExtensionsQueueItem): Promise<void> {
@@ -175,10 +184,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
-		if (this._environmentService.configuration.remoteAuthority) {
-			return;
-		}
-
 		let toAdd: IExtensionDescription[] = [];
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
@@ -233,7 +238,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._doHandleExtensionPoints((<IExtensionDescription[]>[]).concat(toAdd).concat(toRemove));
 
 		// Update the extension host
-		this._updateExtensionsOnExtHosts(toAdd, toRemove.map(e => e.identifier));
+		await this._updateExtensionsOnExtHosts(toAdd, toRemove.map(e => e.identifier));
 
 		for (let i = 0; i < toAdd.length; i++) {
 			this._activateAddedExtensionIfNeeded(toAdd[i]);
