@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { URI } from 'vs/base/common/uri';
 
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 
@@ -90,6 +91,7 @@ export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
 	scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]>;
+	scanAndTranslateSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<ITranslatedScannedExtension | null>;
 	canAddExtension(galleryExtension: IGalleryExtension): Promise<boolean>;
 	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;

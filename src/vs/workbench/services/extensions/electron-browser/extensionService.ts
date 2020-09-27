@@ -114,15 +114,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	private _getExtensionHostManager(kind: ExtensionHostKind): ExtensionHostManager | null {
-		for (const extensionHostManager of this._extensionHostManagers) {
-			if (extensionHostManager.kind === kind) {
-				return extensionHostManager;
-			}
-		}
-		return null;
-	}
-
 	protected _canAddExtension(extension: IExtension): boolean {
 		if (this._environmentService.configuration.remoteAuthority) {
 			return false;
@@ -146,7 +137,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		return super.canRemoveExtension(extension);
 	}
-
 
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
