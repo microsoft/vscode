@@ -69,6 +69,11 @@ export interface IHostService {
 	 */
 	toggleFullScreen(): Promise<void>;
 
+	/**
+	 * Exit fullscreen mode.
+	 */
+	exitFullScreen(): Promise<void>;
+
 	//#endregion
 
 	//#region Lifecycle

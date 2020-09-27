@@ -1048,6 +1048,7 @@ export class TestHostService implements IHostService {
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
 	async toggleFullScreen(): Promise<void> { }
+	async exitFullScreen(): Promise<void> { }
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;

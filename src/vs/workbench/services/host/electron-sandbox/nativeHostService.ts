@@ -89,6 +89,10 @@ export class NativeHostService extends Disposable implements IHostService {
 		return this.nativeHostService.toggleFullScreen();
 	}
 
+	exitFullScreen(): Promise<void> {
+		return this.nativeHostService.exitFullScreen();
+	}
+
 	//#endregion
 
 

@@ -163,6 +163,13 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 	}
 
+	async exitFullScreen(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window && window.isFullScreen) {
+			window.toggleFullScreen();
+		}
+	}
+
 	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {

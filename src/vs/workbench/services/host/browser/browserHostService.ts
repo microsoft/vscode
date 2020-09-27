@@ -327,6 +327,30 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	async exitFullScreen(): Promise<void> {
+		// Chromium
+		if (document.fullscreen !== undefined) {
+			if (document.fullscreen) {
+				try {
+					return await document.exitFullscreen();
+				} catch (error) {
+					console.warn('Exit Full Screen failed');
+				}
+			}
+		}
+
+		// Safari and Edge 14 are all using webkit prefix
+		if ((<any>document).webkitIsFullScreen !== undefined) {
+			try {
+				if ((<any>document).webkitIsFullScreen) {
+					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+				}
+			} catch {
+				console.warn('Exit Full Screen failed');
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region Lifecycle
