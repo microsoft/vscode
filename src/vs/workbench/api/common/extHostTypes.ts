@@ -14,6 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { addIdToOutput, CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
@@ -641,8 +642,18 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		}
 	}
 
-	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Output, index, outputs: outputs.map(output => addIdToOutput(output)) } });
+	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({
+			_type: FileEditType.Cell, metadata, uri, edit: {
+				editType: CellEditType.Output, index, outputs: outputs.map(output => {
+					if (NotebookCellOutput.isNotebookCellOutput(output)) {
+						return addIdToOutput(extHostTypeConverters.NotebookCellOutput.from(output));
+					} else {
+						return addIdToOutput(output);
+					}
+				})
+			}
+		});
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -2774,7 +2785,7 @@ export enum ColorThemeKind {
 
 export class NotebookCellOutputItem {
 
-	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutputItem {
+	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
 		return obj instanceof NotebookCellOutputItem;
 	}
 
@@ -2787,7 +2798,7 @@ export class NotebookCellOutputItem {
 
 export class NotebookCellOutput {
 
-	static isNotebookCellOutputList(obj: unknown): obj is vscode.NotebookCellOutput {
+	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
 		return obj instanceof NotebookCellOutput;
 	}
 

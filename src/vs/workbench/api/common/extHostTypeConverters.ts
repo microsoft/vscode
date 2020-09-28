@@ -1297,7 +1297,7 @@ export namespace LogLevel {
 	}
 }
 
-export namespace NotebookCellOutputList {
+export namespace NotebookCellOutput {
 	export function from(output: types.NotebookCellOutput): IDisplayOutput {
 
 		let data: { [key: string]: unknown; } = {};
@@ -1319,7 +1319,7 @@ export namespace NotebookCellOutputList {
 	}
 }
 
-export namespace NotebookCellOutput {
+export namespace NotebookCellOutputItem {
 	export function from(output: types.NotebookCellOutputItem): IDisplayOutput {
 		return {
 			outputKind: CellOutputKind.Rich,
