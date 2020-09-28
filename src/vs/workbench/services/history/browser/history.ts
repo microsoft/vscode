@@ -516,7 +516,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private preferResourceEditorInput(input: IEditorInput): IEditorInput | IResourceEditorInput {
-		const resource = input.resource;
+		const resource = toResource(input, { usePreferredResource: true });
 		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData || resource.scheme === this.pathService.defaultUriScheme)) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
@@ -633,7 +633,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const associatedResources: URI[] = [];
-		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.BOTH, usePreferredResource: true });
 		if (URI.isUri(editorResource)) {
 			associatedResources.push(editorResource);
 		} else if (editorResource) {
@@ -645,7 +645,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// ...adding it as last recently closed
 		this.recentlyClosedEditors.push({
-			resource: editor.resource,
+			resource: toResource(editor, { usePreferredResource: true }),
 			associatedResources,
 			serialized: { typeId: editor.getTypeId(), value: serialized },
 			index: event.index,
