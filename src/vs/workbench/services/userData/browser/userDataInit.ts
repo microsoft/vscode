@@ -17,8 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { UserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { CONFIGURATION_SYNC_STORE_KEY, IUserDataSyncStoreClient, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
-import { URI } from 'vs/base/common/uri';
+import { IUserDataSyncStoreClient, IUserDataSyncStoreManagementService, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { getCurrentAuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { getSyncAreaLabel } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
@@ -44,6 +43,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 
 	constructor(
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IProductService private readonly productService: IProductService,
@@ -75,7 +75,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
-				const userDataSyncStore = this.productService[CONFIGURATION_SYNC_STORE_KEY];
+				const userDataSyncStore = this.userDataSyncStoreManagementService.userDataSyncStore;
 				if (!userDataSyncStore) {
 					this.logService.trace(`Skipping initializing user data as sync service is not provided`);
 					return;
@@ -97,7 +97,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 					return;
 				}
 
-				const userDataSyncStoreClient = new UserDataSyncStoreClient(URI.parse(userDataSyncStore.url), this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
+				const userDataSyncStoreClient = new UserDataSyncStoreClient(userDataSyncStore.url, this.productService, this.requestService, this.logService, this.environmentService, this.fileService, this.storageService);
 				userDataSyncStoreClient.setAuthToken(authenticationSession.accessToken, authenticationSession.providerId);
 				return userDataSyncStoreClient;
 			})();
