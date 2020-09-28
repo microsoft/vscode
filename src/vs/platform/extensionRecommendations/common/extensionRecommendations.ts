@@ -5,6 +5,12 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
+export const enum RecommendationSource {
+	FILE = 1,
+	WORKSPACE = 2,
+	EXE = 3
+}
+
 export const IExtensionRecommendationNotificationService = createDecorator<IExtensionRecommendationNotificationService>('IExtensionRecommendationNotificationService');
 
 export interface IExtensionRecommendationNotificationService {
@@ -13,7 +19,7 @@ export interface IExtensionRecommendationNotificationService {
 	readonly ignoredRecommendations: string[];
 	hasToIgnoreRecommendationNotifications(): boolean;
 
-	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string): Promise<boolean>;
-	promptWorkspaceRecommendations(recommendations: string[]): Promise<boolean>;
+	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<boolean>;
+	promptWorkspaceRecommendations(recommendations: string[]): Promise<void>;
 }
 

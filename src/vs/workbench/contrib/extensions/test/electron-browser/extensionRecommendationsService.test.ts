@@ -265,7 +265,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		class TestNotificationService2 extends TestNotificationService {
 			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 				prompted = true;
-				return null!;
+				return super.prompt(severity, message, choices, options);
 			}
 		}
 
