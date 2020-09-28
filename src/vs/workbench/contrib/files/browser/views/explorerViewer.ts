@@ -57,6 +57,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -541,6 +542,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
 		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
@@ -554,7 +556,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			let shouldFire = false;
 			this.hiddenUris.forEach(u => {
 				editors.forEach(e => {
-					if (e.resource && isEqualOrParent(e.resource, u)) {
+					if (e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, u)) {
 						// A filtered resource suddenly became visible since user opened an editor
 						shouldFire = true;
 					}
@@ -629,7 +631,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
-			const editor = editors.find(e => e.resource && isEqualOrParent(e.resource, stat.resource));
+			const editor = editors.find(e => e.resource && this.uriIdentityService.extUri.isEqualOrParent(e.resource, stat.resource));
 			if (editor) {
 				this.editorsAffectingFilter.add(editor);
 				return true; // Show all opened files and their parents

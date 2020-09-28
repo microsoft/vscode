@@ -1059,7 +1059,7 @@ export class ChangeModeAction extends Action {
 		}
 
 		const textModel = activeTextEditorControl.getModel();
-		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }) : null;
+		const resource = this.editorService.activeEditor ? toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true }) : null;
 
 		let hasLanguageSupport = !!resource;
 		if (resource?.scheme === Schemas.untitled && !this.textFileService.untitled.get(resource)?.hasAssociatedFilePath) {
@@ -1157,7 +1157,7 @@ export class ChangeModeAction extends Action {
 				let languageSelection: ILanguageSelection | undefined;
 				if (pick === autoDetectMode) {
 					if (textModel) {
-						const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+						const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 						if (resource) {
 							languageSelection = this.modeService.createByFilepathOrFirstLine(resource, textModel.getLineContent(1));
 						}
@@ -1336,7 +1336,7 @@ export class ChangeEncodingAction extends Action {
 
 		await timeout(50); // quick input is sensitive to being opened so soon after another
 
-		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = toResource(activeEditorPane.input, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 		if (!resource || (!this.fileService.canHandleResource(resource) && resource.scheme !== Schemas.untitled)) {
 			return; // encoding detection only possible for resources the file service can handle or that are untitled
 		}

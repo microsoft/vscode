@@ -1114,12 +1114,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Label
 		tabLabelWidget.setResource(
-			{ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
+			{ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH, usePreferredResource: true }) },
 			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel }
 		);
 
 		// Tests helper
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 		if (resource) {
 			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
 		} else {

@@ -877,7 +877,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// with different resource forms (e.g. path casing on Windows)
 			const canonicalResource = this.asCanonicalEditorResource(preferredResource);
 
-
 			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
@@ -970,11 +969,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private toSideBySideLabel(leftInput: EditorInput, rightInput: EditorInput, divider: string): string | undefined {
-		const leftResource = leftInput.resource;
-		const rightResource = rightInput.resource;
 
 		// Without any resource, do not try to compute a label
-		if (!leftResource || !rightResource) {
+		if (!leftInput.resource || !rightInput.resource) {
 			return undefined;
 		}
 
@@ -982,7 +979,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// by adding the relative path of both inputs to the label. This
 		// makes it easier to understand a file-based comparison.
 		if (this.fileEditorInputFactory.isFileEditorInput(leftInput) && this.fileEditorInputFactory.isFileEditorInput(rightInput)) {
-			return `${this.labelService.getUriLabel(leftResource, { relative: true })} ${divider} ${this.labelService.getUriLabel(rightResource, { relative: true })}`;
+			return `${this.labelService.getUriLabel(leftInput.preferredResource, { relative: true })} ${divider} ${this.labelService.getUriLabel(rightInput.preferredResource, { relative: true })}`;
 		}
 
 		// Signal back that the label should be computed from within the editor
