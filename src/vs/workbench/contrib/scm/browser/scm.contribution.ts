@@ -221,12 +221,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (!repository || !repository.provider.acceptInputCommand) {
 			return Promise.resolve(null);
 		}
-
+		let input = repository.input;
+		if (input.value) {
+			input.save();
+		}
 		const id = repository.provider.acceptInputCommand.id;
 		const args = repository.provider.acceptInputCommand.arguments;
 
 		const commandService = accessor.get(ICommandService);
 		return commandService.executeCommand(id, ...(args || []));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.viewPriorCommit',
+	description: { description: localize('scm view prior commit', "SCM: View Prior Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.UpArrow,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		let message = repository?.input.load();
+		console.log(message);
 	}
 });
 
