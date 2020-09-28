@@ -198,7 +198,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			return;
 		}
 
-		this.updateLastPromptedMediumExeTime();
+		this.updateLastPromptedMediumExeTime(Date.now());
 		const [exeName, tips] = [...this.mediumImportanceTipsByExe.entries()][0];
 		this.promptExeRecommendations(tips)
 			.then(result => {
@@ -207,7 +207,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 						this.mediumImportanceTipsByExe.delete(exeName);
 						this.addToRecommendedExecutables(tips[0].exeName, tips);
 						break;
+					case RecommendationsNotificationResult.TooMany:
+						this.updateLastPromptedMediumExeTime(lastPromptedMediumExeTime);
+						break;
 					case RecommendationsNotificationResult.Ignored:
+						this.updateLastPromptedMediumExeTime(lastPromptedMediumExeTime);
 						this.mediumImportanceExecutableTips.delete(exeName);
 						break;
 				}
@@ -226,13 +230,13 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		let value = this.storageService.getNumber(lastPromptedMediumImpExeTimeStorageKey, StorageScope.GLOBAL);
 		if (!value) {
 			value = Date.now();
-			this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL);
+			this.updateLastPromptedMediumExeTime(value);
 		}
 		return value;
 	}
 
-	private updateLastPromptedMediumExeTime(): void {
-		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, Date.now(), StorageScope.GLOBAL);
+	private updateLastPromptedMediumExeTime(value: number): void {
+		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL);
 	}
 
 	private getPromptedExecutableTips(): IStringDictionary<string[]> {
