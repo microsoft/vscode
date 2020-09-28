@@ -11,7 +11,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { createMemoizer } from 'vs/base/common/decorators';
 import { Schemas } from 'vs/base/common/network';
 import { dirname, extUri } from 'vs/base/common/resources';
 
@@ -19,8 +18,6 @@ import { dirname, extUri } from 'vs/base/common/resources';
  * The base class for all editor inputs that open in text editors.
  */
 export abstract class AbstractTextResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
-
-	private static readonly MEMOIZER = createMemoizer();
 
 	private _preferredResource: URI;
 	get preferredResource(): URI { return this._preferredResource; }
@@ -59,7 +56,13 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 	private updateLabel(): void {
 
 		// Clear any cached labels from before
-		AbstractTextResourceEditorInput.MEMOIZER.clear();
+		this._basename = undefined;
+		this._shortDescription = undefined;
+		this._mediumDescription = undefined;
+		this._longDescription = undefined;
+		this._shortTitle = undefined;
+		this._mediumTitle = undefined;
+		this._longTitle = undefined;
 
 		// Trigger recompute of label
 		this._onDidChangeLabel.fire();
@@ -77,9 +80,13 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		return this.basename;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _basename: string | undefined;
 	private get basename(): string {
-		return this.labelService.getUriBasenameLabel(this._preferredResource);
+		if (!this._basename) {
+			this._basename = this.labelService.getUriBasenameLabel(this._preferredResource);
+		}
+
+		return this._basename;
 	}
 
 	getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
@@ -94,34 +101,52 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _shortDescription: string | undefined = undefined;
 	private get shortDescription(): string {
-		return this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
+		if (!this._shortDescription) {
+			this._shortDescription = this.labelService.getUriBasenameLabel(dirname(this._preferredResource));
+		}
+		return this._shortDescription;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _mediumDescription: string | undefined = undefined;
 	private get mediumDescription(): string {
-		return this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
+		if (!this._mediumDescription) {
+			this._mediumDescription = this.labelService.getUriLabel(dirname(this._preferredResource), { relative: true });
+		}
+		return this._mediumDescription;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _longDescription: string | undefined = undefined;
 	private get longDescription(): string {
-		return this.labelService.getUriLabel(dirname(this._preferredResource));
+		if (!this._longDescription) {
+			this._longDescription = this.labelService.getUriLabel(dirname(this._preferredResource));
+		}
+		return this._longDescription;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _shortTitle: string | undefined = undefined;
 	private get shortTitle(): string {
-		return this.getName();
+		if (!this._shortTitle) {
+			this._shortTitle = this.getName();
+		}
+		return this._shortTitle;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _mediumTitle: string | undefined = undefined;
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this._preferredResource, { relative: true });
+		if (!this._mediumTitle) {
+			this._mediumTitle = this.labelService.getUriLabel(this._preferredResource, { relative: true });
+		}
+		return this._mediumTitle;
 	}
 
-	@AbstractTextResourceEditorInput.MEMOIZER
+	private _longTitle: string | undefined = undefined;
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this._preferredResource);
+		if (!this._longTitle) {
+			this._longTitle = this.labelService.getUriLabel(this._preferredResource);
+		}
+		return this._longTitle;
 	}
 
 	getTitle(verbosity: Verbosity): string {
