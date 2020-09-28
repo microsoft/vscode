@@ -9,10 +9,6 @@ import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator }
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-<<<<<<< HEAD
-=======
-import { isEmptyObject } from 'vs/base/common/types';
->>>>>>> d2a5768231... minor changes
 
 class SCMInput implements ISCMInput {
 
@@ -120,7 +116,29 @@ class SCMInput implements ISCMInput {
 		}
 	}
 
-	load(): string {
+	load(): void {
+		let root = this.repository.provider.rootUri;
+		let result: string | undefined;
+		if (root) {
+			const key = `scm/input:${this.repository.provider.label}:${root.path}`;
+			const raw = this.storageService.get(key, StorageScope.WORKSPACE);
+			if (raw) {
+				try {
+					result = JSON.parse(raw);
+					if (result) {
+						if (this.index < result.length) {
+							this.index++;
+							this.value = result[result.length - this.index];
+						}
+					}
+				} catch (e) {
+					// Invalid data
+				}
+			}
+		}
+	}
+
+	reverseLoad(): void {
 		let root = this.repository.provider.rootUri;
 		let result: string | undefined;
 		if (root) {
@@ -131,14 +149,9 @@ class SCMInput implements ISCMInput {
 				try {
 					result = JSON.parse(raw);
 					if (result) {
-						this.index++;
-						console.log(result);
-						console.log(this.index);
-						if (this.index >= result.length - 1) {
-							console.log(this.index % (result.length - 1));
-							return result[this.index % (result.length - 1)];
-						} else {
-							return result[result.length - this.index];
+						if (this.index > 0) {
+							this.index--;
+							this.value = result[result.length - this.index];
 						}
 					}
 				} catch (e) {
@@ -146,7 +159,6 @@ class SCMInput implements ISCMInput {
 				}
 			}
 		}
-		return "";
 	}
 
 	save(): void {

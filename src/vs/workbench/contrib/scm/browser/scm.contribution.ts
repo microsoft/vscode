@@ -243,8 +243,21 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const contextKeyService = accessor.get(IContextKeyService);
 		const context = contextKeyService.getContext(document.activeElement);
 		const repository = context.getValue<ISCMRepository>('scmRepository');
-		let message = repository?.input.load();
-		console.log(message);
+		repository?.input.load();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.viewNextCommit',
+	description: { description: localize('scm view next commit', "SCM: View Next Commit"), args: [] },
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyMod.Alt | KeyCode.DownArrow,
+	handler: accessor => {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const context = contextKeyService.getContext(document.activeElement);
+		const repository = context.getValue<ISCMRepository>('scmRepository');
+		repository?.input.reverseLoad();
 	}
 });
 
