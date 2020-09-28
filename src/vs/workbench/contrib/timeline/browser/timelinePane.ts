@@ -343,12 +343,7 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		let uri;
-
-		const editor = this.editorService.activeEditor;
-		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		}
+		const uri = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes

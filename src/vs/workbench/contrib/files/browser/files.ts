@@ -50,7 +50,7 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 		return focus.getResource();
 	}
 
-	return editorService.activeEditor ? toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY }) : undefined;
+	return toResource(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 }
 
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {

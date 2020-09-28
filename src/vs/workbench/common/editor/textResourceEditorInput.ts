@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { EditorInput, Verbosity, GroupIdentifier, IEditorInput, ISaveOptions, IRevertOptions, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -18,7 +18,7 @@ import { dirname, extUri } from 'vs/base/common/resources';
 /**
  * The base class for all editor inputs that open in text editors.
  */
-export abstract class AbstractTextResourceEditorInput extends EditorInput {
+export abstract class AbstractTextResourceEditorInput extends EditorInput implements IEditorInputWithPreferredResource {
 
 	private static readonly MEMOIZER = createMemoizer();
 
