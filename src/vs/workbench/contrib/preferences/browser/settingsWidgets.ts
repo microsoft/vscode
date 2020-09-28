@@ -318,7 +318,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 		this.listDisposables.clear();
 
 		const newMode = this.model.items.some(item => !!(item.editing && this.isItemNew(item)));
-		DOM.toggleClass(this.container, 'setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
+		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
 		const header = this.renderHeader();
 		const ITEM_HEIGHT = 24;
@@ -372,7 +372,7 @@ abstract class AbstractListSettingWidget<TDataItem extends object> extends Dispo
 
 		rowElement.setAttribute('data-index', idx + '');
 		rowElement.setAttribute('tabindex', item.selected ? '0' : '-1');
-		DOM.toggleClass(rowElement, 'selected', item.selected);
+		rowElement.classList.toggle('selected', item.selected);
 
 		const actionBar = new ActionBar(rowElement);
 		this.listDisposables.add(actionBar);
