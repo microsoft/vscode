@@ -1189,8 +1189,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		return new Promise(resolve => {
 			const listener = this.onDidCloseEditor(async event => {
-				const primaryResource = EditorResourceAccessor.getCanonicalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-				const secondaryResource = EditorResourceAccessor.getCanonicalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
+				const primaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const secondaryResource = EditorResourceAccessor.getOriginalUri(event.editor, { supportSideBySide: SideBySideEditor.SECONDARY });
 
 				// Remove from resources to wait for being closed based on the
 				// resources from editors that got closed
