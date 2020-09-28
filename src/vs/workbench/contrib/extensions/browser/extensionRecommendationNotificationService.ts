@@ -66,6 +66,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase()));
 	}
 
+	private recommendedExtensions: string[] = [];
+
 	private notificationsCount: number = 0;
 	private hideVisibleNotificationPromise: CancelablePromise<void> | undefined;
 	private visibleNotification: VisibleRecommendationNotification | undefined;
@@ -98,9 +100,19 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			return RecommendationsNotificationResult.Ignored;
 		}
 
+		// Ignore exe recommendation if the window has shown two recommendations already
+		if (source === RecommendationSource.EXE && this.notificationsCount >= 2) {
+			return RecommendationsNotificationResult.TooMany;
+		}
+
 		const ignoredRecommendations = [...this.extensionIgnoredRecommendationsService.ignoredRecommendations, ...this.ignoredRecommendations];
 		extensionIds = extensionIds.filter(id => !ignoredRecommendations.includes(id));
 		if (!extensionIds.length) {
+			return RecommendationsNotificationResult.Ignored;
+		}
+
+		// Ignore exe recommendation if recommendations are already shown
+		if (source === RecommendationSource.EXE && extensionIds.every(id => this.recommendedExtensions.includes(id))) {
 			return RecommendationsNotificationResult.Ignored;
 		}
 
@@ -109,14 +121,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			return RecommendationsNotificationResult.Ignored;
 		}
 
-		// Do not show exe recommendation if the window has shown two recommendations already
-		if (this.notificationsCount >= 2 && source === RecommendationSource.EXE) {
-			return RecommendationsNotificationResult.TooMany;
-		}
-
 		if (this.tasExperimentService && extensionIds.indexOf('ms-vscode-remote.remote-wsl') !== -1) {
 			await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 		}
+
+		this.recommendedExtensions = distinct([...this.recommendedExtensions, ...extensionIds]);
 
 		return new Promise<RecommendationsNotificationResult>(async (c, e) => {
 			let result = RecommendationsNotificationResult.Accepted;
