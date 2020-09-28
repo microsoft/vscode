@@ -481,17 +481,6 @@ function addChildrenToTabOrder(node: Element): void {
 	});
 }
 
-export function updateSettingTreeTabOrder(container: Element): void {
-	const allRows = [...container.querySelectorAll(AbstractSettingRenderer.ALL_ROWS_SELECTOR)];
-	const focusedRow = allRows.find(row => row.classList.contains('focused'));
-
-	allRows.forEach(removeChildrenFromTabOrder);
-
-	if (isDefined(focusedRow)) {
-		addChildrenToTabOrder(focusedRow);
-	}
-}
-
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -525,7 +514,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
 
-	// Put common injections back here
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
@@ -744,6 +732,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			update();
 		}));
+
+		this.updateSettingTabbable(element, template);
+		template.elementDisposables.add(element.onDidChangeTabbable(() => {
+			this.updateSettingTabbable(element, template);
+		}));
+	}
+
+	private updateSettingTabbable(element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+		if (element.tabbable) {
+			addChildrenToTabOrder(template.containerElement);
+		} else {
+			removeChildrenFromTabOrder(template.containerElement);
+		}
 	}
 
 	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
