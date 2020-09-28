@@ -12,7 +12,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { Schemas } from 'vs/base/common/network';
-import { dirname, extUri } from 'vs/base/common/resources';
+import { dirname, isEqual } from 'vs/base/common/resources';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -69,7 +69,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 	}
 
 	setPreferredResource(preferredResource: URI): void {
-		if (!extUri.isEqual(preferredResource, this._preferredResource)) {
+		if (!isEqual(preferredResource, this._preferredResource)) {
 			this._preferredResource = preferredResource;
 
 			this.updateLabel();
@@ -219,7 +219,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 
 		// If the target is a different resource, return with a new editor input
-		if (!extUri.isEqual(target, this.resource)) {
+		if (!isEqual(target, this.resource)) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 
