@@ -36,6 +36,8 @@ import { basename } from 'vs/base/common/path';
 import { domEvent } from 'vs/base/browser/event';
 import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
 import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Event } from 'vs/base/common/event';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /\.vscode\/launch\.json$/;
@@ -186,6 +188,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
 		this.toDispose = [];
@@ -263,9 +266,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						hoverController.showContentHover(this.hoverRange, HoverStartMode.Immediate, false);
 					}
 
-					const listener = domEvent(document, 'keyup')(keyupEvent => {
-						const standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
-						if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
+					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, domEvent(document, 'keyup'))(keyupEvent => {
+						let standardKeyboardEvent = undefined;
+						if (keyupEvent instanceof KeyboardEvent) {
+							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
+						}
+						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {
 							this.altPressed = false;
 							this.editor.updateOptions({ hover: { enabled: false } });
 							listener.dispose();

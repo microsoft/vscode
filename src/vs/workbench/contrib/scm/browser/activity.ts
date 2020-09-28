@@ -14,6 +14,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 
 function getCount(repository: ISCMRepository): number {
 	if (typeof repository.provider.count === 'number') {
@@ -56,11 +57,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 	}
 
 	private tryFocusRepositoryBasedOnActiveEditor(): boolean {
-		if (!this.editorService.activeEditor) {
-			return false;
-		}
-
-		const resource = this.editorService.activeEditor.resource;
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 
 		if (!resource) {
 			return false;

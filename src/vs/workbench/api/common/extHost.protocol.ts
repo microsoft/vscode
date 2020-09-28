@@ -144,6 +144,7 @@ export type CommentThreadChanges = Partial<{
 	contextValue: string,
 	comments: modes.Comment[],
 	collapseState: modes.CommentThreadCollapsibleState;
+	readOnly: boolean;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
