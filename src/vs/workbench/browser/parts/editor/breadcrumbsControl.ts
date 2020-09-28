@@ -38,7 +38,7 @@ import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig, IBreadcrumbsService } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, EditorBreadcrumbsModel, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
 import { BreadcrumbsPicker, createBreadcrumbsPicker } from 'vs/workbench/browser/parts/editor/breadcrumbsPicker';
-import { IEditorPartOptions, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorPartOptions, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -235,7 +235,7 @@ export class BreadcrumbsControl {
 		this._breadcrumbsDisposables.clear();
 
 		// honor diff editors and such
-		const uri = toResource(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri || !this._fileService.canHandleResource(uri)) {
 			// cleanup and return when there is no input or when
@@ -250,7 +250,7 @@ export class BreadcrumbsControl {
 		}
 
 		// display uri which can be derived from certain inputs
-		const fileInfoUri = toResource(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
+		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		this.domNode.classList.toggle('hidden', false);
 		this._ckBreadcrumbsVisible.set(true);
