@@ -5,15 +5,33 @@
 
 'use strict';
 
-const json = require('gulp-json-editor');
+import * as json from 'gulp-json-editor';
 const buffer = require('gulp-buffer');
-const filter = require('gulp-filter');
-const es = require('event-stream');
-const vfs = require('vinyl-fs');
-const fancyLog = require('fancy-log');
-const ansiColors = require('ansi-colors');
-const fs = require('fs');
-const path = require('path');
+import * as filter from 'gulp-filter';
+import * as es from 'event-stream';
+import * as Vinyl from 'vinyl';
+import * as vfs from 'vinyl-fs';
+import * as fancyLog from 'fancy-log';
+import * as ansiColors from 'ansi-colors';
+import * as fs from 'fs';
+import * as path from 'path';
+
+interface IBuiltInExtension {
+	readonly name: string;
+	readonly version: string;
+	readonly repo: string;
+	readonly metadata: any;
+}
+
+interface OSSProduct {
+	readonly builtInExtensions: IBuiltInExtension[];
+	readonly webBuiltInExtensions?: IBuiltInExtension[];
+}
+
+interface Product {
+	readonly builtInExtensions?: IBuiltInExtension[] | { 'include'?: IBuiltInExtension[], 'exclude'?: string[] };
+	readonly webBuiltInExtensions?: IBuiltInExtension[];
+}
 
 function main() {
 	const quality = process.env['VSCODE_QUALITY'];
@@ -31,8 +49,8 @@ function main() {
 		.pipe(filter(f => !f.isDirectory()))
 		.pipe(productJsonFilter)
 		.pipe(buffer())
-		.pipe(json(o => {
-			const ossProduct = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'product.json'), 'utf8'));
+		.pipe(json((o: Product) => {
+			const ossProduct = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'product.json'), 'utf8')) as OSSProduct;
 			let builtInExtensions = ossProduct.builtInExtensions;
 
 			if (Array.isArray(o.builtInExtensions)) {
@@ -58,7 +76,7 @@ function main() {
 			return { webBuiltInExtensions: ossProduct.webBuiltInExtensions, ...o, builtInExtensions };
 		}))
 		.pipe(productJsonFilter.restore)
-		.pipe(es.mapSync(function (f) {
+		.pipe(es.mapSync(function (f: Vinyl) {
 			fancyLog(ansiColors.blue('[mixin]'), f.relative, ansiColors.green('✔︎'));
 			return f;
 		}))
