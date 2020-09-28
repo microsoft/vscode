@@ -1886,12 +1886,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		);
 
 		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(focusBorder);
-			if (activeBorderColor) {
-				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
-				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-list:focus .monaco-list-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
-			}
-
 			const foregroundColor = theme.getColor(foreground);
 			if (foregroundColor) {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid
