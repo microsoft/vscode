@@ -959,13 +959,7 @@ class ViewModel {
 			return;
 		}
 
-		const editor = this.editorService.activeEditor;
-
-		if (!editor) {
-			return;
-		}
-
-		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uri = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 
 		if (!uri) {
 			return;

@@ -520,6 +520,22 @@ appendEditorToolItem(
 	}
 );
 
+// Editor Title Menu: Close (tabs disabled, normal editor)
+appendEditorToolItem(
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		icon: { id: 'codicon/close' }
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
+	1000000, // towards the far end
+	{
+		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: nls.localize('closeAll', "Close All"),
+		icon: { id: 'codicon/close-all' }
+	}
+);
+
 // Editor Title Menu: Close (tabs disabled, dirty editor)
 appendEditorToolItem(
 	{
@@ -527,7 +543,7 @@ appendEditorToolItem(
 		title: nls.localize('close', "Close"),
 		icon: { id: 'codicon/close-dirty' }
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext),
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
@@ -552,19 +568,19 @@ appendEditorToolItem(
 	}
 );
 
-// Editor Title Menu: Unpin (tabs disabled, normal editor)
+// Editor Title Menu: Close (tabs disabled, dirty & sticky editor)
 appendEditorToolItem(
+	{
+		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
+		title: nls.localize('unpin', "Unpin"),
+		icon: { id: 'codicon/close-dirty' }
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
+	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
 		icon: { id: 'codicon/close' }
-	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
-	1000000, // towards the far end
-	{
-		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeAll', "Close All"),
-		icon: { id: 'codicon/close-all' }
 	}
 );
 

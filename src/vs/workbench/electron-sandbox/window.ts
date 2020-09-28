@@ -136,7 +136,7 @@ export class NativeWindow extends Disposable {
 			if (request.from === 'touchbar') {
 				const activeEditor = this.editorService.activeEditor;
 				if (activeEditor) {
-					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+					const resource = toResource(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 					if (resource) {
 						args.push(resource);
 					}
@@ -226,7 +226,7 @@ export class NativeWindow extends Disposable {
 		// macOS OS integration
 		if (isMacintosh) {
 			this._register(this.editorService.onDidActiveEditorChange(() => {
-				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file });
+				const file = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, filterByScheme: Schemas.file, usePreferredResource: true });
 
 				// Represented Filename
 				this.updateRepresentedFilename(file?.fsPath);

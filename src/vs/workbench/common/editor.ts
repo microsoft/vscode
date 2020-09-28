@@ -659,11 +659,35 @@ export interface IModeSupport {
 	setMode(mode: string): void;
 }
 
+export interface IEditorInputWithPreferredResource {
+
+	/**
+	 * An editor may provide an additional preferred resource alongside
+	 * the `resource` property. While the `resource` property serves as
+	 * unique identifier of the editor that should be used whenever we
+	 * compare to other editors, the `preferredResource` should be used
+	 * in places where e.g. the resource is shown to the user.
+	 *
+	 * For example: on Windows and macOS, the same URI with different
+	 * casing may point to the same file. The editor may chose to
+	 * "normalize" the URIs so that only one editor opens for different
+	 * URIs. But when displaying the editor label to the user, the
+	 * preferred URI should be used.
+	 */
+	readonly preferredResource: URI;
+}
+
+export function isEditorInputWithPreferredResource(obj: unknown): obj is IEditorInputWithPreferredResource {
+	const editorInputWithPreferredResource = obj as IEditorInputWithPreferredResource;
+
+	return editorInputWithPreferredResource && !!editorInputWithPreferredResource.preferredResource;
+}
+
 /**
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport {
+export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
 
 	/**
 	 * Gets the resource this file input is about. This will always be the
@@ -672,14 +696,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * for the form as it was created.
 	 */
 	readonly resource: URI;
-
-	/**
-	 * Gets the preferred resource of the editor. In most cases this will
-	 * be identical to the resource. But in some cases the preferredResource
-	 * may differ in path casing to the actual resource because we keep
-	 * canonical forms of resources in-memory.
-	 */
-	readonly preferredResource: URI;
 
 	/**
 	 * Sets the preferred resource to use for this file input.
@@ -1267,8 +1283,33 @@ export enum SideBySideEditor {
 }
 
 export interface IResourceOptions {
+
+	/**
+	 * Allows to access the `resource` of side by side editors.
+	 */
 	supportSideBySide?: SideBySideEditor;
+
+	/**
+	 * Allows to filter the scheme to consider.
+	 */
 	filterByScheme?: string | string[];
+
+	/**
+	 * Will return the `preferredResource` of an editor if any.
+	 *
+	 * An editor may provide an additional preferred resource alongside
+	 * the `resource` property. While the `resource` property serves as
+	 * unique identifier of the editor that should be used whenever we
+	 * compare to other editors, the `preferredResource` should be used
+	 * in places where e.g. the resource is shown to the user.
+	 *
+	 * For example: on Windows and macOS, the same URI with different
+	 * casing may point to the same file. The editor may chose to
+	 * "normalize" the URIs so that only one editor opens for different
+	 * URIs. But when displaying the editor label to the user, the
+	 * preferred URI should be used.
+	 */
+	usePreferredResource?: boolean;
 }
 
 export function toResource(editor: IEditorInput | undefined | null): URI | undefined;
@@ -1282,15 +1323,15 @@ export function toResource(editor: IEditorInput | undefined | null, options?: IR
 	if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
 		if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 			return {
-				primary: toResource(editor.primary, { filterByScheme: options.filterByScheme }),
-				secondary: toResource(editor.secondary, { filterByScheme: options.filterByScheme })
+				primary: toResource(editor.primary, { filterByScheme: options.filterByScheme, usePreferredResource: options.usePreferredResource }),
+				secondary: toResource(editor.secondary, { filterByScheme: options.filterByScheme, usePreferredResource: options.usePreferredResource })
 			};
 		}
 
 		editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? editor.primary : editor.secondary;
 	}
 
-	const resource = editor.resource;
+	const resource = (options?.usePreferredResource && isEditorInputWithPreferredResource(editor)) ? editor.preferredResource : editor.resource;
 	if (!resource || !options || !options.filterByScheme) {
 		return resource;
 	}

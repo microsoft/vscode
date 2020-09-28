@@ -15,13 +15,6 @@ class SCMInput implements ISCMInput {
 	private _value = '';
 
 	get value(): string {
-		if (this.root) {
-			const key = `scm/input:${this.repository.provider.label}:${this.root.path}`;
-			let storedValue = this.storageService.get(key, StorageScope.WORKSPACE);
-			if (storedValue) {
-				return storedValue;
-			}
-		}
 		return this._value;
 	}
 
@@ -29,14 +22,17 @@ class SCMInput implements ISCMInput {
 		if (value === this._value) {
 			return;
 		}
+
 		this._value = value;
-		if (this.root) {
-			const key = `scm/input:${this.repository.provider.label}:${this.root.path}`;
+
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 			this.storageService.store(key, value, StorageScope.WORKSPACE);
 		}
+
 		this._onDidChange.fire(value);
 	}
-	private root;
+
 	private readonly _onDidChange = new Emitter<string>();
 	readonly onDidChange: Event<string> = this._onDidChange.event;
 
@@ -87,8 +83,10 @@ class SCMInput implements ISCMInput {
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
-		this.root = this.repository.provider.rootUri;
-		this._value = this.value;
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this._value = this.storageService.get(key, StorageScope.WORKSPACE, '');
+		}
 	}
 }
 

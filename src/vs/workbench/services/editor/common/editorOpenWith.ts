@@ -9,7 +9,7 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platf
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICustomEditorInfo, IEditorService, IOpenEditorOverrideHandler, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, IEditorInputFactoryRegistry, Extensions as EditorExtensions, toResource } from 'vs/workbench/common/editor';
 import { ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,7 +37,7 @@ export async function openEditorWith(
 	configurationService: IConfigurationService,
 	quickInputService: IQuickInputService,
 ): Promise<IEditorPane | undefined> {
-	const resource = input.resource;
+	const resource = toResource(input, { usePreferredResource: true });
 	if (!resource) {
 		return;
 	}
@@ -146,11 +146,12 @@ export function getAllAvailableEditors(
 		overrides.unshift([
 			{
 				open: (input: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
-					if (!input.resource) {
+					const resource = toResource(input, { usePreferredResource: true });
+					if (!resource) {
 						return;
 					}
 
-					const fileEditorInput = editorService.createEditorInput({ resource: input.resource, forceFile: true });
+					const fileEditorInput = editorService.createEditorInput({ resource, forceFile: true });
 					const textOptions: IEditorOptions | ITextEditorOptions = options ? { ...options, override: false } : { override: false };
 					return { override: editorService.openEditor(fileEditorInput, textOptions, group) };
 				}
