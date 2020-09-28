@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -1846,20 +1846,20 @@ export class ToggleEditorTypeAction extends Action {
 			return;
 		}
 
-		const input = activeEditorPane.input;
-		if (!input.resource) {
+		const activeEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input);
+		if (!activeEditorResource) {
 			return;
 		}
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(input.resource, undefined, options, group, this.editorService);
+		const overrides = getAllAvailableEditors(activeEditorResource, undefined, options, group, this.editorService);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+		await firstNonActiveOverride[0].open(activeEditorPane.input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 }
