@@ -658,7 +658,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const setting = element.setting;
 
-		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
+		template.containerElement.classList.toggle('is-configured', element.isConfigured);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
@@ -721,7 +721,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
-		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
+		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
