@@ -24,6 +24,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from 'vs/base/common/uri';
 
 export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
@@ -78,6 +79,13 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanExtensions(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI, skipExtensions),
 			[]
 		).then(undefined, () => []);
+	}
+
+	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanSingleExtension(channel, connection.remoteAuthority, isBuiltin, extensionLocation),
+			null
+		).then(undefined, () => null);
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {

@@ -13,7 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { applyZoom } from 'vs/platform/windows/electron-sandbox/window';
@@ -54,7 +54,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { posix, dirname } from 'vs/base/common/path';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { ITunnelService, extractLocalHostUriMetaDataForPortMapping } from 'vs/platform/remote/common/tunnel';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, positionFromString, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -266,6 +266,12 @@ export class NativeWindow extends Disposable {
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
+
+		// Detect panel position to determine minimum width
+		this._register(this.layoutService.onPanelPositionChange(pos => {
+			this.onDidPanelPositionChange(positionFromString(pos));
+		}));
+		this.onDidPanelPositionChange(this.layoutService.getPanelPosition());
 	}
 
 	private updateDocumentEdited(isDirty = this.workingCopyService.hasDirty): void {
@@ -278,6 +284,22 @@ export class NativeWindow extends Disposable {
 
 	private onDidChangeMaximized(maximized: boolean): void {
 		this.layoutService.updateWindowMaximizedState(maximized);
+	}
+
+	private getWindowMinimumWidth(panelPosition: Position = this.layoutService.getPanelPosition()): number {
+		// if panel is on the side, then return the larger minwidth
+		const panelOnSide = panelPosition === Position.LEFT || panelPosition === Position.RIGHT;
+		if (panelOnSide) {
+			return WindowMinimumSize.WIDTH_WITH_VERTICAL_PANEL;
+		}
+		else {
+			return WindowMinimumSize.WIDTH;
+		}
+	}
+
+	private onDidPanelPositionChange(pos: Position): void {
+		const minWidth = this.getWindowMinimumWidth(pos);
+		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
 	private onDidVisibleEditorsChange(): void {

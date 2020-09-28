@@ -506,7 +506,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		const host: IExtensionActivationHost = {
 			folders: folders.map(folder => folder.uri),
 			forceUsingSearch: localWithRemote,
-			exists: (path) => this._hostUtils.exists(path),
+			exists: (uri) => this._hostUtils.exists(uri.fsPath),
 			checkExists: (folders, includes, token) => this._mainThreadWorkspaceProxy.$checkExists(folders, includes, token)
 		};
 

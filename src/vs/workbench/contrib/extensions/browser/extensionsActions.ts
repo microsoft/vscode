@@ -16,7 +16,7 @@ import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IE
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, INSTALL_ERROR_INCOMPATIBLE, IGalleryExtensionVersion, ILocalExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { IExtensionRecommendationsService, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionIgnoredRecommendationsService, IExtensionsConfigContent } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1912,7 +1912,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
-		@IExtensionRecommendationsService private readonly extensionsTipsService: IExtensionRecommendationsService,
+		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 	) {
 		super(IgnoreExtensionRecommendationAction.ID, 'Ignore Recommendation');
 
@@ -1922,7 +1922,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, true);
+		this.extensionRecommendationsManagementService.toggleGlobalIgnoredRecommendation(this.extension.identifier.id, true);
 		return Promise.resolve();
 	}
 }
@@ -1935,7 +1935,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 
 	constructor(
 		private readonly extension: IExtension,
-		@IExtensionRecommendationsService private readonly extensionsTipsService: IExtensionRecommendationsService,
+		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
 	) {
 		super(UndoIgnoreExtensionRecommendationAction.ID, 'Undo');
 
@@ -1945,7 +1945,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 	}
 
 	public run(): Promise<any> {
-		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.identifier.id, false);
+		this.extensionRecommendationsManagementService.toggleGlobalIgnoredRecommendation(this.extension.identifier.id, false);
 		return Promise.resolve();
 	}
 }

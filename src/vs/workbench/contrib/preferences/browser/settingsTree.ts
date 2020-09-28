@@ -869,6 +869,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
 		openSettingsButton.label = SettingComplexRenderer.EDIT_IN_JSON_LABEL;
 		openSettingsButton.element.classList.add('edit-in-settings-button');
+		openSettingsButton.element.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
 		common.toDispose.add(attachButtonStyler(openSettingsButton, this._themeService, {
 			buttonBackground: Color.transparent.toString(),

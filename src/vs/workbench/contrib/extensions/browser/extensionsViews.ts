@@ -955,7 +955,7 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => {
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
 			this.show('');
 		}));
 	}
@@ -980,7 +980,7 @@ export class RecommendedExtensionsView extends ExtensionsListView {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => {
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => {
 			this.show('');
 		}));
 	}
@@ -997,7 +997,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.show(this.recommendedExtensionsQuery)));
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.show(this.recommendedExtensionsQuery)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.show(this.recommendedExtensionsQuery)));
 	}
 

@@ -86,7 +86,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 					return;
 				}
 
-				if (token.count > MAX_FILES) {
+				if (token.count >= MAX_FILES) {
 					token.count += files.length;
 					token.maxReached = true;
 					resolve();

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ExtensionRecommendations, ExtensionRecommendation, PromptedExtensionRecommendations } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
+import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/contrib/experiments/common/experimentService';
 
@@ -14,10 +14,9 @@ export class ExperimentalRecommendations extends ExtensionRecommendations {
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
 	constructor(
-		promptedExtensionRecommendations: PromptedExtensionRecommendations,
 		@IExperimentService private readonly experimentService: IExperimentService,
 	) {
-		super(promptedExtensionRecommendations);
+		super();
 	}
 
 	/**

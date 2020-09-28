@@ -2155,4 +2155,14 @@ declare module 'vscode' {
 		constructor(id: string, color?: ThemeColor);
 	}
 	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
+	export interface CommentThread {
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to false.
+		 */
+		readOnly: boolean;
+	}
+	//#endregion
 }
