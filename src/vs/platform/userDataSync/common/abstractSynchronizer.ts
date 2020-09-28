@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
 	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncResourcePreview as IBaseSyncResourcePreview,
-	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState
+	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState, IUserDataInitializer
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
@@ -802,7 +802,7 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 
 }
 
-export abstract class AbstractInitializer {
+export abstract class AbstractInitializer implements IUserDataInitializer {
 
 	private readonly lastSyncResource: URI;
 
