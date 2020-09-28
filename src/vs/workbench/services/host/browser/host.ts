@@ -71,7 +71,6 @@ export interface IHostService {
 
 	/**
 	 * Exit fullscreen mode.
-	 *
 	 */
 	exitFullScreen(): Promise<void>;
 
