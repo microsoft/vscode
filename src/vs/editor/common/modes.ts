@@ -268,6 +268,7 @@ export interface HoverProvider {
 /**
  * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
  * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
+ * @internal
  */
 export interface EvaluatableExpression {
 	/**
@@ -283,6 +284,7 @@ export interface EvaluatableExpression {
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ * @internal
  */
 export interface EvaluatableExpressionProvider {
 	/**
@@ -1493,11 +1495,13 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	readOnly: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeReadOnly: Event<boolean>;
 	isDisposed: boolean;
 }
 

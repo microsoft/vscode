@@ -17,6 +17,7 @@ import { IMainProcessInfo } from 'vs/platform/launch/node/launch';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
+import { Schemas } from 'vs/base/common/network';
 
 export const ID = 'diagnosticsService';
 export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
@@ -85,7 +86,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 					return;
 				}
 
-				if (token.count > MAX_FILES) {
+				if (token.count >= MAX_FILES) {
 					token.count += files.length;
 					token.maxReached = true;
 					resolve();
@@ -450,7 +451,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 			window.folderURIs.forEach(uriComponents => {
 				const folderUri = URI.revive(uriComponents);
-				if (folderUri.scheme === 'file') {
+				if (folderUri.scheme === Schemas.file) {
 					const folder = folderUri.fsPath;
 					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
 						let countMessage = `${stats.fileCount} files`;
@@ -518,7 +519,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
 		for (const { uri } of workspace.folders) {
 			const folderUri = URI.revive(uri);
-			if (folderUri.scheme !== 'file') {
+			if (folderUri.scheme !== Schemas.file) {
 				continue;
 			}
 

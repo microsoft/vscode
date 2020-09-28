@@ -102,11 +102,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 				treeView.title = title;
 			},
 			get description() {
-				checkProposedApiEnabled(extension);
 				return treeView.description;
 			},
 			set description(description: string | undefined) {
-				checkProposedApiEnabled(extension);
 				treeView.description = description;
 			},
 			reveal: (element: T, options?: IRevealOptions): Promise<void> => {

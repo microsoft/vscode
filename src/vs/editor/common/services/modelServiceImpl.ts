@@ -24,9 +24,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUndoRedoService, IUndoRedoElement, IPastFutureElements, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
+import { IUndoRedoService, ResourceEditStackSnapshot } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
-import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
+import { EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
@@ -116,23 +116,6 @@ const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLin
 export interface EditStackPastFutureElements {
 	past: EditStackElement[];
 	future: EditStackElement[];
-}
-
-export function isEditStackPastFutureElements(undoElements: IPastFutureElements): undoElements is EditStackPastFutureElements {
-	return (isEditStackElements(undoElements.past) && isEditStackElements(undoElements.future));
-}
-
-function isEditStackElements(elements: IUndoRedoElement[]): elements is EditStackElement[] {
-	for (const element of elements) {
-		if (element instanceof SingleModelEditStackElement) {
-			continue;
-		}
-		if (element instanceof MultiModelEditStackElement) {
-			continue;
-		}
-		return false;
-	}
-	return true;
 }
 
 class DisposedModelInfo {

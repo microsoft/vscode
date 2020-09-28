@@ -17,6 +17,7 @@ import { ThemeRule, findMatchingThemeRule } from 'vs/workbench/services/textMate
 import { Color } from 'vs/base/common/color';
 import { IFileService } from 'vs/platform/files/common/files';
 import { basename } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 interface IToken {
 	c: string;
@@ -244,7 +245,7 @@ CommandsRegistry.registerCommand('_workbench.captureSyntaxTokens', function (acc
 
 	if (!resource) {
 		const editorService = accessor.get(IEditorService);
-		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filterByScheme: 'file' }) : null;
+		const file = editorService.activeEditor ? toResource(editorService.activeEditor, { filterByScheme: Schemas.file }) : null;
 		if (file) {
 			process(file).then(result => {
 				console.log(result);

@@ -211,6 +211,23 @@ export class NativeHostMainService implements INativeHostMainService {
 		}
 	}
 
+	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window) {
+			const [windowWidth, windowHeight] = window.win.getSize();
+			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
+			const [newMinWindowWidth, newMinWindowHeight] = [width ?? minWindowWidth, height ?? minWindowHeight];
+			const [newWindowWidth, newWindowHeight] = [Math.max(windowWidth, newMinWindowWidth), Math.max(windowHeight, newMinWindowHeight)];
+
+			if (minWindowWidth !== newMinWindowWidth || minWindowHeight !== newMinWindowHeight) {
+				window.win.setMinimumSize(newMinWindowWidth, newMinWindowHeight);
+			}
+			if (windowWidth !== newWindowWidth || windowHeight !== newWindowHeight) {
+				window.win.setSize(newWindowWidth, newWindowHeight);
+			}
+		}
+	}
+
 	//#endregion
 
 	//#region Dialog
@@ -609,6 +626,42 @@ export class NativeHostMainService implements INativeHostMainService {
 			return undefined;
 		}
 	}
+
+	//#endregion
+
+	//#region Credentials
+
+	async getPassword(windowId: number | undefined, service: string, account: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		return keytar.getPassword(service, account);
+	}
+
+	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
+		const keytar = await import('keytar');
+
+		return keytar.setPassword(service, account, password);
+	}
+
+	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
+		const keytar = await import('keytar');
+
+		return keytar.deletePassword(service, account);
+	}
+
+	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
+		const keytar = await import('keytar');
+
+		return keytar.findPassword(service);
+	}
+
+	async findCredentials(windowId: number | undefined, service: string): Promise<Array<{ account: string, password: string }>> {
+		const keytar = await import('keytar');
+
+		return keytar.findCredentials(service);
+	}
+
+	//#endregion
 
 	private windowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {

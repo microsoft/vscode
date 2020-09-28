@@ -27,7 +27,7 @@ export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 }
 
 export interface IGotoSymbolQuickAccessProviderOptions extends IEditorNavigationQuickAccessOptions {
-	openSideBySideDirection: () => undefined | 'right' | 'down'
+	openSideBySideDirection?: () => undefined | 'right' | 'down'
 }
 
 export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
@@ -306,7 +306,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				},
 				strikethrough: deprecated,
 				buttons: (() => {
-					const openSideBySideDirection = this.options?.openSideBySideDirection();
+					const openSideBySideDirection = this.options?.openSideBySideDirection ? this.options?.openSideBySideDirection() : undefined;
 					if (!openSideBySideDirection) {
 						return undefined;
 					}

@@ -19,7 +19,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 function ignore<T>(code: string, value: T): (err: any) => Promise<T> {
@@ -29,7 +29,7 @@ function ignore<T>(code: string, value: T): (err: any) => Promise<T> {
 let _source: string | null = null;
 function getSource(): string {
 	if (!_source) {
-		const root = getPathFromAmdModule(require, '');
+		const root = FileAccess.asFileUri('', require).fsPath;
 		_source = path.resolve(root, '..', 'bin', 'code');
 	}
 	return _source;
