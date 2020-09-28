@@ -9,7 +9,7 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -17,7 +17,6 @@ import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLoc
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
-import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier, IExtensionDescription, ExtensionKind, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
@@ -33,7 +32,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private _disposables = new DisposableStore();
 	private _remoteInitData: IRemoteExtensionHostInitData | null = null;
-	private _runningLocation: Map<string, ExtensionRunningLocation>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -86,16 +84,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		super.dispose();
 	}
 
-	protected _canAddExtension(extension: IExtension): boolean {
-		const extensionKind = getExtensionKind(extension.manifest, this._productService, this._configurationService);
-		const isRemote = extension.location.scheme === Schemas.vscodeRemote;
-		const runningLocation = this._pickRunningLocation(extensionKind, !isRemote, isRemote);
-		if (runningLocation === ExtensionRunningLocation.None) {
-			return false;
-		}
-		return super._canAddExtension(extension);
-	}
-
 	protected async _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		if (extension.location.scheme === Schemas.vscodeRemote) {
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
@@ -107,48 +95,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 
 		return null;
-	}
-
-	protected async _updateExtensionsOnExtHosts(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-
-		let localToAdd: IExtensionDescription[] = [];
-		let remoteToAdd: IExtensionDescription[] = [];
-		for (const extension of toAdd) {
-			const extensionKind = getExtensionKind(extension, this._productService, this._configurationService);
-			const isRemote = extension.extensionLocation.scheme === Schemas.vscodeRemote;
-			const runningLocation = this._pickRunningLocation(extensionKind, !isRemote, isRemote);
-			this._runningLocation.set(ExtensionIdentifier.toKey(extension.identifier), runningLocation);
-			if (runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-				localToAdd.push(extension);
-			} else if (runningLocation === ExtensionRunningLocation.Remote) {
-				remoteToAdd.push(extension);
-			}
-		}
-
-		let localToRemove: ExtensionIdentifier[] = [];
-		let remoteToRemove: ExtensionIdentifier[] = [];
-		for (const extensionId of toRemove) {
-			const runningLocation = this._runningLocation.get(ExtensionIdentifier.toKey(extensionId));
-			this._runningLocation.delete(ExtensionIdentifier.toKey(extensionId));
-			if (runningLocation === ExtensionRunningLocation.LocalWebWorker) {
-				localToRemove.push(extensionId);
-			} else if (runningLocation === ExtensionRunningLocation.Remote) {
-				remoteToRemove.push(extensionId);
-			}
-		}
-
-		if (localToAdd.length > 0 || localToRemove.length > 0) {
-			const localWebWorkerExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalWebWorker);
-			if (localWebWorkerExtensionHost) {
-				await localWebWorkerExtensionHost.deltaExtensions(localToAdd, localToRemove);
-			}
-		}
-		if (remoteToAdd.length > 0 || remoteToRemove.length > 0) {
-			const remoteExtensionHost = this._getExtensionHostManager(ExtensionHostKind.Remote);
-			if (remoteExtensionHost) {
-				await remoteExtensionHost.deltaExtensions(remoteToAdd, remoteToRemove);
-			}
-		}
 	}
 
 	private _initFetchFileSystem(): void {

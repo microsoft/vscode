@@ -44,7 +44,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 	private readonly _enableLocalWebWorker: boolean;
 	private readonly _remoteInitData: Map<string, IRemoteExtensionHostInitData>;
-	private _runningLocation: Map<string, ExtensionRunningLocation>;
 	private readonly _extensionScanner: CachedExtensionScanner;
 
 	constructor(
@@ -87,10 +86,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		);
 
 		this._enableLocalWebWorker = this._configurationService.getValue<boolean>(webWorkerExtHostConfig);
-
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
-		this._runningLocation = new Map<string, ExtensionRunningLocation>();
-
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 
 		// delay extension host creation and extension scanning
@@ -119,39 +115,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	protected _canAddExtension(extension: IExtension): boolean {
-		if (this._environmentService.configuration.remoteAuthority) {
-			return false;
-		}
-
-		if (extension.location.scheme !== Schemas.file) {
-			return false;
-		}
-
-		return super._canAddExtension(extension);
-	}
-
-	public canRemoveExtension(extension: IExtensionDescription): boolean {
-		if (this._environmentService.configuration.remoteAuthority) {
-			return false;
-		}
-
-		if (extension.extensionLocation.scheme !== Schemas.file) {
-			return false;
-		}
-
-		return super.canRemoveExtension(extension);
-	}
-
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
-		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
-	}
-
-	protected async _updateExtensionsOnExtHosts(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): Promise<void> {
-		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
-		if (localProcessExtensionHost) {
-			await localProcessExtensionHost.deltaExtensions(toAdd, toRemove);
+		if (extension.location.scheme === Schemas.vscodeRemote) {
+			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
+
+		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System, this.createLogger());
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
