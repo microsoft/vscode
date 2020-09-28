@@ -30,14 +30,8 @@ export abstract class SettingsTreeElement {
 	id: string;
 	parent?: SettingsTreeGroupElement;
 
-	/**
-	 * Index assigned in display order, used for paging.
-	 */
-	index: number;
-
-	constructor(_id: string, _index: number) {
+	constructor(_id: string) {
 		this.id = _id;
-		this.index = _index;
 	}
 }
 
@@ -67,8 +61,8 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 		});
 	}
 
-	constructor(_id: string, _index: number, count: number | undefined, label: string, level: number, isFirstGroup: boolean) {
-		super(_id, _index);
+	constructor(_id: string, count: number | undefined, label: string, level: number, isFirstGroup: boolean) {
+		super(_id);
 
 		this.count = count;
 		this.label = label;
@@ -85,8 +79,8 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 }
 
 export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
-	constructor(_id: string, _index: number, public readonly extensionIds: string[]) {
-		super(_id, _index);
+	constructor(_id: string, public readonly extensionIds: string[]) {
+		super(_id);
 	}
 }
 
@@ -123,8 +117,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	description!: string;
 	valueType!: SettingValueType;
 
-	constructor(setting: ISetting, parent: SettingsTreeGroupElement, index: number, inspectResult: IInspectResult) {
-		super(sanitizeId(parent.id + '_' + setting.key), index);
+	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult) {
+		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
 		this.parent = parent;
 
@@ -282,7 +276,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 export class SettingsTreeModel {
 	protected _root!: SettingsTreeGroupElement;
-	protected _treeElementsById = new Map<string, SettingsTreeElement>();
 	private _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
 	private _tocRoot!: ITOCEntry;
 
@@ -296,7 +289,6 @@ export class SettingsTreeModel {
 	}
 
 	update(newTocRoot = this._tocRoot): void {
-		this._treeElementsById.clear();
 		this._treeElementsBySettingName.clear();
 
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
@@ -309,10 +301,6 @@ export class SettingsTreeModel {
 		} else {
 			this._root = newRoot;
 		}
-	}
-
-	getElementById(id: string): SettingsTreeElement | null {
-		return withUndefinedAsNull(this._treeElementsById.get(id));
 	}
 
 	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
@@ -332,9 +320,8 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
 
-		const index = this._treeElementsById.size;
 		const depth = parent ? this.getDepth(parent) + 1 : 0;
-		const element = new SettingsTreeGroupElement(tocEntry.id, index, undefined, tocEntry.label, depth, false);
+		const element = new SettingsTreeGroupElement(tocEntry.id, undefined, tocEntry.label, depth, false);
 
 		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
@@ -350,7 +337,6 @@ export class SettingsTreeModel {
 
 		element.children = children;
 
-		this._treeElementsById.set(element.id, element);
 		return element;
 	}
 
@@ -363,10 +349,8 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const index = this._treeElementsById.size;
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, index, inspectResult);
-		this._treeElementsById.set(element.id, element);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -602,9 +586,8 @@ export class SearchResultModel extends SettingsTreeModel {
 				.filter(setting => setting.extensionName && setting.extensionPublisher)
 				.map(setting => `${setting.extensionPublisher}.${setting.extensionName}`);
 
-			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', this._treeElementsById.size, arrays.distinct(resultExtensionIds));
+			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', arrays.distinct(resultExtensionIds));
 			newExtElement.parent = this._root;
-			this._treeElementsById.set(newExtElement.id, newExtElement);
 			this._root.children.push(newExtElement);
 		}
 	}
