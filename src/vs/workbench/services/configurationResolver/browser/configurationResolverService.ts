@@ -7,7 +7,7 @@ import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -51,10 +51,9 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return context.getExecPath();
 			},
 			getFilePath: (): string | undefined => {
-				const fileResource = toResource(editorService.activeEditor, {
+				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
 					supportSideBySide: SideBySideEditor.PRIMARY,
-					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote],
-					usePreferredResource: true
+					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
 				});
 				if (!fileResource) {
 					return undefined;

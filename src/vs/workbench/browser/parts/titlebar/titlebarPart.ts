@@ -16,7 +16,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
-import { toResource, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -259,7 +259,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// Compute active editor folder
-		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
+		const editorResource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		let editorFolderResource = editorResource ? dirname(editorResource) : undefined;
 		if (editorFolderResource?.path === '.') {
 			editorFolderResource = undefined;

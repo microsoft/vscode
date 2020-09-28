@@ -19,7 +19,7 @@ import { IExpression } from 'vs/base/common/glob';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditableData } from 'vs/workbench/common/views';
-import { toResource } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor } from 'vs/workbench/common/editor';
 
 function getFileEventsExcludes(configurationService: IConfigurationService, root?: URI): IExpression {
 	const scope = root ? { resource: root } : undefined;
@@ -194,7 +194,7 @@ export class ExplorerService implements IExplorerService {
 		this.model.roots.forEach(r => r.forgetChildren());
 		if (this.view) {
 			await this.view.refresh(true);
-			const resource = toResource(this.editorService.activeEditor, { usePreferredResource: true });
+			const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
 			const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 			if (reveal && resource && autoReveal) {

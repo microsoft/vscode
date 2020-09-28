@@ -30,7 +30,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
@@ -343,7 +343,7 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		const uri = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes

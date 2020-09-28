@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, Verbosity, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -379,7 +379,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const element = e.element;
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? toResource(element.editor, { usePreferredResource: true }) : {} }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} }, actions, this.contextMenuService);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -597,7 +597,7 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? templateData.container.classList.add('dirty') : templateData.container.classList.remove('dirty');
 		templateData.root.setResource({
-			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH, usePreferredResource: true }),
+			resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }),
 			name: editor.getName(),
 			description: editor.getDescription(Verbosity.MEDIUM)
 		}, {
