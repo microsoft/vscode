@@ -16,30 +16,6 @@
 
 declare module 'vscode' {
 
-	//#region https://github.com/microsoft/vscode/issues/106410
-
-	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
-
-		/**
-		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property, changes to
-		 * all other properties, like title, are ignored. A code action that has an edit
-		 * will not be resolved.
-		 *
-		 * *Note* that a code action provider that returns commands, not code actions, cannot successfully
-		 * implement this function. Returning commands is deprecated and instead code actions should be
-		 * returned.
-		 *
-		 * @param codeAction A code action.
-		 * @param token A cancellation token.
-		 * @return The resolved code action or a thenable that resolve to such. It is OK to return the given
-		 * `item`. When no result is returned, the given `item` will be used.
-		 */
-		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
-	}
-
-	//#endregion
-
-
 	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
 
 	/**
@@ -741,23 +717,18 @@ declare module 'vscode' {
 
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
-	// TODO@jrieken FileDecoration, FileDecorationProvider etc.
-	// TODO@jrieken Add selector notion to limit decorations to a view.
-	// TODO@jrieken Rename `Decoration.letter` to `short` so that it could be used for coverage et al.
-	// TODO@jrieken priority -> DecorationSeverity.INFO,WARN,ERROR
-	// TODO@jrieken title -> tooltip
-	// TODO@jrieken bubble -> propagte
-	export class Decoration {
+
+	export class FileDecoration {
 
 		/**
-		 * A letter that represents this decoration.
+		 * A very short string that represents this decoration.
 		 */
-		letter?: string;
+		badge?: string;
 
 		/**
-		 * The human-readable title for this decoration.
+		 * A human-readable tooltip for this decoration.
 		 */
-		title?: string;
+		tooltip?: string;
 
 		/**
 		 * The color of this decoration.
@@ -765,52 +736,46 @@ declare module 'vscode' {
 		color?: ThemeColor;
 
 		/**
-		 * The priority of this decoration.
-		 */
-		priority?: number;
-
-		/**
 		 * A flag expressing that this decoration should be
-		 * propagted to its parents.
+		 * propagated to its parents.
 		 */
-		bubble?: boolean;
+		propagate?: boolean;
 
 		/**
 		 * Creates a new decoration.
 		 *
-		 * @param letter A letter that represents the decoration.
-		 * @param title The title of the decoration.
+		 * @param badge A letter that represents the decoration.
+		 * @param tooltip The tooltip of the decoration.
 		 * @param color The color of the decoration.
 		 */
-		constructor(letter?: string, title?: string, color?: ThemeColor);
+		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
 	}
 
 	/**
 	 * The decoration provider interfaces defines the contract between extensions and
 	 * file decorations.
 	 */
-	export interface DecorationProvider {
+	export interface FileDecorationProvider {
 
 		/**
 		 * An event to signal decorations for one or many files have changed.
 		 *
 		 * @see [EventEmitter](#EventEmitter
 		 */
-		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+		onDidChange: Event<undefined | Uri | Uri[]>;
 
 		/**
 		 * Provide decorations for a given uri.
-		 *
 		 *
 		 * @param uri The uri of the file to provide a decoration for.
 		 * @param token A cancellation token.
 		 * @returns A decoration or a thenable that resolves to such.
 		 */
-		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
+		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
 	}
 
 	export namespace window {
-		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
+		export function registerDecorationProvider(provider: FileDecorationProvider): Disposable;
 	}
 
 	//#endregion
@@ -1261,6 +1226,27 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	export class NotebookCellOutputItem {
+
+		readonly mime: string;
+		readonly value: unknown;
+		readonly metadata?: Record<string, string | number | boolean>;
+
+		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
+	}
+
+	//TODO@jrieken add id?
+	export class NotebookCellOutput {
+
+		readonly outputs: NotebookCellOutputItem[];
+		readonly metadata?: Record<string, string | number | boolean>;
+
+		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
+
+		//TODO@jrieken HACK to workaround dependency issues...
+		toJSON(): any;
+	}
+
 	export enum NotebookCellRunState {
 		Running = 1,
 		Idle = 2,
@@ -1442,14 +1428,14 @@ declare module 'vscode' {
 	export interface WorkspaceEdit {
 		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
 		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
 		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
 		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellOutput(index: number, outputs: CellOutput[]): void;
+		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
 		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 	}
 
@@ -2170,6 +2156,16 @@ declare module 'vscode' {
 		 * @param color optional `ThemeColor` for the icon.
 		 */
 		constructor(id: string, color?: ThemeColor);
+	}
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
+	export interface CommentThread {
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to false.
+		 */
+		readOnly: boolean;
 	}
 	//#endregion
 }

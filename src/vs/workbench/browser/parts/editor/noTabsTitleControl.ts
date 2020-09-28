@@ -274,7 +274,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 			editorLabel.setResource(
 				{
-					resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+					resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH, usePreferredResource: true }),
 					name: editor.getName(),
 					description
 				},

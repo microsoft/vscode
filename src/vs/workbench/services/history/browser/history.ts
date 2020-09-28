@@ -32,10 +32,10 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { extUri } from 'vs/base/common/resources';
 import { IdleValue } from 'vs/base/common/async';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -119,7 +119,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -515,7 +516,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private preferResourceEditorInput(input: IEditorInput): IEditorInput | IResourceEditorInput {
-		const resource = input.resource;
+		const resource = toResource(input, { usePreferredResource: true });
 		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData || resource.scheme === this.pathService.defaultUriScheme)) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
@@ -581,7 +582,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const resourceEditorInputA = arg1 as IResourceEditorInput;
 		const resourceEditorInputB = inputB as IResourceEditorInput;
 
-		return resourceEditorInputA && resourceEditorInputB && extUri.isEqual(resourceEditorInputA.resource, resourceEditorInputB.resource);
+		return resourceEditorInputA && resourceEditorInputB && this.uriIdentityService.extUri.isEqual(resourceEditorInputA.resource, resourceEditorInputB.resource);
 	}
 
 	private matchesFile(resource: URI, arg2: IEditorInput | IResourceEditorInput | FileChangesEvent): boolean {
@@ -599,12 +600,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 				return false; // make sure to only check this when workbench has restored (for https://github.com/microsoft/vscode/issues/48275)
 			}
 
-			return extUri.isEqual(inputResource, resource);
+			return this.uriIdentityService.extUri.isEqual(inputResource, resource);
 		}
 
 		const resourceEditorInput = arg2 as IResourceEditorInput;
 
-		return extUri.isEqual(resourceEditorInput?.resource, resource);
+		return this.uriIdentityService.extUri.isEqual(resourceEditorInput?.resource, resource);
 	}
 
 	//#endregion
@@ -632,7 +633,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const associatedResources: URI[] = [];
-		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.BOTH, usePreferredResource: true });
 		if (URI.isUri(editorResource)) {
 			associatedResources.push(editorResource);
 		} else if (editorResource) {
@@ -644,7 +645,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// ...adding it as last recently closed
 		this.recentlyClosedEditors.push({
-			resource: editor.resource,
+			resource: toResource(editor, { usePreferredResource: true }),
 			associatedResources,
 			serialized: { typeId: editor.getTypeId(), value: serialized },
 			index: event.index,
@@ -1001,7 +1002,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		for (const input of this.getHistory()) {
 			let resource: URI | undefined;
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filterByScheme });
+				resource = toResource(input, { filterByScheme, usePreferredResource: true });
 			} else {
 				resource = (input as IResourceEditorInput).resource;
 			}

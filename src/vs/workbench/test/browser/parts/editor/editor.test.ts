@@ -4,13 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
+
+export class TestEditorInputWithPreferredResource extends TestEditorInput implements IEditorInputWithPreferredResource {
+
+	constructor(resource: URI, public preferredResource: URI, typeId: string) {
+		super(resource, typeId);
+	}
+}
 
 suite('Workbench editor', () => {
 
@@ -71,5 +78,12 @@ suite('Workbench editor', () => {
 		assert.equal((toResource(diffEditorInput, { supportSideBySide: SideBySideEditor.BOTH }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
 		assert.equal((toResource(diffEditorInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: Schemas.untitled }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
 		assert.equal((toResource(diffEditorInput, { supportSideBySide: SideBySideEditor.BOTH, filterByScheme: [Schemas.file, Schemas.untitled] }) as { primary: URI, secondary: URI }).secondary.toString(), untitled.resource.toString());
+
+		const resource = URI.file('/some/path.txt');
+		const preferredResource = URI.file('/some/PATH.txt');
+		const fileWithPreferredResource = new TestEditorInputWithPreferredResource(URI.file('/some/path.txt'), URI.file('/some/PATH.txt'), 'editorResourceFileTest');
+
+		assert.equal(toResource(fileWithPreferredResource)?.toString(), resource.toString());
+		assert.equal(toResource(fileWithPreferredResource, { usePreferredResource: true })?.toString(), preferredResource.toString());
 	});
 });

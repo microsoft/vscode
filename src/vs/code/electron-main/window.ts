@@ -15,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import product from 'vs/platform/product/common/product';
-import { IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { WindowMinimumSize, IWindowSettings, MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, zoomLevelToZoomFactor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
@@ -34,8 +34,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -84,9 +84,6 @@ const enum ReadyState {
 }
 
 export class CodeWindow extends Disposable implements ICodeWindow {
-
-	private static readonly MIN_WIDTH = 600;
-	private static readonly MIN_HEIGHT = 270;
 
 	private static readonly MAX_URL_LENGTH = 2 * 1024 * 1024; // https://cs.chromium.org/chromium/src/url/url_constants.cc?l=32
 
@@ -162,12 +159,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				x: this.windowState.x,
 				y: this.windowState.y,
 				backgroundColor: this.themeMainService.getBackgroundColor(),
-				minWidth: CodeWindow.MIN_WIDTH,
-				minHeight: CodeWindow.MIN_HEIGHT,
+				minWidth: WindowMinimumSize.WIDTH,
+				minHeight: WindowMinimumSize.HEIGHT,
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
-					preload: getPathFromAmdModule(require, 'vs/base/parts/sandbox/electron-browser/preload.js'),
+					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 					enableWebSQL: false,
 					enableRemoteModule: false,
 					spellcheck: false,
@@ -836,7 +833,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			workbench = 'vs/code/electron-browser/workbench/workbench.html';
 		}
 
-		return `${require.toUrl(workbench)}?config=${encodeURIComponent(JSON.stringify(config))}`;
+		return FileAccess
+			.asBrowserUri(workbench, require)
+			.with({ query: `config=${encodeURIComponent(JSON.stringify(config))}` })
+			.toString(true);
 	}
 
 	serializeWindowState(): IWindowState {
@@ -1291,7 +1291,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: NativeImage | undefined;
-			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === 'file') {
+			if (item.icon && !ThemeIcon.isThemeIcon(item.icon) && item.icon?.dark?.scheme === Schemas.file) {
 				icon = nativeImage.createFromPath(URI.revive(item.icon.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = undefined;

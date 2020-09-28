@@ -231,7 +231,7 @@ export class SearchEditorInput extends EditorInput {
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment);
 		} else if (this.fileEditorInputFactory.isFileEditorInput(other)) {
-			return other.resource?.toString() === this.backingUri?.toString();
+			return isEqual(other.resource, this.backingUri);
 		}
 		return false;
 	}

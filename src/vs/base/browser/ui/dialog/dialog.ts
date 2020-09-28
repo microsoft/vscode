@@ -277,8 +277,8 @@ export class Dialog extends Disposable {
 		if (this.styles) {
 			const style = this.styles;
 
-			const fgColor = style.dialogForeground ? `${style.dialogForeground}` : '';
-			const bgColor = style.dialogBackground ? `${style.dialogBackground}` : '';
+			const fgColor = style.dialogForeground;
+			const bgColor = style.dialogBackground;
 			const shadowColor = style.dialogShadow ? `0 0px 8px ${style.dialogShadow}` : '';
 			const border = style.dialogBorder ? `1px solid ${style.dialogBorder}` : '';
 
@@ -287,8 +287,8 @@ export class Dialog extends Disposable {
 			}
 
 			if (this.element) {
-				this.element.style.color = fgColor;
-				this.element.style.backgroundColor = bgColor;
+				this.element.style.color = fgColor?.toString() ?? '';
+				this.element.style.backgroundColor = bgColor?.toString() ?? '';
 				this.element.style.border = border;
 
 				if (this.buttonGroup) {
@@ -300,8 +300,8 @@ export class Dialog extends Disposable {
 				}
 
 				if (this.messageDetailElement && fgColor && bgColor) {
-					const messageDetailColor = Color.fromHex(fgColor).transparent(.9);
-					this.messageDetailElement.style.color = messageDetailColor.makeOpaque(Color.fromHex(bgColor)).toString();
+					const messageDetailColor = fgColor.transparent(.9);
+					this.messageDetailElement.style.color = messageDetailColor.makeOpaque(bgColor).toString();
 				}
 
 				if (this.iconElement) {

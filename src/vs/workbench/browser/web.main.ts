@@ -50,6 +50,8 @@ import { IndexedDB, INDEXEDDB_LOGS_OBJECT_STORE, INDEXEDDB_USERDATA_OBJECT_STORE
 import { BrowserRequestService } from 'vs/workbench/services/request/browser/requestService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 class BrowserMain extends Disposable {
 
@@ -212,8 +214,12 @@ class BrowserMain extends Disposable {
 		const requestService = new BrowserRequestService(remoteAgentService, configurationService, logService);
 		serviceCollection.set(IRequestService, requestService);
 
+		// Userdata Sync Store Management Service
+		const userDataSyncStoreManagementService = new UserDataSyncStoreManagementService(productService, configurationService, storageService);
+		serviceCollection.set(IUserDataSyncStoreManagementService, userDataSyncStoreManagementService);
+
 		// Userdata Initialize Service
-		const userDataInitializationService = new UserDataInitializationService(environmentService, fileService, storageService, productService, requestService, logService);
+		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService);
 		serviceCollection.set(IUserDataInitializationService, userDataInitializationService);
 
 		if (await userDataInitializationService.requiresInitialization()) {

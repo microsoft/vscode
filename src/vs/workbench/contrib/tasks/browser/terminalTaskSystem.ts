@@ -1075,7 +1075,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.cwd) {
 			let cwd = options.cwd;
 			if (!path.isAbsolute(cwd)) {
-				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
+				if (workspaceFolder && (workspaceFolder.uri.scheme === Schemas.file)) {
 					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}

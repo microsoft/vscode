@@ -2221,7 +2221,7 @@ declare module 'vscode' {
 	 *
 	 * A code action can be any command that is [known](#commands.getCommands) to the system.
 	 */
-	export interface CodeActionProvider {
+	export interface CodeActionProvider<T extends CodeAction = CodeAction> {
 		/**
 		 * Provide commands for the given document and range.
 		 *
@@ -2234,6 +2234,22 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+
+		/**
+		 * Given a code action fill in its [`edit`](#CodeAction.edit)-property. Changes to
+		 * all other properties, like title, are ignored. A code action that has an edit
+		 * will not be resolved.
+		 *
+		 * *Note* that a code action provider that returns commands, not code actions, cannot successfully
+		 * implement this function. Returning commands is deprecated and instead code actions should be
+		 * returned.
+		 *
+		 * @param codeAction A code action.
+		 * @param token A cancellation token.
+		 * @return The resolved code action or a thenable that resolves to such. It is OK to return the given
+		 * `item`. When no result is returned, the given `item` will be used.
+		 */
+		resolveCodeAction?(codeAction: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**

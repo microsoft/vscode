@@ -959,13 +959,7 @@ class ViewModel {
 			return;
 		}
 
-		const editor = this.editorService.activeEditor;
-
-		if (!editor) {
-			return;
-		}
-
-		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uri = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 
 		if (!uri) {
 			return;
@@ -1311,7 +1305,7 @@ class SCMInputWidget extends Disposable {
 			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
-			textModel.setValue(value);
+			textModel.setValue(input.value);
 			this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
 		}));
 
@@ -1381,7 +1375,7 @@ class SCMInputWidget extends Disposable {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 		super();
 

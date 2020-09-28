@@ -30,6 +30,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 export class Match {
 
@@ -1106,9 +1107,9 @@ export class SearchModel extends Disposable {
 
 		const stats = completed && completed.stats as ITextSearchStats;
 
-		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === 'file');
-		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== 'file');
-		const scheme = fileSchemeOnly ? 'file' :
+		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
+		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
+		const scheme = fileSchemeOnly ? Schemas.file :
 			otherSchemeOnly ? 'other' :
 				'mixed';
 

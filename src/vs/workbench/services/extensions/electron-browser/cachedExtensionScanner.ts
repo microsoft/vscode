@@ -5,9 +5,8 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import * as errors from 'vs/base/common/errors';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { joinPath, originalFSPath } from 'vs/base/common/resources';
@@ -30,7 +29,7 @@ interface IExtensionCacheData {
 let _SystemExtensionsRoot: string | null = null;
 function getSystemExtensionsRoot(): string {
 	if (!_SystemExtensionsRoot) {
-		_SystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+		_SystemExtensionsRoot = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 	}
 	return _SystemExtensionsRoot;
 }
@@ -38,7 +37,7 @@ function getSystemExtensionsRoot(): string {
 let _ExtraDevSystemExtensionsRoot: string | null = null;
 function getExtraDevSystemExtensionsRoot(): string {
 	if (!_ExtraDevSystemExtensionsRoot) {
-		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(getPathFromAmdModule(require, ''), '..', '.build', 'builtInExtensions'));
+		_ExtraDevSystemExtensionsRoot = path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', '.build', 'builtInExtensions'));
 	}
 	return _ExtraDevSystemExtensionsRoot;
 }

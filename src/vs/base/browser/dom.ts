@@ -13,7 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
@@ -1219,16 +1219,6 @@ export function animate(fn: () => void): IDisposable {
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
-export function asDomUri(uri: URI): URI {
-	if (!uri) {
-		return uri;
-	}
-	if (Schemas.vscodeRemote === uri.scheme) {
-		return RemoteAuthorities.rewrite(uri);
-	}
-	return uri;
-}
-
 /**
  * returns url('...')
  */
@@ -1236,7 +1226,7 @@ export function asCSSUrl(uri: URI): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
 
