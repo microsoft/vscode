@@ -145,7 +145,7 @@ const addFileToSuperblock = (block: fsnode, path: string, size?: number) => {
 class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
 	private superblock: Promise<fsnode>;
 	private writeManyThrottler: Throttler;
-	constructor(private scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
+	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super();
 		this.writeManyThrottler = new Throttler();
 		this.superblock = this.getSuperblock();
