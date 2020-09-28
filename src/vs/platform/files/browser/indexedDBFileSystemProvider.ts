@@ -12,7 +12,6 @@ import { localize } from 'vs/nls';
 import { VSBuffer } from 'vs/base/common/buffer';
 import * as browser from 'vs/base/browser/browser';
 import { Throttler } from 'vs/base/common/async';
-import { assertIsDefined } from 'vs/base/common/types';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
 export const INDEXEDDB_USERDATA_OBJECT_STORE = 'vscode-userdata-store';
@@ -71,20 +70,85 @@ export class IndexedDB {
 }
 
 type DirEntry = [string, FileType];
+type fsnode =
+	| {
+		path: string,
+		type: FileType.Directory,
+		parent: fsnode | undefined,
+		children: Map<string, fsnode>,
+	}
+	| {
+		path: string,
+		type: FileType.File,
+		parent: fsnode | undefined,
+		size: number | undefined,
+	};
+
+const readFromSuperblock = (block: fsnode, path: string) => {
+	const doReadFromSuperblock = (block: fsnode, pathParts: string[]): fsnode | undefined => {
+		if (pathParts.length === 0) { return block; }
+		if (block.type !== FileType.Directory) {
+			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
+		}
+		const next = block.children.get(pathParts[1]);
+		if (!next) { return undefined; }
+		return doReadFromSuperblock(next, pathParts.slice(1));
+	};
+	return doReadFromSuperblock(block, path.split('/').filter(p => p.length));
+};
+
+const addFileToSuperblock = (block: fsnode, path: string, size?: number) => {
+	const doAddFileToSuperblock = (block: fsnode, pathParts: string[]) => {
+		if (pathParts.length === 0) {
+			throw new Error(`Internal error creating superblock -- adding empty path (encountered while adding ${path})`);
+		}
+
+		if (block.type !== FileType.Directory) {
+			throw new Error('Internal error creating superblock -- adding entries to directory (encountered while adding ${path})');
+		}
+
+		if (pathParts.length === 1) {
+			const next = pathParts[0];
+			const existing = block.children.get(next);
+			if (existing) {
+				throw new Error(`Internal error creating superblock -- overwriting entry with file: ${block.path}/${next} (encountered while adding ${path})`);
+			}
+			block.children.set(next, {
+				type: FileType.File,
+				path: block.path + '/' + next,
+				parent: block,
+				size,
+			});
+		}
+
+		else if (pathParts.length > 1) {
+			const next = pathParts[0];
+			let childNode = block.children.get(next);
+			if (!childNode) {
+				childNode = {
+					children: new Map(),
+					parent: block,
+					path: block.path + '/' + next,
+					type: FileType.Directory
+				};
+				block.children.set(next, childNode);
+			}
+			else if (childNode.type === FileType.File) {
+				throw new Error(`Internal error creating superblock -- overwriting file entry with directory: ${block.path}/${next} (encountered while adding ${path})`);
+			}
+			doAddFileToSuperblock(childNode, pathParts.slice(1));
+		}
+	};
+	doAddFileToSuperblock(block, path.split('/').filter(p => p.length));
+};
 
 class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability {
-	private initRoot: Promise<void>;
+	private superblock: Promise<fsnode>;
 	private writeManyThrottler: Throttler;
-	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
+	constructor(private scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
 		super();
 		this.writeManyThrottler = new Throttler();
-		this.initRoot = (async () => {
-			try {
-				await this.getValue('/', 'dir');
-			} catch {
-				this.setValue('/', []);
-			}
-		})();
+		this.superblock = this.getSuperblock();
 	}
 
 	readonly capabilities: FileSystemProviderCapabilities =
@@ -101,36 +165,29 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		return Disposable.None;
 	}
 
+	/**
+	 * Note that since we don't actually store directories this is baasically a no-op.
+	 * Still, preserve semantics regarding throwing 'File is not a Directory' errors.
+	 */
 	async mkdir(resource: URI): Promise<void> {
-		await this.initRoot;
-		const parent = dirname(resource);
-		const parentContents = await this.readdir(parent);
-		const existing = parentContents.find(([path]) => path === resource.path);
-		if (!existing) {
-			parentContents.push([resource.path, FileType.Directory]);
-		}
-		else if (existing[1] === FileType.File) {
+		const existing = readFromSuperblock(await this.superblock, resource.path);
+		if (existing?.type === FileType.File) {
 			throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a Directory"), FileSystemProviderErrorCode.FileNotADirectory);
 		}
-
-		this.dirWriteBatch.push({ resource: resource });
-		await this.writeManyThrottler.queue(() => this.writeMany());
 	}
 
 	async stat(resource: URI): Promise<IStat> {
-		await this.initRoot;
-		const content = await this.getValue(resource.path);
+		const content = readFromSuperblock(await this.superblock, resource.path);
 		if (!content) {
 			throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
-		} else if (content instanceof Uint8Array) {
+		} else if (content.type === FileType.File) {
 			return {
 				type: FileType.File,
 				ctime: 0,
 				mtime: this.versions.get(resource.toString()) || 0,
-				size: content.byteLength
+				size: content.size ?? (await this.readFile(resource)).byteLength
 			};
-
-		} else if (Array.isArray(content)) {
+		} else if (content.type === FileType.Directory) {
 			return {
 				type: FileType.Directory,
 				ctime: 0,
@@ -143,15 +200,47 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 	}
 
 	async readdir(resource: URI): Promise<DirEntry[]> {
-		return this.getValue(resource.path, 'dir');
+		const entry = readFromSuperblock(await this.superblock, resource.path);
+		if (!entry) {
+			// We don't store empty dirs so we either treat any random thing as an empty dir,
+			// or throw Not Found's for dir's that have been explicity made.
+			// Neither is great, I think the latter would have higher potential to cause problems.
+			return [];
+		}
+		if (entry.type !== FileType.Directory) {
+			throw createFileSystemProviderError(localize('fileNotDir', "File is not a Directory"), FileSystemProviderErrorCode.FileNotADirectory);
+		}
+		else {
+			return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
+		}
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		return this.getValue(resource.path, 'file');
+		const read = new Promise<Uint8Array>((c, e) => {
+			const transaction = this.database.transaction([this.store]);
+			const objectStore = transaction.objectStore(this.store);
+			const request = objectStore.get(resource.path);
+			request.onerror = () => e(request.error);
+			request.onsuccess = () => {
+				if (request.result instanceof Uint8Array) {
+					c(request.result);
+				} else if (typeof request.result === 'string') {
+					c(VSBuffer.fromString(request.result).buffer);
+				}
+				else {
+					if (request.result === undefined) {
+						e(createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound));
+					} else {
+						throw createFileSystemProviderError(localize('internal', "Internal error occured while reading file"), FileSystemProviderErrorCode.Unknown);
+					}
+				}
+			};
+		});
+		read.then(async buffer => addFileToSuperblock(await this.superblock, resource.path, buffer.byteLength), () => { });
+		return read;
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
-		await this.initRoot;
 		const parent = dirname(resource);
 		const parentContents = await this.readdir(parent);
 		const existing = parentContents.find(([path]) => path === resource.path);
@@ -161,13 +250,12 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 
 		this.fileWriteBatch.push({ content, resource });
 		await this.writeManyThrottler.queue(() => this.writeMany());
-
+		addFileToSuperblock(await this.superblock, resource.path, content.byteLength);
 		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
 		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
-		await this.initRoot;
 		let stat: IStat;
 		try {
 			stat = await this.stat(resource);
@@ -216,123 +304,50 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		return Promise.reject(new Error('Not Supported'));
 	}
 
-	private getValue(key: string): Promise<Uint8Array | DirEntry[] | undefined>;
-	private getValue(key: string, expectType: 'dir'): Promise<DirEntry[]>;
-	private getValue(key: string, expectType: 'file'): Promise<Uint8Array>;
-	private getValue(key: string, expectType?: 'dir' | 'file'): Promise<Uint8Array | DirEntry[] | undefined> {
+
+	private getSuperblock(): Promise<fsnode> {
 		return new Promise((c, e) => {
 			const transaction = this.database.transaction([this.store]);
 			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.get(key);
+			const request = objectStore.getAllKeys();
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
-				if (expectType === 'file') {
-					if (request.result instanceof Uint8Array) {
-						c(request.result);
-					} else if (typeof request.result === 'string') {
-						c(VSBuffer.fromString(request.result).buffer);
-					}
-					else {
-						if (request.result === undefined) {
-							e(createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound));
-						} else {
-							e(createFileSystemProviderError(localize('fileIsDirectory', "File is Directory"), FileSystemProviderErrorCode.FileIsADirectory));
-						}
-					}
-				} else if (expectType === 'dir') {
-					if (Array.isArray(request.result)) {
-						c(request.result);
-					} else {
-						if (request.result === undefined) {
-							e(createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound));
-						} else {
-							e(createFileSystemProviderError(localize('fileNotDir', "File is not a Directory"), FileSystemProviderErrorCode.FileNotADirectory));
-						}
-					}
-				} else {
-					c(request.result);
-				}
+				const superblock: fsnode = {
+					children: new Map(),
+					parent: undefined,
+					path: '/',
+					type: FileType.Directory
+				};
+
+				request.result
+					.map(key => key.toString())
+					.forEach(key => addFileToSuperblock(superblock, key));
+
+				c(superblock);
 			};
 		});
 	}
 
-	private dirWriteBatch: { resource: URI }[] = [];
 	private fileWriteBatch: { resource: URI, content: Uint8Array }[] = [];
 	private async writeMany() {
 		return new Promise<void>((c, e) => {
 			const fileBatch = this.fileWriteBatch;
 			this.fileWriteBatch = [];
-			const dirBatch = this.dirWriteBatch;
-			this.dirWriteBatch = [];
 
 			const transaction = this.database.transaction([this.store], 'readwrite');
 			transaction.onerror = () => e(transaction.error);
-			transaction.oncomplete = () => c();
 			const objectStore = transaction.objectStore(this.store);
-
-			// Insert directory entries
-			for (const entry of dirBatch) {
-				// We use add to not overwrite existing directories (mkdir is idempotent).
-				const request = objectStore.add([], entry.resource.path);
-				// This means it might throw EEXIST errors, which we can safely swallow.
-				request.onerror = (error) => {
-					if (request.error?.message.includes('Key already exists in the object store')) {
-						error.preventDefault();
-						error.stopPropagation();
-					} else {
-						console.error('error adding directory entry:', request.error?.message);
-					}
-				};
-			}
-
-			// Insert/Update file entries
+			let request: IDBRequest | undefined = undefined;
 			for (const entry of fileBatch) {
-				const request = objectStore.put(entry.content, entry.resource.path);
-				request.onerror = () => e(request.error);
+				const thisRequest = objectStore.put(entry.content, entry.resource.path);
+				request = thisRequest;
 			}
 
-			// Compute directory entry updates
-			const directoryUpdates: Map<string, { additions: DirEntry[] }> = new Map();
-			for (const entry of dirBatch) {
-				const parent = dirname(entry.resource).path;
-				if (!directoryUpdates.has(parent)) {
-					directoryUpdates.set(parent, { additions: [] });
-				}
-				assertIsDefined(directoryUpdates.get(parent)).additions.push([entry.resource.path, FileType.Directory]);
+			if (request) {
+				request.onsuccess = () => c();
+			} else {
+				transaction.oncomplete = () => c();
 			}
-			for (const entry of fileBatch) {
-				const parent = dirname(entry.resource).path;
-				if (!directoryUpdates.has(parent)) {
-					directoryUpdates.set(parent, { additions: [] });
-				}
-				assertIsDefined(directoryUpdates.get(parent)).additions.push([entry.resource.path, FileType.File]);
-			}
-
-			// Update the directory entries
-			directoryUpdates.forEach((update, dir) => {
-				const initialContentsRequest = objectStore.get(dir);
-				initialContentsRequest.onerror = () => e(initialContentsRequest.error);
-				initialContentsRequest.onsuccess = () => {
-					const entry: DirEntry[] = initialContentsRequest.result;
-					for (const addition of update.additions) {
-						if (!entry.find((entry) => entry[0] === addition[0])) {
-							entry.push(addition);
-						}
-					}
-					const updateRequest = objectStore.put(entry, dir);
-					updateRequest.onerror = () => e(updateRequest.error);
-				};
-			});
-		});
-	}
-
-	private setValue(key: string, value: Uint8Array | DirEntry[]): Promise<void> {
-		return new Promise(async (c, e) => {
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.put(value, key);
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => c();
 		});
 	}
 
