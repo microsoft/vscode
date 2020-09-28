@@ -81,6 +81,21 @@ export class RemoteExtensionEnvironmentChannelClient {
 		return extensions;
 	}
 
+	static async scanSingleExtension(channel: IChannel, remoteAuthority: string, isBuiltin: boolean, extensionLocation: URI): Promise<IExtensionDescription | null> {
+		const args: IScanSingleExtensionArguments = {
+			language: platform.language,
+			remoteAuthority,
+			isBuiltin,
+			extensionLocation
+		};
+
+		const extension = await channel.call<IExtensionDescription | null>('scanSingleExtension', args);
+		if (extension) {
+			(<any>extension).extensionLocation = URI.revive(extension.extensionLocation);
+		}
+		return extension;
+	}
+
 	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
 		return channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}

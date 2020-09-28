@@ -443,6 +443,7 @@ export class SimpleRemoteAgentService implements IRemoteAgentService {
 	async flushTelemetry(): Promise<void> { }
 	async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> { return null; }
 	async scanExtensions(skipExtensions?: ExtensionIdentifier[]): Promise<IExtensionDescription[]> { return []; }
+	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> { return null; }
 }
 
 //#endregion

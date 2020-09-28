@@ -32,6 +32,7 @@ type FileExtensionSuggestionClassification = {
 	fileExtension: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 };
 
+const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
 const recommendationsStorageKey = 'extensionsAssistant/recommendations';
 const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
@@ -212,7 +213,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 
 		const installed = await this.extensionsWorkbenchService.queryLocal();
 		if (importantRecommendations.length &&
-			await this.promptRecommendedExtensionForFileType(languageName || basename(uri), importantRecommendations, installed)) {
+			await this.promptRecommendedExtensionForFileType(languageName || basename(uri), language, importantRecommendations, installed)) {
 			return;
 		}
 
@@ -229,7 +230,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		this.promptRecommendedExtensionForFileExtension(fileExtension, installed);
 	}
 
-	private async promptRecommendedExtensionForFileType(name: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
+	private async promptRecommendedExtensionForFileType(name: string, language: string, recommendations: string[], installed: IExtension[]): Promise<boolean> {
 
 		recommendations = this.filterIgnoredOrNotAllowed(recommendations);
 		if (recommendations.length === 0) {
@@ -247,8 +248,28 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			return false;
 		}
 
-		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`);
+		const promptedRecommendations = this.getPromptedRecommendations();
+		if (promptedRecommendations[language] && promptedRecommendations[language].includes(extensionId)) {
+			return false;
+		}
+
+		this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification([extensionId], localize('reallyRecommended', "Do you want to install the recommended extensions for {0}?", name), `@id:${extensionId}`)
+			.then(result => {
+				if (result) {
+					this.addToPromptedRecommendations(language, [extensionId]);
+				}
+			});
 		return true;
+	}
+
+	private getPromptedRecommendations(): IStringDictionary<string[]> {
+		return JSON.parse(this.storageService.get(promptedRecommendationsStorageKey, StorageScope.GLOBAL, '{}'));
+	}
+
+	private addToPromptedRecommendations(exeName: string, extensions: string[]) {
+		const promptedRecommendations = this.getPromptedRecommendations();
+		promptedRecommendations[exeName] = extensions;
+		this.storageService.store(promptedRecommendationsStorageKey, JSON.stringify(promptedRecommendations), StorageScope.GLOBAL);
 	}
 
 	private async promptRecommendedExtensionForFileExtension(fileExtension: string, installed: IExtension[]): Promise<void> {
