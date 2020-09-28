@@ -441,7 +441,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					) {
 						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
 						if (types.isObject(subColors)) {
-							themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
+							let themeSpecificSubColors = subColors as Iterable<IThemeSpecificColorCustomizations>;
 							for (let subkey of themeSpecificSubColors) {
 								if (typeof subkey === 'string') {
 									let overrideColors = themeSpecificSubColors[subkey];
