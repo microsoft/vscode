@@ -417,6 +417,34 @@ suite('Notebook API tests', () => {
 		await saveAllFilesAndCloseAll(resource);
 	});
 
+	test('edit API (replaceOutput, USE NotebookCellOutput-type)', async function () {
+		assertInitalState();
+		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await vscode.notebook.activeNotebookEditor!.edit(editBuilder => {
+			editBuilder.replaceCellOutput(0, [new vscode.NotebookCellOutput([
+				new vscode.NotebookCellOutputItem('application/foo', 'bar'),
+				new vscode.NotebookCellOutputItem('application/json', { data: true }, { metadata: true }),
+			])]);
+		});
+
+		const document = vscode.notebook.activeNotebookEditor?.document!;
+		assert.strictEqual(document.isDirty, true);
+		assert.strictEqual(document.cells.length, 1);
+		assert.strictEqual(document.cells[0].outputs.length, 1);
+
+		// consuming is OLD api (for now)
+		const [output] = document.cells[0].outputs;
+
+		assert.strictEqual(output.outputKind, vscode.CellOutputKind.Rich);
+		assert.strictEqual((<vscode.CellDisplayOutput>output).data['application/foo'], 'bar');
+		assert.deepStrictEqual((<vscode.CellDisplayOutput>output).data['application/json'], { data: true });
+		assert.deepStrictEqual((<vscode.CellDisplayOutput>output).metadata, { custom: { 'application/json': { metadata: true } } });
+
+		await saveAllFilesAndCloseAll(undefined);
+	});
+
 	test('edit API (replaceOutput)', async function () {
 		assertInitalState();
 		const resource = await createRandomFile('', undefined, 'first', '.vsctestnb');
