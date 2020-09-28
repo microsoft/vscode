@@ -229,7 +229,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts
 		this.contextKeyService.bufferChangeEvents(() => {
-			this.resourceContext.set(this.group.activeEditor ? withUndefinedAsNull(toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY })) : null);
+			this.resourceContext.set(this.group.activeEditor ? withUndefinedAsNull(toResource(this.group.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true })) : null);
 			this.editorPinnedContext.set(this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false);
 			this.editorStickyContext.set(this.group.activeEditor ? this.group.isSticky(this.group.activeEditor) : false);
 		});
@@ -304,7 +304,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected doFillResourceDataTransfers(editor: IEditorInput, e: DragEvent): boolean {
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true });
 		if (!resource) {
 			return false;
 		}
@@ -332,7 +332,7 @@ export abstract class TitleControl extends Themable {
 
 		// Update contexts based on editor picked and remember previous to restore
 		const currentResourceContext = this.resourceContext.get();
-		this.resourceContext.set(withUndefinedAsNull(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY })));
+		this.resourceContext.set(withUndefinedAsNull(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY, usePreferredResource: true })));
 		const currentPinnedContext = !!this.editorPinnedContext.get();
 		this.editorPinnedContext.set(this.group.isPinned(editor));
 		const currentStickyContext = !!this.editorStickyContext.get();
