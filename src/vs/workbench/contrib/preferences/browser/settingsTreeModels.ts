@@ -16,6 +16,8 @@ import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -26,12 +28,26 @@ export interface ISettingsEditorViewState {
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
-export abstract class SettingsTreeElement {
+export abstract class SettingsTreeElement extends Disposable {
 	id: string;
 	parent?: SettingsTreeGroupElement;
 
+	private _tabbable = false;
+	protected readonly _onDidChangeTabbable = new Emitter<void>();
+	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
+
 	constructor(_id: string) {
+		super();
 		this.id = _id;
+	}
+
+	get tabbable(): boolean {
+		return this._tabbable;
+	}
+
+	set tabbable(value: boolean) {
+		this._tabbable = value;
+		this._onDidChangeTabbable.fire();
 	}
 }
 
@@ -293,14 +309,29 @@ export class SettingsTreeModel {
 
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
 		if (newRoot.children[0] instanceof SettingsTreeGroupElement) {
-			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true; // TODO
+			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
 		}
 
 		if (this._root) {
+			this.disposeChildren(this._root.children);
 			this._root.children = newRoot.children;
 		} else {
 			this._root = newRoot;
 		}
+	}
+
+	private disposeChildren(children: SettingsTreeGroupChild[]) {
+		for (let child of children) {
+			this.recursiveDispose(child);
+		}
+	}
+
+	private recursiveDispose(element: SettingsTreeElement) {
+		if (element instanceof SettingsTreeGroupElement) {
+			this.disposeChildren(element.children);
+		}
+
+		element.dispose();
 	}
 
 	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
