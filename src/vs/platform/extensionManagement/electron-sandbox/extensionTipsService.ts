@@ -18,9 +18,11 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { timeout } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionRecommendationNotificationService, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { Event } from 'vs/base/common/event';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -34,13 +36,18 @@ type IExeBasedExtensionTips = {
 };
 
 const promptedExecutableTipsStorageKey = 'extensionTips/promptedExecutableTips';
+const lastPromptedMediumImpExeTimeStorageKey = 'extensionTips/lastPromptedMediumImpExeTime';
 
 export class ExtensionTipsService extends BaseExtensionTipsService {
 
 	_serviceBrand: any;
 
-	private readonly allImportantExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
+	private readonly highImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
+	private readonly mediumImportanceExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
 	private readonly allOtherExecutableTips: Map<string, IExeBasedExtensionTips> = new Map<string, IExeBasedExtensionTips>();
+
+	private highImportanceTipsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
+	private mediumImportanceTipsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
 
 	constructor(
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -48,6 +55,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
+		@INativeHostService private readonly nativeHostMainService: INativeHostService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRequestService requestService: IRequestService,
@@ -55,21 +63,29 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	) {
 		super(fileService, productService, requestService, logService);
 		if (productService.exeBasedExtensionTips) {
-			forEach(productService.exeBasedExtensionTips, ({ key, value }) => {
-				const importantRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
+			forEach(productService.exeBasedExtensionTips, ({ key, value: exeBasedExtensionTip }) => {
+				const highImportanceRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
+				const mediumImportanceRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
 				const otherRecommendations: { extensionId: string, extensionName: string, isExtensionPack: boolean }[] = [];
-				forEach(value.recommendations, ({ key: extensionId, value }) => {
+				forEach(exeBasedExtensionTip.recommendations, ({ key: extensionId, value }) => {
 					if (value.important) {
-						importantRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
+						if (exeBasedExtensionTip.important) {
+							highImportanceRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
+						} else {
+							mediumImportanceRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
+						}
 					} else {
 						otherRecommendations.push({ extensionId, extensionName: value.name, isExtensionPack: !!value.isExtensionPack });
 					}
 				});
-				if (importantRecommendations.length) {
-					this.allImportantExecutableTips.set(key, { exeFriendlyName: value.friendlyName, windowsPath: value.windowsPath, recommendations: importantRecommendations });
+				if (highImportanceRecommendations.length) {
+					this.highImportanceExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: highImportanceRecommendations });
+				}
+				if (mediumImportanceRecommendations.length) {
+					this.mediumImportanceExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: mediumImportanceRecommendations });
 				}
 				if (otherRecommendations.length) {
-					this.allOtherExecutableTips.set(key, { exeFriendlyName: value.friendlyName, windowsPath: value.windowsPath, recommendations: otherRecommendations });
+					this.allOtherExecutableTips.set(key, { exeFriendlyName: exeBasedExtensionTip.friendlyName, windowsPath: exeBasedExtensionTip.windowsPath, recommendations: otherRecommendations });
 				}
 			});
 		}
@@ -78,23 +94,36 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
 			Also fetch important exe based recommendations for reporting telemetry
 		*/
-		timeout(3000).then(() => this.promptImportantExeBasedRecommendations());
+		timeout(3000).then(async () => {
+			await this.collectTips();
+			this.promptHighImportanceExeBasedTip();
+			this.promptMediumImportanceExeBasedTip();
+		});
 	}
 
-	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
-		return this.getValidExecutableBasedExtensionTips(this.allImportantExecutableTips);
+	async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
+		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
+		return [...highImportanceExeTips, ...mediumImportanceExeTips];
 	}
 
 	getOtherExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		return this.getValidExecutableBasedExtensionTips(this.allOtherExecutableTips);
 	}
 
-	private async promptImportantExeBasedRecommendations(): Promise<void> {
+	private async collectTips(): Promise<void> {
+		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
+		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
+		const local = await this.extensionManagementService.getInstalled();
+
+		this.highImportanceTipsByExe = this.groupImportantTipsByExe(highImportanceExeTips, local);
+		this.mediumImportanceTipsByExe = this.groupImportantTipsByExe(mediumImportanceExeTips, local);
+	}
+
+	private groupImportantTipsByExe(importantExeBasedTips: IExecutableBasedExtensionTip[], local: ILocalExtension[]): Map<string, IExecutableBasedExtensionTip[]> {
 		const importantExeBasedRecommendations = new Map<string, IExecutableBasedExtensionTip>();
-		const importantExeBasedTips = await this.getImportantExecutableBasedTips();
 		importantExeBasedTips.forEach(tip => importantExeBasedRecommendations.set(tip.extensionId.toLowerCase(), tip));
 
-		const local = await this.extensionManagementService.getInstalled();
 		const { installed, uninstalled: recommendations } = this.groupByInstalled([...importantExeBasedRecommendations.keys()], local);
 
 		/* Log installed and uninstalled exe based recommendations */
@@ -111,39 +140,108 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 			}
 		}
 
-		const recommendationsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
 		const promptedExecutableTips = this.getPromptedExecutableTips();
+		const tipsByExe = new Map<string, IExecutableBasedExtensionTip[]>();
 		for (const extensionId of recommendations) {
 			const tip = importantExeBasedRecommendations.get(extensionId);
 			if (tip && (!promptedExecutableTips[tip.exeName] || !promptedExecutableTips[tip.exeName].includes(tip.extensionId))) {
-				let tips = recommendationsByExe.get(tip.exeName);
+				let tips = tipsByExe.get(tip.exeName);
 				if (!tips) {
 					tips = [];
-					recommendationsByExe.set(tip.exeName, tips);
+					tipsByExe.set(tip.exeName, tips);
 				}
 				tips.push(tip);
 			}
 		}
 
-		for (const [, tips] of recommendationsByExe) {
-			const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
-			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-			this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE)
-				.then(result => {
-					if (result) {
-						this.addToRecommendedExecutables(tips[0].exeName, extensionIds);
-					}
-				});
+		return tipsByExe;
+	}
+
+	/**
+	 * High importance tips are prompted once per restart session
+	 */
+	private promptHighImportanceExeBasedTip(): void {
+		if (this.highImportanceTipsByExe.size === 0) {
+			return;
 		}
+
+		const [exeName, tips] = [...this.highImportanceTipsByExe.entries()][0];
+		this.promptExeRecommendations(tips)
+			.then(result => {
+				switch (result) {
+					case RecommendationsNotificationResult.Accepted:
+						this.addToRecommendedExecutables(tips[0].exeName, tips);
+						break;
+					case RecommendationsNotificationResult.Ignored:
+						this.highImportanceTipsByExe.delete(exeName);
+						break;
+					case RecommendationsNotificationResult.TooMany:
+						// It is skipped. So try to recommend when new window is opened
+						this._register(Event.once(this.nativeHostMainService.onWindowOpen)(() => this.promptHighImportanceExeBasedTip()));
+						break;
+				}
+			});
+	}
+
+	/**
+	 * Medium importance tips are prompted once per 7 days
+	 */
+	private promptMediumImportanceExeBasedTip(): void {
+		if (this.mediumImportanceExecutableTips.size === 0) {
+			return;
+		}
+
+		const lastPromptedMediumExeTime = this.getLastPromptedMediumExeTime();
+		if ((Date.now() - lastPromptedMediumExeTime) < 7 * 24 * 60 * 60 * 1000) { // 7 Days
+			// Not 7 days yet. So try to recommend when new window is opened
+			this._register(Event.once(this.nativeHostMainService.onWindowOpen)(() => this.promptMediumImportanceExeBasedTip()));
+			return;
+		}
+
+		this.updateLastPromptedMediumExeTime();
+		const [exeName, tips] = [...this.mediumImportanceTipsByExe.entries()][0];
+		this.promptExeRecommendations(tips)
+			.then(result => {
+				switch (result) {
+					case RecommendationsNotificationResult.Accepted:
+						this.mediumImportanceTipsByExe.delete(exeName);
+						this.addToRecommendedExecutables(tips[0].exeName, tips);
+						break;
+					case RecommendationsNotificationResult.Ignored:
+						this.mediumImportanceExecutableTips.delete(exeName);
+						break;
+				}
+				// Schedule next prompt when new window is opened
+				this._register(Event.once(this.nativeHostMainService.onWindowOpen)(() => this.promptMediumImportanceExeBasedTip()));
+			});
+	}
+
+	private promptExeRecommendations(tips: IExecutableBasedExtensionTip[]): Promise<RecommendationsNotificationResult> {
+		const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
+		const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
+		return this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE);
+	}
+
+	private getLastPromptedMediumExeTime(): number {
+		let value = this.storageService.getNumber(lastPromptedMediumImpExeTimeStorageKey, StorageScope.GLOBAL);
+		if (!value) {
+			value = Date.now();
+			this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, value, StorageScope.GLOBAL);
+		}
+		return value;
+	}
+
+	private updateLastPromptedMediumExeTime(): void {
+		this.storageService.store(lastPromptedMediumImpExeTimeStorageKey, Date.now(), StorageScope.GLOBAL);
 	}
 
 	private getPromptedExecutableTips(): IStringDictionary<string[]> {
 		return JSON.parse(this.storageService.get(promptedExecutableTipsStorageKey, StorageScope.GLOBAL, '{}'));
 	}
 
-	private addToRecommendedExecutables(exeName: string, extensions: string[]) {
+	private addToRecommendedExecutables(exeName: string, tips: IExecutableBasedExtensionTip[]) {
 		const promptedExecutableTips = this.getPromptedExecutableTips();
-		promptedExecutableTips[exeName] = extensions;
+		promptedExecutableTips[exeName] = tips.map(({ extensionId }) => extensionId.toLowerCase());
 		this.storageService.store(promptedExecutableTipsStorageKey, JSON.stringify(promptedExecutableTips), StorageScope.GLOBAL);
 	}
 

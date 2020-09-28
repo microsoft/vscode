@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionRecommendationNotificationService, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 
 export class ExtensionRecommendationNotificationServiceChannelClient implements IExtensionRecommendationNotificationService {
 
@@ -15,7 +15,7 @@ export class ExtensionRecommendationNotificationServiceChannelClient implements 
 
 	get ignoredRecommendations(): string[] { throw new Error('not supported'); }
 
-	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, priority: RecommendationSource): Promise<boolean> {
+	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, priority: RecommendationSource): Promise<RecommendationsNotificationResult> {
 		return this.channel.call('promptImportantExtensionsInstallNotification', [extensionIds, message, searchValue, priority]);
 	}
 
