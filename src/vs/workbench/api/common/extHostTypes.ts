@@ -14,8 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { addIdToOutput, CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -647,7 +646,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			_type: FileEditType.Cell, metadata, uri, edit: {
 				editType: CellEditType.Output, index, outputs: outputs.map(output => {
 					if (NotebookCellOutput.isNotebookCellOutput(output)) {
-						return addIdToOutput(extHostTypeConverters.NotebookCellOutput.from(output));
+						return addIdToOutput(output.toJSON());
 					} else {
 						return addIdToOutput(output);
 					}
@@ -2806,6 +2805,25 @@ export class NotebookCellOutput {
 		readonly outputs: NotebookCellOutputItem[],
 		readonly metadata?: Record<string, string | number | boolean>
 	) { }
+
+	toJSON(): IDisplayOutput {
+		let data: { [key: string]: unknown; } = {};
+		let custom: { [key: string]: unknown; } = {};
+		let hasMetadata = false;
+
+		for (let item of this.outputs) {
+			data[item.mime] = item.value;
+			if (item.metadata) {
+				custom[item.mime] = item.metadata;
+				hasMetadata = true;
+			}
+		}
+		return {
+			outputKind: CellOutputKind.Rich,
+			data,
+			metadata: hasMetadata ? { custom } : undefined
+		};
+	}
 }
 
 export enum CellKind {

@@ -1242,6 +1242,9 @@ declare module 'vscode' {
 		readonly metadata?: Record<string, string | number | boolean>;
 
 		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
+
+		//TODO@jrieken HACK to workaround dependency issues...
+		toJSON(): any;
 	}
 
 	export enum NotebookCellRunState {
