@@ -90,9 +90,20 @@ const readFromSuperblock = (block: fsnode, path: string) => {
 		if (block.type !== FileType.Directory) {
 			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
 		}
-		const next = block.children.get(pathParts[1]);
+		const next = block.children.get(pathParts[0]);
 		if (!next) { return undefined; }
 		return doReadFromSuperblock(next, pathParts.slice(1));
+	};
+	return doReadFromSuperblock(block, path.split('/').filter(p => p.length));
+};
+
+const deleteFromSuperblock = (block: fsnode, path: string) => {
+	const doReadFromSuperblock = (block: fsnode, pathParts: string[]) => {
+		if (pathParts.length === 0) { throw new Error(`Internal error deleting from superblock -- got no deletion path parts (encountered while deleting ${path})`); }
+		if (block.type !== FileType.Directory) {
+			throw new Error('Internal error reading from superblock -- expected directory at ' + block.path);
+		}
+		block.children.delete(pathParts[0]);
 	};
 	return doReadFromSuperblock(block, path.split('/').filter(p => p.length));
 };
@@ -110,8 +121,8 @@ const addFileToSuperblock = (block: fsnode, path: string, size?: number) => {
 		if (pathParts.length === 1) {
 			const next = pathParts[0];
 			const existing = block.children.get(next);
-			if (existing) {
-				throw new Error(`Internal error creating superblock -- overwriting entry with file: ${block.path}/${next} (encountered while adding ${path})`);
+			if (existing?.type === FileType.Directory) {
+				throw new Error(`Internal error creating superblock -- overwriting directory with file: ${block.path}/${next} (encountered while adding ${path})`);
 			}
 			block.children.set(next, {
 				type: FileType.File,
@@ -165,6 +176,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		return Disposable.None;
 	}
 
+	private madeDirs = new Set<string>();
 	/**
 	 * Note that since we don't actually store directories this is baasically a no-op.
 	 * Still, preserve semantics regarding throwing 'File is not a Directory' errors.
@@ -174,11 +186,20 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 		if (existing?.type === FileType.File) {
 			throw createFileSystemProviderError(localize('fileNotDirectory', "File is not a Directory"), FileSystemProviderErrorCode.FileNotADirectory);
 		}
+		this.madeDirs.add(resource.path);
 	}
 
 	async stat(resource: URI): Promise<IStat> {
 		const content = readFromSuperblock(await this.superblock, resource.path);
 		if (!content) {
+			if (this.madeDirs.has(resource.path)) {
+				return {
+					type: FileType.Directory,
+					ctime: 0,
+					mtime: 0,
+					size: 0
+				};
+			}
 			throw createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
 		} else if (content.type === FileType.File) {
 			return {
@@ -277,6 +298,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 			toDelete = [resource.path];
 		}
 		await this.deleteKeys(toDelete);
+		deleteFromSuperblock(await this.superblock, resource.path);
 		toDelete.forEach(key => this.versions.delete(key));
 		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
@@ -315,7 +337,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IFileSystemProvi
 				const superblock: fsnode = {
 					children: new Map(),
 					parent: undefined,
-					path: '/',
+					path: '',
 					type: FileType.Directory
 				};
 
