@@ -13,7 +13,8 @@
 		"onLanguage:markdown",
 		"onLanguage:typescript"
 	],
-	"main": "./out/extension",
+	"main": "./out/extensionEditingMain",
+	"browser": "./dist/browser/extensionEditingBrowserMain",
 	"scripts": {
 		"compile": "gulp compile-extension:extension-editing",
 		"watch": "gulp watch-extension:extension-editing"
@@ -35,8 +36,12 @@
 				"url": "vscode://schemas/language-configuration"
 			},
 			{
-				"fileMatch": "*icon-theme.json",
+				"fileMatch": ["*icon-theme.json", "!*product-icon-theme.json"],
 				"url": "vscode://schemas/icon-theme"
+			},
+			{
+				"fileMatch": "*product-icon-theme.json",
+				"url": "vscode://schemas/product-icon-theme"
 			},
 			{
 				"fileMatch": "*color-theme.json",

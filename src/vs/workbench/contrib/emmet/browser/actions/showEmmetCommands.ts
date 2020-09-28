@@ -6,10 +6,10 @@
 import * as nls from 'vs/nls';
 
 import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 const EMMET_COMMANDS_PREFIX = '>Emmet: ';
 
@@ -30,10 +30,9 @@ class ShowEmmetCommandsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
-		const quickOpenService = accessor.get(IQuickOpenService);
-		quickOpenService.show(EMMET_COMMANDS_PREFIX);
-		return Promise.resolve(undefined);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.quickAccess.show(EMMET_COMMANDS_PREFIX);
 	}
 }
 

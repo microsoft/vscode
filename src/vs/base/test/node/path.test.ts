@@ -164,8 +164,7 @@ suite('Paths (Node Implementation)', () => {
 						os = 'posix';
 					}
 					const message =
-						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${
-						JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+						`path.${os}.join(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 					if (actual !== expected && actualAlt !== expected) {
 						failures.push(`\n${message}`);
 					}
@@ -319,8 +318,7 @@ suite('Paths (Node Implementation)', () => {
 					os = 'posix';
 				}
 				const actual = extname(input);
-				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.${os}.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -328,8 +326,7 @@ suite('Paths (Node Implementation)', () => {
 			{
 				const input = `C:${test[0].replace(slashRE, '\\')}`;
 				const actual = path.win32.extname(input);
-				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.win32.extname(${JSON.stringify(input)})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -401,9 +398,9 @@ suite('Paths (Node Implementation)', () => {
 		];
 		resolveTests.forEach((test) => {
 			const resolve = test[0];
-			//@ts-ignore
+			//@ts-expect-error
 			test[1].forEach((test) => {
-				//@ts-ignore
+				//@ts-expect-error
 				const actual = resolve.apply(null, test[0]);
 				let actualAlt;
 				const os = resolve === path.win32.resolve ? 'win32' : 'posix';
@@ -416,8 +413,7 @@ suite('Paths (Node Implementation)', () => {
 
 				const expected = test[1];
 				const message =
-					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+					`path.${os}.resolve(${test[0].map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected && actualAlt !== expected) {
 					failures.push(`\n${message}`);
 				}
@@ -579,15 +575,13 @@ suite('Paths (Node Implementation)', () => {
 		];
 		relativeTests.forEach((test) => {
 			const relative = test[0];
-			//@ts-ignore
+			//@ts-expect-error
 			test[1].forEach((test) => {
-				//@ts-ignore
+				//@ts-expect-error
 				const actual = relative(test[0], test[1]);
 				const expected = test[2];
 				const os = relative === path.win32.relative ? 'win32' : 'posix';
-				const message = `path.${os}.relative(${
-					test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${
-					JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
+				const message = `path.${os}.relative(${test.slice(0, 2).map(JSON.stringify).join(',')})\n  expect=${JSON.stringify(expected)}\n  actual=${JSON.stringify(actual)}`;
 				if (actual !== expected) {
 					failures.push(`\n${message}`);
 				}

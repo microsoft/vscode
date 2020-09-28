@@ -163,14 +163,14 @@ export class InputBox extends Widget {
 		this.input.setAttribute('autocapitalize', 'off');
 		this.input.setAttribute('spellcheck', 'false');
 
-		this.onfocus(this.input, () => dom.addClass(this.element, 'synthetic-focus'));
-		this.onblur(this.input, () => dom.removeClass(this.element, 'synthetic-focus'));
+		this.onfocus(this.input, () => this.element.classList.add('synthetic-focus'));
+		this.onblur(this.input, () => this.element.classList.remove('synthetic-focus'));
 
 		if (this.options.flexibleHeight) {
 			this.maxHeight = typeof this.options.flexibleMaxHeight === 'number' ? this.options.flexibleMaxHeight : Number.POSITIVE_INFINITY;
 
 			this.mirror = dom.append(wrapper, $('div.mirror'));
-			this.mirror.innerHTML = '&#160;';
+			this.mirror.innerText = '\u00a0';
 
 			this.scrollableElement = new ScrollableElement(this.element, { vertical: ScrollbarVisibility.Auto });
 
@@ -248,6 +248,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public getAriaLabel(): string {
+		return this.ariaLabel;
+	}
+
 	public get mirrorElement(): HTMLElement | undefined {
 		return this.mirror;
 	}
@@ -289,6 +293,10 @@ export class InputBox extends Widget {
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
 		}
+	}
+
+	public isSelectionAtEnd(): boolean {
+		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
 	}
 
 	public enable(): void {
@@ -360,26 +368,14 @@ export class InputBox extends Widget {
 	public showMessage(message: IMessage, force?: boolean): void {
 		this.message = message;
 
-		dom.removeClass(this.element, 'idle');
-		dom.removeClass(this.element, 'info');
-		dom.removeClass(this.element, 'warning');
-		dom.removeClass(this.element, 'error');
-		dom.addClass(this.element, this.classForType(message.type));
+		this.element.classList.remove('idle');
+		this.element.classList.remove('info');
+		this.element.classList.remove('warning');
+		this.element.classList.remove('error');
+		this.element.classList.add(this.classForType(message.type));
 
 		const styles = this.stylesForType(this.message.type);
 		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
-
-		// ARIA Support
-		let alertText: string;
-		if (message.type === MessageType.ERROR) {
-			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
-		} else if (message.type === MessageType.WARNING) {
-			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
-		} else {
-			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
-		}
-
-		aria.alert(alertText);
 
 		if (this.hasFocus() || force) {
 			this._showMessage();
@@ -389,10 +385,10 @@ export class InputBox extends Widget {
 	public hideMessage(): void {
 		this.message = null;
 
-		dom.removeClass(this.element, 'info');
-		dom.removeClass(this.element, 'warning');
-		dom.removeClass(this.element, 'error');
-		dom.addClass(this.element, 'idle');
+		this.element.classList.remove('info');
+		this.element.classList.remove('warning');
+		this.element.classList.remove('error');
+		this.element.classList.add('idle');
 
 		this._hideMessage();
 		this.applyStyles();
@@ -464,7 +460,7 @@ export class InputBox extends Widget {
 				const spanElement = (this.message.formatContent
 					? renderFormattedText(this.message.content, renderOptions)
 					: renderText(this.message.content, renderOptions));
-				dom.addClass(spanElement, this.classForType(this.message.type));
+				spanElement.classList.add(this.classForType(this.message.type));
 
 				const styles = this.stylesForType(this.message.type);
 				spanElement.style.backgroundColor = styles.background ? styles.background.toString() : '';
@@ -480,6 +476,18 @@ export class InputBox extends Widget {
 			},
 			layout: layout
 		});
+
+		// ARIA Support
+		let alertText: string;
+		if (this.message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", this.message.content);
+		} else if (this.message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", this.message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", this.message.content);
+		}
+
+		aria.alert(alertText);
 
 		this.state = 'open';
 	}
@@ -501,7 +509,7 @@ export class InputBox extends Widget {
 
 		this.validate();
 		this.updateMirror();
-		dom.toggleClass(this.input, 'empty', !this.value);
+		this.input.classList.toggle('empty', !this.value);
 
 		if (this.state === 'open' && this.contextViewProvider) {
 			this.contextViewProvider.layout();
@@ -521,7 +529,7 @@ export class InputBox extends Widget {
 		if (mirrorTextContent) {
 			this.mirror.textContent = value + suffix;
 		} else {
-			this.mirror.innerHTML = '&#160;';
+			this.mirror.innerText = '\u00a0';
 		}
 
 		this.layout();
@@ -552,7 +560,7 @@ export class InputBox extends Widget {
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
-		this.input.style.backgroundColor = background;
+		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
 		this.element.style.borderWidth = border ? '1px' : '';

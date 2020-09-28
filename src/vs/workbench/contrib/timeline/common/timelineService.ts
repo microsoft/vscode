@@ -9,31 +9,104 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 // import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions } from './timeline';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions, TimelinePaneId } from './timeline';
+import { IViewsService } from 'vs/workbench/common/views';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+export const TimelineHasProviderContext = new RawContextKey<boolean>('timelineHasProvider', false);
 
 export class TimelineService implements ITimelineService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeProviders = new Emitter<TimelineProvidersChangeEvent>();
 	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent> = this._onDidChangeProviders.event;
 
 	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
 	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
+	private readonly _onDidChangeUri = new Emitter<URI>();
+	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
 
-	private readonly _onDidReset = new Emitter<void>();
-	readonly onDidReset: Event<void> = this._onDidReset.event;
+	private readonly hasProviderContext: IContextKey<boolean>;
+	private readonly providers = new Map<string, TimelineProvider>();
+	private readonly providerSubscriptions = new Map<string, IDisposable>();
 
-	private readonly _providers = new Map<string, TimelineProvider>();
-	private readonly _providerSubscriptions = new Map<string, IDisposable>();
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IViewsService protected viewsService: IViewsService,
+		@IConfigurationService protected configurationService: IConfigurationService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
+	) {
+		this.hasProviderContext = TimelineHasProviderContext.bindTo(this.contextKeyService);
+		this.updateHasProviderContext();
 
-	constructor(@ILogService private readonly logService: ILogService) {
+		// let source = 'fast-source';
+		// this.registerTimelineProvider({
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Fast Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		if (options.cursor === undefined) {
+		// 			return Promise.resolve<Timeline>({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'Fast Timeline1',
+		// 						description: '',
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'Fast Timeline2',
+		// 						description: '',
+		// 						timestamp: Date.now() - 3000000000,
+		// 						source: source
+		// 					}
+		// 				],
+		// 				paging: {
+		// 					cursor: 'next'
+		// 				}
+		// 			});
+		// 		}
+		// 		return Promise.resolve<Timeline>({
+		// 			source: source,
+		// 			items: [
+		// 				{
+		// 					handle: `${source}|3`,
+		// 					id: '3',
+		// 					label: 'Fast Timeline3',
+		// 					description: '',
+		// 					timestamp: Date.now() - 4000000000,
+		// 					source: source
+		// 				},
+		// 				{
+		// 					handle: `${source}|4`,
+		// 					id: '4',
+		// 					label: 'Fast Timeline4',
+		// 					description: '',
+		// 					timestamp: Date.now() - 300000000000,
+		// 					source: source
+		// 				}
+		// 			],
+		// 			paging: {
+		// 				cursor: undefined
+		// 			}
+		// 		});
+		// 	},
+		// 	dispose() { }
+		// });
+
 		// let source = 'slow-source';
 		// this.registerTimelineProvider({
 		// 	scheme: '*',
 		// 	id: source,
 		// 	label: 'Slow Source',
 		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
-		// 		return new Promise(resolve => setTimeout(() => {
+		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
 		// 			resolve({
 		// 				source: source,
 		// 				items: [
@@ -66,7 +139,7 @@ export class TimelineService implements ITimelineService {
 		// 	id: source,
 		// 	label: 'Very Slow Source',
 		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
-		// 		return new Promise(resolve => setTimeout(() => {
+		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
 		// 			resolve({
 		// 				source: source,
 		// 				items: [
@@ -95,13 +168,13 @@ export class TimelineService implements ITimelineService {
 	}
 
 	getSources() {
-		return [...this._providers.keys()];
+		return [...this.providers.values()].map(p => ({ id: p.id, label: p.label }));
 	}
 
 	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions) {
 		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
 
-		const provider = this._providers.get(id);
+		const provider = this.providers.get(id);
 		if (provider === undefined) {
 			return undefined;
 		}
@@ -138,10 +211,10 @@ export class TimelineService implements ITimelineService {
 
 		const id = provider.id;
 
-		const existing = this._providers.get(id);
+		const existing = this.providers.get(id);
 		if (existing) {
 			// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
-			// TODO[ECA]: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
+			// TODO@eamodio: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
 			// throw new Error(`Timeline Provider ${id} already exists.`);
 			try {
 				existing?.dispose();
@@ -149,15 +222,18 @@ export class TimelineService implements ITimelineService {
 			catch { }
 		}
 
-		this._providers.set(id, provider);
+		this.providers.set(id, provider);
+
+		this.updateHasProviderContext();
+
 		if (provider.onDidChange) {
-			this._providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
+			this.providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
 		}
 		this._onDidChangeProviders.fire({ added: [id] });
 
 		return {
 			dispose: () => {
-				this._providers.delete(id);
+				this.providers.delete(id);
 				this._onDidChangeProviders.fire({ removed: [id] });
 			}
 		};
@@ -166,20 +242,24 @@ export class TimelineService implements ITimelineService {
 	unregisterTimelineProvider(id: string): void {
 		this.logService.trace(`TimelineService#unregisterTimelineProvider: id=${id}`);
 
-		if (!this._providers.has(id)) {
+		if (!this.providers.has(id)) {
 			return;
 		}
 
-		this._providers.delete(id);
-		this._providerSubscriptions.delete(id);
+		this.providers.delete(id);
+		this.providerSubscriptions.delete(id);
+
+		this.updateHasProviderContext();
+
 		this._onDidChangeProviders.fire({ removed: [id] });
 	}
 
-	// refresh(fetch?: 'all' | 'more') {
-	// 	this._onDidChangeTimeline.fire({ fetch: fetch });
-	// }
+	setUri(uri: URI) {
+		this.viewsService.openView(TimelinePaneId, true);
+		this._onDidChangeUri.fire(uri);
+	}
 
-	reset() {
-		this._onDidReset.fire();
+	private updateHasProviderContext() {
+		this.hasProviderContext.set(this.providers.size !== 0);
 	}
 }

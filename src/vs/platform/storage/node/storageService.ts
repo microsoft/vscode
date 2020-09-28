@@ -6,7 +6,7 @@
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage, IS_NEW_KEY } from 'vs/platform/storage/common/storage';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
 import { mark } from 'vs/base/common/performance';
@@ -14,13 +14,12 @@ import { join } from 'vs/base/common/path';
 import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { assertIsDefined } from 'vs/base/common/types';
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
 export class NativeStorageService extends Disposable implements IStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
 	private static readonly WORKSPACE_META_NAME = 'workspace.json';
@@ -31,7 +30,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
 	readonly onWillSaveState = this._onWillSaveState.event;
 
-	private globalStorage: IStorage;
+	private readonly globalStorage = new Storage(this.globalStorageDatabase);
 
 	private workspaceStoragePath: string | undefined;
 	private workspaceStorage: IStorage | undefined;
@@ -43,14 +42,18 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
-		globalStorageDatabase: IStorageDatabase,
+		private globalStorageDatabase: IStorageDatabase,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
-		// Global Storage
-		this.globalStorage = new Storage(globalStorageDatabase);
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Global Storage change events
 		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 	}
 
@@ -95,15 +98,24 @@ export class NativeStorageService extends Disposable implements IStorageService 
 			// Create workspace storage and initialize
 			mark('willInitWorkspaceStorage');
 			try {
-				await this.createWorkspaceStorage(useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME), result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined).init();
+				const workspaceStorage = this.createWorkspaceStorage(
+					useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME),
+					result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined
+				);
+				await workspaceStorage.init();
+
+				// Check to see if this is the first time we are "opening" this workspace
+				const firstWorkspaceOpen = workspaceStorage.getBoolean(IS_NEW_KEY);
+				if (firstWorkspaceOpen === undefined) {
+					workspaceStorage.set(IS_NEW_KEY, result.wasCreated);
+				} else if (firstWorkspaceOpen) {
+					workspaceStorage.set(IS_NEW_KEY, false);
+				}
 			} finally {
 				mark('didInitWorkspaceStorage');
 			}
 		} catch (error) {
-			onUnexpectedError(error);
-
-			// Upon error, fallback to in-memory storage
-			return this.createWorkspaceStorage(SQLiteStorageDatabase.IN_MEMORY_PATH).init();
+			this.logService.error(`[storage] initializeWorkspaceStorage(): Unable to init workspace storage due to ${error}`);
 		}
 	}
 
@@ -128,7 +140,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 	}
 
 	private getWorkspaceStorageFolderPath(payload: IWorkspaceInitializationPayload): string {
-		return join(this.environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
+		return join(this.environmentService.workspaceStorageHome.fsPath, payload.id); // workspace home + workspace id;
 	}
 
 	private async prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
@@ -156,6 +168,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		}
 
 		if (meta) {
+			const logService = this.logService;
 			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
 			(async function () {
 				try {
@@ -164,7 +177,7 @@ export class NativeStorageService extends Disposable implements IStorageService 
 						await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
 					}
 				} catch (error) {
-					onUnexpectedError(error);
+					logService.error(error);
 				}
 			})();
 		}
@@ -241,13 +254,13 @@ export class NativeStorageService extends Disposable implements IStorageService 
 		return logStorage(
 			this.globalStorage.items,
 			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
-			this.environmentService.globalStorageHome,
+			this.environmentService.globalStorageHome.fsPath,
 			this.workspaceStoragePath || '');
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
-			return Promise.resolve(); // no migration needed if running in memory
+			return; // no migration needed if running in memory
 		}
 
 		// Close workspace DB to be able to copy
@@ -263,5 +276,9 @@ export class NativeStorageService extends Disposable implements IStorageService 
 
 		// Recreate and init workspace storage
 		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
+	}
+
+	isNew(scope: StorageScope): boolean {
+		return this.getBoolean(IS_NEW_KEY, scope) === true;
 	}
 }

@@ -22,6 +22,8 @@ import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommand
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
 suite('Editor - Range decorations', () => {
 
@@ -157,6 +159,7 @@ suite('Editor - Range decorations', () => {
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IThemeService, new TestThemeService());
 		return instantiationService.createInstance(ModelServiceImpl);
 	}
 });

@@ -8,13 +8,13 @@ fi
 
 header="// Type definitions for Visual Studio Code ${1}
 // Project: https://github.com/microsoft/vscode
-// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/Microsoft>
+// Definitions by: Visual Studio Code Team, Microsoft <https://github.com/microsoft>
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License.
- *  See https://github.com/Microsoft/vscode/blob/master/LICENSE.txt for license information.
+ *  See https://github.com/microsoft/vscode/blob/master/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
 /**

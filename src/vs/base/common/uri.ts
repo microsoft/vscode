@@ -5,6 +5,7 @@
 
 import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
+import * as paths from 'vs/base/common/path';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -83,6 +84,7 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  * (http://tools.ietf.org/html/rfc3986#section-3) with minimal validation
  * and encoding.
  *
+ * ```txt
  *       foo://example.com:8042/over/there?name=ferret#nose
  *       \_/   \______________/\_________/ \_________/ \__/
  *        |           |            |            |        |
@@ -90,6 +92,7 @@ const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
  *        |   _____________________|__
  *       / \ /                        \
  *       urn:example:animal:ferret:nose
+ * ```
  */
 export class URI implements UriComponents {
 
@@ -202,7 +205,7 @@ export class URI implements UriComponents {
 		// if (this.scheme !== 'file') {
 		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
 		// }
-		return _makeFsPath(this);
+		return uriToFsPath(this, false);
 	}
 
 	// ---- modify to new -------------------------
@@ -249,7 +252,7 @@ export class URI implements UriComponents {
 			return this;
 		}
 
-		return new _URI(scheme, authority, path, query, fragment);
+		return new Uri(scheme, authority, path, query, fragment);
 	}
 
 	// ---- parse & validate ------------------------
@@ -263,9 +266,9 @@ export class URI implements UriComponents {
 	static parse(value: string, _strict: boolean = false): URI {
 		const match = _regexp.exec(value);
 		if (!match) {
-			return new _URI(_empty, _empty, _empty, _empty, _empty);
+			return new Uri(_empty, _empty, _empty, _empty, _empty);
 		}
-		return new _URI(
+		return new Uri(
 			match[2] || _empty,
 			percentDecode(match[4] || _empty),
 			percentDecode(match[5] || _empty),
@@ -320,17 +323,37 @@ export class URI implements UriComponents {
 			}
 		}
 
-		return new _URI('file', authority, path, _empty, _empty);
+		return new Uri('file', authority, path, _empty, _empty);
 	}
 
 	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		return new _URI(
+		return new Uri(
 			components.scheme,
 			components.authority,
 			components.path,
 			components.query,
 			components.fragment,
 		);
+	}
+
+	/**
+	 * Join a URI path with path fragments and normalizes the resulting path.
+	 *
+	 * @param uri The input URI.
+	 * @param pathFragment The path fragment to add to the URI path.
+	 * @returns The resulting URI.
+	 */
+	static joinPath(uri: URI, ...pathFragment: string[]): URI {
+		if (!uri.path) {
+			throw new Error(`[UriError]: cannot call joinPaths on URI without path`);
+		}
+		let newPath: string;
+		if (isWindows && uri.scheme === 'file') {
+			newPath = URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path;
+		} else {
+			newPath = paths.posix.join(uri.path, ...pathFragment);
+		}
+		return uri.with({ path: newPath });
 	}
 
 	// ---- printing/externalize ---------------------------
@@ -364,7 +387,7 @@ export class URI implements UriComponents {
 		} else if (data instanceof URI) {
 			return data;
 		} else {
-			const result = new _URI(data);
+			const result = new Uri(data);
 			result._formatted = (<UriState>data).external;
 			result._fsPath = (<UriState>data)._sep === _pathSepMarker ? (<UriState>data).fsPath : null;
 			return result;
@@ -389,15 +412,15 @@ interface UriState extends UriComponents {
 
 const _pathSepMarker = isWindows ? 1 : undefined;
 
-// eslint-disable-next-line @typescript-eslint/class-name-casing
-class _URI extends URI {
+// This class exists so that URI is compatibile with vscode.Uri (API).
+class Uri extends URI {
 
 	_formatted: string | null = null;
 	_fsPath: string | null = null;
 
 	get fsPath(): string {
 		if (!this._fsPath) {
-			this._fsPath = _makeFsPath(this);
+			this._fsPath = uriToFsPath(this, false);
 		}
 		return this._fsPath;
 	}
@@ -553,7 +576,7 @@ function encodeURIComponentMinimal(path: string): string {
 /**
  * Compute `fsPath` for the given uri
  */
-function _makeFsPath(uri: URI): string {
+export function uriToFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
 
 	let value: string;
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
@@ -564,8 +587,12 @@ function _makeFsPath(uri: URI): string {
 		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
 		&& uri.path.charCodeAt(2) === CharCode.Colon
 	) {
-		// windows drive letter: file:///c:/far/boo
-		value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		if (!keepDriveLetterCasing) {
+			// windows drive letter: file:///c:/far/boo
+			value = uri.path[1].toLowerCase() + uri.path.substr(2);
+		} else {
+			value = uri.path.substr(1);
+		}
 	} else {
 		// other path
 		value = uri.path;

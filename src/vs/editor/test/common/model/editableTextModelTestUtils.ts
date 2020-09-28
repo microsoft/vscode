@@ -17,7 +17,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 
 	assertSyncedModels(originalStr, (model, assertMirrorModels) => {
 		// Apply edits & collect inverse edits
-		let inverseEdits = model.applyEdits(edits);
+		let inverseEdits = model.applyEdits(edits, true);
 
 		// Assert edits produced expected result
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), expectedStr);
@@ -25,7 +25,7 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 		assertMirrorModels();
 
 		// Apply the inverse edits
-		let inverseInverseEdits = model.applyEdits(inverseEdits);
+		let inverseInverseEdits = model.applyEdits(inverseEdits, true);
 
 		// Assert the inverse edits brought back model to original state
 		assert.deepEqual(model.getValue(EndOfLinePreference.LF), originalStr);
@@ -36,8 +36,8 @@ export function testApplyEditsWithSyncedModels(original: string[], edits: IIdent
 					identifier: edit.identifier,
 					range: edit.range,
 					text: edit.text,
-					forceMoveMarkers: edit.forceMoveMarkers,
-					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit
+					forceMoveMarkers: edit.forceMoveMarkers || false,
+					isAutoWhitespaceEdit: edit.isAutoWhitespaceEdit || false
 				};
 			};
 			// Assert the inverse of the inverse edits are the original edits

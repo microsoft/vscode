@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
@@ -22,6 +22,7 @@ import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 suite('BackupMainService', () => {
 
@@ -33,7 +34,7 @@ suite('BackupMainService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
-	const environmentService = new EnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
+	const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS));
 
 	class TestBackupMainService extends BackupMainService {
 
@@ -729,6 +730,47 @@ suite('BackupMainService', () => {
 			} else {
 				assert.equal(service.getFolderBackupPaths().length, 0);
 			}
+		});
+	});
+
+	suite('getDirtyWorkspaces', () => {
+		test('should report if a workspace or folder has backups', async () => {
+			const folderBackupPath = service.registerFolderBackupSync(fooFile);
+
+			const backupWorkspaceInfo = toWorkspaceBackupInfo(fooFile.fsPath);
+			const workspaceBackupPath = service.registerWorkspaceBackupSync(backupWorkspaceInfo);
+
+			assert.equal(((await service.getDirtyWorkspaces()).length), 0);
+
+			try {
+				await pfs.mkdirp(path.join(folderBackupPath, Schemas.file));
+				await pfs.mkdirp(path.join(workspaceBackupPath, Schemas.untitled));
+			} catch (error) {
+				// ignore - folder might exist already
+			}
+
+			assert.equal(((await service.getDirtyWorkspaces()).length), 0);
+
+			fs.writeFileSync(path.join(folderBackupPath, Schemas.file, '594a4a9d82a277a899d4713a5b08f504'), '');
+			fs.writeFileSync(path.join(workspaceBackupPath, Schemas.untitled, '594a4a9d82a277a899d4713a5b08f504'), '');
+
+			const dirtyWorkspaces = await service.getDirtyWorkspaces();
+			assert.equal(dirtyWorkspaces.length, 2);
+
+			let found = 0;
+			for (const dirtyWorkpspace of dirtyWorkspaces) {
+				if (URI.isUri(dirtyWorkpspace)) {
+					if (isEqual(fooFile, dirtyWorkpspace)) {
+						found++;
+					}
+				} else {
+					if (isEqual(backupWorkspaceInfo.workspace.configPath, dirtyWorkpspace.configPath)) {
+						found++;
+					}
+				}
+			}
+
+			assert.equal(found, 2);
 		});
 	});
 });

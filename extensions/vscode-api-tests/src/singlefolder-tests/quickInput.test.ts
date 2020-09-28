@@ -18,190 +18,188 @@ interface QuickPickExpected {
 	};
 }
 
-suite('window namespace tests', function () {
+suite('vscode API - quick input', function () {
 
-	suite('QuickInput tests', function () {
-		teardown(closeAllEditors);
+	teardown(closeAllEditors);
 
-		test('createQuickPick, select second', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
+	test('createQuickPick, select second', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
 
-			const quickPick = createQuickPick({
-				events: ['active', 'active', 'selection', 'accept', 'hide'],
-				activeItems: [['eins'], ['zwei']],
-				selectionItems: [['zwei']],
-				acceptedItems: {
-					active: [['zwei']],
-					selection: [['zwei']],
-					dispose: [true]
-				},
-			}, (err?: any) => done(err));
-			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
-			quickPick.show();
+		const quickPick = createQuickPick({
+			events: ['active', 'active', 'selection', 'accept', 'hide'],
+			activeItems: [['eins'], ['zwei']],
+			selectionItems: [['zwei']],
+			acceptedItems: {
+				active: [['zwei']],
+				selection: [['zwei']],
+				dispose: [true]
+			},
+		}, (err?: any) => done(err));
+		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		quickPick.show();
 
-			(async () => {
-				await commands.executeCommand('workbench.action.quickOpenSelectNext');
-				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			})()
-				.catch(err => done(err));
-		});
+		(async () => {
+			await commands.executeCommand('workbench.action.quickOpenSelectNext');
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		})()
+			.catch(err => done(err));
+	});
 
-		test('createQuickPick, focus second', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
+	test('createQuickPick, focus second', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
 
-			const quickPick = createQuickPick({
-				events: ['active', 'selection', 'accept', 'hide'],
-				activeItems: [['zwei']],
-				selectionItems: [['zwei']],
-				acceptedItems: {
-					active: [['zwei']],
-					selection: [['zwei']],
-					dispose: [true]
-				},
-			}, (err?: any) => done(err));
-			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
-			quickPick.activeItems = [quickPick.items[1]];
-			quickPick.show();
+		const quickPick = createQuickPick({
+			events: ['active', 'selection', 'accept', 'hide'],
+			activeItems: [['zwei']],
+			selectionItems: [['zwei']],
+			acceptedItems: {
+				active: [['zwei']],
+				selection: [['zwei']],
+				dispose: [true]
+			},
+		}, (err?: any) => done(err));
+		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		quickPick.activeItems = [quickPick.items[1]];
+		quickPick.show();
 
-			(async () => {
-				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			})()
-				.catch(err => done(err));
-		});
+		(async () => {
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		})()
+			.catch(err => done(err));
+	});
 
-		test('createQuickPick, select first and second', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
+	test('createQuickPick, select first and second', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
 
-			const quickPick = createQuickPick({
-				events: ['active', 'selection', 'active', 'selection', 'accept', 'hide'],
-				activeItems: [['eins'], ['zwei']],
-				selectionItems: [['eins'], ['eins', 'zwei']],
-				acceptedItems: {
-					active: [['zwei']],
-					selection: [['eins', 'zwei']],
-					dispose: [true]
-				},
-			}, (err?: any) => done(err));
-			quickPick.canSelectMany = true;
-			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
-			quickPick.show();
+		const quickPick = createQuickPick({
+			events: ['active', 'selection', 'active', 'selection', 'accept', 'hide'],
+			activeItems: [['eins'], ['zwei']],
+			selectionItems: [['eins'], ['eins', 'zwei']],
+			acceptedItems: {
+				active: [['zwei']],
+				selection: [['eins', 'zwei']],
+				dispose: [true]
+			},
+		}, (err?: any) => done(err));
+		quickPick.canSelectMany = true;
+		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		quickPick.show();
 
-			(async () => {
-				await commands.executeCommand('workbench.action.quickOpenSelectNext');
-				await commands.executeCommand('workbench.action.quickPickManyToggle');
-				await commands.executeCommand('workbench.action.quickOpenSelectNext');
-				await commands.executeCommand('workbench.action.quickPickManyToggle');
-				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			})()
-				.catch(err => done(err));
-		});
+		(async () => {
+			await commands.executeCommand('workbench.action.quickOpenSelectNext');
+			await commands.executeCommand('workbench.action.quickPickManyToggle');
+			await commands.executeCommand('workbench.action.quickOpenSelectNext');
+			await commands.executeCommand('workbench.action.quickPickManyToggle');
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		})()
+			.catch(err => done(err));
+	});
 
-		test('createQuickPick, selection events', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
+	test('createQuickPick, selection events', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
 
-			const quickPick = createQuickPick({
-				events: ['active', 'selection', 'accept', 'selection', 'accept', 'hide'],
-				activeItems: [['eins']],
-				selectionItems: [['zwei'], ['drei']],
-				acceptedItems: {
-					active: [['eins'], ['eins']],
-					selection: [['zwei'], ['drei']],
-					dispose: [false, true]
-				},
-			}, (err?: any) => done(err));
-			quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
-			quickPick.show();
+		const quickPick = createQuickPick({
+			events: ['active', 'selection', 'accept', 'selection', 'accept', 'hide'],
+			activeItems: [['eins']],
+			selectionItems: [['zwei'], ['drei']],
+			acceptedItems: {
+				active: [['eins'], ['eins']],
+				selection: [['zwei'], ['drei']],
+				dispose: [false, true]
+			},
+		}, (err?: any) => done(err));
+		quickPick.items = ['eins', 'zwei', 'drei'].map(label => ({ label }));
+		quickPick.show();
 
-			quickPick.selectedItems = [quickPick.items[1]];
-			setTimeout(() => {
-				quickPick.selectedItems = [quickPick.items[2]];
-			}, 0);
-		});
+		quickPick.selectedItems = [quickPick.items[1]];
+		setTimeout(() => {
+			quickPick.selectedItems = [quickPick.items[2]];
+		}, 0);
+	});
 
-		test('createQuickPick, continue after first accept', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
+	test('createQuickPick, continue after first accept', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
 
-			const quickPick = createQuickPick({
-				events: ['active', 'selection', 'accept', 'active', 'selection', 'active', 'selection', 'accept', 'hide'],
-				activeItems: [['eins'], [], ['drei']],
-				selectionItems: [['eins'], [], ['drei']],
-				acceptedItems: {
-					active: [['eins'], ['drei']],
-					selection: [['eins'], ['drei']],
-					dispose: [false, true]
-				},
-			}, (err?: any) => done(err));
-			quickPick.items = ['eins', 'zwei'].map(label => ({ label }));
-			quickPick.show();
+		const quickPick = createQuickPick({
+			events: ['active', 'selection', 'accept', 'active', 'selection', 'active', 'selection', 'accept', 'hide'],
+			activeItems: [['eins'], [], ['drei']],
+			selectionItems: [['eins'], [], ['drei']],
+			acceptedItems: {
+				active: [['eins'], ['drei']],
+				selection: [['eins'], ['drei']],
+				dispose: [false, true]
+			},
+		}, (err?: any) => done(err));
+		quickPick.items = ['eins', 'zwei'].map(label => ({ label }));
+		quickPick.show();
 
-			(async () => {
-				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		(async () => {
+			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+			await timeout(async () => {
+				quickPick.items = ['drei', 'vier'].map(label => ({ label }));
 				await timeout(async () => {
-					quickPick.items = ['drei', 'vier'].map(label => ({ label }));
-					await timeout(async () => {
-						await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-					}, 0);
+					await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
 				}, 0);
-				})()
-				.catch(err => done(err));
+			}, 0);
+		})()
+			.catch(err => done(err));
+	});
+
+	test('createQuickPick, dispose in onDidHide', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
+
+		let hidden = false;
+		const quickPick = window.createQuickPick();
+		quickPick.onDidHide(() => {
+			if (hidden) {
+				done(new Error('Already hidden'));
+			} else {
+				hidden = true;
+				quickPick.dispose();
+				setTimeout(done, 0);
+			}
 		});
+		quickPick.show();
+		quickPick.hide();
+	});
 
-		test('createQuickPick, dispose in onDidHide', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
+	test('createQuickPick, hide and dispose', function (_done) {
+		let done = (err?: any) => {
+			done = () => { };
+			_done(err);
+		};
 
-			let hidden = false;
-			const quickPick = window.createQuickPick();
-			quickPick.onDidHide(() => {
-				if (hidden) {
-					done(new Error('Already hidden'));
-				} else {
-					hidden = true;
-					quickPick.dispose();
-					setTimeout(done, 0);
-				}
-			});
-			quickPick.show();
-			quickPick.hide();
+		let hidden = false;
+		const quickPick = window.createQuickPick();
+		quickPick.onDidHide(() => {
+			if (hidden) {
+				done(new Error('Already hidden'));
+			} else {
+				hidden = true;
+				setTimeout(done, 0);
+			}
 		});
-
-		test('createQuickPick, hide and dispose', function (_done) {
-			let done = (err?: any) => {
-				done = () => {};
-				_done(err);
-			};
-
-			let hidden = false;
-			const quickPick = window.createQuickPick();
-			quickPick.onDidHide(() => {
-				if (hidden) {
-					done(new Error('Already hidden'));
-				} else {
-					hidden = true;
-					setTimeout(done, 0);
-				}
-			});
-			quickPick.show();
-			quickPick.hide();
-			quickPick.dispose();
-		});
+		quickPick.show();
+		quickPick.hide();
+		quickPick.dispose();
 	});
 });
 

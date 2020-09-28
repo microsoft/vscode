@@ -29,6 +29,9 @@ suite('SuggestMemories', function () {
 	test('AbstractMemory, select', function () {
 
 		const mem = new class extends Memory {
+			constructor() {
+				super('first');
+			}
 			memorize(model: ITextModel, pos: IPosition, item: CompletionItem): void {
 				throw new Error('Method not implemented.');
 			} toJSON(): object {

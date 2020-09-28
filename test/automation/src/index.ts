@@ -16,7 +16,7 @@ export * from './logger';
 export * from './peek';
 export * from './problems';
 export * from './quickinput';
-export * from './quickopen';
+export * from './quickaccess';
 export * from './scm';
 export * from './search';
 export * from './settings';

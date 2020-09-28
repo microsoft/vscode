@@ -5,11 +5,11 @@
 
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -23,9 +23,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot, ITextBufferFactory } from 'vs/editor/common/model';
-import { joinPath, isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -62,13 +63,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		return {
 			onSaveError(error: Error, model: ITextFileEditorModel): void {
-				notificationService.error(localize('genericSaveError', "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
+				notificationService.error(localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", model.name, toErrorMessage(error, false)));
 			}
 		};
 	})();
 
 	get models(): TextFileEditorModel[] {
-		return this.mapResourceToModel.values();
+		return [...this.mapResourceToModel.values()];
 	}
 
 	constructor(
@@ -76,7 +77,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -133,49 +135,58 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: remember models to restore after the operation
-		const source = e.source;
-		if (source && (e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
-
-			// find all models that related to either source or target (can be many if resource is a folder)
-			const sourceModels: TextFileEditorModel[] = [];
-			const targetModels: TextFileEditorModel[] = [];
-			for (const model of this.models) {
-				const resource = model.resource;
-
-				if (isEqualOrParent(resource, e.target, false /* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
-					targetModels.push(model);
-				}
-
-				if (isEqualOrParent(resource, source)) {
-					sourceModels.push(model);
-				}
-			}
-
-			// remember each source model to load again after move is done
-			// with optional content to restore if it was dirty
+		if (e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY) {
 			const modelsToRestore: { source: URI, target: URI, snapshot?: ITextSnapshot; mode?: string; encoding?: string; }[] = [];
-			for (const sourceModel of sourceModels) {
-				const sourceModelResource = sourceModel.resource;
 
-				// If the source is the actual model, just use target as new resource
-				let targetModelResource: URI;
-				if (isEqual(sourceModelResource, e.source)) {
-					targetModelResource = e.target;
+			for (const { source, target } of e.files) {
+				if (source) {
+					if (this.uriIdentityService.extUri.isEqual(source, target)) {
+						continue; // ignore if resources are considered equal
+					}
+
+					// find all models that related to either source or target (can be many if resource is a folder)
+					const sourceModels: TextFileEditorModel[] = [];
+					const targetModels: TextFileEditorModel[] = [];
+					for (const model of this.models) {
+						const resource = model.resource;
+
+						if (isEqualOrParent(resource, target)) {
+							// EXPLICITLY do not ignorecase, see https://github.com/microsoft/vscode/issues/56384
+							targetModels.push(model);
+						}
+
+						if (this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
+							sourceModels.push(model);
+						}
+					}
+
+					// remember each source model to load again after move is done
+					// with optional content to restore if it was dirty
+					for (const sourceModel of sourceModels) {
+						const sourceModelResource = sourceModel.resource;
+
+						// If the source is the actual model, just use target as new resource
+						let targetModelResource: URI;
+						if (this.uriIdentityService.extUri.isEqual(sourceModelResource, source)) {
+							targetModelResource = target;
+						}
+
+						// Otherwise a parent folder of the source is being moved, so we need
+						// to compute the target resource based on that
+						else {
+							targetModelResource = joinPath(target, sourceModelResource.path.substr(source.path.length + 1));
+						}
+
+						modelsToRestore.push({
+							source: sourceModelResource,
+							target: targetModelResource,
+							mode: sourceModel.getMode(),
+							encoding: sourceModel.getEncoding(),
+							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
+						});
+					}
+
 				}
-
-				// Otherwise a parent folder of the source is being moved, so we need
-				// to compute the target resource based on that
-				else {
-					targetModelResource = joinPath(e.target, sourceModelResource.path.substr(source.path.length + 1));
-				}
-
-				modelsToRestore.push({
-					source: sourceModelResource,
-					target: targetModelResource,
-					mode: sourceModel.getMode(),
-					encoding: sourceModel.getEncoding(),
-					snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
-				});
 			}
 
 			this.mapCorrelationIdToModelsToRestore.set(e.correlationId, modelsToRestore);
@@ -185,13 +196,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private onDidFailWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
 
 		// Move / Copy: restore dirty flag on models to restore that were dirty
-		if ((e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
+		if ((e.operation === FileOperation.MOVE || e.operation === FileOperation.COPY)) {
 			const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
 			if (modelsToRestore) {
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
 				modelsToRestore.forEach(model => {
-					// snapshot presence means this model used to be dirty
+					// snapshot presence means this model used to be dirty and so we restore that
+					// flag. we do NOT have to restore the content because the model was only soft
+					// reverted and did not loose its original dirty contents.
 					if (model.snapshot) {
 						this.get(model.source)?.setDirty(true);
 					}
@@ -201,40 +214,55 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	}
 
 	private onDidRunWorkingCopyFileOperation(e: WorkingCopyFileEvent): void {
+		switch (e.operation) {
 
-		// Move / Copy: restore models that were loaded before the operation took place
-		if ((e.operation === FileOperation.COPY || e.operation === FileOperation.MOVE)) {
-			e.waitUntil((async () => {
-				const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
-				if (modelsToRestore) {
-					this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
-
-					await Promise.all(modelsToRestore.map(async modelToRestore => {
-
-						// restore the model, forcing a reload. this is important because
-						// we know the file has changed on disk after the move and the
-						// model might have still existed with the previous state. this
-						// ensures we are not tracking a stale state.
-						const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding });
-
-						// restore previous dirty content if any and ensure to mark the model as dirty
-						let textBufferFactory: ITextBufferFactory | undefined = undefined;
-						if (modelToRestore.snapshot) {
-							textBufferFactory = createTextBufferFactoryFromSnapshot(modelToRestore.snapshot);
+			// Create: Revert existing models
+			case FileOperation.CREATE:
+				e.waitUntil((async () => {
+					for (const { target } of e.files) {
+						const model = this.get(target);
+						if (model && !model.isDisposed()) {
+							await model.revert();
 						}
+					}
+				})());
+				break;
 
-						// restore previous mode only if the mode is now unspecified
-						let preferredMode: string | undefined = undefined;
-						if (restoredModel.getMode() === PLAINTEXT_MODE_ID && modelToRestore.mode !== PLAINTEXT_MODE_ID) {
-							preferredMode = modelToRestore.mode;
-						}
+			// Move/Copy: restore models that were loaded before the operation took place
+			case FileOperation.MOVE:
+			case FileOperation.COPY:
+				e.waitUntil((async () => {
+					const modelsToRestore = this.mapCorrelationIdToModelsToRestore.get(e.correlationId);
+					if (modelsToRestore) {
+						this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
-						if (textBufferFactory || preferredMode) {
-							restoredModel.updateTextEditorModel(textBufferFactory, preferredMode);
-						}
-					}));
-				}
-			})());
+						await Promise.all(modelsToRestore.map(async modelToRestore => {
+
+							// restore the model, forcing a reload. this is important because
+							// we know the file has changed on disk after the move and the
+							// model might have still existed with the previous state. this
+							// ensures we are not tracking a stale state.
+							const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding });
+
+							// restore previous dirty content if any and ensure to mark the model as dirty
+							let textBufferFactory: ITextBufferFactory | undefined = undefined;
+							if (modelToRestore.snapshot) {
+								textBufferFactory = createTextBufferFactoryFromSnapshot(modelToRestore.snapshot);
+							}
+
+							// restore previous mode only if the mode is now unspecified
+							let preferredMode: string | undefined = undefined;
+							if (restoredModel.getMode() === PLAINTEXT_MODE_ID && modelToRestore.mode !== PLAINTEXT_MODE_ID) {
+								preferredMode = modelToRestore.mode;
+							}
+
+							if (textBufferFactory || preferredMode) {
+								restoredModel.updateTextEditorModel(textBufferFactory, preferredMode);
+							}
+						}));
+					}
+				})());
+				break;
 		}
 	}
 
@@ -280,16 +308,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
 			modelPromise = model.load(options);
 
-			// Install model listeners
-			const modelListeners = new DisposableStore();
-			modelListeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model: newModel, reason })));
-			modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(newModel)));
-			modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(newModel)));
-			modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: newModel, reason })));
-			modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(newModel)));
-			modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(newModel)));
-
-			this.mapResourceToModelListeners.set(resource, modelListeners);
+			this.registerModel(newModel);
 		}
 
 		// Store pending loads to avoid race conditions
@@ -298,9 +317,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Make known to manager (if not already known)
 		this.add(resource, model);
 
-		// Signal as event if we created the model
+		// Emit some events if we created the model
 		if (didCreateModel) {
 			this._onDidCreate.fire(model);
+
+			// If the model is dirty right from the beginning,
+			// make sure to emit this as an event
+			if (model.isDirty()) {
+				this._onDidChangeDirty.fire(model);
+			}
 		}
 
 		try {
@@ -335,7 +360,22 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	add(resource: URI, model: TextFileEditorModel): void {
+	private registerModel(model: TextFileEditorModel): void {
+
+		// Install model listeners
+		const modelListeners = new DisposableStore();
+		modelListeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model, reason })));
+		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
+		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
+		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: model, reason })));
+		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
+		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
+
+		// Keep for disposal
+		this.mapResourceToModelListeners.set(model.resource, modelListeners);
+	}
+
+	protected add(resource: URI, model: TextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel.get(resource);
 		if (knownModel === model) {
 			return; // already cached
@@ -352,7 +392,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToDisposeListener.set(resource, model.onDispose(() => this.remove(resource)));
 	}
 
-	remove(resource: URI): void {
+	protected remove(resource: URI): void {
 		this.mapResourceToModel.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
@@ -376,7 +416,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 
@@ -389,32 +429,52 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToPendingModelLoaders.clear();
 
 		// dispose the dispose listeners
-		this.mapResourceToDisposeListener.forEach(l => l.dispose());
+		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
 		this.mapResourceToDisposeListener.clear();
 
 		// dispose the model change listeners
-		this.mapResourceToModelListeners.forEach(l => l.dispose());
+		this.mapResourceToModelListeners.forEach(listener => listener.dispose());
 		this.mapResourceToModelListeners.clear();
 	}
 
-	disposeModel(model: TextFileEditorModel): void {
-		if (!model) {
-			return; // we need data!
+	canDispose(model: TextFileEditorModel): true | Promise<true> {
+
+		// quick return if model already disposed or not dirty and not loading
+		if (
+			model.isDisposed() ||
+			(!this.mapResourceToPendingModelLoaders.has(model.resource) && !model.isDirty())
+		) {
+			return true;
 		}
 
-		if (model.isDisposed()) {
-			return; // already disposed
+		// promise based return in all other cases
+		return this.doCanDispose(model);
+	}
+
+	private async doCanDispose(model: TextFileEditorModel): Promise<true> {
+
+		// pending model load: wait for the load to finish before trying again
+		const pendingModelLoad = this.mapResourceToPendingModelLoaders.get(model.resource);
+		if (pendingModelLoad) {
+			try {
+				await pendingModelLoad;
+			} catch (error) {
+				// ignore any error
+			}
+
+			return this.canDispose(model);
 		}
 
-		if (this.mapResourceToPendingModelLoaders.has(model.resource)) {
-			return; // not yet loaded
-		}
-
+		// dirty model: we do not allow to dispose dirty models to prevent
+		// data loss cases. dirty models can only be disposed when they are
+		// either saved or reverted
 		if (model.isDirty()) {
-			return; // not saved
+			await Event.toPromise(model.onDidChangeDirty);
+
+			return this.canDispose(model);
 		}
 
-		model.dispose();
+		return true;
 	}
 
 	dispose(): void {

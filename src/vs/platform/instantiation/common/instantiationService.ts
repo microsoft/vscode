@@ -13,12 +13,6 @@ import { IdleValue } from 'vs/base/common/async';
 // TRACING
 const _enableTracing = false;
 
-// PROXY
-// Ghetto-declare of the global Proxy object. This isn't the proper way
-// but allows us to run this code in the browser without IE11.
-declare const Proxy: any;
-const _canUseProxy = typeof Proxy === 'function';
-
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
@@ -28,7 +22,7 @@ class CyclicDependencyError extends Error {
 
 export class InstantiationService implements IInstantiationService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _services: ServiceCollection;
 	private readonly _strict: boolean;
@@ -102,8 +96,7 @@ export class InstantiationService implements IInstantiationService {
 
 		// check for argument mismatches, adjust static args if needed
 		if (args.length !== firstServiceArgPos) {
-			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${
-				firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
+			console.warn(`[createInstance] First service dependency of ${ctor.name} at position ${firstServiceArgPos + 1} conflicts with ${args.length} static arguments`);
 
 			let delta = firstServiceArgPos - args.length;
 			if (delta > 0) {
@@ -157,7 +150,7 @@ export class InstantiationService implements IInstantiationService {
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks
-			if (cycleCount++ > 200) {
+			if (cycleCount++ > 1000) {
 				throw new CyclicDependencyError(graph);
 			}
 
@@ -190,9 +183,15 @@ export class InstantiationService implements IInstantiationService {
 			}
 
 			for (const { data } of roots) {
-				// create instance and overwrite the service collections
-				const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
-				this._setServiceInstance(data.id, instance);
+				// Repeat the check for this still being a service sync descriptor. That's because
+				// instantiating a dependency might have side-effect and recursively trigger instantiation
+				// so that some dependencies are now fullfilled already.
+				const instanceOrDesc = this._getServiceInstanceOrDescriptor(data.id);
+				if (instanceOrDesc instanceof SyncDescriptor) {
+					// create instance and overwrite the service collections
+					const instance = this._createServiceInstanceWithOwner(data.id, data.desc.ctor, data.desc.staticArguments, data.desc.supportsDelayedInstantiation, data._trace);
+					this._setServiceInstance(data.id, instance);
+				}
 				graph.removeNode(data);
 			}
 		}
@@ -211,8 +210,8 @@ export class InstantiationService implements IInstantiationService {
 	}
 
 	private _createServiceInstance<T>(ctor: any, args: any[] = [], _supportsDelayedInstantiation: boolean, _trace: Trace): T {
-		if (!_supportsDelayedInstantiation || !_canUseProxy) {
-			// eager instantiation or no support JS proxies (e.g. IE11)
+		if (!_supportsDelayedInstantiation) {
+			// eager instantiation
 			return this._createInstance(ctor, args, _trace);
 
 		} else {
@@ -225,7 +224,7 @@ export class InstantiationService implements IInstantiationService {
 					if (key in target) {
 						return target[key];
 					}
-					let obj = idle.getValue();
+					let obj = idle.value;
 					let prop = obj[key];
 					if (typeof prop !== 'function') {
 						return prop;
@@ -235,7 +234,7 @@ export class InstantiationService implements IInstantiationService {
 					return prop;
 				},
 				set(_target: T, p: PropertyKey, value: any): boolean {
-					idle.getValue()[p] = value;
+					idle.value[p] = value;
 					return true;
 				}
 			});

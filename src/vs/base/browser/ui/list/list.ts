@@ -63,14 +63,6 @@ export interface IIdentityProvider<T> {
 	getId(element: T): { toString(): string; };
 }
 
-export enum ListAriaRootRole {
-	/** default tree structure role */
-	TREE = 'tree',
-
-	/** role='tree' can interfere with screenreaders reading nested elements inside the tree row. Use FORM in that case. */
-	FORM = 'form'
-}
-
 export interface IKeyboardNavigationLabelProvider<T> {
 
 	/**

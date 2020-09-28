@@ -11,14 +11,14 @@ import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hashPath } from 'vs/workbench/services/backup/node/backupFileService';
-import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-browser/backupTracker';
+import { NativeBackupTracker } from 'vs/workbench/contrib/backup/electron-sandbox/backupTracker';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, IUntitledTextResourceInput } from 'vs/workbench/common/editor';
+import { EditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -32,19 +32,19 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ILogService } from 'vs/platform/log/common/log';
 import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestFilesConfigurationService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFilesConfigurationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const userdataDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'backuprestorer');
 const backupHome = path.join(userdataDir, 'Backups');
@@ -60,15 +60,15 @@ class TestBackupTracker extends NativeBackupTracker {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService dialogService: IDialogService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IElectronService electronService: IElectronService,
+		@INativeHostService nativeHostService: INativeHostService,
 		@ILogService logService: ILogService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, environmentService, fileDialogService, dialogService, contextService, electronService, logService, editorService);
+		super(backupFileService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, editorService, environmentService);
 
 		// Reduce timeout for tests
 		BackupTracker.BACKUP_FROM_CONTENT_CHANGE_DELAY = 10;
@@ -105,6 +105,7 @@ suite('BackupTracker', () => {
 		// Delete any existing backups completely and then re-create it.
 		await pfs.rimraf(backupHome, pfs.RimRafMode.MOVE);
 		await pfs.mkdirp(backupHome);
+		await pfs.mkdirp(workspaceBackupPath);
 
 		return pfs.writeFile(workspacesJsonPath, '');
 	});
@@ -131,8 +132,7 @@ suite('BackupTracker', () => {
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService,
-			TestEnvironmentService
+			configurationService
 		));
 
 		const part = instantiationService.createInstance(EditorPart);
@@ -153,7 +153,7 @@ suite('BackupTracker', () => {
 		return [accessor, part, tracker, instantiationService];
 	}
 
-	async function untitledBackupTest(untitled: IUntitledTextResourceInput = {}): Promise<void> {
+	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
 		const [accessor, part, tracker] = await createTracker();
 
 		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
@@ -451,7 +451,7 @@ suite('BackupTracker', () => {
 
 			// Set multiple windows if required
 			if (multipleWindows) {
-				accessor.electronService.windowCount = Promise.resolve(2);
+				accessor.nativeHostService.windowCount = Promise.resolve(2);
 			}
 
 			// Set cancel to force a veto if hot exit does not trigger

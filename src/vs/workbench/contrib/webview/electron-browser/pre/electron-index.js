@@ -16,7 +16,6 @@
 		};
 	}());
 
-	// @ts-ignore
 	const ipcRenderer = require('electron').ipcRenderer;
 
 	let isInDevelopmentMode = false;
@@ -25,6 +24,7 @@
 	 * @type {import('../../browser/pre/main').WebviewHost}
 	 */
 	const host = {
+		onElectron: true,
 		postMessage: (channel, data) => {
 			ipcRenderer.sendToHost(channel, data);
 		},
@@ -62,7 +62,10 @@
 				isMouseDown = false;
 			});
 			newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
-		}
+		},
+		rewriteCSP: (csp) => {
+			return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
+		},
 	};
 
 	host.onMessage('devtools-opened', () => {

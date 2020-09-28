@@ -219,6 +219,7 @@ type CommentThreadModification = Partial<{
 	contextValue: string | undefined,
 	comments: vscode.Comment[],
 	collapsibleState: vscode.CommentThreadCollapsibleState
+	readOnly: boolean;
 }>;
 
 export class ExtHostCommentThread implements vscode.CommentThread {
@@ -261,6 +262,19 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 
 	get range(): vscode.Range {
 		return this._range;
+	}
+
+	private _readonly: boolean = false;
+
+	set readOnly(state: boolean) {
+		if (this._readonly !== state) {
+			this._readonly = state;
+			this.modifications.readOnly = state;
+			this._onDidUpdateCommentThread.fire();
+		}
+	}
+	get readOnly() {
+		return this._readonly;
 	}
 
 	private _label: string | undefined;
@@ -387,6 +401,9 @@ export class ExtHostCommentThread implements vscode.CommentThread {
 		if (modified('collapsibleState')) {
 			formattedModifications.collapseState = convertToCollapsibleState(this._collapseState);
 		}
+		if (modified('readOnly')) {
+			formattedModifications.readOnly = this.readOnly;
+		}
 		this.modifications = {};
 
 		this._proxy.$updateCommentThread(
@@ -449,6 +466,18 @@ class ExtHostCommentController implements vscode.CommentController {
 		this._reactionHandler = handler;
 
 		this._proxy.$updateCommentControllerFeatures(this.handle, { reactionHandler: !!handler });
+	}
+
+	private _options: modes.CommentOptions | undefined;
+
+	get options() {
+		return this._options;
+	}
+
+	set options(options: modes.CommentOptions | undefined) {
+		this._options = options;
+
+		this._proxy.$updateCommentControllerFeatures(this.handle, { options: this._options });
 	}
 
 	constructor(

@@ -8,11 +8,16 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { values, ResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { ITextSnapshot } from 'vs/editor/common/model';
 
 export const enum WorkingCopyCapabilities {
+
+	/**
+	 * Signals no specific capability for the working copy.
+	 */
+	None = 0,
 
 	/**
 	 * Signals that the working copy requires
@@ -27,12 +32,12 @@ export const enum WorkingCopyCapabilities {
  * `IBackupFileService.resolve(workingCopy.resource)` to
  * retrieve the backup when loading the working copy.
  */
-export interface IWorkingCopyBackup {
+export interface IWorkingCopyBackup<MetaType = object> {
 
 	/**
 	 * Any serializable metadata to be associated with the backup.
 	 */
-	meta?: object;
+	meta?: MetaType;
 
 	/**
 	 * Use this for larger textual content of the backup.
@@ -117,7 +122,7 @@ export const IWorkingCopyService = createDecorator<IWorkingCopyService>('working
 
 export interface IWorkingCopyService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 
 	//#region Events
@@ -163,7 +168,7 @@ export interface IWorkingCopyService {
 
 export class WorkingCopyService extends Disposable implements IWorkingCopyService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region Events
 
@@ -184,14 +189,14 @@ export class WorkingCopyService extends Disposable implements IWorkingCopyServic
 
 	//#region Registry
 
-	get workingCopies(): IWorkingCopy[] { return values(this._workingCopies); }
+	get workingCopies(): IWorkingCopy[] { return Array.from(this._workingCopies.values()); }
 	private _workingCopies = new Set<IWorkingCopy>();
 
 	private readonly mapResourceToWorkingCopy = new ResourceMap<IWorkingCopy>();
 
 	registerWorkingCopy(workingCopy: IWorkingCopy): IDisposable {
 		if (this.mapResourceToWorkingCopy.has(workingCopy.resource)) {
-			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString()}.`);
+			throw new Error(`Cannot register more than one working copy with the same resource ${workingCopy.resource.toString(true)}.`);
 		}
 
 		const disposables = new DisposableStore();

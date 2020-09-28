@@ -23,6 +23,7 @@ export interface IIconLabelValueOptions {
 	hideIcon?: boolean;
 	extraClasses?: string[];
 	italic?: boolean;
+	strikethrough?: boolean;
 	matches?: IMatch[];
 	labelEscapeNewLines?: boolean;
 	descriptionMatches?: IMatch[];
@@ -136,6 +137,10 @@ export class IconLabel extends Disposable {
 			if (options.italic) {
 				classes.push('italic');
 			}
+
+			if (options.strikethrough) {
+				classes.push('strikethrough');
+			}
 		}
 
 		this.domNode.className = classes.join(' ');
@@ -182,22 +187,22 @@ class Label {
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
-				this.container.innerHTML = '';
-				dom.removeClass(this.container, 'multiple');
+				this.container.innerText = '';
+				this.container.classList.remove('multiple');
 				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
 
 			this.singleLabel.textContent = label;
 		} else {
-			this.container.innerHTML = '';
-			dom.addClass(this.container, 'multiple');
+			this.container.innerText = '';
+			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
 			for (let i = 0; i < label.length; i++) {
 				const l = label[i];
 				const id = options?.domId && `${options?.domId}_${i}`;
 
-				dom.append(this.container, dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i }, l));
+				dom.append(this.container, dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' }, l));
 
 				if (i < label.length - 1) {
 					dom.append(this.container, dom.$('span.label-separator', undefined, options?.separator || '/'));
@@ -245,16 +250,15 @@ class LabelWithHighlights {
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
-				this.container.innerHTML = '';
-				dom.removeClass(this.container, 'multiple');
+				this.container.innerText = '';
+				this.container.classList.remove('multiple');
 				this.singleLabel = new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), this.supportCodicons);
 			}
 
 			this.singleLabel.set(label, options?.matches, options?.title, options?.labelEscapeNewLines);
 		} else {
-
-			this.container.innerHTML = '';
-			dom.addClass(this.container, 'multiple');
+			this.container.innerText = '';
+			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
 			const separator = options?.separator || '/';
@@ -265,7 +269,7 @@ class LabelWithHighlights {
 				const m = matches ? matches[i] : undefined;
 				const id = options?.domId && `${options?.domId}_${i}`;
 
-				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i });
+				const name = dom.$('a.label-name', { id, 'data-icon-label-count': label.length, 'data-icon-label-index': i, 'role': 'treeitem' });
 				const highlightedLabel = new HighlightedLabel(dom.append(this.container, name), this.supportCodicons);
 				highlightedLabel.set(l, m, options?.title, options?.labelEscapeNewLines);
 

@@ -6,16 +6,18 @@
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $, addClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from 'vs/workbench/common/theme';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 
 export abstract class ExtensionWidget extends Disposable implements IExtensionContainer {
 	private _extension: IExtension | null = null;
@@ -49,12 +51,12 @@ export class InstallCountWidget extends ExtensionWidget {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
-		addClass(container, 'extension-install-count');
+		container.classList.add('extension-install-count');
 		this.render();
 	}
 
 	render(): void {
-		this.container.innerHTML = '';
+		this.container.innerText = '';
 
 		if (!this.extension) {
 			return;
@@ -94,17 +96,17 @@ export class RatingsWidget extends ExtensionWidget {
 		private small: boolean
 	) {
 		super();
-		addClass(container, 'extension-ratings');
+		container.classList.add('extension-ratings');
 
 		if (this.small) {
-			addClass(container, 'small');
+			container.classList.add('small');
 		}
 
 		this.render();
 	}
 
 	render(): void {
-		this.container.innerHTML = '';
+		this.container.innerText = '';
 
 		if (!this.extension) {
 			return;
@@ -158,12 +160,7 @@ export class TooltipWidget extends ExtensionWidget {
 	}
 
 	render(): void {
-		this.parent.title = '';
-		this.parent.removeAttribute('aria-label');
 		this.parent.title = this.getTooltip();
-		if (this.extension) {
-			this.parent.setAttribute('aria-label', localize('extension-arialabel', "{0}. Press enter for extension details.", this.extension.displayName));
-		}
 	}
 
 	private getTooltip(): string {
@@ -197,17 +194,16 @@ export class RecommendationWidget extends ExtensionWidget {
 	constructor(
 		private parent: HTMLElement,
 		@IThemeService private readonly themeService: IThemeService,
-		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService
+		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService
 	) {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionTipsService.onRecommendationChange(() => this.render()));
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
 	}
 
 	private clear(): void {
 		this.tooltip = '';
-		this.parent.setAttribute('aria-label', this.extension ? localize('viewExtensionDetailsAria', "{0}. Press enter for extension details.", this.extension.displayName) : '');
 		if (this.element) {
 			this.parent.removeChild(this.element);
 		}
@@ -220,9 +216,9 @@ export class RecommendationWidget extends ExtensionWidget {
 		if (!this.extension) {
 			return;
 		}
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
 		if (extRecommendations[this.extension.identifier.id.toLowerCase()]) {
-			this.element = append(this.parent, $('div.bookmark'));
+			this.element = append(this.parent, $('div.extension-bookmark'));
 			const recommendation = append(this.element, $('.recommendation'));
 			append(recommendation, $('span.codicon.codicon-star'));
 			const applyBookmarkStyle = (theme: IColorTheme) => {
@@ -285,7 +281,7 @@ class RemoteBadge extends Disposable {
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super();
-		this.element = $('div.extension-remote-badge');
+		this.element = $('div.extension-badge.extension-remote-badge');
 		this.render();
 	}
 
@@ -313,5 +309,34 @@ class RemoteBadge extends Disposable {
 			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
 			updateTitle();
 		}
+	}
+}
+
+export class ExtensionPackCountWidget extends ExtensionWidget {
+
+	private element: HTMLElement | undefined;
+
+	constructor(
+		private readonly parent: HTMLElement,
+	) {
+		super();
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+	}
+
+	private clear(): void {
+		if (this.element) {
+			this.element.remove();
+		}
+	}
+
+	render(): void {
+		this.clear();
+		if (!this.extension || !this.extension.extensionPack.length) {
+			return;
+		}
+		this.element = append(this.parent, $('.extension-badge.extension-pack-badge'));
+		const countBadge = new CountBadge(this.element);
+		countBadge.setCount(this.extension.extensionPack.length);
 	}
 }
