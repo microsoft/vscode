@@ -21,8 +21,9 @@ class SCMInput implements ISCMInput {
 	set value(value: string) {
 		if (value === this._value) {
 			return;
+		} else if (!value) {
+			this.index = 0;
 		}
-
 		this._value = value;
 		this.saveLatest();
 		this._onDidChange.fire(value);
@@ -162,11 +163,15 @@ class SCMInput implements ISCMInput {
 	}
 
 	save(): void {
-		let root = this.repository.provider.rootUri;
-		if (root) {
-			this.history.push(this.value);
-			const key = `scm/input:${this.repository.provider.label}:${root.path}`;
-			this.storageService.store(key, JSON.stringify(this.history), StorageScope.WORKSPACE);
+		if (!this.value) {
+			this.index = 0;
+		} else {
+			let root = this.repository.provider.rootUri;
+			if (root) {
+				this.history.push(this.value);
+				const key = `scm/input:${this.repository.provider.label}:${root.path}`;
+				this.storageService.store(key, JSON.stringify(this.history), StorageScope.WORKSPACE);
+			}
 		}
 	}
 }
