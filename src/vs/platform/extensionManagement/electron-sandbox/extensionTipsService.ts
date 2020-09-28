@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
 import { timeout } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationNotificationService, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
@@ -128,7 +128,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		for (const [, tips] of recommendationsByExe) {
 			const extensionIds = tips.map(({ extensionId }) => extensionId.toLowerCase());
 			const message = localize('exeRecommended', "You have {0} installed on your system. Do you want to install the recommended extensions for it?", tips[0].exeFriendlyName);
-			this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`)
+			this.extensionRecommendationNotificationService.promptImportantExtensionsInstallNotification(extensionIds, message, `@exe:"${tips[0].exeName}"`, RecommendationSource.EXE)
 				.then(result => {
 					if (result) {
 						this.addToRecommendedExecutables(tips[0].exeName, extensionIds);

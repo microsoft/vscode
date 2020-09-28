@@ -5,14 +5,16 @@
 
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
+import { CancelablePromise, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationNotificationService, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
@@ -40,8 +42,18 @@ type ExtensionWorkspaceRecommendationsNotificationClassification = {
 };
 
 const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/importantRecommendationsIgnore';
-const ignoreWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
+const donotShowWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
+
+type RecommendationNotification = {
+	severity: Severity,
+	message: string,
+	choices: IPromptChoice[],
+	options?: IPromptOptions,
+	priority: RecommendationSource,
+};
+type VisibleRecommendationNotification = RecommendationNotification & { notificationHandle: INotificationHandle, from: number };
+type PendingRecommendationNotification = RecommendationNotification & { onDidShow: (notificationHandle: INotificationHandle) => void };
 
 export class ExtensionRecommendationNotificationService implements IExtensionRecommendationNotificationService {
 
@@ -53,6 +65,10 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	get ignoredRecommendations(): string[] {
 		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase()));
 	}
+
+	private hideVisibleNotificationPromise: CancelablePromise<void> | undefined;
+	private visibleNotification: VisibleRecommendationNotification | undefined;
+	private pendingNotificaitons: PendingRecommendationNotification[] = [];
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -76,7 +92,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		return config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand;
 	}
 
-	async promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string): Promise<boolean> {
+	async promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, priority: RecommendationSource): Promise<boolean> {
 		if (this.hasToIgnoreRecommendationNotifications()) {
 			return false;
 		}
@@ -96,10 +112,13 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 		}
 
-		return new Promise<boolean>((c, e) => {
+		return new Promise<boolean>(async (c, e) => {
 			let cancelled: boolean = false;
-			const handle = this.notificationService.prompt(Severity.Info, message,
-				[{
+			const handle = await this.showNotification({
+				severity: Severity.Info,
+				message,
+				priority: priority,
+				choices: [{
 					label: localize('install', "Install"),
 					run: async () => {
 						this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
@@ -139,7 +158,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 						);
 					}
 				}],
-				{
+				options: {
 					sticky: true,
 					onCancel: () => {
 						cancelled = true;
@@ -148,6 +167,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 						}
 					}
 				}
+			}
 			);
 			const disposable = handle.onDidClose(() => {
 				disposable.dispose();
@@ -156,9 +176,9 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		});
 	}
 
-	async promptWorkspaceRecommendations(recommendations: string[]): Promise<boolean> {
+	async promptWorkspaceRecommendations(recommendations: string[]): Promise<void> {
 		if (this.hasToIgnoreWorkspaceRecommendationNotifications()) {
-			return false;
+			return;
 		}
 
 		let installed = await this.extensionManagementService.getInstalled();
@@ -166,19 +186,20 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		recommendations = recommendations.filter(extensionId => installed.every(local => !areSameExtensions({ id: extensionId }, local.identifier)));
 
 		if (!recommendations.length) {
-			return false;
+			return;
 		}
 
 		const extensions = await this.getInstallableExtensions(recommendations);
 		if (!extensions.length) {
-			return false;
+			return;
 		}
 
 		const searchValue = '@recommended ';
-		this.notificationService.prompt(
-			Severity.Info,
-			localize('workspaceRecommended', "Do you want to install the recommended extensions for this repository?"),
-			[{
+		let cancelled = false;
+		const handle = await this.showNotification({
+			severity: Severity.Info,
+			message: localize('workspaceRecommended', "Do you want to install the recommended extensions for this repository?"),
+			choices: [{
 				label: localize('install', "Install"),
 				run: async () => {
 					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
@@ -198,22 +219,103 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 				isSecondary: true,
 				run: () => {
 					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
-					this.storageService.store(ignoreWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
 				}
 			}],
-			{
+			options: {
 				sticky: true,
 				onCancel: () => {
+					cancelled = true;
 					this.telemetryService.publicLog2<{ userReaction: string }, ExtensionWorkspaceRecommendationsNotificationClassification>('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
 				}
-			}
-		);
+			},
+			priority: RecommendationSource.WORKSPACE
+		});
 
-		return true;
+		const disposable = handle.onDidClose(() => {
+			disposable.dispose();
+			if (!cancelled) {
+				this.storageService.store(donotShowWorkspaceRecommendationsStorageKey, true, StorageScope.WORKSPACE);
+			}
+		});
+
+	}
+
+	/**
+	 * Show recommendations in Queue
+	 * At any time only one recommendation is shown
+	 * If a new recommendation comes in
+	 * 		=> If no recommendation is visible, show it immediately
+	 *		=> Otherwise, add to the pending queue
+	 * 			=> If it is higher or same priority, hide the current notification after showing it for 3s.
+	 * 			=> Otherwise wait until the current notification is hidden.
+	 */
+	private async showNotification(recommendationNotification: RecommendationNotification): Promise<INotificationHandle> {
+		if (this.visibleNotification) {
+			return new Promise<INotificationHandle>((onDidShow, e) => {
+				this.pendingNotificaitons.push({ ...recommendationNotification, onDidShow });
+				if (recommendationNotification.priority <= this.visibleNotification!.priority) {
+					this.hideVisibleNotification(3000);
+				}
+			});
+		} else {
+			const notificationHandle = this.notificationService.prompt(recommendationNotification.severity, recommendationNotification.message, recommendationNotification.choices, recommendationNotification.options);
+			this.visibleNotification = { ...recommendationNotification, notificationHandle, from: Date.now() };
+			const disposable = Event.once(Event.filter(notificationHandle.onDidChangeVisibility, e => !e))(() => {
+				disposable.dispose();
+				this.showNextNotification();
+			});
+			return notificationHandle;
+		}
+	}
+
+	private showNextNotification(): void {
+		const index = this.getNextPendingNotificationIndex();
+		const [nextNotificaiton] = index > -1 ? this.pendingNotificaitons.splice(index, 1) : [];
+
+		// Show the next notification after a delay of 500ms (after the current notification is dismissed)
+		timeout(nextNotificaiton ? 500 : 0)
+			.then(() => {
+				this.unsetVisibileNotification();
+				if (nextNotificaiton) {
+					this.showNotification(nextNotificaiton).then(nextNotificaiton.onDidShow);
+				}
+			});
+	}
+
+	/**
+	 * Return the recent high priroity pending notification
+	 */
+	private getNextPendingNotificationIndex(): number {
+		let index = this.pendingNotificaitons.length - 1;
+		if (this.pendingNotificaitons.length) {
+			for (let i = 0; i < this.pendingNotificaitons.length; i++) {
+				if (this.pendingNotificaitons[i].priority <= this.pendingNotificaitons[index].priority) {
+					index = i;
+				}
+			}
+		}
+		return index;
+	}
+
+	private hideVisibleNotification(timeInMillis: number): void {
+		if (this.visibleNotification && !this.hideVisibleNotificationPromise) {
+			const visibleRecommendationNotification = this.visibleNotification;
+			this.hideVisibleNotificationPromise = timeout(Math.max(timeInMillis - (Date.now() - visibleRecommendationNotification.from), 0));
+			this.hideVisibleNotificationPromise.then(() => {
+				visibleRecommendationNotification.notificationHandle.close();
+				this.notificationService.prompt(visibleRecommendationNotification.severity, visibleRecommendationNotification.message, visibleRecommendationNotification.choices, { ...visibleRecommendationNotification.options, silent: true, sticky: false });
+			});
+		}
+	}
+
+	private unsetVisibileNotification(): void {
+		this.hideVisibleNotificationPromise?.cancel();
+		this.hideVisibleNotificationPromise = undefined;
+		this.visibleNotification = undefined;
 	}
 
 	private hasToIgnoreWorkspaceRecommendationNotifications(): boolean {
-		return this.hasToIgnoreRecommendationNotifications() || this.storageService.getBoolean(ignoreWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE, false);
+		return this.hasToIgnoreRecommendationNotifications() || this.storageService.getBoolean(donotShowWorkspaceRecommendationsStorageKey, StorageScope.WORKSPACE, false);
 	}
 
 	private async getInstallableExtensions(extensionIds: string[]): Promise<IExtension[]> {
