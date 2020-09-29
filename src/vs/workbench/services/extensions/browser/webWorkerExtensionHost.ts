@@ -73,11 +73,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 	}
 
 	private _wrapInIframe(): boolean {
-		if (this._environmentService.options && typeof this._environmentService.options._wrapWebWorkerExtHostInIframe === 'boolean') {
-			return this._environmentService.options._wrapWebWorkerExtHostInIframe;
-		}
-		// wrap in <iframe> by default
-		return true;
+		return false;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
