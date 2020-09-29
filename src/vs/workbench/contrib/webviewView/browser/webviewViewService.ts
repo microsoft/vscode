@@ -44,10 +44,6 @@ export class WebviewViewService extends Disposable implements IWebviewViewServic
 
 	private readonly _awaitingRevival = new Map<string, { webview: WebviewView, resolve: () => void }>();
 
-	constructor() {
-		super();
-	}
-
 	register(viewType: string, resolver: IWebviewViewResolver): IDisposable {
 		if (this._views.has(viewType)) {
 			throw new Error(`View resolver already registered for ${viewType}`);
