@@ -16,13 +16,11 @@ import { forEach, IStringDictionary } from 'vs/base/common/collections';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtensionTipsService as BaseExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionTipsService';
-import { timeout } from 'vs/base/common/async';
+import { disposableTimeout, timeout } from 'vs/base/common/async';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Event } from 'vs/base/common/event';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -55,7 +53,6 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
-		@INativeHostService private readonly nativeHostMainService: INativeHostService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRequestService requestService: IRequestService,
@@ -176,8 +173,8 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 						this.highImportanceTipsByExe.delete(exeName);
 						break;
 					case RecommendationsNotificationResult.TooMany:
-						// It is skipped. So try to recommend when new window is opened
-						this._register(Event.once(this.nativeHostMainService.onWindowOpen)(() => this.promptHighImportanceExeBasedTip()));
+						// Too many notifications. Schedule the prompt after one hour
+						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
 						break;
 				}
 			});
@@ -187,36 +184,44 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 	 * Medium importance tips are prompted once per 7 days
 	 */
 	private promptMediumImportanceExeBasedTip(): void {
-		if (this.mediumImportanceExecutableTips.size === 0) {
+		if (this.mediumImportanceTipsByExe.size === 0) {
 			return;
 		}
 
 		const lastPromptedMediumExeTime = this.getLastPromptedMediumExeTime();
-		if ((Date.now() - lastPromptedMediumExeTime) < 7 * 24 * 60 * 60 * 1000) { // 7 Days
-			// Not 7 days yet. So try to recommend when new window is opened
-			this._register(Event.once(this.nativeHostMainService.onWindowOpen)(() => this.promptMediumImportanceExeBasedTip()));
+		const timeSinceLastPrompt = Date.now() - lastPromptedMediumExeTime;
+		const promptInterval = 7 * 24 * 60 * 60 * 1000; // 7 Days
+		if (timeSinceLastPrompt < promptInterval) {
+			// Wait until interval and prompt
+			const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval - timeSinceLastPrompt));
 			return;
 		}
 
-		this.updateLastPromptedMediumExeTime(Date.now());
 		const [exeName, tips] = [...this.mediumImportanceTipsByExe.entries()][0];
 		this.promptExeRecommendations(tips)
 			.then(result => {
 				switch (result) {
 					case RecommendationsNotificationResult.Accepted:
+						// Accepted: Update the last prompted time and caches.
+						this.updateLastPromptedMediumExeTime(Date.now());
 						this.mediumImportanceTipsByExe.delete(exeName);
 						this.addToRecommendedExecutables(tips[0].exeName, tips);
+
+						// Schedule the next recommendation for next internval
+						const disposable1 = this._register(disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval));
 						break;
-					case RecommendationsNotificationResult.TooMany:
-						this.updateLastPromptedMediumExeTime(lastPromptedMediumExeTime);
-						break;
+
 					case RecommendationsNotificationResult.Ignored:
-						this.updateLastPromptedMediumExeTime(lastPromptedMediumExeTime);
-						this.mediumImportanceExecutableTips.delete(exeName);
+						// Ignored: Remove from the cache and prompt next recommendation
+						this.mediumImportanceTipsByExe.delete(exeName);
+						this.promptMediumImportanceExeBasedTip();
+						break;
+
+					case RecommendationsNotificationResult.TooMany:
+						// Too many notifications. Schedule the prompt after one hour
+						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
 						break;
 				}
-				// Schedule next prompt when new window is opened
-				this._register(Event.once(this.nativeHostMainService.onWindowOpen)(() => this.promptMediumImportanceExeBasedTip()));
 			});
 	}
 
