@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtHostRpcService, ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService, URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { IExtHostExtensionService, IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 
 export interface IExitFn {
 	(code?: number): any;
@@ -61,6 +62,9 @@ export class ExtensionHostMain {
 
 		// todo@joh
 		// ugly self - inject
+		const terminalService = instaService.invokeFunction(accessor => accessor.get(IExtHostTerminalService));
+		this._disposables.add(terminalService);
+
 		const logService = instaService.invokeFunction(accessor => accessor.get(ILogService));
 		this._disposables.add(logService);
 

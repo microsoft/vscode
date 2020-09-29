@@ -104,7 +104,7 @@ suite('On type rename', () => {
 
 			await operations(testEditor);
 
-			return new Promise((resolve) => {
+			return new Promise<void>((resolve) => {
 				setTimeout(() => {
 					if (typeof expectedEndText === 'string') {
 						assert.equal(editor.getModel()!.getValue(), expectedEndText);

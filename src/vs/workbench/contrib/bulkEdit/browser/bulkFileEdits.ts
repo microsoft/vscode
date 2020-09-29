@@ -9,7 +9,7 @@ import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoService, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -71,7 +71,7 @@ class CreateOperation implements IFileOperation {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
 		await this._workingCopyFileService.create(this.newUri, this.contents, { overwrite: this.options.overwrite });
-		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options);
+		return this._instaService.createInstance(DeleteOperation, this.newUri, this.options, true);
 	}
 }
 
@@ -80,6 +80,7 @@ class DeleteOperation implements IFileOperation {
 	constructor(
 		readonly oldUri: URI,
 		readonly options: WorkspaceFileEditOptions,
+		private readonly _undoesCreateOperation: boolean,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -101,10 +102,12 @@ class DeleteOperation implements IFileOperation {
 		}
 
 		let contents: VSBuffer | undefined;
-		try {
-			contents = (await this._fileService.readFile(this.oldUri)).value;
-		} catch (err) {
-			this._logService.critical(err);
+		if (!this._undoesCreateOperation) {
+			try {
+				contents = (await this._fileService.readFile(this.oldUri)).value;
+			} catch (err) {
+				this._logService.critical(err);
+			}
 		}
 
 		const useTrash = this._fileService.hasCapability(this.oldUri, FileSystemProviderCapabilities.Trash) && this._configurationService.getValue<boolean>('files.enableTrash');
@@ -147,6 +150,7 @@ export class BulkFileEdits {
 
 	constructor(
 		private readonly _label: string,
+		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _progress: IProgress<void>,
 		private readonly _edits: ResourceFileEdit[],
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -165,7 +169,7 @@ export class BulkFileEdits {
 				op = this._instaService.createInstance(RenameOperation, edit.newResource, edit.oldResource, options);
 			} else if (!edit.newResource && edit.oldResource) {
 				// delete file
-				op = this._instaService.createInstance(DeleteOperation, edit.oldResource, options);
+				op = this._instaService.createInstance(DeleteOperation, edit.oldResource, options, false);
 			} else if (edit.newResource && !edit.oldResource) {
 				// create file
 				op = this._instaService.createInstance(CreateOperation, edit.newResource, options, undefined);
@@ -176,6 +180,6 @@ export class BulkFileEdits {
 			}
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations));
+		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup);
 	}
 }

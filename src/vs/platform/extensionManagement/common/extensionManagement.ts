@@ -10,6 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionManifest, IExtension, ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { FileAccess } from 'vs/base/common/network';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -84,6 +85,7 @@ export interface IGalleryExtension {
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
 	preview: boolean;
+	webResource?: URI;
 }
 
 export interface IGalleryMetadata {
@@ -204,9 +206,9 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
-	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension>;
+	install(vsix: URI): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
-	installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension>;
+	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
@@ -259,7 +261,9 @@ export interface IExtensionTipsService {
 }
 
 
-export const DefaultIconPath = require.toUrl('./media/defaultIcon.png');
+export const DefaultIconPath = FileAccess.asBrowserUri('./media/defaultIcon.png', require).toString(true);
 export const ExtensionsLabel = localize('extensions', "Extensions");
+export const ExtensionsLocalizedLabel = { value: ExtensionsLabel, original: 'Extensions' };
 export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");
+export const PreferencesLocalizedLabel = { value: PreferencesLabel, original: 'Preferences' };

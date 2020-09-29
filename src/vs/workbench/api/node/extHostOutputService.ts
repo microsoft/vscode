@@ -85,9 +85,12 @@ export class ExtHostOutputService2 extends ExtHostOutputService {
 	private async _doCreateOutChannel(name: string): Promise<AbstractExtHostOutputChannel> {
 		try {
 			const outputDirPath = join(this._logsLocation.fsPath, `output_logging_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
-			const outputDir = await dirExists(outputDirPath).then(exists => exists || mkdirp(outputDirPath).then(() => true)).then(() => outputDirPath);
+			const exists = await dirExists(outputDirPath);
+			if (!exists) {
+				await mkdirp(outputDirPath);
+			}
 			const fileName = `${this._namePool++}-${name.replace(/[\\/:\*\?"<>\|]/g, '')}`;
-			const file = URI.file(join(outputDir, `${fileName}.log`));
+			const file = URI.file(join(outputDirPath, `${fileName}.log`));
 			const appender = new OutputAppender(fileName, file.fsPath);
 			return new ExtHostOutputChannelBackedByFile(name, appender, this._proxy);
 		} catch (error) {

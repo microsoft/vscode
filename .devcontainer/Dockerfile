@@ -73,6 +73,7 @@ RUN apt-get update \
 		libnss3 \
 		libxss1 \
 		libasound2 \
+		libgbm1 \
 		xfonts-base \
 		xfonts-terminus \
 		fonts-noto \

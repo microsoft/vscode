@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorInput, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -65,6 +65,7 @@ export interface IExplorerView {
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
+	focusNeighbourIfItemFocused(item: ExplorerItem): void;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');
@@ -257,7 +258,11 @@ export class OpenEditor implements IEditorIdentifier {
 		return this._group.previewEditor === this.editor;
 	}
 
+	isSticky(): boolean {
+		return this._group.isSticky(this.editor);
+	}
+
 	getResource(): URI | undefined {
-		return toResource(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		return EditorResourceAccessor.getOriginalUri(this.editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	}
 }

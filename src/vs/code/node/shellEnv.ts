@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWindows } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 
 function getUnixShellEnvironment(logService: ILogService): Promise<typeof process.env> {
 	const promise = new Promise<typeof process.env>((resolve, reject) => {
@@ -66,7 +66,7 @@ function getUnixShellEnvironment(logService: ILogService): Promise<typeof proces
 					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
 				}
 
-				// https://github.com/Microsoft/vscode/issues/22593#issuecomment-336050758
+				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];
 
 				logService.trace('getUnixShellEnvironment#result', env);

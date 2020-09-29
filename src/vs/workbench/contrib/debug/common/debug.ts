@@ -61,6 +61,9 @@ export const CONTEXT_STEP_INTO_TARGETS_SUPPORTED = new RawContextKey<boolean>('s
 export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false);
 export const CONTEXT_DEBUGGERS_AVAILABLE = new RawContextKey<boolean>('debuggersAvailable', false);
 export const CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT = new RawContextKey<string>('debugProtocolVariableMenuContext', undefined);
+export const CONTEXT_SET_VARIABLE_SUPPORTED = new RawContextKey<boolean>('debugSetVariableSupported', false);
+export const CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED = new RawContextKey<boolean>('breakWhenValueChangesSupported', false);
+export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>('variableEvaluateNamePresent', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -162,6 +165,13 @@ export interface IDebugSessionOptions {
 	compact?: boolean;
 }
 
+export interface IDataBreakpointInfoResponse {
+	dataId: string | null;
+	description: string;
+	canPersist?: boolean,
+	accessTypes?: DebugProtocol.DataBreakpointAccessType[];
+}
+
 export interface IDebugSession extends ITreeElement {
 
 	readonly configuration: IConfig;
@@ -222,23 +232,24 @@ export interface IDebugSession extends ITreeElement {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean, accessTypes?: DebugProtocol.DataBreakpointAccessType[] } | undefined>;
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
 	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
 
-	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse>;
+	stackTrace(threadId: number, startFrame: number, levels: number, token: CancellationToken): Promise<DebugProtocol.StackTraceResponse | undefined>;
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
-	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse>;
-	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse>;
-	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse>;
-	customRequest(request: string, args: any): Promise<DebugProtocol.Response>;
-	cancel(progressId: string): Promise<DebugProtocol.CancelResponse>;
+	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse | undefined>;
+	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse | undefined>;
+	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined>;
+	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
+	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
 
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number): Promise<void>;
 	stepIn(threadId: number, targetId?: number): Promise<void>;
+	stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined>;
 	stepOut(threadId: number): Promise<void>;
 	stepBack(threadId: number): Promise<void>;
 	continue(threadId: number): Promise<void>;
@@ -246,14 +257,13 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
-	stepInTargets(frameId: number): Promise<{ id: number, label: string }[]>;
-	completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse>;
-	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
-	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;
+	completions(frameId: number | undefined, threadId: number, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse | undefined>;
+	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse | undefined>;
+	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse | undefined>;
 	getLoadedSources(): Promise<Source[]>;
 
-	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse>;
-	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse>;
+	gotoTargets(source: DebugProtocol.Source, line: number, column?: number): Promise<DebugProtocol.GotoTargetsResponse | undefined>;
+	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse | undefined>;
 }
 
 export interface IThread extends ITreeElement {
@@ -427,12 +437,14 @@ export interface IViewModel extends ITreeElement {
 	getSelectedFunctionBreakpoint(): IFunctionBreakpoint | undefined;
 	setSelectedExpression(expression: IExpression | undefined): void;
 	setSelectedFunctionBreakpoint(functionBreakpoint: IFunctionBreakpoint | undefined): void;
+	updateViews(): void;
 
 	isMultiSessionView(): boolean;
 
 	onDidFocusSession: Event<IDebugSession | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression | undefined>;
+	onWillUpdateViews: Event<void>;
 }
 
 export interface IEvaluate {
@@ -661,7 +673,7 @@ export interface IConfigurationManager {
 		name: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): void;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): Promise<void>;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
@@ -682,7 +694,7 @@ export interface IConfigurationManager {
 
 	isDebuggerInterestedInLanguage(language: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
-	getDynamicProviders(): Promise<{ label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
@@ -792,7 +804,7 @@ export interface IDebugService {
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
 	 */
-	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], context: string): Promise<IBreakpoint[]>;
+	addBreakpoints(uri: uri, rawBreakpoints: IBreakpointData[], ariaAnnounce?: boolean): Promise<IBreakpoint[]>;
 
 	/**
 	 * Updates the breakpoints.

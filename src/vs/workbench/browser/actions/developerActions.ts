@@ -8,6 +8,7 @@ import 'vs/css!./media/actions';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
@@ -26,8 +27,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-const developerCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -35,7 +35,7 @@ class InspectContextKeysAction extends Action2 {
 		super({
 			id: 'workbench.action.inspectContextKeys',
 			title: { value: nls.localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -97,7 +97,7 @@ class ToggleScreencastModeAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
 			title: { value: nls.localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -124,11 +124,7 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
 		const updateMouseIndicatorColor = () => {
-			const mouseIndicatorColor = configurationService.getValue<string>('screencastMode.mouseIndicatorColor');
-
-			let style = new Option().style;
-			style.color = mouseIndicatorColor;
-			mouseMarker.style.borderColor = (mouseIndicatorColor === '' || !style.color) ? 'red' : mouseIndicatorColor;
+			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
 		};
 
 		let mouseIndicatorSize: number;
@@ -246,7 +242,7 @@ class LogStorageAction extends Action2 {
 		super({
 			id: 'workbench.action.logStorage',
 			title: { value: nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -262,7 +258,7 @@ class LogWorkingCopiesAction extends Action2 {
 		super({
 			id: 'workbench.action.logWorkingCopies',
 			title: { value: nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -325,8 +321,9 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.mouseIndicatorColor': {
 			type: 'string',
-			default: 'red',
-			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color (string or Hex) of the mouse indicator in screencast mode.")
+			format: 'color-hex',
+			default: '#FF0000',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
 		},
 		'screencastMode.mouseIndicatorSize': {
 			type: 'number',

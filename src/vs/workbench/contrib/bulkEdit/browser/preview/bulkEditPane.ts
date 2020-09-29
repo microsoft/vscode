@@ -163,7 +163,7 @@ export class BulkEditPane extends ViewPane {
 		this.element.dataset['state'] = state;
 	}
 
-	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[]> {
+	async setInput(edit: ResourceEdit[], token: CancellationToken): Promise<ResourceEdit[] | undefined> {
 		this._setState(State.Data);
 		this._sessionDisposables.clear();
 		this._treeViewStates.clear();
@@ -186,9 +186,9 @@ export class BulkEditPane extends ViewPane {
 
 		this._currentInput = input;
 
-		return new Promise(async resolve => {
+		return new Promise<ResourceEdit[] | undefined>(async resolve => {
 
-			token.onCancellationRequested(() => resolve());
+			token.onCancellationRequested(() => resolve(undefined));
 
 			this._currentResolve = resolve;
 			this._setTreeInput(input);

@@ -18,6 +18,7 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 const remote = require('gulp-remote-retry-src');
 const vfs = require('vinyl-fs');
+const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
 
@@ -27,21 +28,24 @@ const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'built
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
-const WEB_PLAYGROUND_VERSION = '0.0.6';
+const WEB_PLAYGROUND_VERSION = '0.0.9';
 
 const args = minimist(process.argv, {
 	boolean: [
 		'no-launch',
 		'help',
 		'verbose',
-		'wrap-iframe'
+		'wrap-iframe',
+		'enable-sync',
+		'trusted-types'
 	],
 	string: [
 		'scheme',
 		'host',
 		'port',
 		'local_port',
-		'extension'
+		'extension',
+		'github-auth'
 	],
 });
 
@@ -50,11 +54,14 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
+		' --trusted-types  Enable trusted types (report only)\n' +
+		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
 		' --port           Remote/Local port\n' +
 		' --local_port     Local port override\n' +
 		' --extension      Path of an extension to include\n' +
+		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
 		'[Example]\n' +
@@ -356,18 +363,32 @@ async function handleRoot(req, res) {
 	const webConfigJSON = {
 		folderUri: folderUri,
 		staticExtensions,
+		enableSyncByDefault: args['enable-sync'],
 	};
 	if (args['wrap-iframe']) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
 	}
 
+	const authSessionInfo = args['github-auth'] ? {
+		id: uuid.v4(),
+		providerId: 'github',
+		accessToken: args['github-auth'],
+		scopes: [['user:email'], ['repo']]
+	} : undefined;
+
 	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
-		.replace('{{WEBVIEW_ENDPOINT}}', '')
-		.replace('{{REMOTE_USER_DATA_URI}}', '');
+		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
+		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
-	res.writeHead(200, { 'Content-Type': 'text/html' });
+
+	const headers = { 'Content-Type': 'text/html' };
+	if (args['trusted-types']) {
+		headers['Content-Security-Policy-Report-Only'] = 'require-trusted-types-for \'script\';';
+	}
+
+	res.writeHead(200, headers);
 	return res.end(data);
 }
 

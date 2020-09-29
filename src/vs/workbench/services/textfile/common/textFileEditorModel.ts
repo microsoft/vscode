@@ -86,7 +86,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inConflictMode = false;
 	private inOrphanMode = false;
 	private inErrorMode = false;
-	private disposed = false;
 
 	constructor(
 		public readonly resource: URI,
@@ -142,12 +141,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			let newInOrphanModeValidated: boolean = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
 				await timeout(100);
 
-				if (this.disposed) {
+				if (this.isDisposed()) {
 					newInOrphanModeValidated = true;
 				} else {
 					const exists = await this.fileService.exists(this.resource);
@@ -155,7 +154,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 			}
 
-			if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+			if (this.inOrphanMode !== newInOrphanModeValidated && !this.isDisposed()) {
 				this.setOrphaned(newInOrphanModeValidated);
 			}
 		}
@@ -448,7 +447,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private installModelListeners(model: ITextModel): void {
 
-		// See https://github.com/Microsoft/vscode/issues/30189
+		// See https://github.com/microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
@@ -695,9 +694,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
-			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
+			// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
-			if (this.disposed) {
+			if (this.isDisposed()) {
 				return;
 			}
 
@@ -955,10 +954,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
 	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
@@ -966,7 +961,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 
-		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;

@@ -7,7 +7,7 @@ import { WebviewTag } from 'electron';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { webviewDeveloperCategory } from 'vs/workbench/contrib/webview/browser/webview';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 export class OpenWebviewDeveloperToolsAction extends Action2 {
 
@@ -15,7 +15,7 @@ export class OpenWebviewDeveloperToolsAction extends Action2 {
 		super({
 			id: 'workbench.action.webview.openDeveloperTools',
 			title: { value: nls.localize('openToolsLabel', "Open Webview Developer Tools"), original: 'Open Webview Developer Tools' },
-			category: webviewDeveloperCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}

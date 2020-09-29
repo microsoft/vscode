@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, UserDataSyncStoreType, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IAuthenticationProvider, isAuthenticationProvider, IUserDataAutoSyncService, SyncResource, IResourcePreview, ISyncResourcePreview, Change, IManualSyncTask, IUserDataSyncStoreManagementService, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNC_LOG_COMMAND_ID, getSyncAreaLabel, IUserDataSyncPreview, IUserDataSyncResource, CONTEXT_ENABLE_SYNC_MERGES_VIEW, SYNC_MERGES_VIEW_ID, CONTEXT_ENABLE_ACTIVITY_VIEWS, SYNC_VIEW_CONTAINER_ID, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -11,7 +11,7 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/edi
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { flatten, equals } from 'vs/base/common/arrays';
-import { getAuthenticationProviderActivationEvent, getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { getCurrentAuthenticationSessionInfo, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { IUserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, IWorkspaceStorageChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
@@ -29,8 +29,6 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
-import { isNative } from 'vs/base/common/platform';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 type UserAccountClassification = {
@@ -66,11 +64,10 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
 
-	private _authenticationProviders: IAuthenticationProvider[] = [];
-	get enabled() { return this._authenticationProviders.length > 0; }
+	get enabled() { return !!this.userDataSyncStoreManagementService.userDataSyncStore; }
 
-	private availableAuthenticationProviders: IAuthenticationProvider[] = [];
-	get authenticationProviders() { return this.availableAuthenticationProviders; }
+	private _authenticationProviders: IAuthenticationProvider[] = [];
+	get authenticationProviders() { return this._authenticationProviders; }
 
 	private _accountStatus: AccountStatus = AccountStatus.Uninitialized;
 	get accountStatus(): AccountStatus { return this._accountStatus; }
@@ -109,18 +106,16 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IViewsService private readonly viewsService: IViewsService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
-		@IHostService private readonly hostService: IHostService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
-		this._authenticationProviders = this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || [];
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
 		this.activityViewsEnablementContext = CONTEXT_ENABLE_ACTIVITY_VIEWS.bindTo(contextKeyService);
 		this.mergesViewEnablementContext = CONTEXT_ENABLE_SYNC_MERGES_VIEW.bindTo(contextKeyService);
 
-		if (this._authenticationProviders.length) {
+		if (this.userDataSyncStoreManagementService.userDataSyncStore) {
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
 			this.syncEnablementContext.set(userDataAutoSyncService.isEnabled());
@@ -130,24 +125,31 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 	}
 
+	private updateAuthenticationProviders(): void {
+		this._authenticationProviders = (this.userDataSyncStoreManagementService.userDataSyncStore?.authenticationProviders || []).filter(({ id }) => this.authenticationService.declaredProviders.some(provider => provider.id === id));
+	}
+
 	private isSupportedAuthenticationProviderId(authenticationProviderId: string): boolean {
-		return this._authenticationProviders.some(({ id }) => id === authenticationProviderId);
+		return this.authenticationProviders.some(({ id }) => id === authenticationProviderId);
 	}
 
 	private async waitAndInitialize(): Promise<void> {
+		/* wait */
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		/* activate unregistered providers */
-		const unregisteredProviders = this._authenticationProviders.filter(({ id }) => !this.authenticationService.isAuthenticationProviderRegistered(id));
-		if (unregisteredProviders.length) {
-			await Promise.all(unregisteredProviders.map(({ id }) => this.extensionService.activateByEvent(getAuthenticationProviderActivationEvent(id))));
+		/* initialize */
+		try {
+			this.logService.trace('Settings Sync: Initializing accounts');
+			await this.initialize();
+		} catch (error) {
+			this.logService.error(error);
 		}
 
-		/* wait until one of the providers is availabe */
-		await Event.toPromise(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, ({ id }) => this.isSupportedAuthenticationProviderId(id)));
-
-		/* initialize */
-		await this.initialize();
+		if (this.accountStatus === AccountStatus.Uninitialized) {
+			this.logService.warn('Settings Sync: Accounts are not initialized');
+		} else {
+			this.logService.trace('Settings Sync: Accounts are initialized');
+		}
 	}
 
 	private async initialize(): Promise<void> {
@@ -158,6 +160,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		await this.update();
+
+		this._register(this.authenticationService.onDidChangeDeclaredProviders(() => this.updateAuthenticationProviders()));
 
 		this._register(
 			Event.any(
@@ -176,12 +180,14 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 	private async update(): Promise<void> {
 
-		this.availableAuthenticationProviders = this._authenticationProviders.filter(({ id }) => this.authenticationService.isAuthenticationProviderRegistered(id));
+		this.updateAuthenticationProviders();
 
 		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
-		for (const { id } of this.availableAuthenticationProviders) {
+		for (const { id } of this.authenticationProviders) {
+			this.logService.trace('Settings Sync: Getting accounts for', id);
 			const accounts = await this.getAccounts(id);
 			allAccounts.set(id, accounts);
+			this.logService.trace('Settings Sync: Updated accounts for', id);
 		}
 
 		this._all = allAccounts;
@@ -229,7 +235,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	private updateAccountStatus(accountStatus: AccountStatus): void {
 		if (this._accountStatus !== accountStatus) {
 			const previous = this._accountStatus;
-			this.logService.debug('Sync account status changed', previous, accountStatus);
+			this.logService.trace(`Settings Sync: Account status changed from ${previous} to ${accountStatus}`);
 
 			this._accountStatus = accountStatus;
 			this.accountStatusContext.set(accountStatus);
@@ -238,6 +244,9 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	async turnOn(): Promise<void> {
+		if (!this.authenticationProviders.length) {
+			throw new Error(localize('no authentication providers', "Settings sync cannot be turned on because there are no authentication providers available."));
+		}
 		if (this.userDataAutoSyncService.isEnabled()) {
 			return;
 		}
@@ -433,30 +442,6 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		await this.viewsService.openViewContainer(SYNC_VIEW_CONTAINER_ID);
 	}
 
-	async switchSyncService(type: UserDataSyncStoreType): Promise<void> {
-		if (!this.userDataSyncStoreManagementService.userDataSyncStore
-			|| !this.userDataSyncStoreManagementService.userDataSyncStore.insidersUrl
-			|| !this.userDataSyncStoreManagementService.userDataSyncStore.stableUrl) {
-			return;
-		}
-		await this.userDataSyncStoreManagementService.switch(type);
-		const res = await this.dialogService.confirm({
-			type: 'info',
-			message: isNative ?
-				localize('relaunchMessage', "Switching settings sync service requires a restart to take effect.") :
-				localize('relaunchMessageWeb', "Switching settings sync service requires a reload to take effect."),
-			detail: isNative ?
-				localize('relaunchDetail', "Press the restart button to restart {0} and switch.", this.productService.nameLong) :
-				localize('relaunchDetailWeb', "Press the reload button to reload {0} and switch.", this.productService.nameLong),
-			primaryButton: isNative ?
-				localize('restart', "&&Restart") :
-				localize('restartWeb', "&&Reload"),
-		});
-		if (res.confirmed) {
-			this.hostService.restart();
-		}
-	}
-
 	private async waitForActiveSyncViews(): Promise<void> {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(SYNC_VIEW_CONTAINER_ID);
 		if (viewContainer) {
@@ -496,15 +481,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 	}
 
 	private async doPick(): Promise<UserDataSyncAccount | IAuthenticationProvider | undefined> {
-		if (this.availableAuthenticationProviders.length === 0) {
+		if (this.authenticationProviders.length === 0) {
 			return undefined;
 		}
 
 		await this.update();
 
 		// Single auth provider and no accounts available
-		if (this.availableAuthenticationProviders.length === 1 && !this.all.length) {
-			return this.availableAuthenticationProviders[0];
+		if (this.authenticationProviders.length === 1 && !this.all.length) {
+			return this.authenticationProviders[0];
 		}
 
 		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
@@ -515,7 +500,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 			quickPick.title = SYNC_TITLE;
 			quickPick.ok = false;
-			quickPick.placeholder = localize('choose account placeholder', "Select an account");
+			quickPick.placeholder = localize('choose account placeholder', "Select an account to sign in");
 			quickPick.ignoreFocusOut = true;
 			quickPick.items = this.createQuickpickItems();
 
@@ -536,7 +521,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		// Signed in Accounts
 		if (this.all.length) {
-			const authenticationProviders = [...this.availableAuthenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
+			const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
 			quickPickItems.push({ type: 'separator', label: localize('signed in', "Signed in") });
 			for (const authenticationProvider of authenticationProviders) {
 				const accounts = (this._all.get(authenticationProvider.id) || []).sort(({ sessionId }) => sessionId === this.current?.sessionId ? -1 : 1);
@@ -554,7 +539,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		// Account proviers
-		for (const authenticationProvider of this.availableAuthenticationProviders) {
+		for (const authenticationProvider of this.authenticationProviders) {
 			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
 			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
 				const providerName = this.authenticationService.getLabel(authenticationProvider.id);
@@ -580,13 +565,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		this.currentSessionId = undefined;
 		await this.update();
 
-		this.notificationService.notify({
-			severity: Severity.Error,
-			message: localize('successive auth failures', "Settings sync was turned off because of successive authorization failures. Please sign in again to continue synchronizing"),
-			actions: {
-				primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
-			}
-		});
+		if (this.userDataAutoSyncService.isEnabled()) {
+			this.notificationService.notify({
+				severity: Severity.Error,
+				message: localize('successive auth failures', "Settings sync is suspended because of successive authorization failures. Please sign in again to continue synchronizing"),
+				actions: {
+					primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.signIn())]
+				}
+			});
+		}
 	}
 
 	private onDidChangeSessions(e: AuthenticationSessionsChangeEvent): void {
@@ -762,10 +749,10 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		const newResources = this.toUserDataSyncResourceGroups(
 			(this.manualSync?.preview || [])
 				.map(([syncResource, syncResourcePreview]) =>
-					([
-						syncResource,
-						syncResourcePreview.resourcePreviews
-					]))
+				([
+					syncResource,
+					syncResourcePreview.resourcePreviews
+				]))
 		);
 		if (!equals(newResources, this._resources, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
 			this._resources = newResources;

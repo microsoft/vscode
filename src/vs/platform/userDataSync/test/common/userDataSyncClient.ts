@@ -69,6 +69,9 @@ export class UserDataSyncClient extends Disposable {
 			_serviceBrand: undefined, ...product, ...{
 				'configurationSync.store': {
 					url: this.testServer.url,
+					stableUrl: this.testServer.url,
+					insidersUrl: this.testServer.url,
+					canSwitch: false,
 					authenticationProviders: { 'test': { scopes: [] } }
 				}
 			}

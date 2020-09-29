@@ -12,12 +12,12 @@ import { CellDiffRenderTemplate, CellDiffViewModelLayoutChangeEvent, DIFF_CELL_M
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { hash } from 'vs/base/common/hash';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -99,7 +99,7 @@ class PropertyHeader extends Disposable {
 	buildHeader(): void {
 		let metadataChanged = this.accessor.checkIfModified(this.cell);
 		this._foldingIndicator = DOM.append(this.metadataHeaderContainer, DOM.$('.property-folding-indicator'));
-		DOM.addClass(this._foldingIndicator, this.accessor.prefix);
+		this._foldingIndicator.classList.add(this.accessor.prefix);
 		this._updateFoldingIcon();
 		const metadataStatus = DOM.append(this.metadataHeaderContainer, DOM.$('div.property-status'));
 		this._statusSpan = DOM.append(metadataStatus, DOM.$('span'));
@@ -107,7 +107,7 @@ class PropertyHeader extends Disposable {
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
-			DOM.addClass(this.metadataHeaderContainer, 'modified');
+			this.metadataHeaderContainer.classList.add('modified');
 		} else {
 			this._statusSpan.textContent = this.accessor.unChangedLabel;
 		}
@@ -142,18 +142,18 @@ class PropertyHeader extends Disposable {
 
 			const target = e.event.target as HTMLElement;
 
-			if (DOM.hasClass(target, 'codicon-chevron-down') || DOM.hasClass(target, 'codicon-chevron-right')) {
+			if (target.classList.contains('codicon-chevron-down') || target.classList.contains('codicon-chevron-right')) {
 				const parent = target.parentElement as HTMLElement;
 
 				if (!parent) {
 					return;
 				}
 
-				if (!DOM.hasClass(parent, this.accessor.prefix)) {
+				if (!parent.classList.contains(this.accessor.prefix)) {
 					return;
 				}
 
-				if (!DOM.hasClass(parent, 'property-folding-indicator')) {
+				if (!parent.classList.contains('property-folding-indicator')) {
 					return;
 				}
 
@@ -181,7 +181,7 @@ class PropertyHeader extends Disposable {
 		if (metadataChanged) {
 			this._statusSpan.textContent = this.accessor.changedLabel;
 			this._statusSpan.style.fontWeight = 'bold';
-			DOM.addClass(this.metadataHeaderContainer, 'modified');
+			this.metadataHeaderContainer.classList.add('modified');
 			const actions: IAction[] = [];
 			createAndFillInActionBarActions(this._menu, undefined, actions);
 			this._toolbar.setActions(actions);
@@ -194,9 +194,9 @@ class PropertyHeader extends Disposable {
 
 	private _updateFoldingIcon() {
 		if (this.accessor.getFoldingState(this.cell) === PropertyFoldingState.Collapsed) {
-			DOM.reset(this._foldingIndicator, ...renderCodiconsAsElement('$(chevron-right)'));
+			DOM.reset(this._foldingIndicator, ...renderCodicons('$(chevron-right)'));
 		} else {
-			DOM.reset(this._foldingIndicator, ...renderCodiconsAsElement('$(chevron-down)'));
+			DOM.reset(this._foldingIndicator, ...renderCodicons('$(chevron-down)'));
 		}
 	}
 }
@@ -264,13 +264,13 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._diffEditorContainer = DOM.$('.cell-diff-editor-container');
 		switch (this.style) {
 			case 'left':
-				DOM.addClass(body, 'left');
+				body.classList.add('left');
 				break;
 			case 'right':
-				DOM.addClass(body, 'right');
+				body.classList.add('right');
 				break;
 			default:
-				DOM.addClass(body, 'full');
+				body.classList.add('full');
 				break;
 		}
 
@@ -283,6 +283,14 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._metadataHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-header-container'));
 		this._metadataInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.metadata-info-container'));
 
+		const checkIfModified = (cell: CellDiffViewModel) => {
+			return cell.type !== 'delete' && cell.type !== 'insert' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
+		};
+
+		if (checkIfModified(this.cell)) {
+			this.cell.metadataFoldingState = PropertyFoldingState.Expanded;
+		}
+
 		this._metadataHeader = this.instantiationService.createInstance(
 			PropertyHeader,
 			this.cell,
@@ -291,7 +299,7 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateMetadataRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type !== 'delete' && cell.type !== 'insert' && hash(this._getFormatedMetadataJSON(cell.original?.metadata || {}, cell.original?.language)) !== hash(this._getFormatedMetadataJSON(cell.modified?.metadata ?? {}, cell.modified?.language));
+					return checkIfModified(cell);
 				},
 				getFoldingState: (cell) => {
 					return cell.metadataFoldingState;
@@ -308,8 +316,23 @@ abstract class AbstractCellRenderer extends Disposable {
 		this._register(this._metadataHeader);
 		this._metadataHeader.buildHeader();
 
+		if (this.notebookEditor.textModel?.transientOptions.transientOutputs) {
+			this._layoutInfo.outputHeight = 0;
+			this._layoutInfo.outputStatusHeight = 0;
+			this.layout({});
+			return;
+		}
+
 		this._outputHeaderContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-header-container'));
 		this._outputInfoContainer = DOM.append(this._diffEditorContainer, DOM.$('.output-info-container'));
+
+		const checkIfOutputsModified = (cell: CellDiffViewModel) => {
+			return cell.type !== 'delete' && cell.type !== 'insert' && !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+		};
+
+		if (checkIfOutputsModified(this.cell)) {
+			this.cell.outputFoldingState = PropertyFoldingState.Expanded;
+		}
 
 		this._outputHeader = this.instantiationService.createInstance(
 			PropertyHeader,
@@ -319,10 +342,10 @@ abstract class AbstractCellRenderer extends Disposable {
 			{
 				updateInfoRendering: this.updateOutputRendering.bind(this),
 				checkIfModified: (cell) => {
-					return cell.type !== 'delete' && cell.type !== 'insert' && !this.notebookEditor.textModel!.transientOptions.transientOutputs && cell.type === 'modified' && hash(cell.original?.outputs ?? []) !== hash(cell.modified?.outputs ?? []);
+					return checkIfOutputsModified(cell);
 				},
 				getFoldingState: (cell) => {
-					return this.cell.outputFoldingState;
+					return cell.outputFoldingState;
 				},
 				updateFoldingState: (cell, state) => {
 					cell.outputFoldingState = state;
@@ -380,7 +403,22 @@ abstract class AbstractCellRenderer extends Disposable {
 	}
 
 	protected _getFormatedMetadataJSON(metadata: NotebookCellMetadata, language?: string) {
-		const filteredMetadata: { [key: string]: any } = metadata;
+		let filteredMetadata: { [key: string]: any } = {};
+
+		if (this.notebookEditor.textModel) {
+			const transientMetadata = this.notebookEditor.textModel!.transientOptions.transientMetadata;
+
+			const keys = new Set([...Object.keys(metadata)]);
+			for (let key of keys) {
+				if (!(transientMetadata[key as keyof NotebookCellMetadata])
+				) {
+					filteredMetadata[key] = metadata[key as keyof NotebookCellMetadata];
+				}
+			}
+		} else {
+			filteredMetadata = metadata;
+		}
+
 		const content = JSON.stringify({
 			language,
 			...filteredMetadata
@@ -449,9 +487,25 @@ abstract class AbstractCellRenderer extends Disposable {
 			}
 
 			if (newLangauge !== undefined && newLangauge !== this.cell.modified!.language) {
-				this.notebookEditor.textModel!.changeCellLanguage(this.cell.modified!.handle, newLangauge);
+				const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
+				this.notebookEditor.textModel!.applyEdits(
+					this.notebookEditor.textModel!.versionId,
+					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
+					true,
+					undefined,
+					() => undefined
+				);
 			}
-			this.notebookEditor.textModel!.changeCellMetadata(this.cell.modified!.handle, result, false);
+
+			const index = this.notebookEditor.textModel!.cells.indexOf(this.cell.modified!);
+
+			if (index < 0) {
+				return;
+			}
+
+			this.notebookEditor.textModel!.applyEdits(this.notebookEditor.textModel!.versionId, [
+				{ editType: CellEditType.Metadata, index, metadata: result }
+			], true, undefined, () => undefined);
 		} catch {
 		}
 	}
@@ -464,10 +518,11 @@ abstract class AbstractCellRenderer extends Disposable {
 				...fixedDiffEditorOptions,
 				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false,
-				originalEditable: false
+				originalEditable: false,
+				ignoreTrimWhitespace: false
 			});
 
-			DOM.addClass(this._metadataEditorContainer!, 'diff');
+			this._metadataEditorContainer?.classList.add('diff');
 
 			const mode = this.modeService.create('json');
 			const originalMetadataModel = this.modelService.createModel(originalMetadataSource, mode, CellUri.generateCellMetadataUri(this.cell.original!.uri, this.cell.original!.handle), false);
@@ -567,10 +622,11 @@ abstract class AbstractCellRenderer extends Disposable {
 				this._outputEditor = this.instantiationService.createInstance(DiffEditorWidget, this._outputEditorContainer!, {
 					...fixedDiffEditorOptions,
 					overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-					readOnly: true
+					readOnly: true,
+					ignoreTrimWhitespace: false
 				});
 
-				DOM.addClass(this._outputEditorContainer!, 'diff');
+				this._outputEditorContainer?.classList.add('diff');
 
 				const mode = this.modeService.create('json');
 				const originalModel = this.modelService.createModel(originalOutputsSource, mode, undefined, true);
@@ -667,7 +723,7 @@ export class DeletedCell extends AbstractCellRenderer {
 	}
 
 	styleContainer(container: HTMLElement) {
-		DOM.addClass(container, 'removed');
+		container.classList.add('removed');
 	}
 
 	buildSourceEditor(sourceContainer: HTMLElement): void {
@@ -754,7 +810,7 @@ export class InsertCell extends AbstractCellRenderer {
 	}
 
 	styleContainer(container: HTMLElement): void {
-		DOM.addClass(container, 'inserted');
+		container.classList.add('inserted');
 	}
 
 	buildSourceEditor(sourceContainer: HTMLElement): void {
@@ -855,9 +911,10 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._editor = this.instantiationService.createInstance(DiffEditorWidget, this._editorContainer, {
 			...fixedDiffEditorOptions,
 			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
-			originalEditable: false
+			originalEditable: false,
+			ignoreTrimWhitespace: false
 		});
-		DOM.addClass(this._editorContainer, 'diff');
+		this._editorContainer.classList.add('diff');
 
 		this._editor.layout({
 			width: this.notebookEditor.getLayoutInfo().width - 2 * DIFF_CELL_MARGIN,

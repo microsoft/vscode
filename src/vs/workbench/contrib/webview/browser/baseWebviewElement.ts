@@ -9,14 +9,13 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -89,8 +88,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		@INotificationService notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -173,8 +171,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		if (this.element) {
 			this.element.remove();
 		}
-
 		this._element = undefined;
+
+		this._onDidDispose.fire();
+
 		super.dispose();
 	}
 
@@ -205,6 +205,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
 
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this._onDidDispose.event;
+
 	public postMessage(data: any): void {
 		this._send('message', data);
 	}
@@ -233,7 +236,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._hasAlertedAboutMissingCsp = true;
 
 		if (this.extension && this.extension.id) {
-			if (this._environmentService.isExtensionDevelopment) {
+			if (this.environmentService.isExtensionDevelopment) {
 				this._onMissingCsp.fire(this.extension.id);
 			}
 

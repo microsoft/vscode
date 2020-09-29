@@ -54,6 +54,10 @@ export interface IEditorOptions {
 	 */
 	ariaLabel?: string;
 	/**
+	 * The `tabindex` property of the editor's textarea
+	 */
+	tabIndex?: number;
+	/**
 	 * Render vertical lines at the specified columns.
 	 * Defaults to empty array.
 	 */
@@ -96,7 +100,7 @@ export interface IEditorOptions {
 	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
 	 * Defaults to 'prompt'.
 	 */
-	unusualLineTerminators?: 'off' | 'prompt' | 'auto';
+	unusualLineTerminators?: 'auto' | 'off' | 'prompt';
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -852,15 +856,13 @@ class EditorBooleanOption<K1 extends EditorOption> extends SimpleEditorOption<K1
 
 class EditorIntOption<K1 extends EditorOption> extends SimpleEditorOption<K1, number> {
 
-	public static clampedInt(value: any, defaultValue: number, minimum: number, maximum: number): number {
-		let r: number;
+	public static clampedInt<T>(value: any, defaultValue: T, minimum: number, maximum: number): number | T {
 		if (typeof value === 'undefined') {
-			r = defaultValue;
-		} else {
-			r = parseInt(value, 10);
-			if (isNaN(r)) {
-				r = defaultValue;
-			}
+			return defaultValue;
+		}
+		let r = parseInt(value, 10);
+		if (isNaN(r)) {
+			return defaultValue;
 		}
 		r = Math.max(minimum, r);
 		r = Math.min(maximum, r);
@@ -1032,11 +1034,11 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
 					nls.localize('accessibilitySupport.auto', "The editor will use platform APIs to detect when a Screen Reader is attached."),
-					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.on', "The editor will be permanently optimized for usage with a Screen Reader. Word wrapping will be disabled."),
 					nls.localize('accessibilitySupport.off', "The editor will never be optimized for usage with a Screen Reader."),
 				],
 				default: 'auto',
-				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers. Setting to on will disable word wrapping.")
 			}
 		);
 	}
@@ -1490,7 +1492,7 @@ class EditorFontSize extends SimpleEditorOption<EditorOption.fontSize, number> {
 //#region fontWeight
 
 class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string> {
-	private static ENUM_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+	private static SUGGESTION_VALUES = ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
 	private static MINIMUM_VALUE = 1;
 	private static MAXIMUM_VALUE = 1000;
 
@@ -1502,23 +1504,28 @@ class EditorFontWeight extends BaseEditorOption<EditorOption.fontWeight, string>
 					{
 						type: 'number',
 						minimum: EditorFontWeight.MINIMUM_VALUE,
-						maximum: EditorFontWeight.MAXIMUM_VALUE
+						maximum: EditorFontWeight.MAXIMUM_VALUE,
+						errorMessage: nls.localize('fontWeightErrorMessage', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
 					},
 					{
-						enum: EditorFontWeight.ENUM_VALUES
+						type: 'string',
+						pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+					},
+					{
+						enum: EditorFontWeight.SUGGESTION_VALUES
 					}
 				],
 				default: EDITOR_FONT_DEFAULTS.fontWeight,
-				description: nls.localize('fontWeight', "Controls the font weight.")
+				description: nls.localize('fontWeight', "Controls the font weight. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000.")
 			}
 		);
 	}
 
 	public validate(input: any): string {
-		if (typeof input === 'number') {
-			return EditorFontWeight.MINIMUM_VALUE <= input && input <= EditorFontWeight.MAXIMUM_VALUE ? String(input) : EDITOR_FONT_DEFAULTS.fontWeight;
+		if (input === 'normal' || input === 'bold') {
+			return input;
 		}
-		return EditorStringEnumOption.stringSet<string>(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.ENUM_VALUES);
+		return String(EditorIntOption.clampedInt(input, EDITOR_FONT_DEFAULTS.fontWeight, EditorFontWeight.MINIMUM_VALUE, EditorFontWeight.MAXIMUM_VALUE));
 	}
 }
 
@@ -2187,7 +2194,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let wrappingColumn = -1;
 
 		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
-			// See https://github.com/Microsoft/vscode/issues/27766
+			// See https://github.com/microsoft/vscode/issues/27766
 			// Never enable wrapping when a screen reader is attached
 			// because arrow down etc. will not move the cursor in the way
 			// a screen reader expects.
@@ -3653,6 +3660,7 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	tabIndex,
 	unusualLineTerminators,
 	useTabStops,
 	wordSeparators,
@@ -3783,7 +3791,7 @@ export const EditorOptions = {
 				nls.localize('editor.autoSurround.brackets', "Surround with brackets but not quotes."),
 				''
 			],
-			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections.")
+			description: nls.localize('autoSurround', "Controls whether the editor should automatically surround selections when typing quotes or brackets.")
 		}
 	)),
 	codeLens: register(new EditorBooleanOption(
@@ -3827,7 +3835,7 @@ export const EditorOptions = {
 	cursorSurroundingLines: register(new EditorIntOption(
 		EditorOption.cursorSurroundingLines, 'cursorSurroundingLines',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or `scrollOffset` in some other editors.") }
+		{ description: nls.localize('cursorSurroundingLines', "Controls the minimal number of visible leading and trailing lines surrounding the cursor. Known as 'scrollOff' or 'scrollOffset' in some other editors.") }
 	)),
 	cursorSurroundingLinesStyle: register(new EditorStringEnumOption(
 		EditorOption.cursorSurroundingLinesStyle, 'cursorSurroundingLinesStyle',
@@ -4212,10 +4220,14 @@ export const EditorOptions = {
 			description: nls.localize('tabCompletion', "Enables tab completions.")
 		}
 	)),
+	tabIndex: register(new EditorIntOption(
+		EditorOption.tabIndex, 'tabIndex',
+		0, -1, Constants.MAX_SAFE_SMALL_INTEGER
+	)),
 	unusualLineTerminators: register(new EditorStringEnumOption(
 		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
-		'prompt' as 'off' | 'prompt' | 'auto',
-		['off', 'prompt', 'auto'] as const,
+		'prompt' as 'auto' | 'off' | 'prompt',
+		['auto', 'off', 'prompt'] as const,
 		{
 			enumDescriptions: [
 				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),

@@ -54,6 +54,8 @@ export class ExtHostWebview implements vscode.Webview {
 	/* internal */ readonly _onDidDispose: Event<void> = this.#onDidDisposeEmitter.event;
 
 	public dispose() {
+		this.#isDisposed = true;
+
 		this.#onDidDisposeEmitter.fire();
 
 		this.#onDidDisposeEmitter.dispose();
@@ -99,8 +101,10 @@ export class ExtHostWebview implements vscode.Webview {
 		this.#options = newOptions;
 	}
 
-	public postMessage(message: any): Promise<boolean> {
-		this.assertNotDisposed();
+	public async postMessage(message: any): Promise<boolean> {
+		if (this.#isDisposed) {
+			return false;
+		}
 		return this.#proxy.$postMessage(this.#handle, message);
 	}
 

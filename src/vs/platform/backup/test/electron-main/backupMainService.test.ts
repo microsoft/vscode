@@ -10,7 +10,7 @@ import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
@@ -34,7 +34,7 @@ suite('BackupMainService', () => {
 	const backupHome = path.join(parentDir, 'Backups');
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
-	const environmentService = new EnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
+	const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS));
 
 	class TestBackupMainService extends BackupMainService {
 

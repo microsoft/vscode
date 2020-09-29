@@ -19,7 +19,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 function ignore<T>(code: string, value: T): (err: any) => Promise<T> {
 	return err => err.code === code ? Promise.resolve<T>(value) : Promise.reject<T>(err);
@@ -28,7 +29,7 @@ function ignore<T>(code: string, value: T): (err: any) => Promise<T> {
 let _source: string | null = null;
 function getSource(): string {
 	if (!_source) {
-		const root = getPathFromAmdModule(require, '');
+		const root = FileAccess.asFileUri('', require).fsPath;
 		_source = path.resolve(root, '..', 'bin', 'code');
 	}
 	return _source;
@@ -48,13 +49,14 @@ class InstallAction extends Action {
 		label: string,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	private get target(): string {
-		return `/usr/local/bin/${product.applicationName}`;
+		return `/usr/local/bin/${this.productService.applicationName}`;
 	}
 
 	run(): Promise<void> {
@@ -84,7 +86,7 @@ class InstallAction extends Action {
 				})
 				.then(() => {
 					this.logService.trace('cli#install', this.target);
-					this.notificationService.info(nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", product.applicationName));
+					this.notificationService.info(nls.localize('successIn', "Shell command '{0}' successfully installed in PATH.", this.productService.applicationName));
 				});
 		});
 	}
@@ -129,13 +131,14 @@ class UninstallAction extends Action {
 		label: string,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super(id, label);
 	}
 
 	private get target(): string {
-		return `/usr/local/bin/${product.applicationName}`;
+		return `/usr/local/bin/${this.productService.applicationName}`;
 	}
 
 	run(): Promise<void> {
@@ -159,7 +162,7 @@ class UninstallAction extends Action {
 				return Promise.reject(err);
 			}).then(() => {
 				this.logService.trace('cli#uninstall', this.target);
-				this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", product.applicationName));
+				this.notificationService.info(nls.localize('successFrom', "Shell command '{0}' successfully uninstalled from PATH.", this.productService.applicationName));
 			});
 		});
 	}

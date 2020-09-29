@@ -395,14 +395,14 @@ export class ThemeTrieElement {
 	}
 }
 
-export function generateTokensCSSForColorMap(colorMap: Color[]): string {
+export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string {
 	let rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		let color = colorMap[i];
-		rules[i] = `.monaco-editor .mtk${i} { color: ${color}; }`;
+		rules[i] = `.mtk${i} { color: ${color}; }`;
 	}
-	rules.push('.monaco-editor .mtki { font-style: italic; }');
-	rules.push('.monaco-editor .mtkb { font-weight: bold; }');
-	rules.push('.monaco-editor .mtku { text-decoration: underline; text-underline-position: under; }');
+	rules.push('.mtki { font-style: italic; }');
+	rules.push('.mtkb { font-weight: bold; }');
+	rules.push('.mtku { text-decoration: underline; text-underline-position: under; }');
 	return rules.join('\n');
 }

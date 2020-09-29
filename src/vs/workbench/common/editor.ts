@@ -11,7 +11,7 @@ import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -24,23 +24,34 @@ import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/ed
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 
-export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
+// Editor State Context Keys
+export const ActiveEditorDirtyContext = new RawContextKey<boolean>('activeEditorIsDirty', false);
+export const ActiveEditorPinnedContext = new RawContextKey<boolean>('activeEditorIsNotPreview', false);
+export const ActiveEditorStickyContext = new RawContextKey<boolean>('activeEditorIsPinned', false);
+export const ActiveEditorReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
+
+/** TODO@ben remove me eventually */
+/** @deprecated */
+export const Deprecated_EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
+/** @deprecated */
+export const Deprecated_EditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
+
+// Editor Kind Context Keys
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
-export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');
-export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
-export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
-export const EditorStickyContext = new RawContextKey<boolean>('editorSticky', false);
-export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
-export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
-export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const TextCompareEditorActiveContext = new RawContextKey<boolean>('textCompareEditorActive', false);
+
+// Editor Group Context Keys
+export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
 export const ActiveEditorGroupIndexContext = new RawContextKey<number>('activeEditorGroupIndex', 0);
 export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEditorGroupLast', false);
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
+
+// Editor Layout Context Keys
+export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
 export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLayout', false);
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
@@ -100,6 +111,12 @@ export interface IEditorPane extends IComposite {
 	 * An event to notify whenever minimum/maximum width/height changes.
 	 */
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; } | undefined>;
+
+	/**
+	 * The context key service for this editor. Should be overridden by
+	 * editors that have their own ScopedContextKeyService
+	 */
+	readonly scopedContextKeyService: IContextKeyService | undefined;
 
 	/**
 	 * Returns the underlying control of this editor. Callers need to cast
@@ -377,11 +394,15 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
-	 * Returns the optional associated resource of this input.
+	 * Returns the optional associated canonical resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
 	 * kind and is often used to identify the editor input among
 	 * others.
+	 *
+	 * Note: use `EditorResourceAccessor` to access the resource
+	 * of editors with support for side-by-side editors and
+	 * canonical vs original resources.
 	 */
 	readonly resource: URI | undefined;
 
@@ -642,11 +663,35 @@ export interface IModeSupport {
 	setMode(mode: string): void;
 }
 
+export interface IEditorInputWithPreferredResource {
+
+	/**
+	 * An editor may provide an additional preferred resource alongside
+	 * the `resource` property. While the `resource` property serves as
+	 * unique identifier of the editor that should be used whenever we
+	 * compare to other editors, the `preferredResource` should be used
+	 * in places where e.g. the resource is shown to the user.
+	 *
+	 * For example: on Windows and macOS, the same URI with different
+	 * casing may point to the same file. The editor may chose to
+	 * "normalize" the URIs so that only one editor opens for different
+	 * URIs. But when displaying the editor label to the user, the
+	 * preferred URI should be used.
+	 */
+	readonly preferredResource: URI;
+}
+
+export function isEditorInputWithPreferredResource(obj: unknown): obj is IEditorInputWithPreferredResource {
+	const editorInputWithPreferredResource = obj as IEditorInputWithPreferredResource;
+
+	return editorInputWithPreferredResource && !!editorInputWithPreferredResource.preferredResource;
+}
+
 /**
  * This is a tagging interface to declare an editor input being capable of dealing with files. It is only used in the editor registry
  * to register this kind of input to the platform.
  */
-export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport {
+export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeSupport, IEditorInputWithPreferredResource {
 
 	/**
 	 * Gets the resource this file input is about. This will always be the
@@ -655,14 +700,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * for the form as it was created.
 	 */
 	readonly resource: URI;
-
-	/**
-	 * Gets the preferred resource of the editor. In most cases this will
-	 * be identical to the resource. But in some cases the preferredResource
-	 * may differ in path casing to the actual resource because we keep
-	 * canonical forms of resources in-memory.
-	 */
-	readonly preferredResource: URI;
 
 	/**
 	 * Sets the preferred resource to use for this file input.
@@ -819,6 +856,8 @@ export class EditorModel extends Disposable implements IEditorModel {
 	private readonly _onDispose = this._register(new Emitter<void>());
 	readonly onDispose = this._onDispose.event;
 
+	private disposed = false;
+
 	/**
 	 * Causes this model to load returning a promise when loading is completed.
 	 */
@@ -834,9 +873,17 @@ export class EditorModel extends Disposable implements IEditorModel {
 	}
 
 	/**
+	 * Find out if this model has been disposed.
+	 */
+	isDisposed(): boolean {
+		return this.disposed;
+	}
+
+	/**
 	 * Subclasses should implement to free resources that have been claimed through loading.
 	 */
 	dispose(): void {
+		this.disposed = true;
 		this._onDispose.fire();
 
 		super.dispose();
@@ -1202,6 +1249,7 @@ interface IEditorPartConfiguration {
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';
+	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
 	showIcons?: boolean;
@@ -1238,47 +1286,128 @@ export enum SideBySideEditor {
 	BOTH = 3
 }
 
-export interface IResourceOptions {
+export interface IEditorResourceAccessorOptions {
+
+	/**
+	 * Allows to access the `resource(s)` of side by side editors. If not
+	 * specified, a `resource` for a side by side editor will always be
+	 * `undefined`.
+	 */
 	supportSideBySide?: SideBySideEditor;
+
+	/**
+	 * Allows to filter the scheme to consider. A resource scheme that does
+	 * not match a filter will not be considered.
+	 */
 	filterByScheme?: string | string[];
 }
 
-export function toResource(editor: IEditorInput | undefined | null): URI | undefined;
-export function toResource(editor: IEditorInput | undefined | null, options: IResourceOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-export function toResource(editor: IEditorInput | undefined | null, options: IResourceOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-export function toResource(editor: IEditorInput | undefined | null, options?: IResourceOptions): URI | { primary?: URI, secondary?: URI } | undefined {
-	if (!editor) {
+class EditorResourceAccessorImpl {
+
+	/**
+	 * The original URI of an editor is the URI that was used originally to open
+	 * the editor and should be used whenever the URI is presented to the user,
+	 * e.g. as a label.
+	 *
+	 * In contrast, the canonical URI (#getCanonicalUri) may be different and should
+	 * be used whenever the URI is used to e.g. compare with other editors or when
+	 * caching certain data based on the URI.
+	 *
+	 *  For example: on Windows and macOS, the same file URI with different casing may
+	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
+	 * form so that only one editor opens for same file URIs with different casing.
+	 */
+	getOriginalUri(editor: IEditorInput | undefined | null): URI | undefined;
+	getOriginalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getOriginalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getOriginalUri(editor: IEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+		if (!editor) {
+			return undefined;
+		}
+
+		// Optionally support side-by-side editors
+		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+				return {
+					primary: this.getOriginalUri(editor.primary, { filterByScheme: options.filterByScheme }),
+					secondary: this.getOriginalUri(editor.secondary, { filterByScheme: options.filterByScheme })
+				};
+			}
+
+			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? editor.primary : editor.secondary;
+		}
+
+		// Original URI is the `preferredResource` of an editor if any
+		const originalResource = isEditorInputWithPreferredResource(editor) ? editor.preferredResource : editor.resource;
+		if (!originalResource || !options || !options.filterByScheme) {
+			return originalResource;
+		}
+
+		return this.filterUri(originalResource, options.filterByScheme);
+	}
+
+	/**
+	 * The canonical URI of an editor is the true unique identifier of the editor
+	 * and should be used whenever the URI is used e.g. to compare with other
+	 * editors or when caching certain data based on the URI.
+	 *
+	 * In contrast, the original URI (#getOriginalUri) may be different and should
+	 * be used whenever the URI is presented to the user, e.g. as a label.
+	 *
+	 * For example: on Windows and macOS, the same file URI with different casing may
+	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
+	 * form so that only one editor opens for same file URIs with different casing.
+	 */
+	getCanonicalUri(editor: IEditorInput | undefined | null): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getCanonicalUri(editor: IEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+		if (!editor) {
+			return undefined;
+		}
+
+		// Optionally support side-by-side editors
+		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
+				return {
+					primary: this.getCanonicalUri(editor.primary, { filterByScheme: options.filterByScheme }),
+					secondary: this.getCanonicalUri(editor.secondary, { filterByScheme: options.filterByScheme })
+				};
+			}
+
+			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? editor.primary : editor.secondary;
+		}
+
+		// Canonical URI is the `resource` of an editor
+		const canonicalResource = editor.resource;
+		if (!canonicalResource || !options || !options.filterByScheme) {
+			return canonicalResource;
+		}
+
+		return this.filterUri(canonicalResource, options.filterByScheme);
+	}
+
+	private filterUri(resource: URI, filter: string | string[]): URI | undefined {
+
+		// Multiple scheme filter
+		if (Array.isArray(filter)) {
+			if (filter.some(scheme => resource.scheme === scheme)) {
+				return resource;
+			}
+		}
+
+		// Single scheme filter
+		else {
+			if (filter === resource.scheme) {
+				return resource;
+			}
+		}
+
 		return undefined;
 	}
-
-	if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
-		if (options?.supportSideBySide === SideBySideEditor.BOTH) {
-			return {
-				primary: toResource(editor.primary, { filterByScheme: options.filterByScheme }),
-				secondary: toResource(editor.secondary, { filterByScheme: options.filterByScheme })
-			};
-		}
-
-		editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? editor.primary : editor.secondary;
-	}
-
-	const resource = editor.resource;
-	if (!resource || !options || !options.filterByScheme) {
-		return resource;
-	}
-
-	if (Array.isArray(options.filterByScheme)) {
-		if (options.filterByScheme.some(scheme => resource.scheme === scheme)) {
-			return resource;
-		}
-	} else {
-		if (options.filterByScheme === resource.scheme) {
-			return resource;
-		}
-	}
-
-	return undefined;
 }
+
+export const EditorResourceAccessor = new EditorResourceAccessorImpl();
 
 export const enum CloseDirection {
 	LEFT,

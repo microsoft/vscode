@@ -106,7 +106,7 @@ suite('viewLineRenderer.renderLine', () => {
 	}
 
 	test('empty line', () => {
-		assertParts('', 4, [], '<span>\u00a0</span>', [], []);
+		assertParts('', 4, [], '<span></span>', [], []);
 	});
 
 	test('uses part type', () => {
@@ -448,7 +448,7 @@ suite('viewLineRenderer.renderLine', () => {
 		assertCharacterMapping2(actual.characterMapping, expectedCharacterMapping);
 	});
 
-	test('issue Microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
+	test('issue microsoft/monaco-editor#280: Improved source code rendering for RTL languages', () => {
 		let lineText = 'var קודמות = \"מיותר קודמות צ\'ט של, אם לשון העברית שינויים ויש, אם\";';
 
 		let lineParts = createViewLineTokens([

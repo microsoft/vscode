@@ -12,23 +12,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
-import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { FileAccess, RemoteAuthorities } from 'vs/base/common/network';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.removeChild(node.firstChild);
-	}
-}
-
-/**
- * @deprecated use `node.remove()` instead
- */
-export function removeNode(node: HTMLElement): void {
-	if (node.parentNode) {
-		node.parentNode.removeChild(node);
 	}
 }
 
@@ -84,17 +74,17 @@ const _classList: IDomClassList = new class implements IDomClassList {
 };
 
 /** @deprecated ES6 - use classList*/
-export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
-export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
 /** @deprecated ES6 - use classList*/
-export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
-export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
 
 class DomListener implements IDisposable {
 
@@ -411,9 +401,9 @@ export function getClientArea(element: HTMLElement): Dimension {
 	}
 
 	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
-	if (platform.isIOS && (<any>window).visualViewport) {
-		const width = (<any>window).visualViewport.width;
-		const height = (<any>window).visualViewport.height - (
+	if (platform.isIOS && window.visualViewport) {
+		const width = window.visualViewport.width;
+		const height = window.visualViewport.height - (
 			browser.isStandalone
 				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
 				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
@@ -705,13 +695,13 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (hasClass(node, clazz)) {
+		if (node.classList.contains(clazz)) {
 			return node;
 		}
 
 		if (stopAtClazzOrNode) {
 			if (typeof stopAtClazzOrNode === 'string') {
-				if (hasClass(node, stopAtClazzOrNode)) {
+				if (node.classList.contains(stopAtClazzOrNode)) {
 					return null;
 				}
 			} else {
@@ -785,11 +775,11 @@ function getSharedStyleSheet(): HTMLStyleElement {
 }
 
 function getDynamicStyleSheetRules(style: any) {
-	if (style && style.sheet && style.sheet.rules) {
+	if (style?.sheet?.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
 	}
-	if (style && style.sheet && style.sheet.cssRules) {
+	if (style?.sheet?.cssRules) {
 		// FF
 		return style.sheet.cssRules;
 	}
@@ -1012,19 +1002,22 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 	return child;
 }
 
-const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 
-export function reset<T extends Node>(parent: HTMLElement, ...children: Array<Node | string>) {
+/**
+ * Removes all children from `parent` and appends `children`
+ */
+export function reset(parent: HTMLElement, ...children: Array<Node | string>) {
 	parent.innerText = '';
-	coalesce(children)
-		.forEach(child => {
-			if (child instanceof Node) {
-				parent.appendChild(child);
-			} else {
-				parent.appendChild(document.createTextNode(child as string));
-			}
-		});
+	for (const child of children) {
+		if (child instanceof Node) {
+			parent.appendChild(child);
+		} else if (typeof child === 'string') {
+			parent.appendChild(document.createTextNode(child));
+		}
+	}
 }
+
+const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((\.([\w\-]+))*)/;
 
 export enum Namespace {
 	HTML = 'http://www.w3.org/1999/xhtml',
@@ -1075,14 +1068,13 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 		}
 	});
 
-	coalesce(children)
-		.forEach(child => {
-			if (child instanceof Node) {
-				result.appendChild(child);
-			} else {
-				result.appendChild(document.createTextNode(child as string));
-			}
-		});
+	for (const child of children) {
+		if (child instanceof Node) {
+			result.appendChild(child);
+		} else if (typeof child === 'string') {
+			result.appendChild(document.createTextNode(child));
+		}
+	}
 
 	return result as T;
 }
@@ -1195,7 +1187,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 }
 
 /**
- * See https://github.com/Microsoft/monaco-editor/issues/601
+ * See https://github.com/microsoft/monaco-editor/issues/601
  * To protect against malicious code in the linked site, particularly phishing attempts,
  * the window.opener should be set to null to prevent the linked site from having access
  * to change the location of the current page.
@@ -1204,7 +1196,7 @@ export function computeScreenAwareSize(cssPx: number): number {
 export function windowOpenNoOpener(url: string): void {
 	if (platform.isNative || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
-		// The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
+		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
 		window.open(url);
 	} else {
 		let newTab = window.open();
@@ -1227,16 +1219,6 @@ export function animate(fn: () => void): IDisposable {
 
 RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
 
-export function asDomUri(uri: URI): URI {
-	if (!uri) {
-		return uri;
-	}
-	if (Schemas.vscodeRemote === uri.scheme) {
-		return RemoteAuthorities.rewrite(uri);
-	}
-	return uri;
-}
-
 /**
  * returns url('...')
  */
@@ -1244,7 +1226,7 @@ export function asCSSUrl(uri: URI): string {
 	if (!uri) {
 		return `url('')`;
 	}
-	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
 
 
@@ -1275,4 +1257,67 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 
 	// Ensure to remove the element from DOM eventually
 	setTimeout(() => document.body.removeChild(anchor));
+}
+
+export enum DetectedFullscreenMode {
+
+	/**
+	 * The document is fullscreen, e.g. because an element
+	 * in the document requested to be fullscreen.
+	 */
+	DOCUMENT = 1,
+
+	/**
+	 * The browser is fullsreen, e.g. because the user enabled
+	 * native window fullscreen for it.
+	 */
+	BROWSER
+}
+
+export interface IDetectedFullscreen {
+
+	/**
+	 * Figure out if the document is fullscreen or the browser.
+	 */
+	mode: DetectedFullscreenMode;
+
+	/**
+	 * Wether we know for sure that we are in fullscreen mode or
+	 * it is a guess.
+	 */
+	guess: boolean;
+}
+
+export function detectFullscreen(): IDetectedFullscreen | null {
+
+	// Browser fullscreen: use DOM APIs to detect
+	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
+	}
+
+	// There is no standard way to figure out if the browser
+	// is using native fullscreen. Via checking on screen
+	// height and comparing that to window height, we can guess
+	// it though.
+
+	if (window.innerHeight === screen.height) {
+		// if the height of the window matches the screen height, we can
+		// safely assume that the browser is fullscreen because no browser
+		// chrome is taking height away (e.g. like toolbars).
+		return { mode: DetectedFullscreenMode.BROWSER, guess: false };
+	}
+
+	if (platform.isMacintosh || platform.isLinux) {
+		// macOS and Linux do not properly report `innerHeight`, only Windows does
+		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
+			// if the height of the browser matches the screen height, we can
+			// only guess that we are in fullscreen. It is also possible that
+			// the user has turned off taskbars in the OS and the browser is
+			// simply able to span the entire size of the screen.
+			return { mode: DetectedFullscreenMode.BROWSER, guess: true };
+		}
+	}
+
+	// Not in fullscreen
+	return null;
 }

@@ -6,7 +6,7 @@
 import 'vs/workbench/contrib/markers/browser/markersFileDecorations';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize } from 'vs/nls';
@@ -157,8 +157,8 @@ workbenchRegistry.registerWorkbenchContribution(ActivityUpdater, LifecyclePhase.
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleMarkersPanelAction, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
-}), 'View: Toggle Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowProblemsPanelAction), 'View: Focus Problems (Errors, Warnings, Infos)', Messages.MARKERS_PANEL_VIEW_CATEGORY);
+}), 'View: Toggle Problems (Errors, Warnings, Infos)', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowProblemsPanelAction), 'View: Focus Problems (Errors, Warnings, Infos)', CATEGORIES.View.value);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

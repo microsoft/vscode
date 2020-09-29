@@ -98,7 +98,7 @@ export interface IStartupMetrics {
 	readonly didUseCachedData: boolean;
 
 	/**
-	 * How/why the window was created. See https://github.com/Microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
+	 * How/why the window was created. See https://github.com/microsoft/vscode/blob/d1f57d871722f4d6ba63e4ef6f06287121ceb045/src/vs/platform/lifecycle/common/lifecycle.ts#L50
 	 */
 	readonly windowKind: number;
 
@@ -307,7 +307,7 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _startupMetrics?: Promise<IStartupMetrics>;
+	private readonly _startupMetrics: Promise<IStartupMetrics>;
 
 	constructor(
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
@@ -319,17 +319,16 @@ export abstract class AbstractTimerService implements ITimerService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-	) { }
+	) {
+		this._startupMetrics = this._extensionService.whenInstalledExtensionsRegistered()
+			.then(() => this._computeStartupMetrics())
+			.then(metrics => {
+				this._reportStartupTimes(metrics);
+				return metrics;
+			});
+	}
 
 	get startupMetrics(): Promise<IStartupMetrics> {
-		if (!this._startupMetrics) {
-			this._startupMetrics = this._extensionService.whenInstalledExtensionsRegistered()
-				.then(() => this._computeStartupMetrics())
-				.then(metrics => {
-					this._reportStartupTimes(metrics);
-					return metrics;
-				});
-		}
 		return this._startupMetrics;
 	}
 

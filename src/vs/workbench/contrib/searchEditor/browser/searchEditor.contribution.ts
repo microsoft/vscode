@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as objects from 'vs/base/common/objects';
 import { extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -22,7 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -76,7 +75,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 
 		this.editorService.overrideOpenEditor({
 			open: (editor, options, group) => {
-				const resource = editor.resource;
+				const resource = EditorResourceAccessor.getOriginalUri(editor);
 				if (!resource) { return undefined; }
 
 				if (extname(resource) !== SEARCH_EDITOR_EXT) {
@@ -146,21 +145,21 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 //#endregion
 
 //#region Commands
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorCaseSensitiveCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
 	handler: toggleSearchEditorCaseSensitiveCommand
 }, ToggleCaseSensitiveKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
 	handler: toggleSearchEditorWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),

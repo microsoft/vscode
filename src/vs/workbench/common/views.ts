@@ -278,16 +278,18 @@ export interface IViewContainerModel {
 	move(from: string, to: string): void;
 }
 
-export enum ViewContentPriority {
-	Normal = 0,
-	Low = 1,
-	Lowest = 2
+export enum ViewContentGroups {
+	Open = '2_open',
+	Debug = '4_debug',
+	SCM = '5_scm',
+	More = '9_more'
 }
 
 export interface IViewContentDescriptor {
 	readonly content: string;
 	readonly when?: ContextKeyExpression | 'default';
-	readonly priority?: ViewContentPriority;
+	readonly group?: string;
+	readonly order?: number;
 
 	/**
 	 * ordered preconditions for each button in the content
@@ -323,15 +325,12 @@ export interface IViewsRegistry {
 }
 
 function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewContentDescriptor): number {
-	const aPriority = a.priority ?? ViewContentPriority.Normal;
-	const bPriority = b.priority ?? ViewContentPriority.Normal;
-
-	if (aPriority !== bPriority) {
-		return aPriority - bPriority;
+	const aGroup = a.group ?? ViewContentGroups.More;
+	const bGroup = b.group ?? ViewContentGroups.More;
+	if (aGroup !== bGroup) {
+		return aGroup.localeCompare(bGroup);
 	}
-
-	// No priroity, keep views sorted in the order they got registered
-	return 0;
+	return (a.order ?? 5) - (b.order ?? 5);
 }
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
@@ -509,6 +508,11 @@ export function getVisbileViewContextKey(viewId: string): string { return `${vie
 
 export const IViewDescriptorService = createDecorator<IViewDescriptorService>('viewDescriptorService');
 
+export enum ViewVisibilityState {
+	Default = 0,
+	Expand = 1
+}
+
 export interface IViewDescriptorService {
 
 	readonly _serviceBrand: undefined;
@@ -519,6 +523,7 @@ export interface IViewDescriptorService {
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
 	getViewContainerById(id: string): ViewContainer | null;
+	isViewContainerRemovedPermanently(id: string): boolean;
 	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
@@ -534,10 +539,12 @@ export interface IViewDescriptorService {
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
-	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState): void;
 
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+
+	reset(): void;
 }
 
 // Custom views
@@ -554,6 +561,8 @@ export interface ITreeView extends IDisposable {
 
 	title: string;
 
+	description: string | undefined;
+
 	readonly visible: boolean;
 
 	readonly onDidExpandItem: Event<ITreeItem>;
@@ -567,6 +576,8 @@ export interface ITreeView extends IDisposable {
 	readonly onDidChangeActions: Event<void>;
 
 	readonly onDidChangeTitle: Event<string>;
+
+	readonly onDidChangeDescription: Event<string | undefined>;
 
 	readonly onDidChangeWelcomeState: Event<void>;
 

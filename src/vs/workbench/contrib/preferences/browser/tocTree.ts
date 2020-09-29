@@ -6,17 +6,21 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IObjectTreeOptions, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { localize } from 'vs/nls';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { editorBackground, transparent, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IListService, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { editorBackground, focusBorder, foreground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SettingsTreeFilter } from 'vs/workbench/contrib/preferences/browser/settingsTree';
 import { ISettingsEditorViewState, SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsHeaderForeground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
-import { localize } from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const $ = DOM.$;
@@ -187,17 +191,22 @@ class SettingsAccessibilityProvider implements IListAccessibilityProvider<Settin
 	}
 }
 
-export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
+export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 	constructor(
 		container: HTMLElement,
 		viewState: ISettingsEditorViewState,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		// test open mode
 
 		const filter = instantiationService.createInstance(SettingsTreeFilter, viewState);
-		const options: IObjectTreeOptions<SettingsTreeGroupElement> = {
+		const options: IWorkbenchObjectTreeOptions<SettingsTreeGroupElement, void> = {
 			filter,
 			multipleSelectionSupport: false,
 			identityProvider: {
@@ -207,16 +216,27 @@ export class TOCTree extends ObjectTree<SettingsTreeGroupElement> {
 			},
 			styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
-			collapseByDefault: true
+			collapseByDefault: true,
+			horizontalScrolling: false
 		};
 
-		super('SettingsTOC', container,
+		super(
+			'SettingsTOC',
+			container,
 			new TOCTreeDelegate(),
 			[new TOCRenderer()],
-			options);
+			options,
+			contextKeyService,
+			listService,
+			themeService,
+			configurationService,
+			keybindingService,
+			accessibilityService,
+		);
 
 		this.disposables.add(attachStyler(themeService, {
 			listBackground: editorBackground,
+			listFocusOutline: focusBorder,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
 			listFocusAndSelectionBackground: editorBackground,

@@ -5,7 +5,6 @@
 
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
-import * as strings from 'vs/base/common/strings';
 import { ITreeFilter, TreeVisibility, TreeFilterResult } from 'vs/base/browser/ui/tree/tree';
 import { IReplElement } from 'vs/workbench/contrib/debug/common/debug';
 import * as DOM from 'vs/base/browser/dom';
@@ -20,8 +19,11 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ReplEvaluationResult, ReplEvaluationInput } from 'vs/workbench/contrib/debug/common/replModel';
+import { localize } from 'vs/nls';
 
 
 type ParsedQuery = {
@@ -41,7 +43,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		if (query && query !== '') {
 			const filters = splitGlobAware(query, ',').map(s => s.trim()).filter(s => !!s.length);
 			for (const f of filters) {
-				if (strings.startsWith(f, '!')) {
+				if (f.startsWith('!')) {
 					this._parsedQueries.push({ type: 'exclude', query: f.slice(1) });
 				} else {
 					this._parsedQueries.push({ type: 'include', query: f });
@@ -51,8 +53,9 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 	}
 
 	filter(element: IReplElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
-		if (this._parsedQueries.length === 0) {
-			return parentVisibility;
+		if (element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
+			// Only filter the output events, everything else is visible https://github.com/microsoft/vscode/issues/105863
+			return TreeVisibility.Visible;
 		}
 
 		let includeQueryPresent = false;
@@ -72,27 +75,52 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 			}
 		}
 
-		return includeQueryPresent ? includeQueryMatched : parentVisibility;
+		return includeQueryPresent ? includeQueryMatched : (typeof parentVisibility !== 'undefined' ? parentVisibility : TreeVisibility.Visible);
 	}
 }
 
+export interface IFilterStatsProvider {
+	getFilterStats(): { total: number, filtered: number };
+}
+
 export class ReplFilterState {
+
+	constructor(private filterStatsProvider: IFilterStatsProvider) { }
 
 	private readonly _onDidChange: Emitter<void> = new Emitter<void>();
 	get onDidChange(): Event<void> {
 		return this._onDidChange.event;
 	}
 
+	private readonly _onDidStatsChange: Emitter<void> = new Emitter<void>();
+	get onDidStatsChange(): Event<void> {
+		return this._onDidStatsChange.event;
+	}
+
 	private _filterText = '';
+	private _stats = { total: 0, filtered: 0 };
 
 	get filterText(): string {
 		return this._filterText;
+	}
+
+	get filterStats(): { total: number, filtered: number } {
+		return this._stats;
 	}
 
 	set filterText(filterText: string) {
 		if (this._filterText !== filterText) {
 			this._filterText = filterText;
 			this._onDidChange.fire();
+			this.updateFilterStats();
+		}
+	}
+
+	updateFilterStats(): void {
+		const { total, filtered } = this.filterStatsProvider.getFilterStats();
+		if (this._stats.total !== total || this._stats.filtered !== filtered) {
+			this._stats = { total, filtered };
+			this._onDidStatsChange.fire();
 		}
 	}
 }
@@ -101,6 +129,7 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container!: HTMLElement;
+	private filterBadge!: HTMLElement;
 	private filterInputBox!: HistoryInputBox;
 
 	constructor(
@@ -111,17 +140,18 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService private readonly contextViewService: IContextViewService) {
 		super(null, action);
-		this.delayedFilterUpdate = new Delayer<void>(200);
+		this.delayedFilterUpdate = new Delayer<void>(400);
 		this._register(toDisposable(() => this.delayedFilterUpdate.cancel()));
 	}
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		DOM.addClass(this.container, 'repl-panel-filter-container');
+		this.container.classList.add('repl-panel-filter-container');
 
 		this.element = DOM.append(this.container, DOM.$(''));
 		this.element.className = this.class;
 		this.createInput(this.element);
+		this.createBadge(this.element);
 		this.updateClass();
 	}
 
@@ -176,6 +206,34 @@ export class ReplFilterActionViewItem extends BaseActionViewItem {
 			event.stopPropagation();
 			event.preventDefault();
 		}
+	}
+
+	private createBadge(container: HTMLElement): void {
+		const controlsContainer = DOM.append(container, DOM.$('.repl-panel-filter-controls'));
+		const filterBadge = this.filterBadge = DOM.append(controlsContainer, DOM.$('.repl-panel-filter-badge'));
+		this._register(attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
+			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : '';
+			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
+
+			filterBadge.style.backgroundColor = background;
+
+			filterBadge.style.borderWidth = border ? '1px' : '';
+			filterBadge.style.borderStyle = border ? 'solid' : '';
+			filterBadge.style.borderColor = border;
+			filterBadge.style.color = foreground;
+		}));
+		this.updateBadge();
+		this._register(this.filters.onDidStatsChange(() => this.updateBadge()));
+	}
+
+	private updateBadge(): void {
+		const { total, filtered } = this.filters.filterStats;
+		const filterBadgeHidden = total === filtered || total === 0;
+
+		this.filterBadge.classList.toggle('hidden', filterBadgeHidden);
+		this.filterBadge.textContent = localize('showing filtered repl lines', "Showing {0} of {1}", filtered, total);
+		this.filterInputBox.inputElement.style.paddingRight = filterBadgeHidden ? '4px' : '150px';
 	}
 
 	protected get class(): string {

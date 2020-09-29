@@ -23,9 +23,11 @@ export interface IBuiltInExtension {
 }
 
 export type ConfigurationSyncStore = {
+	web?: Partial<Omit<ConfigurationSyncStore, 'web'>>,
 	url: string,
-	insidersUrl?: string,
-	stableUrl?: string,
+	insidersUrl: string,
+	stableUrl: string,
+	canSwitch: boolean,
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
@@ -145,6 +147,7 @@ export interface IConfigBasedExtensionTip {
 export interface IExeBasedExtensionTip {
 	friendlyName: string;
 	windowsPath?: string;
+	important?: boolean;
 	recommendations: IStringDictionary<{ name: string, important?: boolean, isExtensionPack?: boolean }>;
 }
 

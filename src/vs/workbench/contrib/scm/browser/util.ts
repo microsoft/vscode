@@ -12,7 +12,7 @@ import { createAndFillInActionBarActions, createAndFillInContextMenuActions } fr
 import { equals } from 'vs/base/common/arrays';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/modes';
 import { basename } from 'vs/base/common/resources';
@@ -105,7 +105,7 @@ export class StatusBarActionViewItem extends ActionViewItem {
 
 	updateLabel(): void {
 		if (this.options.label && this.label) {
-			reset(this.label, ...renderCodiconsAsElement(this.getAction().label));
+			reset(this.label, ...renderCodicons(this.getAction().label));
 		}
 	}
 }

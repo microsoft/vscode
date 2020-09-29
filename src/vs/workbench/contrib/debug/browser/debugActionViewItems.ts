@@ -11,7 +11,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, IDebugConfigurationProvider } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -34,7 +34,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private options: { label: string, handler: (() => Promise<boolean>) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
-	private providers: { label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
+	private providers: { label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
 
 	constructor(
 		private context: unknown,
@@ -67,7 +67,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 	render(container: HTMLElement): void {
 		this.container = container;
-		dom.addClass(container, 'start-debug-action-item');
+		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $('.codicon.codicon-debug-start'));
 		this.start.title = this.action.label;
 		this.start.setAttribute('role', 'button');
@@ -80,14 +80,14 @@ export class StartDebugActionViewItem implements IActionViewItem {
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (this.action.enabled && e.button === 0) {
-				dom.addClass(this.start, 'active');
+				this.start.classList.add('active');
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_UP, () => {
-			dom.removeClass(this.start, 'active');
+			this.start.classList.remove('active');
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_OUT, () => {
-			dom.removeClass(this.start, 'active');
+			this.start.classList.remove('active');
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -106,7 +106,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			if (shouldBeSelected) {
 				this.selected = e.index;
 			} else {
-				// Some select options should not remain selected https://github.com/Microsoft/vscode/issues/31526
+				// Some select options should not remain selected https://github.com/microsoft/vscode/issues/31526
 				this.selectBox.select(this.selected);
 			}
 		}));
@@ -182,7 +182,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
 			this.options.push({
 				label, handler: async () => {
-					manager.selectConfiguration(launch, name);
+					await manager.selectConfiguration(launch, name);
 					return true;
 				}
 			});
@@ -196,7 +196,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}
 
 		this.providers.forEach(p => {
-			if (p.label === manager.selectedConfiguration.name) {
+			if (p.provider.type === manager.selectedConfiguration.config?.type) {
 				this.selected = this.options.length;
 			}
 
@@ -204,7 +204,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				label: `${p.label}...`, handler: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						manager.selectConfiguration(picked.launch, p.label, picked.config);
+						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config);
 						return true;
 					}
 					return false;
