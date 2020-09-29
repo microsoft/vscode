@@ -557,6 +557,9 @@ export {
 	// LogLevel
 	LogLevel,
 
+	// SettingsSync
+	ISettingsSyncOptions,
+
 	// Updates/Quality
 	IUpdateProvider,
 	IUpdate,

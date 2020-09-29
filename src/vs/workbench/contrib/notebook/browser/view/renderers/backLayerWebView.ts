@@ -148,7 +148,8 @@ export interface IFocusOutputMessage {
 }
 
 export interface IPreloadResource {
-	uri: string
+	originalUri: string;
+	uri: string;
 }
 
 export interface IUpdatePreloadResourceMessage {
@@ -800,19 +801,15 @@ var requirejs = (function() {
 		await this._loaded;
 
 		const resources: IPreloadResource[] = [];
-		preloads = preloads.map(preload => {
-			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
-				return preload;
-			}
-			return asWebviewUri(this.environmentService, this.id, preload);
-		});
+		for (const preload of preloads) {
+			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
+				? preload : asWebviewUri(this.environmentService, this.id, preload);
 
-		preloads.forEach(e => {
-			if (!this._preloadsCache.has(e.toString())) {
-				resources.push({ uri: e.toString() });
-				this._preloadsCache.add(e.toString());
+			if (!this._preloadsCache.has(uri.toString())) {
+				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
+				this._preloadsCache.add(uri.toString());
 			}
-		});
+		}
 
 		if (!resources.length) {
 			return;
@@ -833,19 +830,17 @@ var requirejs = (function() {
 		const resources: IPreloadResource[] = [];
 		const extensionLocations: URI[] = [];
 		for (const rendererInfo of renderers) {
-			const preloads = [rendererInfo.entrypoint, ...rendererInfo.preloads]
-				.map(preload => asWebviewUri(this.environmentService, this.id, preload));
 			extensionLocations.push(rendererInfo.extensionLocation);
-
-			preloads.forEach(e => {
-				const resource: IPreloadResource = { uri: e.toString() };
+			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
+				const uri = asWebviewUri(this.environmentService, this.id, preload);
+				const resource: IPreloadResource = { uri: uri.toString(), originalUri: preload.toString() };
 				requiredPreloads.push(resource);
 
-				if (!this._preloadsCache.has(e.toString())) {
+				if (!this._preloadsCache.has(uri.toString())) {
 					resources.push(resource);
-					this._preloadsCache.add(e.toString());
+					this._preloadsCache.add(uri.toString());
 				}
-			});
+			}
 		}
 
 		if (!resources.length) {

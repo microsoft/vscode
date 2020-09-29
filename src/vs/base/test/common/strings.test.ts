@@ -183,13 +183,6 @@ suite('Strings', () => {
 		assert.strictEqual(' 	  '.trim(), '');
 	});
 
-	test('repeat', () => {
-		assert.strictEqual(strings.repeat(' ', 4), '    ');
-		assert.strictEqual(strings.repeat(' ', 1), ' ');
-		assert.strictEqual(strings.repeat(' ', 0), '');
-		assert.strictEqual(strings.repeat('abc', 2), 'abcabc');
-	});
-
 	test('lastNonWhitespaceIndex', () => {
 		assert.strictEqual(strings.lastNonWhitespaceIndex('abc  \t \t '), 2);
 		assert.strictEqual(strings.lastNonWhitespaceIndex('abc'), 2);

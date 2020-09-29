@@ -20,7 +20,6 @@
 }
 
 .monaco-action-bar .action-item .monaco-select-box {
-	font-size: 11px;
 	cursor: pointer;
 	min-width: 110px;
 	min-height: 18px;
@@ -28,5 +27,6 @@
 }
 
 .mac .monaco-action-bar .action-item .monaco-select-box {
+	font-size: 11px;
 	border-radius: 5px;
 }

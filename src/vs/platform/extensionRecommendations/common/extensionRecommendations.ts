@@ -11,6 +11,13 @@ export const enum RecommendationSource {
 	EXE = 3
 }
 
+export const enum RecommendationsNotificationResult {
+	Ignored = 'ignored',
+	Cancelled = 'cancelled',
+	TooMany = 'toomany',
+	Accepted = 'reacted',
+}
+
 export const IExtensionRecommendationNotificationService = createDecorator<IExtensionRecommendationNotificationService>('IExtensionRecommendationNotificationService');
 
 export interface IExtensionRecommendationNotificationService {
@@ -19,7 +26,7 @@ export interface IExtensionRecommendationNotificationService {
 	readonly ignoredRecommendations: string[];
 	hasToIgnoreRecommendationNotifications(): boolean;
 
-	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<boolean>;
+	promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<RecommendationsNotificationResult>;
 	promptWorkspaceRecommendations(recommendations: string[]): Promise<void>;
 }
 

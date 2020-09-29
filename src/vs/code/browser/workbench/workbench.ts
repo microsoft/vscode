@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IWindowIndicator, IHomeIndicator, IProductQualityChangeHandler, ISettingsSyncOptions } from 'vs/workbench/workbench.web.api';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -493,9 +493,28 @@ class WindowIndicator implements IWindowIndicator {
 		window.location.href = `${window.location.origin}?${queryString}`;
 	};
 
+	// settings sync options
+	const settingsSyncOptions: ISettingsSyncOptions = {
+		enabled: !!config.settingsSyncOptions?.enabled,
+		enablementHandler: (enablement) => {
+			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
+
+			// Save all other query params we might have
+			const query = new URL(document.location.href).searchParams;
+			query.forEach((value, key) => {
+				if (key !== 'settingsSync') {
+					queryString += `&${key}=${value}`;
+				}
+			});
+
+			window.location.href = `${window.location.origin}?${queryString}`;
+		}
+	};
+
 	// Finally create workbench
 	create(document.body, {
 		...config,
+		settingsSyncOptions,
 		homeIndicator,
 		windowIndicator,
 		productQualityChangeHandler,
