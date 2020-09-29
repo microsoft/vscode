@@ -481,17 +481,6 @@ function addChildrenToTabOrder(node: Element): void {
 	});
 }
 
-export function updateSettingTreeTabOrder(container: Element): void {
-	const allRows = [...container.querySelectorAll(AbstractSettingRenderer.ALL_ROWS_SELECTOR)];
-	const focusedRow = allRows.find(row => row.classList.contains('focused'));
-
-	allRows.forEach(removeChildrenFromTabOrder);
-
-	if (isDefined(focusedRow)) {
-		addChildrenToTabOrder(focusedRow);
-	}
-}
-
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -525,7 +514,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
 
-	// Put common injections back here
 	constructor(
 		private readonly settingActions: IAction[],
 		private readonly disposableActionFactory: (setting: ISetting) => IAction[],
@@ -670,7 +658,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const setting = element.setting;
 
-		DOM.toggleClass(template.containerElement, 'is-configured', element.isConfigured);
+		template.containerElement.classList.toggle('is-configured', element.isConfigured);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR, element.setting.key);
 		template.containerElement.setAttribute(AbstractSettingRenderer.SETTING_ID_ATTR, element.id);
 
@@ -733,7 +721,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
-		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
+		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
@@ -744,6 +732,19 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			update();
 		}));
+
+		this.updateSettingTabbable(element, template);
+		template.elementDisposables.add(element.onDidChangeTabbable(() => {
+			this.updateSettingTabbable(element, template);
+		}));
+	}
+
+	private updateSettingTabbable(element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
+		if (element.tabbable) {
+			addChildrenToTabOrder(template.containerElement);
+		} else {
+			removeChildrenFromTabOrder(template.containerElement);
+		}
 	}
 
 	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
@@ -1885,12 +1886,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 		);
 
 		this.disposables.add(registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-			const activeBorderColor = theme.getColor(focusBorder);
-			if (activeBorderColor) {
-				// TODO@rob - why isn't this applied when added to the stylesheet from tocTree.ts? Seems like a chromium glitch.
-				collector.addRule(`.settings-editor > .settings-body > .settings-toc-container .monaco-list:focus .monaco-list-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px;  }`);
-			}
-
 			const foregroundColor = theme.getColor(foreground);
 			if (foregroundColor) {
 				// Links appear inside other elements in markdown. CSS opacity acts like a mask. So we have to dynamically compute the description color to avoid

@@ -51,6 +51,7 @@ import { BrowserRequestService } from 'vs/workbench/services/request/browser/req
 import { IRequestService } from 'vs/platform/request/common/request';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { UserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { IUserDataSyncStoreManagementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 class BrowserMain extends Disposable {
 
@@ -215,7 +216,7 @@ class BrowserMain extends Disposable {
 
 		// Userdata Sync Store Management Service
 		const userDataSyncStoreManagementService = new UserDataSyncStoreManagementService(productService, configurationService, storageService);
-		serviceCollection.set(IRequestService, requestService);
+		serviceCollection.set(IUserDataSyncStoreManagementService, userDataSyncStoreManagementService);
 
 		// Userdata Initialize Service
 		const userDataInitializationService = new UserDataInitializationService(environmentService, userDataSyncStoreManagementService, fileService, storageService, productService, requestService, logService);

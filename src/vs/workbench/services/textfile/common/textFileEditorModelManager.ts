@@ -23,7 +23,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot, ITextBufferFactory } from 'vs/editor/common/model';
-import { joinPath, extUri } from 'vs/base/common/resources';
+import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -150,7 +150,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 					for (const model of this.models) {
 						const resource = model.resource;
 
-						if (extUri.isEqualOrParent(resource, target)) {
+						if (isEqualOrParent(resource, target)) {
 							// EXPLICITLY do not ignorecase, see https://github.com/microsoft/vscode/issues/56384
 							targetModels.push(model);
 						}

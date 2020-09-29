@@ -21,7 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, Extensions as EditorInputExtensions, IEditorInputFactory, IEditorInputFactoryRegistry, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -75,7 +75,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 
 		this.editorService.overrideOpenEditor({
 			open: (editor, options, group) => {
-				const resource = editor.resource;
+				const resource = EditorResourceAccessor.getOriginalUri(editor);
 				if (!resource) { return undefined; }
 
 				if (extname(resource) !== SEARCH_EDITOR_EXT) {

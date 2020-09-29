@@ -6,7 +6,7 @@
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
@@ -516,7 +516,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private preferResourceEditorInput(input: IEditorInput): IEditorInput | IResourceEditorInput {
-		const resource = input.resource;
+		const resource = EditorResourceAccessor.getOriginalUri(input);
 		if (resource && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData || resource.scheme === this.pathService.defaultUriScheme)) {
 			// for now, only prefer well known schemes that we control to prevent
 			// issues such as https://github.com/microsoft/vscode/issues/85204
@@ -633,7 +633,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const associatedResources: URI[] = [];
-		const editorResource = toResource(editor, { supportSideBySide: SideBySideEditor.BOTH });
+		const editorResource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (URI.isUri(editorResource)) {
 			associatedResources.push(editorResource);
 		} else if (editorResource) {
@@ -645,7 +645,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// ...adding it as last recently closed
 		this.recentlyClosedEditors.push({
-			resource: editor.resource,
+			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
 			serialized: { typeId: editor.getTypeId(), value: serialized },
 			index: event.index,
@@ -1002,7 +1002,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		for (const input of this.getHistory()) {
 			let resource: URI | undefined;
 			if (input instanceof EditorInput) {
-				resource = toResource(input, { filterByScheme, usePreferredResource: true });
+				resource = EditorResourceAccessor.getOriginalUri(input, { filterByScheme });
 			} else {
 				resource = (input as IResourceEditorInput).resource;
 			}
