@@ -2106,6 +2106,12 @@
       },
       {
         "view": "explorer",
+        "contents": "%view.workbench.activating%",
+        "when": "config.git.enabled && git.state != initialized",
+        "group": "5_scm@1"
+      },
+      {
+        "view": "explorer",
         "contents": "%view.workbench.cloneRepository%",
         "when": "config.git.enabled && git.state == initialized",
         "group": "5_scm@1"
