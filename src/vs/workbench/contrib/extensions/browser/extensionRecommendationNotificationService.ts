@@ -67,8 +67,8 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	}
 
 	private recommendedExtensions: string[] = [];
+	private recommendationSources: RecommendationSource[] = [];
 
-	private notificationsCount: number = 0;
 	private hideVisibleNotificationPromise: CancelablePromise<void> | undefined;
 	private visibleNotification: VisibleRecommendationNotification | undefined;
 	private pendingNotificaitons: PendingRecommendationNotification[] = [];
@@ -100,8 +100,10 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			return RecommendationsNotificationResult.Ignored;
 		}
 
-		// Ignore exe recommendation if the window has shown two recommendations already
-		if (source === RecommendationSource.EXE && this.notificationsCount >= 2) {
+		// Ignore exe recommendation if the window
+		// 		=> has shown an exe based recommendation already
+		// 		=> or has shown any two recommendations already
+		if (source === RecommendationSource.EXE && (this.recommendationSources.includes(RecommendationSource.EXE) || this.recommendationSources.length >= 2)) {
 			return RecommendationsNotificationResult.TooMany;
 		}
 
@@ -261,15 +263,15 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	 * If a new recommendation comes in
 	 * 		=> If no recommendation is visible, show it immediately
 	 *		=> Otherwise, add to the pending queue
-	 * 			=> If it is higher or same priority, hide the current notification after showing it for 3s.
+	 * 			=> If it is not exe based and has higher or same priority as current, hide the current notification after showing it for 3s.
 	 * 			=> Otherwise wait until the current notification is hidden.
 	 */
 	private async showNotification(recommendationNotification: RecommendationNotification): Promise<INotificationHandle> {
-		this.notificationsCount++;
+		this.recommendationSources.push(recommendationNotification.priority);
 		if (this.visibleNotification) {
 			return new Promise<INotificationHandle>((onDidShow, e) => {
 				this.pendingNotificaitons.push({ ...recommendationNotification, onDidShow });
-				if (recommendationNotification.priority <= this.visibleNotification!.priority) {
+				if (recommendationNotification.priority !== RecommendationSource.EXE && recommendationNotification.priority <= this.visibleNotification!.priority) {
 					this.hideVisibleNotification(3000);
 				}
 			});
