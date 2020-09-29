@@ -16,6 +16,7 @@ import { isMultilineRegexSource } from 'vs/editor/common/model/textModelSearch';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, IWorkspaceFolderData, toWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { getExcludes, ICommonQueryProps, IFileQuery, IFolderQuery, IPatternInfo, ISearchConfiguration, ITextQuery, ITextSearchPreviewOptions, pathIncludedInQuery, QueryType } from 'vs/workbench/services/search/common/search';
 
@@ -59,6 +60,7 @@ export interface ICommonQueryBuilderOptions {
 	disregardExcludeSettings?: boolean;
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	onlyOpenEditors?: boolean;
 }
 
 export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -81,6 +83,7 @@ export class QueryBuilder {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IPathService private readonly pathService: IPathService
 	) {
 	}
@@ -178,8 +181,25 @@ export class QueryBuilder {
 
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
+			onlyOpenEditors: options.onlyOpenEditors,
 			maxResults: options.maxResults
 		};
+
+		if (options.onlyOpenEditors) {
+			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
+			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
+			const openEditorIncludes = openEditorsInQuery.map(editor => {
+				const workspace = this.workspaceContextService.getWorkspaceFolder(editor);
+				if (workspace) {
+					const relPath = path.relative(workspace?.uri.fsPath, editor.fsPath);
+					return includeFolderName ? `./${workspace.name}/${relPath}` : `./${relPath}`;
+				}
+				else {
+					return editor.fsPath.replace(/^\//, '');
+				}
+			});
+			// return this.commonQuery(folderResources, { ...options, expandPatterns: false, onlyOpenEditors: false, includePattern: openEditorIncludes.join(', ') });
+		}
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
 		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
