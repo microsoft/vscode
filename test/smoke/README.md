@@ -5,6 +5,9 @@ Make sure you are on **Node v12.x**.
 ### Run
 
 ```bash
+# Build extensions in repo (if needed)
+yarn && yarn compile
+
 # Install Dependencies and Compile
 yarn --cwd test/smoke
 
