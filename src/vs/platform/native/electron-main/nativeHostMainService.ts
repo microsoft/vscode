@@ -74,7 +74,7 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	//#region Events
 
-	readonly onWindowOpen = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onWindowOpen = Event.map(this.windowsMainService.onWindowOpened, window => window.id);
 
 	readonly onWindowMaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 	readonly onWindowUnmaximize = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));

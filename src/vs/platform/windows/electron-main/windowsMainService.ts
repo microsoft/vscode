@@ -163,6 +163,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private shuttingDown = false;
 
+	private readonly _onWindowOpened = this._register(new Emitter<ICodeWindow>());
+	readonly onWindowOpened = this._onWindowOpened.event;
+
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady = this._onWindowReady.event;
 
@@ -1415,6 +1418,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Add to our list of windows
 			WindowsMainService.WINDOWS.push(createdWindow);
+
+			// Indicate new window via event
+			this._onWindowOpened.fire(createdWindow);
 
 			// Indicate number change via event
 			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
