@@ -821,17 +821,6 @@ export function stripUTF8BOM(str: string): string {
 }
 
 /**
- * @deprecated ES6
- */
-export function repeat(s: string, count: number): string {
-	let result = '';
-	for (let i = 0; i < count; i++) {
-		result += s;
-	}
-	return result;
-}
-
-/**
  * Checks if the characters of the provided query string are included in the
  * target string. The characters do not have to be contiguous within the string.
  */

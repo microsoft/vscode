@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionRecommendationNotificationService, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -66,6 +66,9 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		return distinct([...(<string[]>JSON.parse(this.storageService.get(ignoreImportantExtensionRecommendationStorageKey, StorageScope.GLOBAL, '[]')))].map(i => i.toLowerCase()));
 	}
 
+	private recommendedExtensions: string[] = [];
+
+	private notificationsCount: number = 0;
 	private hideVisibleNotificationPromise: CancelablePromise<void> | undefined;
 	private visibleNotification: VisibleRecommendationNotification | undefined;
 	private pendingNotificaitons: PendingRecommendationNotification[] = [];
@@ -92,32 +95,44 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		return config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand;
 	}
 
-	async promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, priority: RecommendationSource): Promise<boolean> {
+	async promptImportantExtensionsInstallNotification(extensionIds: string[], message: string, searchValue: string, source: RecommendationSource): Promise<RecommendationsNotificationResult> {
 		if (this.hasToIgnoreRecommendationNotifications()) {
-			return false;
+			return RecommendationsNotificationResult.Ignored;
+		}
+
+		// Ignore exe recommendation if the window has shown two recommendations already
+		if (source === RecommendationSource.EXE && this.notificationsCount >= 2) {
+			return RecommendationsNotificationResult.TooMany;
 		}
 
 		const ignoredRecommendations = [...this.extensionIgnoredRecommendationsService.ignoredRecommendations, ...this.ignoredRecommendations];
 		extensionIds = extensionIds.filter(id => !ignoredRecommendations.includes(id));
 		if (!extensionIds.length) {
-			return false;
+			return RecommendationsNotificationResult.Ignored;
+		}
+
+		// Ignore exe recommendation if recommendations are already shown
+		if (source === RecommendationSource.EXE && extensionIds.every(id => this.recommendedExtensions.includes(id))) {
+			return RecommendationsNotificationResult.Ignored;
 		}
 
 		const extensions = await this.getInstallableExtensions(extensionIds);
 		if (!extensions.length) {
-			return false;
+			return RecommendationsNotificationResult.Ignored;
 		}
 
 		if (this.tasExperimentService && extensionIds.indexOf('ms-vscode-remote.remote-wsl') !== -1) {
 			await this.tasExperimentService.getTreatment<boolean>('wslpopupaa');
 		}
 
-		return new Promise<boolean>(async (c, e) => {
-			let cancelled: boolean = false;
+		this.recommendedExtensions = distinct([...this.recommendedExtensions, ...extensionIds]);
+
+		return new Promise<RecommendationsNotificationResult>(async (c, e) => {
+			let result = RecommendationsNotificationResult.Accepted;
 			const handle = await this.showNotification({
 				severity: Severity.Info,
 				message,
-				priority: priority,
+				priority: source,
 				choices: [{
 					label: localize('install', "Install"),
 					run: async () => {
@@ -161,7 +176,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 				options: {
 					sticky: true,
 					onCancel: () => {
-						cancelled = true;
+						result = RecommendationsNotificationResult.Cancelled;
 						for (const extension of extensions) {
 							this.telemetryService.publicLog2<{ userReaction: string, extensionId: string }, ExtensionRecommendationsNotificationClassification>('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: extension.identifier.id });
 						}
@@ -171,7 +186,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			);
 			const disposable = handle.onDidClose(() => {
 				disposable.dispose();
-				c(!cancelled);
+				c(result);
 			});
 		});
 	}
@@ -250,6 +265,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	 * 			=> Otherwise wait until the current notification is hidden.
 	 */
 	private async showNotification(recommendationNotification: RecommendationNotification): Promise<INotificationHandle> {
+		this.notificationsCount++;
 		if (this.visibleNotification) {
 			return new Promise<INotificationHandle>((onDidShow, e) => {
 				this.pendingNotificaitons.push({ ...recommendationNotification, onDidShow });
