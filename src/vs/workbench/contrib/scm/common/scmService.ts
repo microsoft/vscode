@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { HistoryNavigator } from 'vs/base/common/history';
 
 class SCMInput implements ISCMInput {
@@ -71,12 +71,18 @@ class SCMInput implements ISCMInput {
 	}
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private readonly historyNavigator : HistoryNavigator<string>;
+	private historyNavigator: HistoryNavigator<string>;
 
 	constructor(
-		readonly repository: ISCMRepository
+		readonly repository: ISCMRepository,
+		@IStorageService private storageService: IStorageService
 	) {
-		this.historyNavigator = new HistoryNavigator<string>([], 100);
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this.historyNavigator = JSON.parse(this.storageService.get(key, StorageScope.WORKSPACE, '[]'));
+		} else {
+			this.historyNavigator = new HistoryNavigator([], 50);
+		}
 	}
 
 	save(): void {
