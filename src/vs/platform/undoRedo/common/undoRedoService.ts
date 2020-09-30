@@ -277,13 +277,6 @@ class ResourceEditStack {
 			}
 		}
 		this._future = [];
-		if (this._past.length > 0) {
-			const lastElement = this._past[this._past.length - 1];
-			if (lastElement.type === UndoRedoElementType.Resource && !lastElement.isValid) {
-				// clear undo stack
-				this._past = [];
-			}
-		}
 		this._past.push(element);
 		this.versionId++;
 	}

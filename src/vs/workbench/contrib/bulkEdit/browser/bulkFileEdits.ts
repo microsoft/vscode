@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import * as resources from 'vs/base/common/resources';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 interface IFileOperation {
 	uris: URI[];
@@ -38,6 +39,7 @@ class RenameOperation implements IFileOperation {
 		readonly options: WorkspaceFileEditOptions,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 	) { }
 
 	get uris() {
@@ -49,8 +51,18 @@ class RenameOperation implements IFileOperation {
 		if (this.options.overwrite === undefined && this.options.ignoreIfExists && await this._fileService.exists(this.newUri)) {
 			return new Noop(); // not overwriting, but ignoring, and the target file exists
 		}
+
+		// See https://github.com/microsoft/vscode/issues/107739
+		// `IWorkingCopyFileService.move` ends up pushing to the undo/redo service
+		// if we attempt to move a dirty file.
+		try {
+			await this._textFileService.save(this.oldUri, {
+				skipSaveParticipants: true
+			});
+		} catch (err) { }
+
 		await this._workingCopyFileService.move([{ source: this.oldUri, target: this.newUri }], { overwrite: this.options.overwrite });
-		return new RenameOperation(this.oldUri, this.newUri, this.options, this._workingCopyFileService, this._fileService);
+		return new RenameOperation(this.oldUri, this.newUri, this.options, this._workingCopyFileService, this._fileService, this._textFileService);
 	}
 
 	toString(): string {
