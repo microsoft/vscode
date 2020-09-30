@@ -64,8 +64,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 	private _onDidBlur = this._register(new Emitter<void>());
 	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>());
+	private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
 	readonly onDidCancel = this._onDidCancel.event;
+	private cancelHasListener = false;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
 	readonly onDidRun = this._onDidRun.event;
@@ -138,7 +139,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 				eventHandled = this.focusPrevious();
 			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				eventHandled = this.focusNext();
-			} else if (event.equals(KeyCode.Escape)) {
+			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
