@@ -34,7 +34,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private options: { label: string, handler: (() => Promise<boolean>) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
-	private providers: { label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
+	private providers: { label: string, provider: IDebugConfigurationProvider | undefined, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
 
 	constructor(
 		private context: unknown,
@@ -196,7 +196,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}
 
 		this.providers.forEach(p => {
-			if (p.provider.type === manager.selectedConfiguration.config?.type) {
+			if (p.provider && p.provider.type === manager.selectedConfiguration.config?.type) {
 				this.selected = this.options.length;
 			}
 
