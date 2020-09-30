@@ -373,7 +373,7 @@ spdlog@^0.11.1:
     mkdirp "^0.5.1"
     nan "^2.14.0"
 
-tas-client-umd@^0.1.2:
+tas-client-umd@0.1.2:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/tas-client-umd/-/tas-client-umd-0.1.2.tgz#fe93ae085f65424292ac79feff4f1add3e50e624"
   integrity sha512-rT9BdDCejckqOTQL2ShX67QtTiAUGbmPm5ZTC8giXobBvZC6JuvBVy5G32hoGZ3Q0dpTvMfgpf3iVFNN2F7wzg==
