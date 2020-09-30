@@ -2077,6 +2077,11 @@
       },
       {
         "view": "scm",
+        "contents": "%view.workbench.scm.activating%",
+        "when": "config.git.enabled && git.state != initialized"
+      },
+      {
+        "view": "scm",
         "contents": "%view.workbench.scm.missing%",
         "when": "config.git.enabled && git.missing"
       },
