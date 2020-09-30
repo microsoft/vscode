@@ -85,8 +85,8 @@ export interface IInputValidator {
 
 export interface ISCMInput {
 	save(): void;
-	load(): void;
-	reverseLoad(): void;
+	showNextValue(): void;
+	showPreviousValue(): void;
 	readonly repository: ISCMRepository;
 
 	value: string;
