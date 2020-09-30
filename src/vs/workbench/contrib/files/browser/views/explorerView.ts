@@ -342,8 +342,9 @@ export class ExplorerView extends ViewPane {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
 				const focus = this.tree.getFocus();
-				if (focus.length === 1 && focus[0].resource.toString() === activeFile.toString()) {
-					// No action needed, active file is already focused
+				const selection = this.tree.getSelection();
+				if (focus.length === 1 && focus[0].resource.toString() === activeFile.toString() && selection.length === 1 && selection[0].resource.toString() === activeFile.toString()) {
+					// No action needed, active file is already focused and selected
 					return;
 				}
 				this.explorerService.select(activeFile, reveal);
