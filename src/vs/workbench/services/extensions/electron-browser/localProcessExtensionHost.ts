@@ -170,6 +170,12 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 					delete env['DYLD_LIBRARY_PATH'];
 				}
 
+				if (this._isExtensionDevHost) {
+					// Unset `VSCODE_NODE_CACHED_DATA_DIR` when developing extensions because it might
+					// be that dependencies, that otherwise would be cached, get modified.
+					delete env['VSCODE_NODE_CACHED_DATA_DIR'];
+				}
+
 				const opts = {
 					env,
 					// We only detach the extension host on windows. Linux and Mac orphan by default
