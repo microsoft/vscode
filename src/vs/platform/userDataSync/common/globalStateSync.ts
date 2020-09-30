@@ -237,7 +237,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private format(globalState: IGlobalState): string {
-		const storageKeys = Object.keys(globalState.storage).sort();
+		const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
 		const storage: IStringDictionary<IStorageValue> = {};
 		storageKeys.forEach(key => storage[key] = globalState.storage[key]);
 		globalState.storage = storage;
