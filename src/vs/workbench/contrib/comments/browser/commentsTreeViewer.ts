@@ -182,7 +182,6 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			dataSource,
 			{
 				accessibilityProvider: options.accessibilityProvider,
-				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {
 						if (element instanceof CommentsModel) {
