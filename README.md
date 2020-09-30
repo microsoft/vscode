@@ -14,7 +14,7 @@ This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Stu
   <img alt="VS Code in action" src="https://user-images.githubusercontent.com/1487073/58344409-70473b80-7e0a-11e9-8570-b2efc6f8fa44.png">
 </p>
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft specific customizations released under a traditional [proprietary Microsoft product license](https://code.visualstudio.com/License/). This is not open-source.
+[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft specific customizations released under a traditional [proprietary Microsoft product license](https://code.visualstudio.com/License/). This is not open-source, [as explained in this comment](https://github.com/Microsoft/vscode/issues/60#issuecomment-161792005).
 
 [Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
 
