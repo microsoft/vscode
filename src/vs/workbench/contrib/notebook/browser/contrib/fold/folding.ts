@@ -223,6 +223,9 @@ registerAction2(class extends Action2 {
 			} else {
 				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
 			}
+
+			const viewIndex = editor.viewModel!.getNearestVisibleCellIndexUpwards(index);
+			editor.selectElement(editor.viewModel!.viewCells[viewIndex]);
 		}
 	}
 });
