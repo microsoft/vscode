@@ -1836,7 +1836,8 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 			const otherOverridesList = element.overriddenScopeList.join(', ');
 			const otherOverridesLabel = element.overriddenScopeList.length ? `${otherOverridesStart} ${otherOverridesList}. ` : '';
 
-			return `${element.displayCategory} ${element.displayLabel}. ${element.description}. ${modifiedText} ${otherOverridesLabel}`;
+			const descriptionWithoutSettingLinks = fixSettingLinks(element.description, false);
+			return `${element.displayCategory} ${element.displayLabel}. ${descriptionWithoutSettingLinks}. ${modifiedText} ${otherOverridesLabel}`;
 		} else {
 			return element.id;
 		}
