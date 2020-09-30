@@ -476,6 +476,12 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer, { enableRemoteSettings: true }));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
+		this._register(DOM.addDisposableListener(targetWidgetContainer, DOM.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.DownArrow) {
+				this.focusSettings();
+			}
+		}));
 
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataAutoSyncService.canToggleEnablement()) {
 			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
