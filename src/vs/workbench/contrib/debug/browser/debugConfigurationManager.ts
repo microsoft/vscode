@@ -263,7 +263,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
-	async getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
+	async getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider | undefined, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
 		const extensions = await this.extensionService.getExtensions();
 		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
 		const debugDynamicExtensionsTypes = extensions.reduce((acc, e) => {
@@ -295,7 +295,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 		await Promise.all(debugDynamicExtensionsTypes.map(type => this.activateDebuggers(onDebugDynamicConfigurationsName, type)));
 		return debugDynamicExtensionsTypes.map(type => {
-			const provider = this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations)!;
+			const provider = this.configProviders.find(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
 			return {
 				label: this.getDebuggerLabel(type)!,
 				provider,
@@ -539,9 +539,9 @@ export class ConfigurationManager implements IConfigurationManager {
 			// We could not find the previously used name. We should get all dynamic configurations from providers
 			// And potentially auto select the previously used dynamic configuration #96293
 			const providers = await this.getDynamicProviders();
-			const provider = providers.find(p => p.provider.type === type);
+			const provider = providers.find(p => p.provider && p.provider.type === type);
 			let nameToSet = names.length ? names[0] : undefined;
-			if (provider && launch && launch.workspace) {
+			if (provider && launch && launch.workspace && provider.provider) {
 				const token = new CancellationTokenSource();
 				const dynamicConfigs = await provider.provider.provideDebugConfigurations!(launch.workspace.uri, token.token);
 				const dynamicConfig = dynamicConfigs.find(c => c.name === name);
