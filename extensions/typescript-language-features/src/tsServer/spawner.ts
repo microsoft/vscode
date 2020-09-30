@@ -10,6 +10,7 @@ import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptS
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
+import { isWeb } from '../utils/platform';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -203,11 +204,15 @@ export class TypeScriptServerSpawner {
 		}
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			const logDir = this._logDirectoryProvider.getNewLogDirectory();
-			if (logDir) {
-				tsServerLogFile = path.join(logDir, `tsserver.log`);
+			if (isWeb()) {
 				args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-				args.push('--logFile', tsServerLogFile);
+			} else {
+				const logDir = this._logDirectoryProvider.getNewLogDirectory();
+				if (logDir) {
+					tsServerLogFile = path.join(logDir, `tsserver.log`);
+					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
+					args.push('--logFile', tsServerLogFile);
+				}
 			}
 		}
 
