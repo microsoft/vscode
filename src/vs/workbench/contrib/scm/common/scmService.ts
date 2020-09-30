@@ -71,10 +71,13 @@ class SCMInput implements ISCMInput {
 	}
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private readonly historyNavigator = new HistoryNavigator<string>([], 100);
+	private readonly historyNavigator : HistoryNavigator<string>;
+
 	constructor(
 		readonly repository: ISCMRepository
-	) {}
+	) {
+		this.historyNavigator = new HistoryNavigator<string>([], 100);
+	}
 
 	save(): void {
 		this.historyNavigator.add(this.value);
