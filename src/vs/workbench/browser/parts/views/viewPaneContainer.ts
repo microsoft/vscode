@@ -554,9 +554,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this.bodyContainer.classList.add('welcome');
 		this.viewWelcomeContainer.innerText = '';
 
-		let buttonIndex = 0;
-
 		for (const { content, preconditions } of contents) {
+			let buttonIndex = 0;
 			const lines = content.split('\n');
 
 			for (let line of lines) {

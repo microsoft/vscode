@@ -39,6 +39,7 @@ export class ViewsWelcomeContribution extends Disposable implements IWorkbenchCo
 					const disposable = viewsRegistry.registerViewWelcomeContent(id, {
 						content: welcome.contents,
 						when: ContextKeyExpr.deserialize(welcome.when),
+						preconditions: welcome.preconditions?.map((value) => ContextKeyExpr.deserialize(value)),
 						group,
 						order
 					});
