@@ -33,6 +33,7 @@ You must always run the smoketest version which matches the release you are test
 
 ```bash
 git checkout release/1.22
+yarn && yarn compile
 yarn --cwd test/smoke
 ```
 
