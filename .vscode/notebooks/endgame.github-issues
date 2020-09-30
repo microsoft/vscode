@@ -38,16 +38,6 @@
   {
     "kind": 1,
     "language": "markdown",
-    "value": "#### My test plan items"
-  },
-  {
-    "kind": 2,
-    "language": "github-issues",
-    "value": "$REPOS $MILESTONE label:testplan-item is:open $MINE "
-  },
-  {
-    "kind": 1,
-    "language": "markdown",
     "value": "### Feature Requests Missing Labels",
     "editable": true
   },
