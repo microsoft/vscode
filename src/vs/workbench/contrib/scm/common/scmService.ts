@@ -71,7 +71,7 @@ class SCMInput implements ISCMInput {
 		this._validateInput = validateInput;
 		this._onDidChangeValidateInput.fire();
 	}
-	private index: any;
+	private index: number;
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 	constructor(
@@ -81,54 +81,40 @@ class SCMInput implements ISCMInput {
 	) {
 		this.index = 0;
 		this.history = [];
-		let root = this.repository.provider.rootUri;
-		if (root) {
-			const key = `scm/input:${this.repository.provider.label}:${root.path}:latest`;
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}:latest`;
 			let result = this.storageService.get(key, StorageScope.WORKSPACE);
 			if (result) {
 				this._value = result;
 			} else {
 				this._value = "";
 			}
-			const historyKey = `scm/input:${this.repository.provider.label}:${root.path}`;
+			const historyKey = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 			let historyResult = this.storageService.get(historyKey, StorageScope.WORKSPACE);
 			if (historyResult) {
 				this.history = JSON.parse(historyResult);
 			}
 		}
 	}
-	private readonly _onDidClearHistory = new Emitter<void>();
-	readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;
 
 	saveLatest(): void {
-		let root = this.repository.provider.rootUri;
-		if (root) {
-			const key = `scm/input:${this.repository.provider.label}:${root.path}:latest`;
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}:latest`;
 			this.storageService.store(key, this.value, StorageScope.WORKSPACE);
 		}
 	}
 
-	clearHistory(): void {
-		let root = this.repository.provider.rootUri;
-		if (root) {
-			const key = `scm/input:${this.repository.provider.label}:${root.path}`;
-			this.storageService.remove(key, StorageScope.WORKSPACE);
-			this._onDidClearHistory.fire();
-		}
-	}
-
 	load(): void {
-		let root = this.repository.provider.rootUri;
 		let result: string | undefined;
-		if (root) {
-			const key = `scm/input:${this.repository.provider.label}:${root.path}`;
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 			const raw = this.storageService.get(key, StorageScope.WORKSPACE);
 			if (raw) {
 				try {
 					result = JSON.parse(raw);
 					if (result) {
 						if (this.index < result.length) {
-							this.index++;
+							this.index ++;
 							this.value = result[result.length - this.index];
 						}
 					}
@@ -140,10 +126,9 @@ class SCMInput implements ISCMInput {
 	}
 
 	reverseLoad(): void {
-		let root = this.repository.provider.rootUri;
 		let result: string | undefined;
-		if (root) {
-			const key = `scm/input:${this.repository.provider.label}:${root.path}`;
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 			const raw = this.storageService.get(key, StorageScope.WORKSPACE);
 
 			if (raw) {
@@ -166,10 +151,9 @@ class SCMInput implements ISCMInput {
 		if (!this.value) {
 			this.index = 0;
 		} else {
-			let root = this.repository.provider.rootUri;
-			if (root) {
+			if (this.repository.provider.rootUri) {
 				this.history.push(this.value);
-				const key = `scm/input:${this.repository.provider.label}:${root.path}`;
+				const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
 				this.storageService.store(key, JSON.stringify(this.history), StorageScope.WORKSPACE);
 			}
 		}
