@@ -394,15 +394,15 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
-	 * Returns the optional associated canonical resource of this input.
+	 * Returns the optional associated resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
-	 * kind and is often used to identify the editor input among
+	 * kind and input and is often used to identify the editor input among
 	 * others.
 	 *
-	 * Note: use `EditorResourceAccessor` to access the resource
-	 * of editors with support for side-by-side editors and
-	 * canonical vs original resources.
+	 * **Note:** DO NOT use this property for anything but identity
+	 * checks. DO NOT use this property to present as label to the user.
+	 * Please refer to `EditorResourceAccessor` documentation in that case.
 	 */
 	readonly resource: URI | undefined;
 
@@ -677,6 +677,10 @@ export interface IEditorInputWithPreferredResource {
 	 * "normalize" the URIs so that only one editor opens for different
 	 * URIs. But when displaying the editor label to the user, the
 	 * preferred URI should be used.
+	 *
+	 * Not all editors have a `preferredResouce`. The `EditorResourceAccessor`
+	 * utility can be used to always get the right resource without having
+	 * to do instanceof checks.
 	 */
 	readonly preferredResource: URI;
 }
@@ -767,6 +771,10 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
+	/**
+	 * Use `EditorResourceAccessor` utility method to access the resources
+	 * of both sides of the diff editor.
+	 */
 	get resource(): URI | undefined {
 		return undefined;
 	}
@@ -1313,9 +1321,10 @@ class EditorResourceAccessorImpl {
 	 * be used whenever the URI is used to e.g. compare with other editors or when
 	 * caching certain data based on the URI.
 	 *
-	 *  For example: on Windows and macOS, the same file URI with different casing may
+	 * For example: on Windows and macOS, the same file URI with different casing may
 	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
-	 * form so that only one editor opens for same file URIs with different casing.
+	 * form so that only one editor opens for same file URIs with different casing. As
+	 * such, the original URI and the canonical URI can be different.
 	 */
 	getOriginalUri(editor: IEditorInput | undefined | null): URI | undefined;
 	getOriginalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
@@ -1356,7 +1365,8 @@ class EditorResourceAccessorImpl {
 	 *
 	 * For example: on Windows and macOS, the same file URI with different casing may
 	 * point to the same file. The editor may chose to "normalize" the URI into a canonical
-	 * form so that only one editor opens for same file URIs with different casing.
+	 * form so that only one editor opens for same file URIs with different casing. As
+	 * such, the original URI and the canonical URI can be different.
 	 */
 	getCanonicalUri(editor: IEditorInput | undefined | null): URI | undefined;
 	getCanonicalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
