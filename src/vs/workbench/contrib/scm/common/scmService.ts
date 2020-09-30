@@ -71,33 +71,37 @@ class SCMInput implements ISCMInput {
 	}
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private historyNavigator: HistoryNavigator<string>;
-
+	private history: HistoryNavigator<string>;
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
-		if (this.repository.provider.rootUri) {
-			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
-			this.historyNavigator = JSON.parse(this.storageService.get(key, StorageScope.WORKSPACE, '[]'));
+		const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
+		let result = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
+		if (result) {
+			this.history = new HistoryNavigator(JSON.parse(result), 50);
 		} else {
-			this.historyNavigator = new HistoryNavigator([], 50);
+			this.history = new HistoryNavigator([], 50);
 		}
 	}
 
 	save(): void {
-		this.historyNavigator.add(this.value);
+		this.history.add(this.value);
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this.storageService.store(key, JSON.stringify(this.history.getHistory()), StorageScope.WORKSPACE);
+		}
 	}
 
 	showNextValue(): void {
-		let next = this.historyNavigator.next();
+		let next = this.history.next();
 		if (next) {
 			this.value = next;
 		}
 	}
 
 	showPreviousValue(): void {
-		let prev = this.historyNavigator.previous();
+		let prev = this.history.previous();
 		if (prev) {
 			this.value = prev;
 		}
@@ -113,11 +117,12 @@ class SCMRepository implements ISCMRepository {
 
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
-	readonly input: ISCMInput = new SCMInput(this);
+	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable
+		private disposable: IDisposable,
+		@IStorageService private storageService: IStorageService
 	) { }
 
 	setSelected(selected: boolean): void {
@@ -191,7 +196,7 @@ export class SCMService implements ISCMService {
 			this.providerCount.set(this._repositories.length);
 		});
 
-		const repository = new SCMRepository(provider, disposable);
+		const repository = new SCMRepository(provider, disposable, this.storageService);
 		const selectedDisposable = Event.map(Event.filter(repository.onDidChangeSelection, selected => selected), _ => repository)(this.select, this);
 
 		this._repositories.push(repository);
