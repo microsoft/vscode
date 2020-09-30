@@ -386,6 +386,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		openConfig = this.validateOpenConfig(openConfig);
 
 		const pathsToOpen = this.getPathsToOpen(openConfig);
+		this.logService.trace('windowsManager#open pathsToOpen', pathsToOpen);
 
 		const foldersToAdd: IFolderPathToOpen[] = [];
 		const foldersToOpen: IFolderPathToOpen[] = [];
