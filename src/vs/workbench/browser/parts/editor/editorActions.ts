@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -1846,7 +1846,7 @@ export class ToggleEditorTypeAction extends Action {
 			return;
 		}
 
-		const activeEditorResource = EditorResourceAccessor.getOriginalUri(activeEditorPane.input);
+		const activeEditorResource = activeEditorPane.input.resource;
 		if (!activeEditorResource) {
 			return;
 		}
