@@ -8,15 +8,15 @@ import { distinct } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellablePromises, raceCancellation, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationHandle, INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
@@ -47,21 +47,72 @@ const ignoreImportantExtensionRecommendationStorageKey = 'extensionsAssistant/im
 const donotShowWorkspaceRecommendationsStorageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 
-type RecommendationsNotification = {
-	severity: Severity,
-	message: string,
-	choices: IPromptChoice[],
-	options?: IPromptOptions,
-	priority: RecommendationSource,
-};
 type RecommendationsNotificationActions = {
 	onDidInstallRecommendedExtensions(extensions: IExtension[]): void;
 	onDidShowRecommendedExtensions(extensions: IExtension[]): void;
 	onDidCancelRecommendedExtensions(extensions: IExtension[]): void;
 	onDidNeverShowRecommendedExtensionsAgain(extensions: IExtension[]): void;
 };
-type VisibleRecommendationsNotification = RecommendationsNotification & { notificationHandle: INotificationHandle, from: number };
-type PendingRecommendationsNotification = RecommendationsNotification & { token: CancellationToken, onDidShow: (notificationHandle: INotificationHandle) => void };
+
+class RecommendationsNotification {
+
+	private _onDidClose = new Emitter<void>();
+	readonly onDidClose = this._onDidClose.event;
+
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
+
+	private notificationHandle: INotificationHandle | undefined;
+	private cancelled: boolean = false;
+
+	constructor(
+		private readonly severity: Severity,
+		private readonly message: string,
+		private readonly choices: IPromptChoice[],
+		private readonly notificationService: INotificationService
+	) { }
+
+	show(): void {
+		if (!this.notificationHandle) {
+			this.updateNotificationHandle(this.notificationService.prompt(this.severity, this.message, this.choices, { sticky: true, onCancel: () => this.cancelled = true }));
+		}
+	}
+
+	hide(): void {
+		if (this.notificationHandle) {
+			this.onDidCloseDisposable.clear();
+			this.notificationHandle.close();
+			this.cancelled = false;
+			this.updateNotificationHandle(this.notificationService.prompt(this.severity, this.message, this.choices, { silent: true, sticky: false, onCancel: () => this.cancelled = true }));
+		}
+	}
+
+	isCancelled(): boolean {
+		return this.cancelled;
+	}
+
+	private onDidCloseDisposable = new MutableDisposable();
+	private onDidChangeVisibilityDisposable = new MutableDisposable();
+	private updateNotificationHandle(notificationHandle: INotificationHandle) {
+		this.onDidCloseDisposable.clear();
+		this.onDidChangeVisibilityDisposable.clear();
+		this.notificationHandle = notificationHandle;
+
+		this.onDidCloseDisposable.value = this.notificationHandle.onDidClose(() => {
+			this.onDidCloseDisposable.dispose();
+			this.onDidChangeVisibilityDisposable.dispose();
+
+			this._onDidClose.fire();
+
+			this._onDidClose.dispose();
+			this._onDidChangeVisibility.dispose();
+		});
+		this.onDidChangeVisibilityDisposable.value = this.notificationHandle.onDidChangeVisibility((e) => this._onDidChangeVisibility.fire(e));
+	}
+}
+
+type PendingRecommendationsNotification = { recommendationsNotification: RecommendationsNotification, source: RecommendationSource, token: CancellationToken };
+type VisibleRecommendationsNotification = { recommendationsNotification: RecommendationsNotification, source: RecommendationSource, from: number };
 
 export class ExtensionRecommendationNotificationService implements IExtensionRecommendationNotificationService {
 
@@ -198,13 +249,11 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	private showRecommendationsNotification(extensions: IExtension[], message: string, searchValue: string, source: RecommendationSource,
 		{ onDidInstallRecommendedExtensions, onDidShowRecommendedExtensions, onDidCancelRecommendedExtensions, onDidNeverShowRecommendedExtensionsAgain }: RecommendationsNotificationActions): CancelablePromise<RecommendationsNotificationResult> {
 		return createCancelablePromise<RecommendationsNotificationResult>(async token => {
-			let result = RecommendationsNotificationResult.Accepted;
+			let accepted = false;
 			try {
-				const handle = await this.doShowRecommendationsNotification({
-					severity: Severity.Info,
-					message,
-					priority: source,
-					choices: [{
+				accepted = await this.doShowRecommendationsNotification(
+					Severity.Info, message,
+					[{
 						label: localize('install', "Install"),
 						run: async () => {
 							this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
@@ -230,17 +279,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 							onDidNeverShowRecommendedExtensionsAgain(extensions);
 						}
 					}],
-					options: {
-						sticky: true,
-						onCancel: () => {
-							result = RecommendationsNotificationResult.Cancelled;
-							onDidCancelRecommendedExtensions(extensions);
-						}
-					}
-				}, token);
-
-				await raceCancellation(Event.toPromise(handle.onDidClose), token);
-				handle.close();
+					source, token);
 
 			} catch (error) {
 				if (!isPromiseCanceledError(error)) {
@@ -248,7 +287,13 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 				}
 			}
 
-			return result;
+			if (accepted) {
+				return RecommendationsNotificationResult.Accepted;
+			} else {
+				onDidCancelRecommendedExtensions(extensions);
+				return RecommendationsNotificationResult.Cancelled;
+			}
+
 		});
 	}
 
@@ -277,25 +322,27 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 	 * 			=> If it is not exe based and has higher or same priority as current, hide the current notification after showing it for 3s.
 	 * 			=> Otherwise wait until the current notification is hidden.
 	 */
-	private async doShowRecommendationsNotification(recommendationsNotification: RecommendationsNotification, token: CancellationToken): Promise<INotificationHandle> {
-		this.recommendationSources.push(recommendationsNotification.priority);
-		if (this.visibleNotification) {
-			return new Promise<INotificationHandle>((c, e) => {
+	private async doShowRecommendationsNotification(severity: Severity, message: string, choices: IPromptChoice[], source: RecommendationSource, token: CancellationToken): Promise<boolean> {
+		const disposables = new DisposableStore();
+		try {
+			this.recommendationSources.push(source);
+			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
+			if (this.visibleNotification) {
 				const index = this.pendingNotificaitons.length;
-				const disposable = token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1));
-				this.pendingNotificaitons.push({ ...recommendationsNotification, onDidShow: (notificationHandle) => { disposable.dispose(); c(notificationHandle); }, token });
-				if (recommendationsNotification.priority !== RecommendationSource.EXE && recommendationsNotification.priority <= this.visibleNotification!.priority) {
+				token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1), disposables);
+				this.pendingNotificaitons.push({ recommendationsNotification, source, token });
+				if (source !== RecommendationSource.EXE && source <= this.visibleNotification!.source) {
 					this.hideVisibleNotification(3000);
 				}
-			});
-		} else {
-			const notificationHandle = this.notificationService.prompt(recommendationsNotification.severity, recommendationsNotification.message, recommendationsNotification.choices, recommendationsNotification.options);
-			this.visibleNotification = { ...recommendationsNotification, notificationHandle, from: Date.now() };
-			const disposable = Event.once(Event.filter(notificationHandle.onDidChangeVisibility, e => !e))(() => {
-				disposable.dispose();
-				this.showNextNotification();
-			});
-			return notificationHandle;
+			} else {
+				this.visibleNotification = { recommendationsNotification, source, from: Date.now() };
+				recommendationsNotification.show();
+				Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
+			}
+			await raceCancellation(Event.toPromise(recommendationsNotification.onDidClose), token);
+			return !recommendationsNotification.isCancelled();
+		} finally {
+			disposables.dispose();
 		}
 	}
 
@@ -308,7 +355,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			.then(() => {
 				this.unsetVisibileNotification();
 				if (nextNotificaiton) {
-					this.doShowRecommendationsNotification(nextNotificaiton, nextNotificaiton.token).then(nextNotificaiton.onDidShow);
+					nextNotificaiton.recommendationsNotification.show();
 				}
 			});
 	}
@@ -320,7 +367,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		let index = this.pendingNotificaitons.length - 1;
 		if (this.pendingNotificaitons.length) {
 			for (let i = 0; i < this.pendingNotificaitons.length; i++) {
-				if (this.pendingNotificaitons[i].priority <= this.pendingNotificaitons[index].priority) {
+				if (this.pendingNotificaitons[i].source <= this.pendingNotificaitons[index].source) {
 					index = i;
 				}
 			}
@@ -330,12 +377,9 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 
 	private hideVisibleNotification(timeInMillis: number): void {
 		if (this.visibleNotification && !this.hideVisibleNotificationPromise) {
-			const visibleRecommendationNotification = this.visibleNotification;
-			this.hideVisibleNotificationPromise = timeout(Math.max(timeInMillis - (Date.now() - visibleRecommendationNotification.from), 0));
-			this.hideVisibleNotificationPromise.then(() => {
-				visibleRecommendationNotification.notificationHandle.close();
-				this.notificationService.prompt(visibleRecommendationNotification.severity, visibleRecommendationNotification.message, visibleRecommendationNotification.choices, { ...visibleRecommendationNotification.options, silent: true, sticky: false });
-			});
+			const visibleNotification = this.visibleNotification;
+			this.hideVisibleNotificationPromise = timeout(Math.max(timeInMillis - (Date.now() - visibleNotification.from), 0));
+			this.hideVisibleNotificationPromise.then(() => visibleNotification!.recommendationsNotification.hide());
 		}
 	}
 
