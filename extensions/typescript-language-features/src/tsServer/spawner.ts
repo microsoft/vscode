@@ -216,21 +216,23 @@ export class TypeScriptServerSpawner {
 			}
 		}
 
-		const pluginPaths = this._pluginPathsProvider.getPluginPaths();
+		if (!isWeb()) {
+			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
 
-		if (pluginManager.plugins.length) {
-			args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
+			if (pluginManager.plugins.length) {
+				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
 
-			const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-			for (const plugin of pluginManager.plugins) {
-				if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-					pluginPaths.push(plugin.path);
+				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
+				for (const plugin of pluginManager.plugins) {
+					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
+						pluginPaths.push(plugin.path);
+					}
 				}
 			}
-		}
 
-		if (pluginPaths.length !== 0) {
-			args.push('--pluginProbeLocations', pluginPaths.join(','));
+			if (pluginPaths.length !== 0) {
+				args.push('--pluginProbeLocations', pluginPaths.join(','));
+			}
 		}
 
 		if (configuration.npmLocation) {
