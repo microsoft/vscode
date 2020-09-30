@@ -53,7 +53,7 @@ class ResourceStackElement {
 	}
 
 	public toString(): string {
-		return `[id:${this.id}] [group:${this.groupId}] [${this.isValid ? 'VALID' : 'INVALID'}] ${this.actual}`;
+		return `[id:${this.id}] [group:${this.groupId}] [${this.isValid ? '  VALID' : 'INVALID'}] ${this.actual.constructor.name} - ${this.actual}`;
 	}
 }
 
@@ -176,7 +176,7 @@ class WorkspaceStackElement {
 	}
 
 	public toString(): string {
-		return `[id:${this.id}] [group:${this.groupId}] [${this.invalidatedResources ? 'INVALID' : 'VALID'}] ${this.actual}`;
+		return `[id:${this.id}] [group:${this.groupId}] [${this.invalidatedResources ? 'INVALID' : '  VALID'}] ${this.actual.constructor.name} - ${this.actual}`;
 	}
 }
 
@@ -277,13 +277,6 @@ class ResourceEditStack {
 			}
 		}
 		this._future = [];
-		if (this._past.length > 0) {
-			const lastElement = this._past[this._past.length - 1];
-			if (lastElement.type === UndoRedoElementType.Resource && !lastElement.isValid) {
-				// clear undo stack
-				this._past = [];
-			}
-		}
 		this._past.push(element);
 		this.versionId++;
 	}
