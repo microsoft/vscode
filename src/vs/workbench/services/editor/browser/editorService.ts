@@ -489,7 +489,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region preventOpenEditor()
+	//#region editor overrides
 
 	private readonly openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 
