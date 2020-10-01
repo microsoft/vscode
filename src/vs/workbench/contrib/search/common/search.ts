@@ -96,7 +96,7 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 	const fileService = accessor.get(IFileService);
 
 	const resources = editorService.editors
-		.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+		.map(editor => EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
 		.filter(resource => !!resource && !contextService.isInsideWorkspace(resource) && fileService.canHandleResource(resource));
 
 	return resources as URI[];

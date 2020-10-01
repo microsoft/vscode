@@ -84,12 +84,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	private throwErrorIfCannotChangeEnablement(extension: IExtension): void {
 		if (isLanguagePackExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable language pack extension', "Cannot disable {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
+			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
 		}
 
 		if (this.userDataAutoSyncService.isEnabled() && this.userDataSyncAccountService.account &&
 			isAuthenticaionProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
-			throw new Error(localize('cannot disable auth extension', "Cannot disable {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
+			throw new Error(localize('cannot disable auth extension', "Cannot change enablement {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 	}
 
@@ -110,7 +110,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			throw new Error(localize('noWorkspace', "No workspace."));
 		}
 		if (isAuthenticaionProviderExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable auth extension in workspace', "Cannot disable {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+			throw new Error(localize('cannot disable auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
 		}
 	}
 

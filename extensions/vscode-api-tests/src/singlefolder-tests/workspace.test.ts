@@ -926,7 +926,10 @@ suite('vscode API - workspace', () => {
 			assert.ok(await vscode.workspace.applyEdit(we));
 
 			const document = await vscode.workspace.openTextDocument(newUri);
-			assert.equal(document.isDirty, true);
+			// See https://github.com/microsoft/vscode/issues/107739
+			// RenameOperation currently saves the file before applying the rename
+			// so that is why the document is not dirty here
+			assert.equal(document.isDirty, false);
 
 			await document.save();
 			assert.equal(document.isDirty, false);

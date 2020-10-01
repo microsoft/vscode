@@ -17,7 +17,7 @@ import {
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -188,6 +188,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		uninstallEvent: Emitter<IExtensionIdentifier>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
+	let promptedEmitter = new Emitter<void>();
 	let onModelAddedEvent: Emitter<ITextModel>;
 	let experimentService: TestExperimentService;
 
@@ -265,6 +266,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		class TestNotificationService2 extends TestNotificationService {
 			public prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
 				prompted = true;
+				promptedEmitter.fire();
 				return super.prompt(severity, message, choices, options);
 			}
 		}
@@ -356,15 +358,14 @@ suite('ExtensionRecommendationsService Test', () => {
 	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', async () => {
 		await setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions);
 		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
-		await testObject.activationPromise;
 
+		await Event.toPromise(promptedEmitter.event);
 		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
 		assert.equal(recommendations.length, mockTestData.validRecommendedExtensions.length);
 		mockTestData.validRecommendedExtensions.forEach(x => {
 			assert.equal(recommendations.indexOf(x.toLowerCase()) > -1, true);
 		});
 
-		assert.ok(prompted);
 	});
 
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if they are already installed', () => {

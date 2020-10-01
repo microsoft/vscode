@@ -185,7 +185,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
 						});
 					}
-
 				}
 			}
 

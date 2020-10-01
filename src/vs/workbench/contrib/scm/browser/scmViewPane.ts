@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { append, $, Dimension } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -421,7 +421,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 			if (icon) {
 				template.decorationIcon.style.display = '';
-				template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+				template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
 				template.decorationIcon.title = tooltip;
 			} else {
 				template.decorationIcon.style.display = 'none';
