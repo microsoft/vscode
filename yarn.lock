@@ -2850,10 +2850,10 @@ electron-to-chromium@^1.2.7:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.3.27.tgz#78ecb8a399066187bb374eede35d9c70565a803d"
   integrity sha1-eOy4o5kGYYe7N07t412ccFZagD0=
 
-electron@11.0.0-beta.4:
-  version "11.0.0-beta.4"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-11.0.0-beta.4.tgz#8b786539cfabaccb0b408cb9419f227af481aa44"
-  integrity sha512-OmgQ4CRRt56q3CytBEgS6Ryl5OJHER+3ASE9kljcYKtzYTT6qmtHShpxniif5lT1iqlyJJ7frPjPZhlghBjBTw==
+electron@11.0.1:
+  version "11.0.1"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-11.0.1.tgz#e71195ff9abfbcfa0f4bf49ec9064e5e0f3f928c"
+  integrity sha512-UefDvxeyTREL1FpC0BcXwzLjcYiQICFSZONbwarpoqTXQU5rzEguIegHPqg5AqwYH4FVYfEuigj/Vm94rtZOzg==
   dependencies:
     "@electron/get" "^1.0.1"
     "@types/node" "^12.0.12"
@@ -6340,7 +6340,12 @@ mute-stream@0.0.8:
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha512-nnbWWOkoWyUsTjKrhgD0dcz22mdkSnpYqbEjIm2nhwhuxlSkpywJmBo8h0ZqJdkp73mb90SssHkN4rsRaBAfAA==
 
-nan@^2.10.0, nan@^2.13.2, nan@^2.14.0:
+nan@^2.10.0:
+  version "2.14.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
+  integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
+
+nan@^2.13.2, nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -6494,10 +6499,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.10.0-beta17:
-  version "0.10.0-beta17"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta17.tgz#962d4a3f4dc6772385e0cad529c209cef3bc79e6"
-  integrity sha512-tn7EANQacnAvnOQCImvgag1DL0tVmUoY/1yIZbh3u/BBpvCcGHLZJNn7TXheodRLr6hmGSUS2VbfcUr9p0gOug==
+node-pty@0.10.0-beta18:
+  version "0.10.0-beta18"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta18.tgz#7ed2d3f4a06b2b23fe2abdf5b41655e9dffc25d5"
+  integrity sha512-vpK4yB3A3VzgkvdOWegL7GcPapt45jfA4b3ejUe8k4RmqdWBRvFJngew8T3qAxmLhTkfo93psaN6izTlfkc6FA==
   dependencies:
     nan "^2.14.0"
 
@@ -10054,12 +10059,6 @@ vscode-textmate@5.2.0:
   version "5.2.0"
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.2.0.tgz#01f01760a391e8222fe4f33fbccbd1ad71aed74e"
   integrity sha512-Uw5ooOQxRASHgu6C7GVvUxisKXfSgW4oFlO+aa+PAkgmH89O3CXxEEzNRNtHSqtXFTl0nAC1uYj0GMSH27uwtQ==
-
-vscode-windows-ca-certs@microsoft/vscode-windows-ca-certs#99c48b75788a5093a9b99b32bb4c4236dbf78ac0:
-  version "0.2.0"
-  resolved "https://codeload.github.com/microsoft/vscode-windows-ca-certs/tar.gz/99c48b75788a5093a9b99b32bb4c4236dbf78ac0"
-  dependencies:
-    node-addon-api "^3.0.0"
 
 vscode-windows-registry@1.0.3:
   version "1.0.3"

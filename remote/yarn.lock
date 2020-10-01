@@ -167,10 +167,15 @@ glob-parent@~5.1.0:
   dependencies:
     is-glob "^4.0.1"
 
-graceful-fs@4.2.3, graceful-fs@^4.1.2, graceful-fs@^4.1.6:
+graceful-fs@4.2.3:
   version "4.2.3"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.3.tgz#4a12ff1b60376ef09862c2093edd908328be8423"
   integrity sha512-a30VEBm4PEdx1dRB7MFK7BejejvCvBronbLjht+sHuGYj8PHs7M/5Z+rt5lw551vZ7yfTCj4Vuyy3mSJytDWRQ==
+
+graceful-fs@^4.1.2, graceful-fs@^4.1.6:
+  version "4.2.4"
+  resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.4.tgz#2256bde14d3632958c465ebc96dc467ca07a29fb"
+  integrity sha512-WjKPNJF79dtJAVniUlGGWHYGz2jWxT6VhN/4m1NdkbZ2nOsEF+cI1Edgql5zCRhs/VsQYRvrXctxktVXZUkixw==
 
 http-proxy-agent@^2.1.0:
   version "2.1.0"
@@ -279,7 +284,12 @@ ms@^2.1.1:
   resolved "https://registry.yarnpkg.com/ms/-/ms-2.1.2.tgz#d09d1f357b443f493382a8eb3ccd183872ae6009"
   integrity sha512-sGkPx+VjMtmA6MX27oA4FBFELFCZZ4S4XqeGOXCv68tT+jb3vk/RyaKWP0PTKyWtmLSM0b+adUTEvbs1PEaH2w==
 
-nan@^2.10.0, nan@^2.14.0:
+nan@^2.10.0:
+  version "2.14.2"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.2.tgz#f5376400695168f4cc694ac9393d0c9585eeea19"
+  integrity sha512-M2ufzIiINKCuDfBSAUr1vWQ+vuVcA9kqx8JJUsbQi6yf1uGRyb7HfpdfUr5qLXf3B/t8dPvcjhKMmlfnP47EzQ==
+
+nan@^2.14.0:
   version "2.14.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
   integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
@@ -294,10 +304,10 @@ node-addon-api@1.6.2:
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-1.6.2.tgz#d8aad9781a5cfc4132cc2fecdbdd982534265217"
   integrity sha512-479Bjw9nTE5DdBSZZWprFryHGjUaQC31y1wHo19We/k0BZlrmhqQitWoUL0cD8+scljCbIUL+E58oRDEakdGGA==
 
-node-pty@0.10.0-beta17:
-  version "0.10.0-beta17"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta17.tgz#962d4a3f4dc6772385e0cad529c209cef3bc79e6"
-  integrity sha512-tn7EANQacnAvnOQCImvgag1DL0tVmUoY/1yIZbh3u/BBpvCcGHLZJNn7TXheodRLr6hmGSUS2VbfcUr9p0gOug==
+node-pty@0.10.0-beta18:
+  version "0.10.0-beta18"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta18.tgz#7ed2d3f4a06b2b23fe2abdf5b41655e9dffc25d5"
+  integrity sha512-vpK4yB3A3VzgkvdOWegL7GcPapt45jfA4b3ejUe8k4RmqdWBRvFJngew8T3qAxmLhTkfo93psaN6izTlfkc6FA==
   dependencies:
     nan "^2.14.0"
 
