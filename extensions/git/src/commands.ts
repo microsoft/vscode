@@ -2352,7 +2352,11 @@ export class CommandCenter {
 			return;
 		}
 
-		const message = await this.getStashMessage();
+		let message: string | undefined = repository.inputBox.value;
+
+		if (!message) {
+			message = await this.getStashMessage();
+		}
 
 		if (typeof message === 'undefined') {
 			return;
