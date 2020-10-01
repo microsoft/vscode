@@ -433,7 +433,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
 		let workspacesToRestore: IWorkspacePathToOpen[] = [];
-		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
+		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
 
 			// Untitled workspaces are always restored
 			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();

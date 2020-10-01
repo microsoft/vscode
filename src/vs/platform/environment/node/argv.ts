@@ -90,7 +90,6 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'driver': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
-	'disable-restore-windows': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
