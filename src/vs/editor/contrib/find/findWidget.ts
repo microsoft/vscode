@@ -785,11 +785,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	public focusFindInput(): void {
 		this._findInput.select();
 		// Edge browser requires focus() in addition to select()
-		if (this._replaceInput.getValue() === undefined) {
-			this._replaceInput.focus();
-		} else {
-			this._findInput.focus();
-		}
+		this._findInput.focus();
 	}
 
 	public focusReplaceInput(): void {
