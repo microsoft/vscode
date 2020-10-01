@@ -167,7 +167,12 @@ interface ISchemaAssociation {
    * A match succeeds when there is at least one pattern matching and last matching pattern does not start with '!'.
    */
   fileMatch: string[];
-
+  
+  /*
+   * The schema for the given URI.
+   * If no schema is provided, the schema will be fetched with the schema request service (if available).
+   */
+  schema?: JSONSchema;
 }
 
 ```
