@@ -154,12 +154,14 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 export interface IFindInFilesArgs {
 	query?: string;
 	replace?: string;
+	preserveCase?: boolean;
 	triggerSearch?: boolean;
 	filesToInclude?: string;
 	filesToExclude?: string;
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	matchWholeWord?: boolean;
+	excludeSettingAndIgnoreFiles?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 
