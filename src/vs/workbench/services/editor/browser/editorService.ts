@@ -250,7 +250,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Determine new resulting target resource
 				let targetResource: URI;
-				if (isEqual(source, resource)) {
+				if (this.uriIdentityService.extUri.isEqual(source, resource)) {
 					targetResource = target; // file got moved
 				} else {
 					const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
@@ -818,7 +818,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const rightInput = this.createEditorInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
 
 			return new DiffEditorInput(
-				resourceDiffInput.label || this.toSideBySideLabel(leftInput, rightInput, '↔'),
+				resourceDiffInput.label || this.toSideBySideLabel(leftInput, rightInput),
 				resourceDiffInput.description,
 				leftInput,
 				rightInput
@@ -968,18 +968,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return input;
 	}
 
-	private toSideBySideLabel(leftInput: EditorInput, rightInput: EditorInput, divider: string): string | undefined {
-
-		// Without any resource, do not try to compute a label
-		if (!leftInput.resource || !rightInput.resource) {
-			return undefined;
-		}
+	private toSideBySideLabel(leftInput: EditorInput, rightInput: EditorInput): string | undefined {
 
 		// If both editors are file inputs, we produce an optimized label
 		// by adding the relative path of both inputs to the label. This
 		// makes it easier to understand a file-based comparison.
 		if (this.fileEditorInputFactory.isFileEditorInput(leftInput) && this.fileEditorInputFactory.isFileEditorInput(rightInput)) {
-			return `${this.labelService.getUriLabel(leftInput.preferredResource, { relative: true })} ${divider} ${this.labelService.getUriLabel(rightInput.preferredResource, { relative: true })}`;
+			return `${this.labelService.getUriLabel(leftInput.preferredResource, { relative: true })} ↔ ${this.labelService.getUriLabel(rightInput.preferredResource, { relative: true })}`;
 		}
 
 		// Signal back that the label should be computed from within the editor

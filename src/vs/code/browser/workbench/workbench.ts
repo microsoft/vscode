@@ -494,8 +494,8 @@ class WindowIndicator implements IWindowIndicator {
 	};
 
 	// settings sync options
-	const settingsSyncOptions: ISettingsSyncOptions = {
-		enabled: !!config.settingsSyncOptions?.enabled,
+	const settingsSyncOptions: ISettingsSyncOptions | undefined = config.settingsSyncOptions ? {
+		enabled: config.settingsSyncOptions.enabled,
 		enablementHandler: (enablement) => {
 			let queryString = `settingsSync=${enablement ? 'true' : 'false'}`;
 
@@ -509,7 +509,7 @@ class WindowIndicator implements IWindowIndicator {
 
 			window.location.href = `${window.location.origin}?${queryString}`;
 		}
-	};
+	} : undefined;
 
 	// Finally create workbench
 	create(document.body, {

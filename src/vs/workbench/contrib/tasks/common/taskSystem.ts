@@ -125,7 +125,7 @@ export interface TaskSystemInfo {
 }
 
 export interface TaskSystemInfoResolver {
-	(workspaceFolder: IWorkspaceFolder): TaskSystemInfo | undefined;
+	(workspaceFolder: IWorkspaceFolder | undefined): TaskSystemInfo | undefined;
 }
 
 export interface ITaskSystem {

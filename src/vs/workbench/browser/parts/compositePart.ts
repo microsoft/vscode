@@ -284,14 +284,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 	protected onTitleAreaUpdate(compositeId: string): void {
 
-		// Title
-		const compositeItem = this.instantiatedCompositeItems.get(compositeId);
-		if (compositeItem) {
-			this.updateTitle(compositeItem.composite.getId(), compositeItem.composite.getTitle());
-		}
-
-		// Actions
+		// Active Composite
 		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
+
+			// Title
+			this.updateTitle(this.activeComposite.getId(), this.activeComposite.getTitle());
+
+			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);
 			this.mapActionsBindingToComposite.set(this.activeComposite.getId(), actionsBinding);
 			actionsBinding();

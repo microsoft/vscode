@@ -298,7 +298,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private layoutTreeAndContainer(initialLayout: boolean): void {
-		const scrollBarHeight = 8;
+		const scrollBarHeight = 10;
 		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.7, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
