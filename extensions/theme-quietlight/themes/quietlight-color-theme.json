@@ -422,6 +422,27 @@
 			}
 		},
 		{
+			"name": "diff: deleted",
+			"scope": "markup.deleted.diff",
+			"settings": {
+				"foreground": "#C73D20"
+			}
+		}, 
+		{
+			"name": "diff: changed",
+			"scope": "markup.changed.diff",
+			"settings": {
+				"foreground": "#9C5D27"
+			}
+		},
+		{
+			"name": "diff: inserted",
+			"scope": "markup.inserted.diff",
+			"settings": {
+				"foreground": "#448C27"
+			}
+		},
+		{
 			"name": "JSX: Tags",
 			"scope": [
 				"punctuation.definition.tag.js",
