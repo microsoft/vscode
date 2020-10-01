@@ -391,7 +391,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const foldersToAdd: IFolderPathToOpen[] = [];
 		const foldersToOpen: IFolderPathToOpen[] = [];
 		const workspacesToOpen: IWorkspacePathToOpen[] = [];
+		const workspacesToRestore: IWorkspacePathToOpen[] = [];
 		const emptyToRestore: IEmptyWindowBackupInfo[] = []; // empty windows with backupPath
+
 		let emptyToOpen: number = 0;
 		let fileInputs: IFileInputs | undefined; 		// collect all file inputs
 		for (const path of pathsToOpen) {
@@ -432,11 +434,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
-		let workspacesToRestore: IWorkspacePathToOpen[] = [];
-		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath) {
+		if (openConfig.initialStartup) {
 
 			// Untitled workspaces are always restored
-			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();
+			workspacesToRestore.push(...this.workspacesMainService.getUntitledWorkspacesSync());
 			workspacesToOpen.push(...workspacesToRestore);
 
 			// Empty windows with backups are always restored
