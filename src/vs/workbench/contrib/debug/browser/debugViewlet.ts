@@ -171,7 +171,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 			return this.startDebugActionViewItem;
 		}
 		if (action.id === FocusSessionAction.ID) {
-			return new FocusSessionActionViewItem(action, this.debugService, this.themeService, this.contextViewService, this.configurationService);
+			return new FocusSessionActionViewItem(action, undefined, this.debugService, this.themeService, this.contextViewService, this.configurationService);
 		}
 		if (action instanceof MenuItemAction) {
 			return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
