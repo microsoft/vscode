@@ -1401,7 +1401,8 @@ class SCMInputWidget extends Disposable {
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false,
 			scrollbar: { alwaysConsumeMouseWheel: false },
-			overflowWidgetsDomNode
+			overflowWidgetsDomNode,
+			renderWhitespace: 'none'
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
