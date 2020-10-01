@@ -328,7 +328,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	public abstract getContextValuesContainer(contextId: number): Context;
 	public abstract createChildContext(parentContextId?: number): number;
 	public abstract disposeContext(contextId: number): void;
-	public abstract updateParent(parentContextKeyService: IContextKeyService): void;
+	public abstract updateParent(parentContextKeyService?: IContextKeyService): void;
 }
 
 export class ContextKeyService extends AbstractContextKeyService implements IContextKeyService {
@@ -423,6 +423,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	public dispose(): void {
 		this._isDisposed = true;
 		this._parent.disposeContext(this._myContextId);
+		this._parentChangeListener?.dispose();
 		if (this._domNode) {
 			this._domNode.removeAttribute(KEYBINDING_CONTEXT_ATTR);
 			this._domNode = undefined;
@@ -454,7 +455,11 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		this._parent.disposeContext(contextId);
 	}
 
-	public updateParent(parentContextKeyService: AbstractContextKeyService): void {
+	public updateParent(parentContextKeyService?: AbstractContextKeyService): void {
+		if (!parentContextKeyService) {
+			this._parentChangeListener?.dispose();
+			return;
+		}
 		const thisContainer = this._parent.getContextValuesContainer(this._myContextId);
 		const oldAllValues = thisContainer.collectAllValues();
 		this._parent = parentContextKeyService;
