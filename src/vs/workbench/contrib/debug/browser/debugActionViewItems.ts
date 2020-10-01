@@ -196,7 +196,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}
 
 		this.providers.forEach(p => {
-			if (p.provider && p.provider.type === manager.selectedConfiguration.config?.type) {
+			if (p.provider && p.provider.type === manager.selectedConfiguration.type) {
 				this.selected = this.options.length;
 			}
 
@@ -204,7 +204,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				label: `${p.label}...`, handler: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config);
+						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, p.provider?.type);
 						return true;
 					}
 					return false;
