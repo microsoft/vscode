@@ -378,7 +378,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (themeSettingId) {
 			const theme = await this.colorThemeRegistry.findThemeBySettingsId(themeSettingId, undefined);
 			if (theme) {
-				return this.setColorTheme(theme.id, ConfigurationTarget.USER);
+				const configurationTarget = this.settings.findAutoConfigurationTarget(settingId);
+				return this.setColorTheme(theme.id, configurationTarget);
 			}
 		}
 		return null;
