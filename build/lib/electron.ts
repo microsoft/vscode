@@ -61,6 +61,7 @@ export const config = {
 		darwinBundleDocumentType(["ps1", "psd1", "psm1"], 'resources/darwin/powershell.icns'),
 		darwinBundleDocumentType(["py"], 'resources/darwin/python.icns'),
 		darwinBundleDocumentType(["gemspec", "rb"], 'resources/darwin/ruby.icns'),
+		darwinBundleDocumentType(["rs"], 'resources/darwin/rust.icns'),
 		darwinBundleDocumentType(["scss"], 'resources/darwin/sass.icns'),
 		darwinBundleDocumentType(["bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "profile", "rhistory", "rprofile", "sh", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"], 'resources/darwin/shell.icns'),
 		darwinBundleDocumentType(["sql"], 'resources/darwin/sql.icns'),
