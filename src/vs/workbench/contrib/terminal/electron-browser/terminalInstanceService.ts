@@ -79,7 +79,14 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 	}
 
 	private _isWorkspaceShellAllowed(): boolean {
-		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
+		if (lastActiveWorkspace) {
+			const folderUri = IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY + '_' + lastActiveWorkspace.uri.path;
+			return this._storageService.getBoolean(folderUri, StorageScope.GLOBAL, false);
+		} else {
+			return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, false);
+		}
 	}
 
 	public getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride: Platform = platform): Promise<{ shell: string, args: string | string[] }> {

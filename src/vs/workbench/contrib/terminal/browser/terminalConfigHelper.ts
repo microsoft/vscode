@@ -22,6 +22,8 @@ import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensio
 import { IProductService } from 'vs/platform/product/common/productService';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -47,9 +49,11 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -208,11 +212,25 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 	public setWorkspaceShellAllowed(isAllowed: boolean): void {
 		this._onWorkspacePermissionsChanged.fire(isAllowed);
-		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
+		if (lastActiveWorkspace) {
+			const folderUri = IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY + '_' + lastActiveWorkspace.uri.path;
+			this._storageService.store(folderUri, isAllowed, StorageScope.GLOBAL);
+		} else {
+			this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+		}
 	}
 
 	public isWorkspaceShellAllowed(defaultValue: boolean | undefined = undefined): boolean | undefined {
-		return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
+		const lastActiveWorkspace = activeWorkspaceRootUri ? this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) : undefined;
+		if (lastActiveWorkspace) {
+			const folderUri = IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY + '_' + lastActiveWorkspace.uri.path;
+			return this._storageService.getBoolean(folderUri, StorageScope.GLOBAL, defaultValue);
+		} else {
+			return this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, defaultValue);
+		}
 	}
 
 	public checkWorkspaceShellPermissions(osOverride: platform.OperatingSystem = platform.OS): boolean {
