@@ -209,7 +209,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		// Save / Save As
 		let target: URI | undefined;
 		if (saveAs) {
-			target = await this.textFileService.saveAs(this.resource, undefined, options);
+			target = await this.textFileService.saveAs(this.resource, undefined, { ...options, suggestedTarget: this.preferredResource });
 		} else {
 			target = await this.textFileService.save(this.resource, options);
 		}
