@@ -241,6 +241,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'resources/win32/python.ico',
 				'resources/win32/react.ico',
 				'resources/win32/ruby.ico',
+				'resources/win32/rust.ico',
 				'resources/win32/sass.ico',
 				'resources/win32/shell.ico',
 				'resources/win32/sql.ico',
