@@ -97,7 +97,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
 
-	private _sticky: boolean = true; // for dev purposes only
+	private _sticky: boolean = false; // for dev purposes only
 
 	constructor(options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 
