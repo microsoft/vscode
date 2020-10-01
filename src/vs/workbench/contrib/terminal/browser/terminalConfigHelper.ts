@@ -53,7 +53,7 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@IHistoryService private readonly _historyService: IHistoryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
