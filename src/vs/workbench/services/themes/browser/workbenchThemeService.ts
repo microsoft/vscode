@@ -363,15 +363,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private getPreferredColorScheme(): ColorScheme | undefined {
-		const detectHCThemeSetting = this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC);
-		if (this.hostColorService.colorScheme === ColorScheme.HIGH_CONTRAST && detectHCThemeSetting) {
+		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_HC) && this.hostColorService.highContrast) {
 			return ColorScheme.HIGH_CONTRAST;
 		}
 		if (this.configurationService.getValue<boolean>(ThemeSettings.DETECT_COLOR_SCHEME)) {
-			const osScheme = this.hostColorService.colorScheme;
-			if (osScheme !== ColorScheme.HIGH_CONTRAST) {
-				return osScheme;
-			}
+			return this.hostColorService.dark ? ColorScheme.DARK : ColorScheme.LIGHT;
 		}
 		return undefined;
 	}

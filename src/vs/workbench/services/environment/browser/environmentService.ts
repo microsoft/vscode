@@ -15,7 +15,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 
@@ -72,7 +71,7 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 	}
 
 	get colorScheme() {
-		return ColorScheme.LIGHT;
+		return { dark: false, highContrast: false };
 	}
 }
 
