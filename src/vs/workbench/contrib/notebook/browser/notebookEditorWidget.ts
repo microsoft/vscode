@@ -703,6 +703,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							lineNumber: selection.startLineNumber,
 							column: selection.startColumn
 						});
+						await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
 					}
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
