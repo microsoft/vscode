@@ -327,6 +327,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 		try {
 			this.recommendationSources.push(source);
 			const recommendationsNotification = new RecommendationsNotification(severity, message, choices, this.notificationService);
+			Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
 			if (this.visibleNotification) {
 				const index = this.pendingNotificaitons.length;
 				token.onCancellationRequested(() => this.pendingNotificaitons.splice(index, 1), disposables);
@@ -337,7 +338,6 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			} else {
 				this.visibleNotification = { recommendationsNotification, source, from: Date.now() };
 				recommendationsNotification.show();
-				Event.once(Event.filter(recommendationsNotification.onDidChangeVisibility, e => !e))(() => this.showNextNotification());
 			}
 			await raceCancellation(Event.toPromise(recommendationsNotification.onDidClose), token);
 			return !recommendationsNotification.isCancelled();
@@ -355,6 +355,7 @@ export class ExtensionRecommendationNotificationService implements IExtensionRec
 			.then(() => {
 				this.unsetVisibileNotification();
 				if (nextNotificaiton) {
+					this.visibleNotification = { recommendationsNotification: nextNotificaiton.recommendationsNotification, source: nextNotificaiton.source, from: Date.now() };
 					nextNotificaiton.recommendationsNotification.show();
 				}
 			});
