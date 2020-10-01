@@ -8,7 +8,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -70,7 +70,7 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 		return undefined;
 	}
 
-	get colorScheme() {
+	get colorScheme(): IColorScheme {
 		return { dark: false, highContrast: false };
 	}
 }
