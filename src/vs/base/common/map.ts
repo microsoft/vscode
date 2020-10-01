@@ -150,7 +150,7 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			//todo@jrieken the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
+			//todo@jrieken #107886 the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
 			// which cannot be used because it depends on this
 			const caseSensitive = key.scheme === Schemas.file && isLinux;
 			this._pathIterator = new PathIterator(false, caseSensitive);
