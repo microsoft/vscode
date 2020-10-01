@@ -24,6 +24,7 @@ class SCMInput implements ISCMInput {
 			return;
 		}
 		this._value = value;
+		this.saveCurrent();
 		this._onDidChange.fire(value);
 	}
 
@@ -71,39 +72,50 @@ class SCMInput implements ISCMInput {
 	}
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
-	private history: HistoryNavigator<string>;
+	private historyNavigator: HistoryNavigator<string>;
 	constructor(
 		readonly repository: ISCMRepository,
 		@IStorageService private storageService: IStorageService
 	) {
 		const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri?.path}`;
-		let result = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
-		if (result) {
-			this.history = new HistoryNavigator(JSON.parse(result), 50);
+		let savedHistory = this.storageService.get(key, StorageScope.WORKSPACE, '[]');
+		if (savedHistory) {
+			this.historyNavigator = new HistoryNavigator(JSON.parse(savedHistory), 50);
 		} else {
-			this.history = new HistoryNavigator([], 50);
+			this.historyNavigator = new HistoryNavigator([], 50);
+		}
+		let currentValue = this.storageService.get(`${key}/latest`, StorageScope.WORKSPACE);
+		if (currentValue) {
+			this._value = currentValue;
 		}
 	}
 
 	save(): void {
-		this.history.add(this.value);
+		this.historyNavigator.add(this.value);
 		if (this.repository.provider.rootUri) {
 			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
-			this.storageService.store(key, JSON.stringify(this.history.getHistory()), StorageScope.WORKSPACE);
+			this.storageService.store(key, JSON.stringify(this.historyNavigator.getHistory()), StorageScope.WORKSPACE);
 		}
 	}
 
 	showNextValue(): void {
-		let next = this.history.next();
+		let next = this.historyNavigator.next();
 		if (next) {
 			this.value = next;
 		}
 	}
 
 	showPreviousValue(): void {
-		let prev = this.history.previous();
+		let prev = this.historyNavigator.previous();
 		if (prev) {
 			this.value = prev;
+		}
+	}
+
+	saveCurrent(): void {
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}/latest`;
+			this.storageService.store(key, this.value, StorageScope.WORKSPACE);
 		}
 	}
 }
