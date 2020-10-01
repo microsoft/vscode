@@ -64,7 +64,7 @@ export interface ITokenResponse {
 	refresh_token: string;
 	scope: string;
 	token_type: string;
-	id_token: string;
+	id_token?: string;
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -450,9 +450,13 @@ export class AzureActiveDirectoryService {
 
 		try {
 			claims = this.getTokenClaims(json.access_token);
-		} catch {
-			Logger.info('Failed to fetch token claims from access_token. Attempting to parse id_token instead');
-			claims = this.getTokenClaims(json.id_token);
+		} catch (e) {
+			if (json.id_token) {
+				Logger.info('Failed to fetch token claims from access_token. Attempting to parse id_token instead');
+				claims = this.getTokenClaims(json.id_token);
+			} else {
+				throw e;
+			}
 		}
 
 		return {
