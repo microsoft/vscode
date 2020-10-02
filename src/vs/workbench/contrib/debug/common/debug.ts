@@ -671,9 +671,11 @@ export interface IConfigurationManager {
 		launch: ILaunch | undefined;
 		config: IConfig | undefined;
 		name: string | undefined;
+		// Type is used when matching dynamic configurations to their corresponding provider
+		type: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): Promise<void>;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, type?: string): Promise<void>;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 

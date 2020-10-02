@@ -196,7 +196,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		}
 
 		this.providers.forEach(p => {
-			if (p.provider && p.provider.type === manager.selectedConfiguration.config?.type) {
+			if (p.provider && p.provider.type === manager.selectedConfiguration.type) {
 				this.selected = this.options.length;
 			}
 
@@ -204,7 +204,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				label: `${p.label}...`, handler: async () => {
 					const picked = await p.pick();
 					if (picked) {
-						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config);
+						await manager.selectConfiguration(picked.launch, picked.config.name, picked.config, p.provider?.type);
 						return true;
 					}
 					return false;
@@ -234,6 +234,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 export class FocusSessionActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
+		session: IDebugSession | undefined,
 		@IDebugService protected readonly debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService,
@@ -262,15 +263,17 @@ export class FocusSessionActionViewItem extends SelectActionViewItem {
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 
-		this.update();
+		this.update(session);
 	}
 
 	protected getActionContext(_: string, index: number): any {
 		return this.getSessions()[index];
 	}
 
-	private update() {
-		const session = this.getSelectedSession();
+	private update(session?: IDebugSession) {
+		if (!session) {
+			session = this.getSelectedSession();
+		}
 		const sessions = this.getSessions();
 		const names = sessions.map(s => {
 			const label = s.getLabel();

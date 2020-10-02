@@ -1027,7 +1027,9 @@ class TreeMenus extends Disposable implements IDisposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
-
+		// When called without a parameter, updateParent will dispose the parent change listener.
+		// We cannot call dispose on the contextKeyService because it will break submenus.
+		contextKeyService.updateParent();
 		return result;
 	}
 }

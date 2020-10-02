@@ -6933,7 +6933,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the webview content posts a message.
 		 *
-		 * Webview content can post strings or json serilizable objects back to a VS Code extension. They cannot
+		 * Webview content can post strings or json serializable objects back to a VS Code extension. They cannot
 		 * post `Blob`, `File`, `ImageData` and other DOM specific objects since the extension that receives the
 		 * message does not run in a browser environment.
 		 */
@@ -6945,7 +6945,7 @@ declare module 'vscode' {
 		 * Messages are only delivered if the webview is live (either visible or in the
 		 * background with `retainContextWhenHidden`).
 		 *
-		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 * @param message Body of the message. This must be a string or other json serializable object.
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
