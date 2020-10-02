@@ -110,8 +110,6 @@
 	font-weight: bold;
 }
 
-/** Status Bar **/
-
 /** ReadMore Icon styles **/
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore::before {
