@@ -897,7 +897,8 @@ registerEditorCommand(new FindCommand({
 	handler: x => x.replaceAll(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.or(ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED), ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED)), 		primary: undefined,
+		kbExpr: ContextKeyExpr.or(ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED), ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED)),
+		primary: undefined,
 		mac: {
 			primary: KeyMod.CtrlCmd | KeyCode.Enter,
 		}
