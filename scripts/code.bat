@@ -13,7 +13,7 @@ set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
-:: Manage built-in extensions
+:: Manage built-in extension
 if "%1"=="--builtin" goto builtin
 
 :: Configuration
