@@ -93,7 +93,7 @@ export class TestDiskFileSystemProvider extends DiskFileSystemProvider {
 		const res = await super.stat(resource);
 
 		if (this.invalidStatSize) {
-			res.size = String(res.size) as any; // for https://github.com/Microsoft/vscode/issues/72909
+			res.size = String(res.size) as any; // for https://github.com/microsoft/vscode/issues/72909
 		} else if (this.smallStatSize) {
 			res.size = 1;
 		}
@@ -1488,7 +1488,7 @@ suite('Disk File Service', function () {
 		assert.equal(fileProvider.totalBytesRead, 0);
 	}
 
-	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/Microsoft/vscode/issues/72909', async () => {
+	test('readFile - FILE_NOT_MODIFIED_SINCE does not fire wrongly - https://github.com/microsoft/vscode/issues/72909', async () => {
 		fileProvider.setInvalidStatSize(true);
 
 		const resource = URI.file(join(testDir, 'index.html'));

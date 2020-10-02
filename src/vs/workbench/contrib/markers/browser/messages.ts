@@ -10,7 +10,6 @@ import { Marker } from './markersModel';
 
 export default class Messages {
 
-	public static MARKERS_PANEL_VIEW_CATEGORY: string = nls.localize('viewCategory', "View");
 	public static MARKERS_PANEL_TOGGLE_LABEL: string = nls.localize('problems.view.toggle.label', "Toggle Problems (Errors, Warnings, Infos)");
 	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems (Errors, Warnings, Infos)");
 

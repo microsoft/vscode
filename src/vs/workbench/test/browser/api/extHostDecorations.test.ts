@@ -48,8 +48,8 @@ suite('ExtHostDecorations', function () {
 
 		// never returns
 		extHostDecorations.registerDecorationProvider({
-			onDidChangeDecorations: Event.None,
-			provideDecoration() {
+			onDidChange: Event.None,
+			provideFileDecoration() {
 				calledA = true;
 				return new Promise(() => { });
 			}
@@ -57,10 +57,10 @@ suite('ExtHostDecorations', function () {
 
 		// always returns
 		extHostDecorations.registerDecorationProvider({
-			onDidChangeDecorations: Event.None,
-			provideDecoration() {
+			onDidChange: Event.None,
+			provideFileDecoration() {
 				calledB = true;
-				return new Promise(resolve => resolve({ letter: 'H', title: 'Hello' }));
+				return new Promise(resolve => resolve({ badge: 'H', tooltip: 'Hello' }));
 			}
 		}, nullExtensionDescription.identifier);
 

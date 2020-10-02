@@ -160,14 +160,14 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.resource))) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
 			throw createErrorWithActions(toErrorMessage(error), {
 				actions: [
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.resource);
+						await this.textFileService.create(input.preferredResource);
 
 						return this.editorService.openEditor({
-							resource: input.resource,
+							resource: input.preferredResource,
 							options: {
 								pinned: true // new file gets pinned by default
 							}
@@ -207,10 +207,10 @@ export class TextFileEditor extends BaseTextEditor {
 		await this.group.closeEditor(this.input);
 
 		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.resource)) {
+		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 
-			this.explorerService.select(input.resource, true);
+			this.explorerService.select(input.preferredResource, true);
 		}
 	}
 

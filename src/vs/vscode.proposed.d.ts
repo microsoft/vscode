@@ -717,21 +717,65 @@ declare module 'vscode' {
 
 	//#region file-decorations: https://github.com/microsoft/vscode/issues/54938
 
-	export class Decoration {
-		letter?: string;
-		title?: string;
+
+	export class FileDecoration {
+
+		/**
+		 * A very short string that represents this decoration.
+		 */
+		badge?: string;
+
+		/**
+		 * A human-readable tooltip for this decoration.
+		 */
+		tooltip?: string;
+
+		/**
+		 * The color of this decoration.
+		 */
 		color?: ThemeColor;
-		priority?: number;
-		bubble?: boolean;
+
+		/**
+		 * A flag expressing that this decoration should be
+		 * propagated to its parents.
+		 */
+		propagate?: boolean;
+
+		/**
+		 * Creates a new decoration.
+		 *
+		 * @param badge A letter that represents the decoration.
+		 * @param tooltip The tooltip of the decoration.
+		 * @param color The color of the decoration.
+		 */
+		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
 	}
 
-	export interface DecorationProvider {
-		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
-		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<Decoration>;
+	/**
+	 * The decoration provider interfaces defines the contract between extensions and
+	 * file decorations.
+	 */
+	export interface FileDecorationProvider {
+
+		/**
+		 * An event to signal decorations for one or many files have changed.
+		 *
+		 * @see [EventEmitter](#EventEmitter
+		 */
+		onDidChange: Event<undefined | Uri | Uri[]>;
+
+		/**
+		 * Provide decorations for a given uri.
+		 *
+		 * @param uri The uri of the file to provide a decoration for.
+		 * @param token A cancellation token.
+		 * @returns A decoration or a thenable that resolves to such.
+		 */
+		provideFileDecoration(uri: Uri, token: CancellationToken): ProviderResult<FileDecoration>;
 	}
 
 	export namespace window {
-		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
+		export function registerDecorationProvider(provider: FileDecorationProvider): Disposable;
 	}
 
 	//#endregion
@@ -1182,6 +1226,27 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	export class NotebookCellOutputItem {
+
+		readonly mime: string;
+		readonly value: unknown;
+		readonly metadata?: Record<string, string | number | boolean>;
+
+		constructor(mime: string, value: unknown, metadata?: Record<string, string | number | boolean>);
+	}
+
+	//TODO@jrieken add id?
+	export class NotebookCellOutput {
+
+		readonly outputs: NotebookCellOutputItem[];
+		readonly metadata?: Record<string, string | number | boolean>;
+
+		constructor(outputs: NotebookCellOutputItem[], metadata?: Record<string, string | number | boolean>);
+
+		//TODO@jrieken HACK to workaround dependency issues...
+		toJSON(): any;
+	}
+
 	export enum NotebookCellRunState {
 		Running = 1,
 		Idle = 2,
@@ -1260,6 +1325,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookCell {
+		readonly index: number;
 		readonly notebook: NotebookDocument;
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
@@ -1313,6 +1379,20 @@ declare module 'vscode' {
 		runState?: NotebookRunState;
 	}
 
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
+		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+		 */
+		transientOutputs: boolean;
+
+		/**
+		 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
+		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		 */
+		transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean };
+	}
+
 	export interface NotebookDocument {
 		readonly uri: Uri;
 		readonly version: number;
@@ -1321,8 +1401,8 @@ declare module 'vscode' {
 		readonly isDirty: boolean;
 		readonly isUntitled: boolean;
 		readonly cells: ReadonlyArray<NotebookCell>;
+		readonly contentOptions: NotebookDocumentContentOptions;
 		languages: string[];
-		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
 	}
 
@@ -1346,25 +1426,24 @@ declare module 'vscode' {
 	}
 
 	export interface WorkspaceEdit {
-		replaceCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceCellOutput(uri: Uri, index: number, outputs: CellOutput[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
+		replaceNotebookCells(uri: Uri, start: number, end: number, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellOutput(uri: Uri, index: number, outputs: (NotebookCellOutput | CellOutput)[], metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
-	export interface NotebookEditorCellEdit {
-
+	export interface NotebookEditorEdit {
+		replaceMetadata(value: NotebookDocumentMetadata): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceOutput(index: number, outputs: CellOutput[]): void;
-		replaceMetadata(index: number, metadata: NotebookCellMetadata): void;
-
-		/** @deprecated */
-		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
-		/** @deprecated */
-		delete(index: number): void;
+		replaceCellOutput(index: number, outputs: (NotebookCellOutput | CellOutput)[]): void;
+		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
 	}
 
 	export interface NotebookCellRange {
 		readonly start: number;
+		/**
+		 * exclusive
+		 */
 		readonly end: number;
 	}
 
@@ -1444,7 +1523,19 @@ declare module 'vscode' {
 		 */
 		asWebviewUri(localResource: Uri): Uri;
 
-		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+		/**
+		 * Perform an edit on the notebook associated with this notebook editor.
+		 *
+		 * The given callback-function is invoked with an [edit-builder](#NotebookEditorEdit) which must
+		 * be used to make edits. Note that the edit-builder is only valid while the
+		 * callback executes.
+		 *
+		 * @param callback A function which can create edits using an [edit-builder](#NotebookEditorEdit).
+		 * @return A promise that resolves with a value indicating if the edits could be applied.
+		 */
+		edit(callback: (editBuilder: NotebookEditorEdit) => void): Thenable<boolean>;
+
+		setDecorations(decorationType: NotebookEditorDecorationType, range: NotebookCellRange): void;
 
 		revealRange(range: NotebookCellRange, revealType?: NotebookEditorRevealType): void;
 	}
@@ -1457,6 +1548,10 @@ declare module 'vscode' {
 		output: CellDisplayOutput;
 		mimeType: string;
 		outputId: string;
+	}
+
+	export interface NotebookDocumentMetadataChangeEvent {
+		readonly document: NotebookDocument;
 	}
 
 	export interface NotebookCellsChangeData {
@@ -1632,6 +1727,10 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookContentProvider {
+		readonly options?: NotebookDocumentContentOptions;
+		readonly onDidChangeNotebookContentOptions?: Event<NotebookDocumentContentOptions>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
+
 		/**
 		 * Content providers should always use [file system providers](#FileSystemProvider) to
 		 * resolve the raw content for `uri` as the resouce is not necessarily a file on disk.
@@ -1640,7 +1739,6 @@ declare module 'vscode' {
 		resolveNotebook(document: NotebookDocument, webview: NotebookCommunication): Promise<void>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<NotebookDocumentContentChangeEvent | NotebookDocumentEditEvent>;
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, cancellation: CancellationToken): Promise<NotebookDocumentBackup>;
 	}
 
@@ -1657,9 +1755,11 @@ declare module 'vscode' {
 		cancelAllCellsExecution(document: NotebookDocument): void;
 	}
 
+	export type NotebookFilenamePattern = GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+
 	export interface NotebookDocumentFilter {
 		viewType?: string | string[];
-		filenamePattern?: GlobPattern | { include: GlobPattern; exclude: GlobPattern };
+		filenamePattern?: NotebookFilenamePattern;
 	}
 
 	export interface NotebookKernelProvider<T extends NotebookKernel = NotebookKernel> {
@@ -1697,21 +1797,31 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
+	export interface NotebookDecorationRenderOptions {
+		backgroundColor?: string | ThemeColor;
+		borderColor?: string | ThemeColor;
+		top: ThemableDecorationAttachmentRenderOptions;
+	}
+
+	export interface NotebookEditorDecorationType {
+		readonly key: string;
+		dispose(): void;
+	}
+
+
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
 			provider: NotebookContentProvider,
-			options?: {
+			options?: NotebookDocumentContentOptions & {
 				/**
-				 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
-				 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+				 * Not ready for production or development use yet.
 				 */
-				transientOutputs: boolean;
-				/**
-				 * Controls if a meetadata property change will trigger notebook document content change and if it will be used in the diff editor
-				 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
-				 */
-				transientMetadata: { [K in keyof NotebookCellMetadata]?: boolean }
+				viewOptions?: {
+					displayName: string;
+					filenamePattern: NotebookFilenamePattern[];
+					exclusive?: boolean;
+				};
 			}
 		): Disposable;
 
@@ -1720,6 +1830,7 @@ declare module 'vscode' {
 			provider: NotebookKernelProvider
 		): Disposable;
 
+		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		export const onDidSaveNotebookDocument: Event<NotebookDocument>;
@@ -1736,6 +1847,7 @@ declare module 'vscode' {
 		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
 		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
+		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
@@ -1976,32 +2088,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Support `scmResourceState` in `when` clauses #86180 https://github.com/microsoft/vscode/issues/86180
-
-	export interface SourceControlResourceState {
-		/**
-		 * Context value of the resource state. This can be used to contribute resource specific actions.
-		 * For example, if a resource is given a context value as `diffable`. When contributing actions to `scm/resourceState/context`
-		 * using `menus` extension point, you can specify context value for key `scmResourceState` in `when` expressions, like `scmResourceState == diffable`.
-		 * ```
-		 *	"contributes": {
-		 *		"menus": {
-		 *			"scm/resourceState/context": [
-		 *				{
-		 *					"command": "extension.diff",
-		 *					"when": "scmResourceState == diffable"
-		 *				}
-		 *			]
-		 *		}
-		 *	}
-		 * ```
-		 * This will show action `extension.diff` only for resources with `contextValue` is `diffable`.
-		 */
-		readonly contextValue?: string;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/104436
 
 	export enum ExtensionRuntime {
@@ -2034,147 +2120,52 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/91697
 
-	//#region https://github.com/microsoft/vscode/issues/46585
-
-	/**
-	 * A webview based view.
-	 */
-	export interface WebviewView {
+	export interface FileSystem {
 		/**
-		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
+		 * Check if a given file system supports writing files.
+		 *
+		 * Keep in mind that just because a file system supports writing, that does
+		 * not mean that writes will always succeed. There may be permissions issues
+		 * or other errors that prevent writing a file.
+		 *
+		 * @param scheme The scheme of the filesystem, for example `file` or `git`.
+		 *
+		 * @return `true` if the file system supports writing, `false` if it does not
+		 * support writing (i.e. it is readonly), and `undefined` if VS Code does not
+		 * know about the filesystem.
 		 */
-		readonly viewType: string;
-
-		/**
-		 * The underlying webview for the view.
-		 */
-		readonly webview: Webview;
-
-		/**
-		 * View title displayed in the UI.
-		 *
-		 * The view title is initially taken from the extension `package.json` contribution.
-		 */
-		title?: string;
-
-		/**
-		 * Event fired when the view is disposed.
-		 *
-		 * Views are disposed when they are explicitly hidden by a user (this happens when a user
-		 * right clicks in a view and unchecks the webview view).
-		 *
-		 * Trying to use the view after it has been disposed throws an exception.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Tracks if the webview is currently visible.
-		 *
-		 * Views are visible when they are on the screen and expanded.
-		 */
-		readonly visible: boolean;
-
-		/**
-		 * Event fired when the visibility of the view changes.
-		 *
-		 * Actions that trigger a visibility change:
-		 *
-		 * - The view is collapsed or expanded.
-		 * - The user switches to a different view group in the sidebar or panel.
-		 *
-		 * Note that hiding a view using the context menu instead disposes of the view and fires `onDidDispose`.
-		 */
-		readonly onDidChangeVisibility: Event<void>;
+		isWritableFileSystem(scheme: string): boolean | undefined;
 	}
 
-	interface WebviewViewResolveContext<T = unknown> {
-		/**
-		 * Persisted state from the webview content.
-		 *
-		 * To save resources, VS Code normally deallocates webview documents (the iframe content) that are not visible.
-		 * For example, when the user collapse a view or switches to another top level activity in the sidebar, the
-		 * `WebviewView` itself is kept alive but the webview's underlying document is deallocated. It is recreated when
-		 * the view becomes visible again.
-		 *
-		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
-		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to
-		 * save off a webview's state so that it can be quickly recreated as needed.
-		 *
-		 * To save off a persisted state, inside the webview call `acquireVsCodeApi().setState()` with
-		 * any json serializable object. To restore the state again, call `getState()`. For example:
-		 *
-		 * ```js
-		 * // Within the webview
-		 * const vscode = acquireVsCodeApi();
-		 *
-		 * // Get existing state
-		 * const oldState = vscode.getState() || { value: 0 };
-		 *
-		 * // Update state
-		 * setState({ value: oldState.value + 1 })
-		 * ```
-		 *
-		 * VS Code ensures that the persisted state is saved correctly when a webview is hidden and across
-		 * editor restarts.
-		 */
-		readonly state: T | undefined;
-	}
 
-	/**
-	 * Provider for creating `WebviewView` elements.
-	 */
-	export interface WebviewViewProvider {
-		/**
-		 * Revolves a webview view.
-		 *
-		 * `resolveWebviewView` is called when a view first becomes visible. This may happen when the view is
-		 * first loaded or when the user hides and then shows a view again.
-		 *
-		 * @param webviewView Webview view to restore. The serializer should take ownership of this view. The
-		 *    provider must set the webview's `.html` and hook up all webview events it is interested in.
-		 * @param context Additional metadata about the view being resolved.
-		 * @param token Cancellation token indicating that the view being provided is no longer needed.
-		 *
-		 * @return Optional thenable indicating that the view has been fully resolved.
-		 */
-		resolveWebviewView(webviewView: WebviewView, context: WebviewViewResolveContext, token: CancellationToken): Thenable<void> | void;
-	}
+	//#endregion
 
-	namespace window {
+	//#region https://github.com/microsoft/vscode/issues/103120 @alexr00
+	export class ThemeIcon2 extends ThemeIcon {
+
 		/**
-		 * Register a new provider for webview views.
-		 *
-		 * @param viewId Unique id of the view. This should match the `id` from the
-		 *   `views` contribution in the package.json.
-		 * @param provider Provider for the webview views.
-		 *
-		 * @return Disposable that unregisters the provider.
+		 * The id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
 		 */
-		export function registerWebviewViewProvider(viewId: string, provider: WebviewViewProvider, options?: {
-			/**
-			 * Content settings for the webview created for this view.
-			 */
-			readonly webviewOptions?: {
-				/**
-				 * Controls if the webview element itself (iframe) is kept around even when the view
-				 * is no longer visible.
-				 *
-				 * Normally the webview's html context is created when the view becomes visible
-				 * and destroyed when it is hidden. Extensions that have complex state
-				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-				 * context around, even when the webview moves to a background tab. When a webview using
-				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
-				 * When the view becomes visible again, the context is automatically restored
-				 * in the exact same state it was in originally. You cannot send messages to a
-				 * hidden webview, even with `retainContextWhenHidden` enabled.
-				 *
-				 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-				 * your view's context cannot be quickly saved and restored.
-				 */
-				readonly retainContextWhenHidden?: boolean;
-			};
-		}): Disposable;
+		public readonly id: string;
+
+		/**
+		 * Creates a reference to a theme icon.
+		 * @param id id of the icon. The available icons are listed in https://microsoft.github.io/vscode-codicons/dist/codicon.html.
+		 * @param color optional `ThemeColor` for the icon.
+		 */
+		constructor(id: string, color?: ThemeColor);
+	}
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/102665 Comment API @rebornix
+	export interface CommentThread {
+		/**
+		 * Whether the thread supports reply.
+		 * Defaults to false.
+		 */
+		readOnly: boolean;
 	}
 	//#endregion
 }

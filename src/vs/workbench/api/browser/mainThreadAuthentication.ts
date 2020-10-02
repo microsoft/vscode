@@ -18,7 +18,7 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { Platform, platform } from 'vs/base/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser'];
 
@@ -405,7 +405,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const remoteConnection = this.remoteAgentService.getConnection();
 		const isVSO = remoteConnection !== null
 			? remoteConnection.remoteAuthority.startsWith('vsonline')
-			: platform === Platform.Web;
+			: isWeb;
 
 		if (isVSO && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
 			addAccountUsage(this.storageService, providerId, accountName, extensionId, extensionName);

@@ -7,7 +7,6 @@ import { Action } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -26,7 +25,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IListService, WorkbenchListFocusContextKey, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultQuickAccessContextKeyValue } from 'vs/workbench/browser/quickaccess';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as ViewExtensions, IViewsRegistry, IViewContainersRegistry, ViewContainerLocation, IViewDescriptorService, IViewsService } from 'vs/workbench/common/views';
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
@@ -560,7 +559,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 
 // Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', CATEGORIES.View.value);
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	description: {
 		description: nls.localize('findInFiles.description', "Open the search viewlet"),
@@ -614,14 +613,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 
 if (platform.isMacintosh) {
 	// Register this with a more restrictive `when` on mac to avoid conflict with "copy path"
-	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 		id: Constants.ToggleCaseSensitiveCommandId,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
 		handler: toggleCaseSensitiveCommand
 	}, ToggleCaseSensitiveKeybinding));
 } else {
-	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+	KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 		id: Constants.ToggleCaseSensitiveCommandId,
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: Constants.SearchViewFocusedKey,
@@ -629,14 +628,14 @@ if (platform.isMacintosh) {
 	}, ToggleCaseSensitiveKeybinding));
 }
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: Constants.ToggleWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.SearchViewFocusedKey,
 	handler: toggleWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: Constants.ToggleRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: Constants.SearchViewFocusedKey,

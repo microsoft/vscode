@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as objects from 'vs/base/common/objects';
 import { extname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -146,21 +145,21 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 //#endregion
 
 //#region Commands
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorCaseSensitiveCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
 	handler: toggleSearchEditorCaseSensitiveCommand
 }, ToggleCaseSensitiveKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorWholeWordCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),
 	handler: toggleSearchEditorWholeWordCommand
 }, ToggleWholeWordKeybinding));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+KeybindingsRegistry.registerCommandAndKeybindingRule(Object.assign({
 	id: ToggleSearchEditorRegexCommandId,
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(SearchEditorConstants.InSearchEditor, SearchConstants.SearchInputBoxFocusedKey),

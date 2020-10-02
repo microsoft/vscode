@@ -13,8 +13,11 @@ import { v4 as uuid } from 'uuid';
 import { keychain } from './keychain';
 import Logger from './logger';
 import { toBase64UrlEncoding } from './utils';
-import fetch from 'node-fetch';
+import fetch, { Response } from 'node-fetch';
 import { sha256 } from './env/node/sha256';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
 
 const redirectUrl = 'https://vscode-redirect.azurewebsites.net/';
 const loginEndpointUrl = 'https://login.microsoftonline.com/';
@@ -40,6 +43,7 @@ interface ITokenClaims {
 	tid: string;
 	email?: string;
 	unique_name?: string;
+	preferred_username?: string;
 	oid?: string;
 	altsecid?: string;
 	ipd?: string;
@@ -64,6 +68,7 @@ export interface ITokenResponse {
 	refresh_token: string;
 	scope: string;
 	token_type: string;
+	id_token?: string;
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -445,7 +450,19 @@ export class AzureActiveDirectoryService {
 	}
 
 	private getTokenFromResponse(json: ITokenResponse, scope: string, existingId?: string): IToken {
-		const claims = this.getTokenClaims(json.access_token);
+		let claims = undefined;
+
+		try {
+			claims = this.getTokenClaims(json.access_token);
+		} catch (e) {
+			if (json.id_token) {
+				Logger.info('Failed to fetch token claims from access_token. Attempting to parse id_token instead');
+				claims = this.getTokenClaims(json.id_token);
+			} else {
+				throw e;
+			}
+		}
+
 		return {
 			expiresIn: json.expires_in,
 			expiresAt: json.expires_in ? Date.now() + json.expires_in * 1000 : undefined,
@@ -454,7 +471,7 @@ export class AzureActiveDirectoryService {
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
 			account: {
-				label: claims.email || claims.unique_name || 'user@example.com',
+				label: claims.email || claims.unique_name || claims.preferred_username || 'user@example.com',
 				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
 			}
 		};
@@ -499,16 +516,17 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
-		try {
-			Logger.info('Refreshing token...');
-			const postData = querystring.stringify({
-				refresh_token: refreshToken,
-				client_id: clientId,
-				grant_type: 'refresh_token',
-				scope: scope
-			});
+		Logger.info('Refreshing token...');
+		const postData = querystring.stringify({
+			refresh_token: refreshToken,
+			client_id: clientId,
+			grant_type: 'refresh_token',
+			scope: scope
+		});
 
-			const result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+		let result: Response;
+		try {
+			result = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/x-www-form-urlencoded',
@@ -516,7 +534,12 @@ export class AzureActiveDirectoryService {
 				},
 				body: postData
 			});
+		} catch (e) {
+			Logger.error('Refreshing token failed');
+			throw new Error(REFRESH_NETWORK_FAILURE);
+		}
 
+		try {
 			if (result.ok) {
 				const json = await result.json();
 				const token = this.getTokenFromResponse(json, scope, sessionId);
@@ -524,12 +547,12 @@ export class AzureActiveDirectoryService {
 				Logger.info('Token refresh success');
 				return token;
 			} else {
-				Logger.error('Refreshing token failed');
-				throw new Error('Refreshing token failed.');
+				throw new Error('Bad request.');
 			}
 		} catch (e) {
-			Logger.error('Refreshing token failed');
-			throw new Error(REFRESH_NETWORK_FAILURE);
+			vscode.window.showErrorMessage(localize('signOut', "You have been signed out because reading stored authentication information failed."));
+			Logger.error(`Refreshing token failed: ${result.statusText}`);
+			throw new Error('Refreshing token failed');
 		}
 	}
 

@@ -13,7 +13,7 @@ import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } fro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/browser/workbenchCommonProperties';
+import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/browser/workbenchCommonProperties';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 

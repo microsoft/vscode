@@ -167,8 +167,8 @@ export function registerCommands(): void {
 				const source = stackFrame.thread.session.getSourceForUri(resource);
 				if (source) {
 					const response = await stackFrame.thread.session.gotoTargets(source.raw, position.lineNumber, position.column);
-					const targets = response.body.targets;
-					if (targets.length) {
+					const targets = response?.body.targets;
+					if (targets && targets.length) {
 						let id = targets[0].id;
 						if (targets.length > 1) {
 							const picks = targets.map(t => ({ label: t.label, _id: t.id }));
@@ -527,7 +527,7 @@ export function registerCommands(): void {
 					.some(bp => (bp.sessionAgnosticData.column === position.column || (!bp.column && position.column <= 1)));
 
 				if (!breakpointAlreadySet) {
-					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }], 'debugCommands.inlineBreakpointCommand');
+					debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 				}
 			}
 		}

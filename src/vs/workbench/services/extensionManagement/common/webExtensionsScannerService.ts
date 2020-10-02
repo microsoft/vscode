@@ -19,7 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IGalleryExtension, INSTALL_ERROR_NOT_SUPPORTED } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IStaticExtension } from 'vs/workbench/workbench.web.api';
+import type { IStaticExtension } from 'vs/workbench/workbench.web.api';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
@@ -168,6 +168,34 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	async scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]> {
 		const extensions = await this.scanExtensions(type);
 		return Promise.all(extensions.map((ext) => this._translateScannedExtension(ext)));
+	}
+
+	async scanAndTranslateSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<ITranslatedScannedExtension | null> {
+		const extension = await this._scanSingleExtension(extensionLocation, extensionType);
+		if (extension) {
+			return this._translateScannedExtension(extension);
+		}
+		return null;
+	}
+
+	private async _scanSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IScannedExtension | null> {
+		if (extensionType === ExtensionType.System) {
+			const systemExtensions = await this.systemExtensionsPromise;
+			return this._findScannedExtension(systemExtensions, extensionLocation);
+		}
+
+		const staticExtensions = await this.defaultExtensionsPromise;
+		const userExtensions = await this.scanUserExtensions();
+		return this._findScannedExtension(staticExtensions.concat(userExtensions), extensionLocation);
+	}
+
+	private _findScannedExtension(candidates: IScannedExtension[], extensionLocation: URI): IScannedExtension | null {
+		for (const candidate of candidates) {
+			if (candidate.location.toString() === extensionLocation.toString()) {
+				return candidate;
+			}
+		}
+		return null;
 	}
 
 	private async _translateScannedExtension(scannedExtension: IScannedExtension): Promise<ITranslatedScannedExtension> {

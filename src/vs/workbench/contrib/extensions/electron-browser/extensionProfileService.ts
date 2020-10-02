@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -46,7 +46,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IElectronService private readonly _electronService: IElectronService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStatusbarService private readonly _statusbarService: IStatusbarService,
 		@IProductService private readonly _productService: IProductService
@@ -124,7 +124,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 				secondaryButton: nls.localize('cancel', "Cancel")
 			}).then(res => {
 				if (res.confirmed) {
-					this._electronService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
+					this._nativeHostService.relaunch({ addArgs: [`--inspect-extensions=${randomPort()}`] });
 				}
 			});
 		}

@@ -34,7 +34,6 @@ import { EvaluatableExpressionProviderRegistry } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 const $ = dom.$;
-const MAX_TREE_HEIGHT = 324;
 
 async function doFindExpression(container: IExpressionContainer, namesToFind: string[]): Promise<IExpression | null> {
 	if (!container) {
@@ -86,7 +85,7 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
@@ -140,7 +139,7 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.color = '';
 			}
 		}));
-		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer()));
+		this.toDispose.push(this.tree.onDidChangeContentHeight(() => this.layoutTreeAndContainer(false)));
 
 		this.registerListeners();
 		this.editor.addContentWidget(this);
@@ -285,9 +284,7 @@ export class DebugHoverWidget implements IContentWidget {
 		await this.tree.setInput(expression);
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
-		this.layoutTreeAndContainer();
-		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
+		this.layoutTreeAndContainer(true);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
@@ -298,11 +295,13 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 	}
 
-	private layoutTreeAndContainer(): void {
-		const scrollBarHeight = 8;
-		const treeHeight = Math.min(MAX_TREE_HEIGHT, this.tree.contentHeight + scrollBarHeight);
+	private layoutTreeAndContainer(initialLayout: boolean): void {
+		const scrollBarHeight = 10;
+		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.7, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
-		this.tree.layout(treeHeight, 324);
+		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
+		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
 
 	hide(): void {

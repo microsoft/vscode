@@ -10,17 +10,16 @@ import * as arrays from 'vs/base/common/arrays';
 import { mixin } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ParsedArgs } from 'vs/platform/environment/node/argv';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
-import { screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
+import { screen, BrowserWindow, MessageBoxOptions, Display, app } from 'electron';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
-import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
+import { IWindowSettings, IPath, isFileToOpen, isWorkspaceToOpen, isFolderToOpen, IWindowOpenable, IOpenEmptyWindowOptions, IAddFoldersRequest, IPathsToWaitFor, INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderUri, OpenContext } from 'vs/platform/windows/node/window';
 import { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/product/common/product';
 import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent, ICodeWindow, IWindowState as ISingleWindowState, WindowMode, IOpenEmptyConfiguration } from 'vs/platform/windows/electron-main/windows';
@@ -64,7 +63,7 @@ type RestoreWindowsSetting = 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
 	userEnv?: IProcessEnvironment;
-	cli?: ParsedArgs;
+	cli?: NativeParsedArgs;
 
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
@@ -164,6 +163,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private shuttingDown = false;
 
+	private readonly _onWindowOpened = this._register(new Emitter<ICodeWindow>());
+	readonly onWindowOpened = this._onWindowOpened.event;
+
 	private readonly _onWindowReady = this._register(new Emitter<ICodeWindow>());
 	readonly onWindowReady = this._onWindowReady.event;
 
@@ -175,7 +177,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@IStateService private readonly stateService: IStateService,
-		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -209,17 +211,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private registerListeners(): void {
-
-		// React to HC color scheme changes (Windows, macOS)
-		if (isWindows || isMacintosh) {
-			nativeTheme.on('updated', () => {
-				if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-					this.sendToAll('vscode:enterHighContrast');
-				} else {
-					this.sendToAll('vscode:leaveHighContrast');
-				}
-			});
-		}
 
 		// When a window looses focus, save all windows state. This allows to
 		// prevent loss of window-state data when OS is restarted without properly
@@ -395,11 +386,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		openConfig = this.validateOpenConfig(openConfig);
 
 		const pathsToOpen = this.getPathsToOpen(openConfig);
+		this.logService.trace('windowsManager#open pathsToOpen', pathsToOpen);
 
 		const foldersToAdd: IFolderPathToOpen[] = [];
 		const foldersToOpen: IFolderPathToOpen[] = [];
 		const workspacesToOpen: IWorkspacePathToOpen[] = [];
+		const workspacesToRestore: IWorkspacePathToOpen[] = [];
 		const emptyToRestore: IEmptyWindowBackupInfo[] = []; // empty windows with backupPath
+
 		let emptyToOpen: number = 0;
 		let fileInputs: IFileInputs | undefined; 		// collect all file inputs
 		for (const path of pathsToOpen) {
@@ -440,11 +434,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		//
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
 		//
-		let workspacesToRestore: IWorkspacePathToOpen[] = [];
-		if (openConfig.initialStartup && !openConfig.cli.extensionDevelopmentPath && !openConfig.cli['disable-restore-windows']) {
+		if (openConfig.initialStartup) {
 
 			// Untitled workspaces are always restored
-			workspacesToRestore = this.workspacesMainService.getUntitledWorkspacesSync();
+			workspacesToRestore.push(...this.workspacesMainService.getUntitledWorkspacesSync());
 			workspacesToOpen.push(...workspacesToRestore);
 
 			// Empty windows with backups are always restored
@@ -455,6 +448,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Open based on config
 		const usedWindows = this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyToRestore, emptyToOpen, fileInputs, foldersToAdd);
+
+		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyToRestore.length}, emptyToOpen: ${emptyToOpen})`);
 
 		// Make sure to pass focus to the most relevant of the windows if we open multiple
 		if (usedWindows.length > 1) {
@@ -748,6 +743,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, fileInputs?: IFileInputs): ICodeWindow {
+		this.logService.trace('windowsManager#doOpenFilesInExistingWindow');
+
 		window.focus(); // make sure window has focus
 
 		const params: { filesToOpenOrCreate?: IPath[], filesToDiff?: IPath[], filesToWait?: IPathsToWaitFor, termProgram?: string } = {};
@@ -795,7 +792,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, forceNewWindow: boolean, fileInputs: IFileInputs | undefined, windowToUse?: ICodeWindow): ICodeWindow {
 		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
-			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/Microsoft/vscode/issues/49587
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/microsoft/vscode/issues/49587
 		}
 
 		return this.openInBrowserWindow({
@@ -899,7 +896,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return pathsToOpen;
 	}
 
-	private doExtractPathsFromCLI(cli: ParsedArgs): IPath[] {
+	private doExtractPathsFromCLI(cli: NativeParsedArgs): IPath[] {
 		const pathsToOpen: IPathToOpen[] = [];
 		const parseOptions: IPathParseOptions = { ignoreFileNotFound: true, gotoLineMode: cli.goto, remoteAuthority: cli.remote || undefined };
 
@@ -984,7 +981,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 						if (pathToOpen?.folderUri) {
 							windowsToOpen.push(pathToOpen);
 						}
-					} else if (restoreWindows !== 'folders' && openedWindow.backupPath && !openedWindow.remoteAuthority) { // Local windows that were empty. Empty windows with backups will always be restored in open()
+					} else if (restoreWindows !== 'folders' && openedWindow.backupPath) { // Empty window, potentially editors open to be restored
 						windowsToOpen.push({ backupPath: openedWindow.backupPath, remoteAuthority: openedWindow.remoteAuthority });
 					}
 				}
@@ -1370,7 +1367,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
 		// loading the window.
 		if (options.emptyWindowBackupInfo) {
-			configuration.backupPath = join(this.environmentService.backupHome.fsPath, options.emptyWindowBackupInfo.backupFolder);
+			configuration.backupPath = join(this.environmentService.backupHome, options.emptyWindowBackupInfo.backupFolder);
 		}
 
 		let window: ICodeWindow | undefined;
@@ -1427,6 +1424,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			// Add to our list of windows
 			WindowsMainService.WINDOWS.push(createdWindow);
+
+			// Indicate new window via event
+			this._onWindowOpened.fire(createdWindow);
 
 			// Indicate number change via event
 			this._onWindowsCountChanged.fire({ oldCount: WindowsMainService.WINDOWS.length - 1, newCount: WindowsMainService.WINDOWS.length });
@@ -1588,7 +1588,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			} else if ((windowConfig.newWindowDimensions === 'inherit' || windowConfig.newWindowDimensions === 'offset') && lastActive) {
 				const lastActiveState = lastActive.serializeWindowState();
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
-					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/Microsoft/vscode/issues/19331)
+					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
 				} else {
 					state = lastActiveState;
 				}

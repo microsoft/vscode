@@ -168,6 +168,7 @@ export interface INotebookCellDecorationOptions {
 	className?: string;
 	gutterClassName?: string;
 	outputClassName?: string;
+	topClassName?: string;
 }
 
 export interface INotebookDeltaDecoration {
@@ -233,6 +234,7 @@ export interface INotebookEditor extends IEditor {
 	getDomNode(): HTMLElement;
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
+	getSelectionHandles(): number[];
 
 	/**
 	 * Focus the notebook editor cell list
@@ -437,6 +439,9 @@ export interface INotebookEditor extends IEditor {
 	 */
 	changeModelDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 
+	setEditorDecorations(key: string, range: ICellRange): void;
+	removeEditorDecorations(key: string): void;
+
 	/**
 	 * An event emitted on a "mouseup".
 	 * @event
@@ -507,13 +512,14 @@ export interface INotebookCellList {
 	layout(height?: number, width?: number): void;
 	dispose(): void;
 
-	// TODO resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
+	// TODO@roblourens resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
 	getFocus(): number[];
 	setFocus(indexes: number[]): void;
 	setSelection(indexes: number[]): void;
 }
 
 export interface BaseCellRenderTemplate {
+	rootContainer: HTMLElement;
 	editorPart: HTMLElement;
 	collapsedPart: HTMLElement;
 	expandButton: HTMLElement;
@@ -698,7 +704,7 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 }
 
 export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
-	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
+	// TODO@rebornix can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
 	const activeEditorPane = editorService.activeEditorPane as unknown as { isNotebookEditor?: boolean } | undefined;
 	return activeEditorPane?.isNotebookEditor ? (editorService.activeEditorPane?.getControl() as INotebookEditor) : undefined;
 }

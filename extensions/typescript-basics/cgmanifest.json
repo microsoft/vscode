@@ -5,12 +5,12 @@
 				"type": "git",
 				"git": {
 					"name": "TypeScript-TmLanguage",
-					"repositoryUrl": "https://github.com/Microsoft/TypeScript-TmLanguage",
+					"repositoryUrl": "https://github.com/microsoft/TypeScript-TmLanguage",
 					"commitHash": "fa4e0d3a918db0eab8e5c5be952f3bd649968456"
 				}
 			},
 			"license": "MIT",
-			"description": "The files syntaxes/TypeScript.tmLanguage.json and syntaxes/TypeScriptReact.tmLanguage.json were derived from TypeScript.tmLanguage and TypeScriptReact.tmLanguage in https://github.com/Microsoft/TypeScript-TmLanguage.",
+			"description": "The files syntaxes/TypeScript.tmLanguage.json and syntaxes/TypeScriptReact.tmLanguage.json were derived from TypeScript.tmLanguage and TypeScriptReact.tmLanguage in https://github.com/microsoft/TypeScript-TmLanguage.",
 			"version": "1.0.0"
 		}
 	],

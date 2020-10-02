@@ -31,7 +31,6 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/noteb
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocKey, CellUri, DisplayOrderKey, getCellUndoRedoComparisonKey, NotebookDocumentBackupData, NotebookEditorPriority, NotebookTextDiffEditorPreview, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -110,22 +109,25 @@ class NotebookDiffEditorFactory implements IEditorInputFactory {
 			originalResource: input.originalResource,
 			name: input.name,
 			originalName: input.originalName,
+			textDiffName: input.textDiffName,
 			viewType: input.viewType,
 		});
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, group: number };
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
 		}
-		const { resource, originalResource, name, originalName, viewType } = data;
+		const { resource, originalResource, name, originalName, textDiffName, viewType } = data;
 		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName, viewType);
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName,
+			textDiffName || nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", originalResource.toString(true), resource.toString(true)),
+			viewType);
 		return input;
 	}
 
@@ -200,10 +202,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 	NotebookDiffEditorInput.ID,
 	NotebookDiffEditorFactory
 );
-
-function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
-	return notebookService.getContributedNotebookProviders(uri)[0];
-}
 
 export class NotebookContribution extends Disposable implements IWorkbenchContribution {
 
@@ -290,7 +288,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private onEditorOpening2(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
 
 		let id = typeof options?.override === 'string' ? options.override : undefined;
-		if (id === undefined && originalInput.isUntitled()) {
+		if (id === undefined && originalInput.resource?.scheme === Schemas.untitled) {
 			return undefined;
 		}
 
@@ -349,7 +347,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}
 
 		const infos = this.notebookService.getContributedNotebookProviders(notebookUri);
-		let info = infos.find(info => !id || info.id === id);
+		let info = infos.find(info => (!id || info.id === id) && info.exclusive) || infos.find(info => !id || info.id === id);
 
 		if (!info && id !== undefined) {
 			info = this.notebookService.getContributedNotebookProvider(id);
@@ -412,7 +410,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		const info = associatedEditors[0];
 
-		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), info.id);
+		const notebookInput = NotebookDiffEditorInput.create(this.instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), info.id);
 		const notebookOptions = new NotebookEditorOptions({ ...options, override: false });
 		return { override: this.editorService.openEditor(notebookInput, notebookOptions, group) };
 	}
@@ -426,7 +424,6 @@ class CellContentProvider implements ITextModelContentProvider {
 		@ITextModelService textModelService: ITextModelService,
 		@IModelService private readonly _modelService: IModelService,
 		@IModeService private readonly _modeService: IModeService,
-		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
 		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
@@ -446,12 +443,8 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!data) {
 			return null;
 		}
-		const info = getFirstNotebookInfo(this._notebookService, data.notebook);
-		if (!info) {
-			return null;
-		}
 
-		const ref = await this._notebookModelResolverService.resolve(data.notebook, info.id);
+		const ref = await this._notebookModelResolverService.resolve(data.notebook);
 		let result: ITextModel | null = null;
 
 		for (const cell of ref.object.notebook.cells) {
@@ -564,9 +557,9 @@ class NotebookFileTracker implements IWorkbenchContribution {
 	constructor(
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@IWorkingCopyService workingCopyService: IWorkingCopyService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 	) {
-		this._dirtyListener = Event.debounce(workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
+		this._dirtyListener = Event.debounce(_workingCopyService.onDidChangeDirty, () => { }, 100)(() => {
 			const inputs = this._createMissingNotebookEditors();
 			this._editorService.openEditors(inputs);
 		});
@@ -580,7 +573,7 @@ class NotebookFileTracker implements IWorkbenchContribution {
 		const result: IResourceEditorInput[] = [];
 
 		for (const notebook of this._notebookService.getNotebookTextModels()) {
-			if (notebook.isDirty && !this._editorService.isOpen({ resource: notebook.uri })) {
+			if (this._workingCopyService.isDirty(notebook.uri.with({ scheme: Schemas.vscodeNotebook })) && !this._editorService.isOpen({ resource: notebook.uri })) {
 				result.push({
 					resource: notebook.uri,
 					options: { inactive: true, preserveFocus: true, pinned: true }

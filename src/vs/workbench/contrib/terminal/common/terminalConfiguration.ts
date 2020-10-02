@@ -6,7 +6,7 @@
 import { IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { isMacintosh, isWindows, Platform } from 'vs/base/common/platform';
 
 export const terminalConfiguration: IConfigurationNode = {
@@ -136,15 +136,41 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: 1
 		},
 		'terminal.integrated.fontWeight': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text."),
+			'anyOf': [
+				{
+					type: 'number',
+					minimum: MINIMUM_FONT_WEIGHT,
+					maximum: MAXIMUM_FONT_WEIGHT,
+					errorMessage: localize('terminal.integrated.fontWeightError', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
+				},
+				{
+					type: 'string',
+					pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+				},
+				{
+					enum: SUGGESTIONS_FONT_WEIGHT,
+				}
+			],
+			description: localize('terminal.integrated.fontWeight', "The font weight to use within the terminal for non-bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 			default: 'normal'
 		},
 		'terminal.integrated.fontWeightBold': {
-			type: 'string',
-			enum: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'],
-			description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text."),
+			'anyOf': [
+				{
+					type: 'number',
+					minimum: MINIMUM_FONT_WEIGHT,
+					maximum: MAXIMUM_FONT_WEIGHT,
+					errorMessage: localize('terminal.integrated.fontWeightError', "Only \"normal\" and \"bold\" keywords or numbers between 1 and 1000 are allowed.")
+				},
+				{
+					type: 'string',
+					pattern: '^(normal|bold|1000|[1-9][0-9]{0,2})$'
+				},
+				{
+					enum: SUGGESTIONS_FONT_WEIGHT,
+				}
+			],
+			description: localize('terminal.integrated.fontWeightBold', "The font weight to use within the terminal for bold text. Accepts \"normal\" and \"bold\" keywords or numbers between 1 and 1000."),
 			default: 'bold'
 		},
 		'terminal.integrated.cursorBlinking': {

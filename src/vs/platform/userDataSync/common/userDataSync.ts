@@ -120,8 +120,9 @@ export type IAuthenticationProvider = { id: string, scopes: string[] };
 export interface IUserDataSyncStore {
 	readonly url: URI;
 	readonly defaultUrl: URI;
-	readonly stableUrl: URI | undefined;
-	readonly insidersUrl: URI | undefined;
+	readonly stableUrl: URI;
+	readonly insidersUrl: URI;
+	readonly canSwitch: boolean;
 	readonly authenticationProviders: IAuthenticationProvider[];
 }
 
@@ -157,6 +158,7 @@ export type UserDataSyncStoreType = 'insiders' | 'stable';
 export const IUserDataSyncStoreManagementService = createDecorator<IUserDataSyncStoreManagementService>('IUserDataSyncStoreManagementService');
 export interface IUserDataSyncStoreManagementService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeUserDataSyncStore: Event<void>;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	switch(type: UserDataSyncStoreType): Promise<void>;
 	getPreviousUserDataSyncStore(): Promise<IUserDataSyncStore | undefined>;
@@ -347,6 +349,10 @@ export interface IResourcePreview {
 export interface ISyncResourcePreview {
 	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly resourcePreviews: IResourcePreview[];
+}
+
+export interface IUserDataInitializer {
+	initialize(userData: IUserData): Promise<void>;
 }
 
 export interface IUserDataSynchroniser {

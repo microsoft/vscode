@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Severity from 'vs/base/common/severity';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -26,7 +26,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IElectronService private readonly electronService: IElectronService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IStorageService readonly storageService: IStorageService,
 		@ILogService readonly logService: ILogService
 	) {
@@ -56,7 +56,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		const windowId = this.electronService.windowId;
+		const windowId = this.nativeHostService.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipcRenderer.on('vscode:onBeforeUnload', (event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {

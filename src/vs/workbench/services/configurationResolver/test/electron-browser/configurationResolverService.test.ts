@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
+import { normalize } from 'vs/base/common/path';
+import { Emitter, Event } from 'vs/base/common/event';
 import { URI as uri } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
-import { Workspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestWindowConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+import { Workspace, IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { TestEditorService, TestProductService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickInputService, IQuickPickItem, QuickPickInput, IPickOptions, Omit, IInputOptions, IQuickInputButton, IQuickPick, IInputBox, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as Types from 'vs/base/common/types';
@@ -24,6 +25,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter } from 'vs/platform/label/common/label';
+import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 const mockLineNumber = 10;
 class TestEditorServiceWithActiveEditor extends TestEditorService {
@@ -59,15 +62,17 @@ suite('Configuration Resolver Service', () => {
 	let containingWorkspace: Workspace;
 	let workspace: IWorkspaceFolder;
 	let quickInputService: MockQuickInputService;
+	let labelService: MockLabelService;
 
 	setup(() => {
 		mockCommandService = new MockCommandService();
 		editorService = new TestEditorServiceWithActiveEditor();
 		quickInputService = new MockQuickInputService();
 		environmentService = new MockWorkbenchEnvironmentService(envVariables);
+		labelService = new MockLabelService();
 		containingWorkspace = testWorkspace(uri.parse('file:///VSCode/workspaceLocation'));
 		workspace = containingWorkspace.folders[0];
-		configurationResolverService = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService);
+		configurationResolverService = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, editorService, new MockInputsConfigurationService(), mockCommandService, new TestContextService(containingWorkspace), quickInputService, labelService);
 	});
 
 	teardown(() => {
@@ -202,7 +207,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} xyz'), 'abc foo xyz');
 	});
 
@@ -219,7 +224,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} xyz'), 'abc foo bar xyz');
 	});
 
@@ -236,7 +241,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${workspaceFolder} ${env:key1} xyz'), 'abc foo \\VSCode\\workspaceLocation Value for key1 xyz');
 		} else {
@@ -257,7 +262,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		if (platform.isWindows) {
 			assert.strictEqual(service.resolve(workspace, '${config:editor.fontFamily} ${config:terminal.integrated.fontFamily} ${workspaceFolder} - ${workspaceFolder} ${env:key1} - ${env:key2}'), 'foo bar \\VSCode\\workspaceLocation - \\VSCode\\workspaceLocation Value for key1 - Value for key2');
 		} else {
@@ -291,7 +296,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${config:editor.fontFamily} ${config:editor.lineNumbers} ${config:editor.insertSpaces} xyz'), 'abc foo 123 false xyz');
 	});
 
@@ -301,7 +306,7 @@ suite('Configuration Resolver Service', () => {
 			editor: {}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 		assert.strictEqual(service.resolve(workspace, 'abc ${unknownVariable} xyz'), 'abc ${unknownVariable} xyz');
 		assert.strictEqual(service.resolve(workspace, 'abc ${env:unknownVariable} xyz'), 'abc  xyz');
 	});
@@ -314,7 +319,7 @@ suite('Configuration Resolver Service', () => {
 			}
 		});
 
-		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService);
+		let service = new TestConfigurationResolverService({ getExecPath: () => undefined }, environmentService.userEnv, new TestEditorServiceWithActiveEditor(), configurationService, mockCommandService, new TestContextService(), quickInputService, labelService);
 
 		assert.throws(() => service.resolve(workspace, 'abc ${env} xyz'));
 		assert.throws(() => service.resolve(workspace, 'abc ${env:} xyz'));
@@ -647,6 +652,29 @@ class MockQuickInputService implements IQuickInputService {
 	}
 }
 
+class MockLabelService implements ILabelService {
+	_serviceBrand: undefined;
+	getUriLabel(resource: uri, options?: { relative?: boolean | undefined; noPrefix?: boolean | undefined; endWithSeparator?: boolean | undefined; }): string {
+		return normalize(resource.fsPath);
+	}
+	getUriBasenameLabel(resource: uri): string {
+		throw new Error('Method not implemented.');
+	}
+	getWorkspaceLabel(workspace: uri | IWorkspaceIdentifier | IWorkspace, options?: { verbose: boolean; }): string {
+		throw new Error('Method not implemented.');
+	}
+	getHostLabel(scheme: string, authority?: string): string {
+		throw new Error('Method not implemented.');
+	}
+	getSeparator(scheme: string, authority?: string): '/' | '\\' {
+		throw new Error('Method not implemented.');
+	}
+	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+	onDidChangeFormatters: Event<IFormatterChangeEvent> = new Emitter<IFormatterChangeEvent>().event;
+}
+
 class MockInputsConfigurationService extends TestConfigurationService {
 	public getValue(arg1?: any, arg2?: any): any {
 		let configuration;
@@ -691,6 +719,6 @@ class MockInputsConfigurationService extends TestConfigurationService {
 class MockWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(public userEnv: platform.IProcessEnvironment) {
-		super({ ...TestWindowConfiguration, userEnv }, TestWindowConfiguration.execPath);
+		super({ ...TestWorkbenchConfiguration, userEnv }, TestProductService);
 	}
 }

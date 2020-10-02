@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { joinPath, dirname, basename, toLocalResource, extUri, extname } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -34,7 +34,6 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { WORKSPACE_EXTENSION } from 'vs/platform/workspaces/common/workspaces';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { UTF8, UTF8_with_bom, UTF16be, UTF16le, encodingExists, UTF8_BOM, detectEncodingByBOMFromBuffer, toEncodeReadable, toDecodeStream, IDecodeStreamResult } from 'vs/workbench/services/textfile/common/encoding';
 import { consumeStream } from 'vs/base/common/stream';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -220,11 +219,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return undefined;
 	}
 
-	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
+	async saveAs(source: URI, target?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined> {
 
 		// Get to target resource
 		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(source), options?.availableFileSystems);
+			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -232,7 +231,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Just save if target is same as models own resource
-		if (extUri.isEqual(source, target)) {
+		if (isEqual(source, target)) {
 			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 
@@ -348,9 +347,9 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Confirm to overwrite if we have an untitled file with associated file where
 		// the file actually exists on disk and we are instructed to save to that file
 		// path. This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/Microsoft/vscode/issues/67946
+		// See https://github.com/microsoft/vscode/issues/67946
 		let write: boolean;
-		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority))) {
+		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme))) {
 			write = await this.confirmOverwrite(target);
 		} else {
 			write = true;
@@ -431,7 +430,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				// Untitled with associated file path
 				if (model.hasAssociatedFilePath) {
-					return toLocalResource(resource, remoteAuthority);
+					return toLocalResource(resource, remoteAuthority, this.pathService.defaultUriScheme);
 				}
 
 				// Untitled without associated file path: use name
@@ -529,7 +528,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 
 	constructor(
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService

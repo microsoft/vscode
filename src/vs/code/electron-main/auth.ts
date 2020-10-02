@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { FileAccess } from 'vs/base/common/network';
 import { BrowserWindow, BrowserWindowConstructorOptions, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
 
 type LoginEvent = {
@@ -55,15 +55,16 @@ export class ProxyAuthHandler extends Disposable {
 			skipTaskbar: true,
 			resizable: false,
 			width: 450,
-			height: 220,
+			height: 225,
 			show: true,
 			title: 'VS Code',
 			webPreferences: {
-				preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js', require).fsPath,
 				sandbox: true,
 				contextIsolation: true,
 				enableWebSQL: false,
 				enableRemoteModule: false,
+				spellcheck: false,
 				devTools: false
 			}
 		};
@@ -75,7 +76,7 @@ export class ProxyAuthHandler extends Disposable {
 		}
 
 		const win = new BrowserWindow(opts);
-		const url = require.toUrl('vs/code/electron-sandbox/proxy/auth.html');
+		const windowUrl = FileAccess.asBrowserUri('vs/code/electron-sandbox/proxy/auth.html', require);
 		const proxyUrl = `${authInfo.host}:${authInfo.port}`;
 		const title = localize('authRequire', "Proxy Authentication Required");
 		const message = localize('proxyauth', "The proxy {0} requires authentication.", proxyUrl);
@@ -92,10 +93,10 @@ export class ProxyAuthHandler extends Disposable {
 			if (channel === 'vscode:proxyAuthResponse') {
 				const { username, password } = credentials;
 				cb(username, password);
+				win.removeListener('close', onWindowClose);
+				win.close();
 			}
-			win.removeListener('close', onWindowClose);
-			win.close();
 		});
-		win.loadURL(url);
+		win.loadURL(windowUrl.toString(true));
 	}
 }

@@ -9,9 +9,16 @@ import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
+/**
+ * A set of methods supported in both web and native environments.
+ *
+ * @see `INativeHostService` for methods that are specific to native
+ * environments.
+ */
 export interface IHostService {
 
 	readonly _serviceBrand: undefined;
+
 
 	//#region Focus
 
@@ -63,7 +70,6 @@ export interface IHostService {
 	toggleFullScreen(): Promise<void>;
 
 	//#endregion
-
 
 	//#region Lifecycle
 

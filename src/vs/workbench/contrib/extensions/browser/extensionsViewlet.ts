@@ -13,7 +13,7 @@ import { Event as EventOf, Emitter } from 'vs/base/common/event';
 import { IAction, Action, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { append, $, addClass, toggleClass, Dimension, hide, show } from 'vs/base/browser/dom';
+import { append, $, Dimension, hide, show } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -36,7 +36,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewsRegistry, IViewDescriptor, Extensions, ViewContainer, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -49,7 +49,6 @@ import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { SuggestEnabledInput, attachSuggestEnabledInputBoxStyler } from 'vs/workbench/contrib/codeEditor/browser/suggestEnabledInput/suggestEnabledInput';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionType, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -60,8 +59,8 @@ import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 
-const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -281,7 +280,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'workbench.views.extensions.workspaceRecommendations',
 			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
 			ctorDescriptor: new SyncDescriptor(WorkspaceRecommendedExtensionsView),
-			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), WorkbenchStateContext.notEqualsTo('empty')),
 			order: 1
 		});
 
@@ -329,7 +328,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	private readonly _onSearchChange: Emitter<string> = this._register(new Emitter<string>());
 	private readonly onSearchChange: EventOf<string> = this._onSearchChange.event;
-	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
 	private defaultViewsContextKey: IContextKey<boolean>;
 	private searchMarketplaceExtensionsContextKey: IContextKey<boolean>;
 	private searchInstalledExtensionsContextKey: IContextKey<boolean>;
@@ -354,8 +352,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -372,7 +368,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.searchDelayer = new Delayer(500);
-		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
 		this.defaultViewsContextKey = DefaultViewsContext.bindTo(contextKeyService);
 		this.searchMarketplaceExtensionsContextKey = SearchMarketplaceExtensionsContext.bindTo(contextKeyService);
 		this.searchInstalledExtensionsContextKey = SearchIntalledExtensionsContext.bindTo(contextKeyService);
@@ -405,7 +400,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	create(parent: HTMLElement): void {
-		addClass(parent, 'extensions-viewlet');
+		parent.classList.add('extensions-viewlet');
 		this.root = parent;
 
 		const overlay = append(this.root, $('.overlay'));
@@ -501,7 +496,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 	layout(dimension: Dimension): void {
 		if (this.root) {
-			toggleClass(this.root, 'narrow', dimension.width <= 300);
+			this.root.classList.toggle('narrow', dimension.width <= 300);
 		}
 		if (this.searchBox) {
 			this.searchBox.layout({ height: 20, width: dimension.width - 34 });
@@ -535,9 +530,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				new SubmenuAction('workbench.extensions.action.filterExtensionsByCategory', localize('filter by category', "Category"), EXTENSION_CATEGORIES.map(category => this.instantiationService.createInstance(SearchCategoryAction, `extensions.actions.searchByCategory.${category}`, category, category))),
 				new Separator(),
 			];
-			if (this.extensionManagementServerService.webExtensionManagementServer || !this.environmentService.isBuilt) {
-				galleryFilterActions.splice(4, 0, this.instantiationService.createInstance(PredefinedExtensionFilterAction, 'extensions.filter.web', localize('web filter', "Web"), '@web'));
-			}
 			filterActions.splice(0, 0, ...galleryFilterActions);
 			filterActions.push(...[
 				new Separator(),
@@ -618,7 +610,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 		this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
 		this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery);
-		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 		this.defaultViewsContextKey.set(!value);
 
 		return this.progress(Promise.all(this.panes.map(view =>
@@ -750,7 +741,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		if (!this.environmentService.disableExtensions) {
 			this.loopCheckForMaliciousExtensions();

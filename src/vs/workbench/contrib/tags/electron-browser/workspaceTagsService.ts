@@ -6,7 +6,7 @@
 import * as crypto from 'crypto';
 import { IFileService, IResolveFileResult, IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INotificationService, NeverShowAgainScope, INeverShowAgainOptions } from 'vs/platform/notification/common/notification';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
@@ -80,6 +80,8 @@ const ModulesToLookFor = [
 	'beachball',
 	// Playwright packages
 	'playwright',
+	'playwright-cli',
+	'@playwright/test',
 	'playwright-core',
 	'playwright-chromium',
 	'playwright-firefox',
@@ -139,7 +141,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 	async getTags(): Promise<Tags> {
 		if (!this._tags) {
-			this._tags = await this.resolveWorkspaceTags(this.environmentService.configuration, rootFiles => this.handleWorkspaceFiles(rootFiles));
+			this._tags = await this.resolveWorkspaceTags(rootFiles => this.handleWorkspaceFiles(rootFiles));
 		}
 
 		return this._tags;
@@ -242,6 +244,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.beachball" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.electron" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.playwright-cli" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@playwright/test" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.playwright-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.playwright-chromium" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.playwright-firefox" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -297,7 +301,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.playwright" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private resolveWorkspaceTags(configuration: IEnvironmentConfiguration, participant?: (rootFiles: string[]) => void): Promise<Tags> {
+	private resolveWorkspaceTags(participant?: (rootFiles: string[]) => void): Promise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -305,7 +309,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 		tags['workspace.id'] = this.getTelemetryWorkspaceId(workspace, state);
 
-		const { filesToOpenOrCreate, filesToDiff } = configuration;
+		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		tags['workbench.filesToOpenOrCreate'] = filesToOpenOrCreate && filesToOpenOrCreate.length || 0;
 		tags['workbench.filesToDiff'] = filesToDiff && filesToDiff.length || 0;
 
@@ -313,7 +317,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		tags['workspace.roots'] = isEmpty ? 0 : workspace.folders.length;
 		tags['workspace.empty'] = isEmpty;
 
-		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders(configuration);
+		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.productService.quality !== 'stable' && this.findFolders();
 		if (!folders || !folders.length || !this.fileService) {
 			return Promise.resolve(tags);
 		}
@@ -524,12 +528,13 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 		}
 	}
 
-	private findFolders(configuration: IEnvironmentConfiguration): URI[] | undefined {
-		const folder = this.findFolder(configuration);
+	private findFolders(): URI[] | undefined {
+		const folder = this.findFolder();
 		return folder && [folder];
 	}
 
-	private findFolder({ filesToOpenOrCreate, filesToDiff }: IEnvironmentConfiguration): URI | undefined {
+	private findFolder(): URI | undefined {
+		const { filesToOpenOrCreate, filesToDiff } = this.environmentService.configuration;
 		if (filesToOpenOrCreate && filesToOpenOrCreate.length) {
 			return this.parentURI(filesToOpenOrCreate[0].fileUri);
 		} else if (filesToDiff && filesToDiff.length) {

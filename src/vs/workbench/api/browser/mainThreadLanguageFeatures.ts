@@ -292,8 +292,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void {
-		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
+	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
+		const provider: modes.CodeActionProvider = {
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
 				if (!listDto) {
@@ -311,7 +311,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			providedCodeActionKinds: metadata.providedKinds,
 			documentation: metadata.documentation,
 			displayName
-		}));
+		};
+
+		if (supportsResolve) {
+			provider.resolveCodeAction = async (codeAction: modes.CodeAction, token: CancellationToken): Promise<modes.CodeAction> => {
+				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
+				codeAction.edit = reviveWorkspaceEditDto(data);
+				return codeAction;
+			};
+		}
+
+		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, provider));
 	}
 
 	// --- formatting

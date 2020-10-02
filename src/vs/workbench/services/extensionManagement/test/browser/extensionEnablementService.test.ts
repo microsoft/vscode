@@ -18,8 +18,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { assign } from 'vs/base/common/objects';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { productService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -594,7 +592,7 @@ function anExtensionManagementServerService(localExtensionManagementServer: IExt
 			if (extension.location.scheme === Schemas.file) {
 				return localExtensionManagementServer;
 			}
-			if (extension.location.scheme === REMOTE_HOST_SCHEME) {
+			if (extension.location.scheme === Schemas.vscodeRemote) {
 				return remoteExtensionManagementServer;
 			}
 			return webExtensionManagementServer;
@@ -608,11 +606,12 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions, type
 
 function aLocalExtension2(id: string, manifest: any = {}, properties: any = {}): ILocalExtension {
 	const [publisher, name] = id.split('.');
-	properties = assign({
+	manifest = { name, publisher, ...manifest };
+	properties = {
 		identifier: { id },
 		galleryIdentifier: { id, uuid: undefined },
-		type: ExtensionType.User
-	}, properties);
-	manifest = assign({ name, publisher }, manifest);
+		type: ExtensionType.User,
+		...properties
+	};
 	return <ILocalExtension>Object.create({ manifest, ...properties });
 }

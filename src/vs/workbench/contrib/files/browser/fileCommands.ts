@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { toResource, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -74,8 +74,8 @@ export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGro
 export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
-export const DirtyEditorContext = new RawContextKey<boolean>('dirtyEditor', false);
-export const ReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditor', false);
+export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
+export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
@@ -196,7 +196,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 				// Dispose once no more diff editor is opened with the scheme
 				if (registerEditorListener) {
 					providerDisposables.push(editorService.onDidVisibleEditorsChange(() => {
-						if (!editorService.editors.some(editor => !!toResource(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
+						if (!editorService.editors.some(editor => !!EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.SECONDARY, filterByScheme: COMPARE_WITH_SAVED_SCHEMA }))) {
 							providerDisposables = dispose(providerDisposables);
 						}
 					}));
@@ -305,7 +305,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resource = activeInput ? activeInput.resource : null;
+		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
 		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
@@ -371,9 +371,14 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 
 			// Special treatment for side by side editors: if the active editor
 			// has 2 sides, we consider both, to support saving both sides.
-			// We only allow this when saving, not for "Save As".
+			// We only allow this when saving, not for "Save As" and not if any
+			// editor is untitled which would bring up a "Save As" dialog too.
 			// See also https://github.com/microsoft/vscode/issues/4180
-			if (activeGroup.activeEditor instanceof SideBySideEditorInput && !options?.saveAs) {
+			// See also https://github.com/microsoft/vscode/issues/106330
+			if (
+				activeGroup.activeEditor instanceof SideBySideEditorInput &&
+				!options?.saveAs && !(activeGroup.activeEditor.primary.isUntitled() || activeGroup.activeEditor.secondary.isUntitled())
+			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
 			} else {
@@ -398,7 +403,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 		const resource = focusedCodeEditor.getModel()?.uri;
 
 		// Check that the resource of the model was not saved already
-		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
+		if (resource && !editors.some(({ editor }) => isEqual(EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }), resource))) {
 			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
 				await textFileService.save(resource, options);

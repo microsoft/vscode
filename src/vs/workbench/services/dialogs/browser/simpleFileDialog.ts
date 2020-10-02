@@ -11,7 +11,6 @@ import { IQuickInputService, IQuickPickItem, IQuickPick } from 'vs/platform/quic
 import { URI } from 'vs/base/common/uri';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { ISaveDialogOptions, IOpenDialogOptions, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,12 +20,11 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { equalsIgnoreCase, format, startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { isValidBasename } from 'vs/base/common/extpath';
-import { RemoteFileDialogContext } from 'vs/workbench/browser/contextkeys';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
@@ -98,6 +96,8 @@ enum UpdateResult {
 	InvalidPath
 }
 
+export const RemoteFileDialogContext = new RawContextKey<boolean>('remoteFileDialogVisible', false);
+
 export class SimpleFileDialog {
 	private options!: IOpenDialogOptions;
 	private currentFolder!: URI;
@@ -108,7 +108,7 @@ export class SimpleFileDialog {
 	private remoteAuthority: string | undefined;
 	private requiresTrailing: boolean = false;
 	private trailing: string | undefined;
-	protected scheme: string = REMOTE_HOST_SCHEME;
+	protected scheme: string;
 	private contextKey: IContextKey<boolean>;
 	private userEnteredPathSegment: string = '';
 	private autoCompletePathSegment: string = '';
@@ -141,6 +141,7 @@ export class SimpleFileDialog {
 	) {
 		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
+		this.scheme = this.pathService.defaultUriScheme;
 	}
 
 	set busy(busy: boolean) {
@@ -211,7 +212,7 @@ export class SimpleFileDialog {
 			path = path.replace(/\\/g, '/');
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path });
-		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority);
+		return resources.toLocalResource(uri, uri.scheme === Schemas.file ? undefined : this.remoteAuthority, this.pathService.defaultUriScheme);
 	}
 
 	private getScheme(available: readonly string[] | undefined, defaultUri: URI | undefined): string {

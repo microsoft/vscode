@@ -11,7 +11,6 @@ import * as path from 'vs/base/common/path';
 import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER, CODE_CELL_LEFT_MARGIN, CELL_OUTPUT_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -149,7 +148,8 @@ export interface IFocusOutputMessage {
 }
 
 export interface IPreloadResource {
-	uri: string
+	originalUri: string;
+	uri: string;
 }
 
 export interface IUpdatePreloadResourceMessage {
@@ -242,9 +242,8 @@ export class BackLayerWebView extends Disposable {
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IFileService private readonly fileService: IFileService,
 	) {
@@ -358,7 +357,7 @@ export class BackLayerWebView extends Disposable {
 
 	async createWebview(): Promise<void> {
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = asWebviewUri(this.workbenchEnvironmentService, this.id, URI.file(pathsPath));
+		const loader = asWebviewUri(this.environmentService, this.id, URI.file(pathsPath));
 
 		let coreDependencies = '';
 		let resolveFunc: () => void;
@@ -367,10 +366,14 @@ export class BackLayerWebView extends Disposable {
 			resolveFunc = resolve;
 		});
 
-		const baseUrl = asWebviewUri(this.workbenchEnvironmentService, this.id, dirname(this.documentUri));
+		const baseUrl = asWebviewUri(this.environmentService, this.id, dirname(this.documentUri));
 
 		if (!isWeb) {
-			coreDependencies = `<script src="${loader}"></script>`;
+			coreDependencies = `<script src="${loader}"></script><script>
+			var requirejs = (function() {
+				return require;
+			}());
+			</script>`;
 			const htmlContent = this.generateContent(CELL_OUTPUT_PADDING, coreDependencies, baseUrl.toString());
 			this.initialize(htmlContent);
 			resolveFunc!();
@@ -385,6 +388,11 @@ export class BackLayerWebView extends Disposable {
 				coreDependencies = `
 <script>
 ${loaderJs}
+</script>
+<script>
+var requirejs = (function() {
+	return require;
+}());
 </script>
 `;
 
@@ -793,19 +801,15 @@ ${loaderJs}
 		await this._loaded;
 
 		const resources: IPreloadResource[] = [];
-		preloads = preloads.map(preload => {
-			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
-				return preload;
-			}
-			return asWebviewUri(this.workbenchEnvironmentService, this.id, preload);
-		});
+		for (const preload of preloads) {
+			const uri = this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')
+				? preload : asWebviewUri(this.environmentService, this.id, preload);
 
-		preloads.forEach(e => {
-			if (!this._preloadsCache.has(e.toString())) {
-				resources.push({ uri: e.toString() });
-				this._preloadsCache.add(e.toString());
+			if (!this._preloadsCache.has(uri.toString())) {
+				resources.push({ uri: uri.toString(), originalUri: preload.toString() });
+				this._preloadsCache.add(uri.toString());
 			}
-		});
+		}
 
 		if (!resources.length) {
 			return;
@@ -826,19 +830,17 @@ ${loaderJs}
 		const resources: IPreloadResource[] = [];
 		const extensionLocations: URI[] = [];
 		for (const rendererInfo of renderers) {
-			const preloads = [rendererInfo.entrypoint, ...rendererInfo.preloads]
-				.map(preload => asWebviewUri(this.workbenchEnvironmentService, this.id, preload));
 			extensionLocations.push(rendererInfo.extensionLocation);
-
-			preloads.forEach(e => {
-				const resource: IPreloadResource = { uri: e.toString() };
+			for (const preload of [rendererInfo.entrypoint, ...rendererInfo.preloads]) {
+				const uri = asWebviewUri(this.environmentService, this.id, preload);
+				const resource: IPreloadResource = { uri: uri.toString(), originalUri: preload.toString() };
 				requiredPreloads.push(resource);
 
-				if (!this._preloadsCache.has(e.toString())) {
+				if (!this._preloadsCache.has(uri.toString())) {
 					resources.push(resource);
-					this._preloadsCache.add(e.toString());
+					this._preloadsCache.add(uri.toString());
 				}
-			});
+			}
 		}
 
 		if (!resources.length) {
