@@ -329,7 +329,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private readonly maxWidgetWidth = 660;
 	private readonly listWidth = 330;
-	private readonly storageService: IStorageService;
 	private detailsFocusBorderColor?: string;
 	private detailsBorderColor?: string;
 
@@ -345,10 +344,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
 		@IModeService modeService: IModeService,
 		@IOpenerService openerService: IOpenerService,
 		@IMenuService menuService: IMenuService,
@@ -360,7 +359,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.isAuto = false;
 		this.focusedItem = null;
-		this.storageService = storageService;
 
 		this.element = $('.editor-widget.suggest-widget');
 		this._disposables.add(addDisposableListener(this.element, 'click', e => {
@@ -429,7 +427,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				getRole: () => 'option',
 				getAriaLabel: (item: CompletionItem) => {
 					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
-					if (item.isResolved && this.expandDocsSettingFromStorage()) {
+					if (item.isResolved && this._isDetailsVisible()) {
 						const { documentation, detail } = item.completion;
 						const docs = strings.format(
 							'{0}{1}',
@@ -499,7 +497,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private onEditorLayoutChange(): void {
-		if ((this.state === State.Open || this.state === State.Details) && this.expandDocsSettingFromStorage()) {
+		if ((this.state === State.Open || this.state === State.Details) && this._isDetailsVisible()) {
 			this.expandSideOrBelow();
 		}
 	}
@@ -612,7 +610,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.list.setFocus([index]);
 				this.ignoreFocusEvents = false;
 
-				if (this.expandDocsSettingFromStorage()) {
+				if (this._isDetailsVisible()) {
 					this.showDetails(false);
 				} else {
 					this.element.classList.remove('docs-side');
@@ -872,7 +870,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			if (this.detailsBorderColor) {
 				this.details.element.style.borderColor = this.detailsBorderColor;
 			}
-		} else if (this.state === State.Open && this.expandDocsSettingFromStorage()) {
+		} else if (this.state === State.Open && this._isDetailsVisible()) {
 			this.setState(State.Details);
 			if (this.detailsFocusBorderColor) {
 				this.details.element.style.borderColor = this.detailsFocusBorderColor;
@@ -882,24 +880,19 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	toggleDetails(): void {
-		if (!canExpandCompletionItem(this.list.getFocusedElements()[0])) {
-			return;
-		}
-
-		if (this.expandDocsSettingFromStorage()) {
+		if (this._isDetailsVisible()) {
+			// hide details widget
 			this.ctxSuggestWidgetDetailsVisible.set(false);
-			this.updateExpandDocsSetting(false);
+			this._setDetailsVisible(false);
 			hide(this.details.element);
 			this.element.classList.remove('docs-side', 'doc-below');
 			this.editor.layoutContentWidget(this);
 			this.telemetryService.publicLog2('suggestWidget:collapseDetails');
-		} else {
-			if (this.state !== State.Open && this.state !== State.Details && this.state !== State.Frozen) {
-				return;
-			}
 
+		} else if (canExpandCompletionItem(this.list.getFocusedElements()[0]) && (this.state === State.Open || this.state === State.Details || this.state === State.Frozen)) {
+			// show details widget (iff possible)
 			this.ctxSuggestWidgetDetailsVisible.set(true);
-			this.updateExpandDocsSetting(true);
+			this._setDetailsVisible(true);
 			this.showDetails(false);
 			this.telemetryService.publicLog2('suggestWidget:expandDetails');
 		}
@@ -933,7 +926,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	toggleExplainMode(): void {
-		if (this.list.getFocusedElements()[0] && this.expandDocsSettingFromStorage()) {
+		if (this.list.getFocusedElements()[0] && this._isDetailsVisible()) {
 			this.explainMode = !this.explainMode;
 			this.showDetails(false);
 		}
@@ -1094,19 +1087,19 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	// IDelegate
 
-	getHeight(element: CompletionItem): number {
+	getHeight(_element: CompletionItem): number {
 		return this.unfocusedHeight;
 	}
 
-	getTemplateId(element: CompletionItem): string {
+	getTemplateId(_element: CompletionItem): string {
 		return 'suggestion';
 	}
 
-	private expandDocsSettingFromStorage(): boolean {
+	private _isDetailsVisible(): boolean {
 		return this.storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, expandSuggestionDocsByDefault);
 	}
 
-	private updateExpandDocsSetting(value: boolean) {
+	private _setDetailsVisible(value: boolean) {
 		this.storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL);
 	}
 
