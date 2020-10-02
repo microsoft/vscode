@@ -1323,6 +1323,9 @@ export class Repository {
 
 		if (opts.amend) {
 			args.push('--amend');
+			if (!message) {
+				args.push('--no-edit');
+			}
 		}
 
 		if (opts.signoff) {

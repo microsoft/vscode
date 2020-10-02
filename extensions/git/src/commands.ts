@@ -1461,10 +1461,13 @@ export class CommandCenter {
 			}
 		}
 
-		const message = await getCommitMessage();
-
-		if (!message) {
-			return false;
+		let message: string | undefined = '';
+		const amendNoEdit = config.get<boolean>('amendNoEdit');
+		if (!amendNoEdit) {
+			message = await getCommitMessage();
+			if (!message) {
+				return false;
+			}
 		}
 
 		if (opts.all && smartCommitChanges === 'tracked') {
