@@ -1386,8 +1386,14 @@ export class CommandCenter {
 			}
 		}
 
+		if (!opts) {
+			opts = { all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges && !opts.empty) {
+			opts = { ...opts, all: true };
+		}
+
 		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
+		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty) {
 			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 			if (!suggestSmartCommit) {
@@ -1411,13 +1417,7 @@ export class CommandCenter {
 			}
 		}
 
-		if (!opts) {
-			opts = { all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges) {
-			opts = { ...opts, all: true };
-		}
-
-		// enable signing of commits if configurated
+		// enable signing of commits if configured
 		opts.signCommit = enableCommitSigning;
 
 		if (config.get<boolean>('alwaysSignOff')) {
@@ -2007,7 +2007,7 @@ export class CommandCenter {
 			forcePushMode = config.get<boolean>('useForcePushWithLease') === true ? ForcePushMode.ForceWithLease : ForcePushMode.Force;
 
 			if (config.get<boolean>('confirmForcePush')) {
-				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertedly overwrite changes made by others.\n\nAre you sure to continue?");
+				const message = localize('confirm force push', "You are about to force push your changes, this can be destructive and could inadvertently overwrite changes made by others.\n\nAre you sure to continue?");
 				const yes = localize('ok', "OK");
 				const neverAgain = localize('never ask again', "OK, Don't Ask Again");
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
