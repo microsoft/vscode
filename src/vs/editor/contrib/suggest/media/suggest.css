@@ -112,34 +112,6 @@
 
 /** Status Bar **/
 
-.monaco-editor .suggest-widget>.suggest-status-bar {
-	visibility: hidden;
-	position: absolute;
-	left: 0;
-	box-sizing: border-box;
-	display: flex;
-	flex-flow: row nowrap;
-	justify-content: space-between;
-	width: 100%;
-	font-size: 80%;
-	border-left-width: 1px;
-	border-left-style: solid;
-	border-right-width: 1px;
-	border-right-style: solid;
-	border-bottom-width: 1px;
-	border-bottom-style: solid;
-	padding: 0 8px 0 4px;
-}
-
-.monaco-editor .suggest-widget.list-right.docs-side>.suggest-status-bar {
-	left: auto;
-	right: 0;
-}
-
-.monaco-editor .suggest-widget.docs-side>.suggest-status-bar {
-	width: 50%;
-}
-
 /** ReadMore Icon styles **/
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore::before {
