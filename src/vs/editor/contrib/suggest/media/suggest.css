@@ -182,7 +182,7 @@
 /** Type Info and icon next to the label in the focused completion item **/
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
-	margin-left: 0.8em;
+	margin-left: 1.1em;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -234,9 +234,7 @@
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right {
 	overflow: hidden;
-	margin-left: 16px;
-	flex-shrink: 0;
-	max-width: 45%;
+	flex-shrink: 2;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
