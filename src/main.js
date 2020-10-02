@@ -91,7 +91,7 @@ crashReporter.start({
 	companyName: companyName,
 	productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 	submitURL,
-	uploadToServer: !crashReporterDirectory
+	uploadToServer: !crashReporterDirectory && argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter']
 });
 
 // Set logs path before app 'ready' event if running portable
