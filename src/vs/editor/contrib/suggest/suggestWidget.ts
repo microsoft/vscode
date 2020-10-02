@@ -234,11 +234,13 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			data.qualifierLabel.textContent = '';
 			data.detailsLabel.textContent = (completion.detail || '').replace(/\n.*$/m, '');
 			data.root.classList.add('string-label');
+			data.root.title = '';
 		} else {
 			data.parametersLabel.textContent = (completion.label.parameters || '').replace(/\n.*$/m, '');
 			data.qualifierLabel.textContent = (completion.label.qualifier || '').replace(/\n.*$/m, '');
 			data.detailsLabel.textContent = (completion.label.type || '').replace(/\n.*$/m, '');
 			data.root.classList.remove('string-label');
+			data.root.title = `${textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
 		}
 
 		if (canExpandCompletionItem(element)) {
