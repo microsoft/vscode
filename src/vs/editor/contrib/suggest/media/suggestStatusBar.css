@@ -5,21 +5,14 @@
 
 .monaco-editor .suggest-widget .suggest-status-bar {
 	visibility: hidden;
-	position: absolute;
-	left: 0;
 	box-sizing: border-box;
 	display: flex;
 	flex-flow: row nowrap;
 	justify-content: space-between;
 	width: 100%;
 	font-size: 80%;
-	border-left-width: 1px;
-	border-left-style: solid;
-	border-right-width: 1px;
-	border-right-style: solid;
-	border-bottom-width: 1px;
-	border-bottom-style: solid;
 	padding: 0 8px 0 4px;
+	border-top: 1px solid transparent;
 }
 
 .monaco-editor .suggest-widget.list-right.docs-side .suggest-status-bar {
@@ -27,16 +20,8 @@
 	right: 0;
 }
 
-.monaco-editor .suggest-widget.docs-side .suggest-status-bar {
-	width: 50%;
-}
-
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
 	visibility: visible;
-}
-
-.monaco-editor .suggest-widget.with-status-bar>.tree {
-	margin-bottom: 18px;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {

@@ -303,10 +303,11 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
-	private listElement: HTMLElement;
+	private mainElement: HTMLElement;
+	private listContainer: HTMLElement;
+	private list: List<CompletionItem>;
 	private status: SuggestWidgetStatus;
 	private details: SuggestionDetails;
-	private list: List<CompletionItem>;
 	private listHeight?: number;
 
 	private readonly ctxSuggestWidgetVisible: IContextKey<boolean>;
@@ -366,12 +367,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		}));
 
 		this.messageElement = append(this.element, $('.message'));
-		this.listElement = append(this.element, $('.tree'));
-
-		const applyStatusBarStyle = () => this.element.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
-		applyStatusBarStyle();
-
-		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.element);
+		this.mainElement = append(this.element, $('.tree'));
 
 		this.details = instantiationService.createInstance(SuggestionDetails, this.element, this.editor, markdownRenderer, kbToggleDetails);
 		this.details.onDidClose(this.toggleDetails, this, this._disposables);
@@ -380,31 +376,38 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		const applyIconStyle = () => this.element.classList.toggle('no-icons', !this.editor.getOption(EditorOption.suggest).showIcons);
 		applyIconStyle();
 
-		let renderer = instantiationService.createInstance(ItemRenderer, this, this.editor, kbToggleDetails);
+		this.listContainer = append(this.mainElement, $('.list-container'));
 
-		this.list = new List('SuggestWidget', this.listElement, this, [renderer], {
-			useShadows: false,
-			mouseSupport: false,
-			accessibilityProvider: {
-				getRole: () => 'option',
-				getAriaLabel: (item: CompletionItem) => {
-					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
-					if (item.isResolved && this._isDetailsVisible()) {
-						const { documentation, detail } = item.completion;
-						const docs = strings.format(
-							'{0}{1}',
-							detail || '',
-							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+		this.list = new List('SuggestWidget', this.listContainer, this,
+			[instantiationService.createInstance(ItemRenderer, this, this.editor, kbToggleDetails)],
+			{
+				useShadows: false,
+				mouseSupport: false,
+				accessibilityProvider: {
+					getRole: () => 'option',
+					getAriaLabel: (item: CompletionItem) => {
+						const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
+						if (item.isResolved && this._isDetailsVisible()) {
+							const { documentation, detail } = item.completion;
+							const docs = strings.format(
+								'{0}{1}',
+								detail || '',
+								documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
 
-						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
-					} else {
-						return textLabel;
-					}
-				},
-				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
-				getWidgetRole: () => 'listbox'
+							return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
+						} else {
+							return textLabel;
+						}
+					},
+					getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
+					getWidgetRole: () => 'listbox'
+				}
 			}
-		});
+		);
+
+		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.mainElement);
+		const applyStatusBarStyle = () => this.element.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);
+		applyStatusBarStyle();
 
 		this._disposables.add(attachListStyler(this.list, themeService, {
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
@@ -451,11 +454,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private onCursorSelectionChanged(): void {
-		if (this.state === State.Hidden) {
-			return;
+		if (this.state !== State.Hidden) {
+			this.editor.layoutContentWidget(this);
 		}
-
-		this.editor.layoutContentWidget(this);
 	}
 
 	private onEditorLayoutChange(): void {
@@ -498,15 +499,14 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private onThemeChange(theme: IColorTheme) {
 		const backgroundColor = theme.getColor(editorSuggestWidgetBackground);
 		if (backgroundColor) {
-			this.listElement.style.backgroundColor = backgroundColor.toString();
-			this.status.element.style.backgroundColor = backgroundColor.toString();
+			this.mainElement.style.backgroundColor = backgroundColor.toString();
 			this.details.element.style.backgroundColor = backgroundColor.toString();
 			this.messageElement.style.backgroundColor = backgroundColor.toString();
 		}
 		const borderColor = theme.getColor(editorSuggestWidgetBorder);
 		if (borderColor) {
-			this.listElement.style.borderColor = borderColor.toString();
-			this.status.element.style.borderColor = borderColor.toString();
+			this.mainElement.style.borderColor = borderColor.toString();
+			this.status.element.style.borderTopColor = borderColor.toString();
 			this.details.element.style.borderColor = borderColor.toString();
 			this.messageElement.style.borderColor = borderColor.toString();
 			this.detailsBorderColor = borderColor.toString();
@@ -603,7 +603,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		switch (state) {
 			case State.Hidden:
-				hide(this.messageElement, this.details.element, this.listElement, this.status.element);
+				hide(this.messageElement, this.details.element, this.mainElement);
 				this.hide();
 				this.listHeight = 0;
 				if (stateChanged) {
@@ -613,7 +613,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
-				hide(this.listElement, this.details.element, this.status.element);
+				hide(this.mainElement, this.details.element);
 				show(this.messageElement);
 				this.element.classList.remove('docs-side');
 				this.show();
@@ -621,7 +621,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
-				hide(this.listElement, this.details.element, this.status.element);
+				hide(this.mainElement, this.details.element);
 				show(this.messageElement);
 				this.element.classList.remove('docs-side');
 				this.show();
@@ -629,17 +629,17 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				break;
 			case State.Open:
 				hide(this.messageElement);
-				show(this.listElement, this.status.element);
+				show(this.mainElement);
 				this.show();
 				break;
 			case State.Frozen:
 				hide(this.messageElement);
-				show(this.listElement);
+				show(this.mainElement);
 				this.show();
 				break;
 			case State.Details:
 				hide(this.messageElement);
-				show(this.details.element, this.listElement, this.status.element);
+				show(this.details.element, this.mainElement);
 				this.show();
 				break;
 		}
@@ -876,8 +876,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			this.details.renderItem(this.list.getFocusedElements()[0], this.explainMode);
 		}
 
-		// Reset margin-top that was set as Fix for #26416
-		this.listElement.style.marginTop = '0px';
 
 		// with docs showing up widget width/height may change, so reposition the widget
 		this.editor.layoutContentWidget(this);
@@ -952,19 +950,17 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	}
 
 	private updateListHeight(): number {
-		let height = 0;
+		let height = this.unfocusedHeight;
 
-		if (this.state === State.Empty || this.state === State.Loading) {
-			height = this.unfocusedHeight;
-		} else {
+		if (this.state !== State.Empty && this.state !== State.Loading) {
 			const suggestionCount = this.list.contentHeight / this.unfocusedHeight;
 			const { maxVisibleSuggestions } = this.editor.getOption(EditorOption.suggest);
 			height = Math.min(suggestionCount, maxVisibleSuggestions) * this.unfocusedHeight;
 		}
 
 		this.element.style.lineHeight = `${this.unfocusedHeight}px`;
-		this.listElement.style.height = `${height}px`;
-		this.status.element.style.top = `${height}px`;
+		this.listContainer.style.height = `${height}px`;
+		this.mainElement.style.height = `${height + (this.editor.getOption(EditorOption.suggest).statusBar.visible ? this.unfocusedHeight : 0)}px`;
 		this.list.layout(height);
 		return height;
 	}
@@ -990,31 +986,30 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		// Check if the Y changed to the top of the cursor and keep the widget flagged to prefer top
 		if (this.docsPositionPreviousWidgetY &&
 			this.docsPositionPreviousWidgetY < widgetY &&
-			!this.preferDocPositionTop) {
+			!this.preferDocPositionTop
+		) {
 			this.preferDocPositionTop = true;
 			this.adjustDocsPosition();
 			return;
 		}
 		this.docsPositionPreviousWidgetY = widgetY;
 
-		if (widgetX < cursorX - this.listWidth) {
-			// Widget is too far to the left of cursor, swap list and docs
-			this.element.classList.add('list-right');
-		} else {
-			this.element.classList.remove('list-right');
-		}
+		const aboveCursor = cursorY - lineHeight > widgetY;
+		const rowMode = this.element.classList.contains('docs-side');
 
-		// Compare top of the cursor (cursorY - lineheight) with widgetTop to determine if
-		// margin-top needs to be applied on list to make it appear right above the cursor
-		// Cannot compare cursorY directly as it may be a few decimals off due to zoooming
-		if (this.element.classList.contains('docs-side')
-			&& cursorY - lineHeight > widgetY
-			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {
+		// row mode: reverse doc/list when being too far right
+		// column mode: reverse doc/list when being too far down
+		this.element.classList.toggle(
+			'reverse',
+			(rowMode && widgetX < cursorX - this.listWidth) || (!rowMode && aboveCursor)
+		);
 
-			// Fix for #26416
-			// Docs is bigger than list and widget is above cursor, apply margin-top so that list appears right above cursor
-			this.listElement.style.marginTop = `${this.details.element.offsetHeight - this.listElement.offsetHeight}px`;
-		}
+		// row mode: when detail is higher and when showing above the cursor then align
+		// the list at the bottom
+		this.mainElement.classList.toggle(
+			'docs-higher',
+			rowMode && aboveCursor && this.details.element.offsetHeight > this.mainElement.offsetHeight
+		);
 	}
 
 	/**
@@ -1026,7 +1021,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			return;
 		}
 
-		let matches = this.element.style.maxWidth!.match(/(\d+)px/);
+		let matches = this.element.style.maxWidth.match(/(\d+)px/);
 		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
 			this.element.classList.add('docs-below');
 			this.element.classList.remove('docs-side');
@@ -1068,6 +1063,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	dispose(): void {
 		this.details.dispose();
 		this.list.dispose();
+		this.status.dispose();
 		this._disposables.dispose();
 		this.loadingTimeout.dispose();
 		this.showTimeout.dispose();

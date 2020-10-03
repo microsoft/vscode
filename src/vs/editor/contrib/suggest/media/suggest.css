@@ -6,23 +6,59 @@
 /* Suggest widget*/
 
 .monaco-editor .suggest-widget {
+	width: 430px; /** Initial widths **/
 	z-index: 40;
+	display: flex;
+	flex-wrap: nowrap;
+	flex-direction: row;
 }
 
-/** Initial widths **/
-
-.monaco-editor .suggest-widget {
-	width: 430px;
+.monaco-editor .suggest-widget.docs-side {
+	flex-direction: row;
 }
 
-.monaco-editor .suggest-widget>.message, .monaco-editor .suggest-widget>.tree, .monaco-editor .suggest-widget>.details {
+.monaco-editor .suggest-widget.docs-side.reverse {
+	flex-direction: row-reverse;
+}
+
+.monaco-editor .suggest-widget.docs-below {
+	flex-direction: column;
+}
+
+.monaco-editor .suggest-widget.docs-below.reverse {
+	flex-direction: column-reverse;
+}
+
+/* --- fiddle with details margin so that borders merge/overlap */
+.monaco-editor .suggest-widget.docs-side>.details {
+	margin: 0 0 0 -1px;
+}
+.monaco-editor .suggest-widget.docs-side.reverse>.details {
+	margin: 0 -1px 0 0;
+}
+.monaco-editor.hc-black .suggest-widget.docs-side>.details {
+	margin: 0 0 0 -2px;
+}
+.monaco-editor.hc-black .suggest-widget.docs-side.reverse>.details {
+	margin: 0 -2px 0 0;
+}
+
+.monaco-editor .suggest-widget>.message,
+.monaco-editor .suggest-widget>.tree,
+.monaco-editor .suggest-widget>.details {
+	flex: 0 1 auto;
 	width: 100%;
 	border-style: solid;
 	border-width: 1px;
-	box-sizing: border-box;
 }
 
-.monaco-editor.hc-black .suggest-widget>.message, .monaco-editor.hc-black .suggest-widget>.tree, .monaco-editor.hc-black .suggest-widget>.details {
+.monaco-editor .suggest-widget>.tree.docs-higher {
+	align-self: flex-end;
+}
+
+.monaco-editor.hc-black .suggest-widget>.message,
+.monaco-editor.hc-black .suggest-widget>.tree,
+.monaco-editor.hc-black .suggest-widget>.details {
 	border-width: 2px;
 }
 
@@ -32,13 +68,9 @@
 	width: 660px;
 }
 
-.monaco-editor .suggest-widget.docs-side>.tree, .monaco-editor .suggest-widget.docs-side>.details {
+.monaco-editor .suggest-widget.docs-side>.tree,
+.monaco-editor .suggest-widget.docs-side>.details {
 	width: 50%;
-	float: left;
-}
-
-.monaco-editor .suggest-widget.docs-side.list-right>.tree, .monaco-editor .suggest-widget.docs-side.list-right>.details {
-	float: right;
 }
 
 /* MarkupContent Layout */
@@ -304,6 +336,12 @@
 
 .monaco-editor .suggest-widget.docs-below .details {
 	border-top-width: 0;
+	border-bottom-width: 1px;
+}
+
+.monaco-editor .suggest-widget.docs-below.reverse .details {
+	border-bottom-width: 0;
+	border-top-width: 1px;
 }
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element {
@@ -368,10 +406,4 @@
 .monaco-editor .suggest-widget .details code {
 	border-radius: 3px;
 	padding: 0 0.4em;
-}
-
-/* replace/insert decorations */
-
-.monaco-editor .suggest-insert-unexpected {
-	font-style: italic;
 }
