@@ -1190,7 +1190,7 @@ export class SearchView extends ViewPane {
 			this.triggerQueryChange();
 		}
 		if (typeof args.preserveCase === 'boolean') {
-			this.searchWidget.searchInput.setRegex(args.preserveCase);
+			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
 		}
 		if (typeof args.excludeSettingAndIgnoreFiles === 'boolean') {
 			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.excludeSettingAndIgnoreFiles);
