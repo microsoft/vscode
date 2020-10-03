@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { Schemas } from 'vs/base/common/network';
+import { IBreakpoint, IBreakpointData, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 export class Match {
 
@@ -215,7 +216,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	constructor(private _query: IPatternInfo, private _previewOptions: ITextSearchPreviewOptions | undefined, private _maxResults: number | undefined, private _parent: FolderMatch, private rawMatch: IFileMatch,
-		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService
+		@IModelService private readonly modelService: IModelService, @IReplaceService private readonly replaceService: IReplaceService, @IDebugService private readonly debugService: IDebugService
 	) {
 		super();
 		this._resource = this.rawMatch.resource;
@@ -366,6 +367,31 @@ export class FileMatch extends Disposable implements IFileMatch {
 			await this.replaceService.replace(toReplace);
 			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
 		});
+	}
+
+	async breakpoint(ignoreColumn?: boolean, reverse?: boolean): Promise<IBreakpoint[]> {
+		let breakpoints: IBreakpointData[] = this.matches()
+			.map(match => {
+				let range = match.range();
+				return {
+					lineNumber: range.startLineNumber,
+					column: ignoreColumn ? undefined : range.startColumn
+				};
+			});
+		if (reverse) {
+			let model = this.debugService.getModel();
+			for (let breakpoint of breakpoints) {
+				let existing = model.getBreakpoints({
+					uri: this.resource,
+					lineNumber: breakpoint.lineNumber
+				});
+				for (let exists of existing) {
+					await this.debugService.removeBreakpoints(exists.getId());
+				}
+			}
+			return [];
+		}
+		return this.debugService.addBreakpoints(this.resource, breakpoints);
 	}
 
 	setSelectedMatch(match: Match | null): void {
@@ -712,7 +738,7 @@ export class SearchResult extends Disposable {
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
@@ -860,6 +886,16 @@ export class SearchResult extends Disposable {
 		}, () => {
 			this.replacingAll = false;
 		});
+	}
+
+	async breakpointAll(ignoreColumn: boolean, reverse: boolean, progress: IProgress<IProgressStep>): Promise<IBreakpoint[]> {
+		let breakpoints: IBreakpoint[] = [];
+		for (let fileMatch of this.matches()) {
+			let result = await fileMatch.breakpoint(ignoreColumn, reverse);
+			progress.report({ increment: result.length });
+			breakpoints.push(...result);
+		}
+		return breakpoints;
 	}
 
 	folderMatches(): FolderMatch[] {

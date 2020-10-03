@@ -33,7 +33,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { isMacintosh } from 'vs/base/common/platform';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IViewsService } from 'vs/workbench/common/views';
-import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchReplaceAllIcon, searchBreakpointAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 /** Specified in searchview.css */
 export const SingleLineInputHeight = 24;
@@ -71,6 +71,25 @@ class ReplaceAllAction extends Action {
 	}
 }
 
+class BreakpointAllAction extends Action {
+	static readonly ID: string = 'search.action.breakpointAll';
+
+	constructor(private _searchWidget: SearchWidget) {
+		super(BreakpointAllAction.ID, '', searchBreakpointAllIcon.classNames, false);
+	}
+
+	set searchWidget(searchWidget: SearchWidget) {
+		this._searchWidget = searchWidget;
+	}
+
+	run(): Promise<any> {
+		if (this._searchWidget) {
+			return this._searchWidget.triggerBreakpointAll();
+		}
+		return Promise.resolve(null);
+	}
+}
+
 const ctrlKeyMod = (isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd);
 
 function stopPropagationForMultiLineUpwards(event: IKeyboardEvent, value: string, textarea: HTMLTextAreaElement | null) {
@@ -98,6 +117,9 @@ export class SearchWidget extends Widget {
 		return appendKeyBindingLabel(nls.localize('search.action.replaceAll.enabled.label', "Replace All"), kb, keyBindingService2);
 	};
 
+	private static readonly BREAKPOINT_ALL_DISABLED_LABEL = nls.localize('search.action.breakpointAll.label.disabled', "Breakpoint All (Submit Search to Enable)");
+	private static readonly BREAKPOINT_ALL_ENABLED_LABEL = nls.localize('search.action.breakpointAll.label.enabled', "Breakpoint All");
+
 	domNode!: HTMLElement;
 
 	searchInput!: FindInput;
@@ -112,6 +134,7 @@ export class SearchWidget extends Widget {
 	private replaceAllAction!: ReplaceAllAction;
 	private replaceActive: IContextKey<boolean>;
 	private replaceActionBar!: ActionBar;
+	private breakpointAllAction!: BreakpointAllAction;
 	private _replaceHistoryDelayer: Delayer<void>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string | null = null;
@@ -136,6 +159,9 @@ export class SearchWidget extends Widget {
 
 	private _onReplaceAll = this._register(new Emitter<void>());
 	readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
+
+	private _onBreakpointAll = this._register(new Emitter<void>());
+	readonly onBreakpointAll: Event<void> = this._onBreakpointAll.event;
 
 	private _onBlur = this._register(new Emitter<void>());
 	readonly onBlur: Event<void> = this._onBlur.event;
@@ -203,7 +229,9 @@ export class SearchWidget extends Widget {
 	clear() {
 		this.searchInput.clear();
 		this.replaceInput.setValue('');
+
 		this.setReplaceAllActionState(false);
+		this.setBreakpointAllActionState(false);
 	}
 
 	isReplaceShown(): boolean {
@@ -412,8 +440,12 @@ export class SearchWidget extends Widget {
 
 		this.replaceAllAction = new ReplaceAllAction(this);
 		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+
+		this.breakpointAllAction = new BreakpointAllAction(this);
+		this.breakpointAllAction.label = SearchWidget.BREAKPOINT_ALL_DISABLED_LABEL;
+
 		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
-		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
+		this.replaceActionBar.push([this.replaceAllAction, this.breakpointAllAction], { icon: true, label: false });
 		this.onkeydown(this.replaceActionBar.domNode, (keyboardEvent) => this.onReplaceActionbarKeyDown(keyboardEvent));
 
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputBox.inputElement));
@@ -424,6 +456,11 @@ export class SearchWidget extends Widget {
 
 	triggerReplaceAll(): Promise<any> {
 		this._onReplaceAll.fire();
+		return Promise.resolve(null);
+	}
+
+	triggerBreakpointAll(): Promise<any> {
+		this._onBreakpointAll.fire();
 		return Promise.resolve(null);
 	}
 
@@ -463,6 +500,13 @@ export class SearchWidget extends Widget {
 		}
 	}
 
+	setBreakpointAllActionState(enabled: boolean): void {
+		if (this.breakpointAllAction.enabled !== enabled) {
+			this.breakpointAllAction.enabled = enabled;
+			this.breakpointAllAction.label = enabled ? SearchWidget.BREAKPOINT_ALL_ENABLED_LABEL : SearchWidget.BREAKPOINT_ALL_DISABLED_LABEL;
+		}
+	}
+
 	private validateSearchInput(value: string): IMessage | null {
 		if (value.length === 0) {
 			return null;
@@ -481,7 +525,9 @@ export class SearchWidget extends Widget {
 
 	private onSearchInputChanged(): void {
 		this.searchInput.clearMessage();
+
 		this.setReplaceAllActionState(false);
+		this.setBreakpointAllActionState(false);
 
 		if (this.searchConfiguration.searchOnType) {
 			if (this.searchInput.getRegex()) {
@@ -649,6 +695,7 @@ export class SearchWidget extends Widget {
 
 	dispose(): void {
 		this.setReplaceAllActionState(false);
+		this.setBreakpointAllActionState(false);
 		super.dispose();
 	}
 

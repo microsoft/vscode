@@ -32,7 +32,7 @@ import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialog
 import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgressService, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchSortOrder, SearchCompletionExitCode } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService, ISearchHistoryValues } from 'vs/workbench/contrib/search/common/searchHistoryService';
@@ -473,6 +473,7 @@ export class SearchView extends ViewPane {
 		}));
 
 		this._register(this.searchWidget.onReplaceAll(() => this.replaceAll()));
+		this._register(this.searchWidget.onBreakpointAll(() => this.breakpointAll()));
 
 		this.trackInputBox(this.searchWidget.searchInputFocusTracker);
 		this.trackInputBox(this.searchWidget.replaceInputFocusTracker);
@@ -507,6 +508,7 @@ export class SearchView extends ViewPane {
 
 	private refreshAndUpdateCount(event?: IChangeEvent): void {
 		this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
+		this.searchWidget.setBreakpointAllActionState(!this.viewModel.searchResult.isEmpty());
 		this.updateSearchResultCount(this.viewModel.searchResult.query!.userDisabledExcludesAndIgnoreFiles);
 		return this.refreshTree(event);
 	}
@@ -609,6 +611,7 @@ export class SearchView extends ViewPane {
 		this.dialogService.confirm(confirmation).then(res => {
 			if (res.confirmed) {
 				this.searchWidget.setReplaceAllActionState(false);
+
 				this.viewModel.searchResult.replaceAll(progressReporter).then(() => {
 					progressComplete();
 					const messageEl = this.clearMessage();
@@ -621,6 +624,72 @@ export class SearchView extends ViewPane {
 				});
 			}
 		});
+	}
+
+	private breakpointAll(): void {
+		if (this.viewModel.searchResult.count() === 0) {
+			return;
+		}
+
+		const occurrences = this.viewModel.searchResult.count();
+		const fileCount = this.viewModel.searchResult.fileCount();
+
+		let progressComplete: () => void;
+		let progressReporter: IProgress<IProgressStep>;
+
+		this.progressService.withProgress({ location: this.getProgressLocation(), delay: 100, total: occurrences }, p => {
+			progressReporter = p;
+
+			return new Promise<void>(resolve => progressComplete = resolve);
+		});
+
+		const message = this.buildBreakpointAllMessage(occurrences, fileCount);
+		const buttons = [
+			nls.localize('breakpointAll.buttons.addBreakpoints', 'Add Breakpoints'),
+			nls.localize('breakpointAll.buttons.removeBreakpoints', 'Remove Breakpoints'),
+			nls.localize('cancel', 'Cancel')
+		];
+		const checkbox = nls.localize('breakpointAll.buttons.ignoreColumnNumbers', 'Ignore column numbers when adding breakpoints');
+
+		const modal = this.dialogService.show(Severity.Info, message,
+			buttons,
+			{
+				checkbox: {
+					label: checkbox,
+					checked: false
+				},
+				cancelId: 2
+			}
+		);
+		modal.then(value => {
+			if (value.choice !== 2) {
+				let reverse = value.choice === 1;
+				let ignoreColumnNumbers = value.checkboxChecked ?? false;
+
+				this.viewModel.searchResult.breakpointAll(ignoreColumnNumbers, reverse, progressReporter).then(
+					() => {
+						progressComplete();
+					},
+					(error) => {
+						progressComplete();
+						errors.isPromiseCanceledError(error);
+						this.notificationService.error(error);
+					}
+				);
+			}
+		});
+	}
+
+	private buildBreakpointAllMessage(occurrences: number, fileCount: number) {
+		if (occurrences === 1) {
+			return nls.localize('breakpointAll.dialog.breakpoint.file', "Add or remove {0} breakpoint across {1} file.", occurrences, fileCount);
+		}
+
+		if (fileCount === 1) {
+			return nls.localize('breakpointAll.dialog.breakpoints.file', "Add or remove {0} breakpoints across {1} file.", occurrences, fileCount);
+		}
+
+		return nls.localize('breakpointAll.dialog.breakpoints.files', "Add or remove {0} breakpoints across {1} files.", occurrences, fileCount);
 	}
 
 	private buildAfterReplaceAllMessage(occurrences: number, fileCount: number, replaceValue?: string) {
@@ -990,7 +1059,7 @@ export class SearchView extends ViewPane {
 		const actionsPosition = this.searchConfig.actionsPosition;
 		dom.toggleClass(this.getContainer(), SearchView.ACTIONS_RIGHT_CLASS_NAME, actionsPosition === 'right');
 
-		this.searchWidget.setWidth(this.size.width - 28 /* container margin */);
+		this.searchWidget.setWidth(this.size.width - 56 /* container margin */);
 
 		this.inputPatternExcludes.setWidth(this.size.width - 28 /* container margin */);
 		this.inputPatternIncludes.setWidth(this.size.width - 28 /* container margin */);
@@ -1547,6 +1616,7 @@ export class SearchView extends ViewPane {
 		}, 100);
 
 		this.searchWidget.setReplaceAllActionState(false);
+		this.searchWidget.setBreakpointAllActionState(false);
 
 		return this.viewModel.search(query)
 			.then(onComplete, onError);
