@@ -166,6 +166,11 @@ export const tocData: ITOCEntry = {
 					settings: ['problems.*']
 				},
 				{
+					id: 'features/output',
+					label: localize('output', "Output"),
+					settings: ['output.*']
+				},
+				{
 					id: 'features/comments',
 					label: localize('comments', "Comments"),
 					settings: ['comments.*']
@@ -179,6 +184,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/timeline',
 					label: localize('timeline', "Timeline"),
 					settings: ['timeline.*']
+				},
+				{
+					id: 'features/notebook',
+					label: localize('notebook', 'Notebook'),
+					settings: ['notebook.*']
 				}
 			]
 		},
@@ -207,9 +217,9 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				},
 				{
-					id: 'application/sync',
-					label: localize('sync', "Sync"),
-					settings: ['sync.*']
+					id: 'application/settingsSync',
+					label: localize('settingsSync', "Settings Sync"),
+					settings: ['settingsSync.*', 'sync.*']
 				}
 			]
 		}
@@ -228,6 +238,7 @@ export const knownAcronyms = new Set<string>();
 	'ie',
 	'id',
 	'php',
+	'scm',
 ].forEach(str => knownAcronyms.add(str));
 
 export const knownTermMappings = new Map<string, string>();

@@ -28,7 +28,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
 
 function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
@@ -299,15 +298,15 @@ export class LinkDetector implements IEditorContribution {
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
 			if (typeof uri === 'string' && this.editor.hasModel()) {
 				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && strings.startsWith(uri, 'file:')) {
+				if (modelUri.scheme === Schemas.file && uri.startsWith(`${Schemas.file}:`)) {
 					const parsedUri = URI.parse(uri);
 					if (parsedUri.scheme === Schemas.file) {
 						const fsPath = resources.originalFSPath(parsedUri);
 
 						let relativePath: string | null = null;
-						if (strings.startsWith(fsPath, '/./')) {
+						if (fsPath.startsWith('/./')) {
 							relativePath = `.${fsPath.substr(1)}`;
-						} else if (strings.startsWith(fsPath, '//./')) {
+						} else if (fsPath.startsWith('//./')) {
 							relativePath = `.${fsPath.substr(2)}`;
 						}
 

@@ -5,7 +5,7 @@
 
 import { exec } from 'child_process';
 import { ProcessItem } from 'vs/base/common/processes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 
 export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
@@ -180,7 +180,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				// The cpu usage value reported on Linux is the average over the process lifetime,
 				// recalculate the usage over a one second interval
 				// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
-				let cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/cpuUsage.sh'));
+				let cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/cpuUsage.sh', require).fsPath);
 				cmd += ' ' + pids.join(' ');
 
 				exec(cmd, {}, (err, stdout, stderr) => {
@@ -193,6 +193,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							processInfo.load = parseFloat(cpuUsage[i]);
 						}
 
+						if (!rootItem) {
+							reject(new Error(`Root process ${rootPid} not found`));
+							return;
+						}
+
 						resolve(rootItem);
 					}
 				});
@@ -203,7 +208,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					if (process.platform !== 'linux') {
 						reject(err || new Error(stderr.toString()));
 					} else {
-						const cmd = JSON.stringify(getPathFromAmdModule(require, 'vs/base/node/ps.sh'));
+						const cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/ps.sh', require).fsPath);
 						exec(cmd, {}, (err, stdout, stderr) => {
 							if (err || stderr) {
 								reject(err || new Error(stderr.toString()));
@@ -219,7 +224,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 					// Set numeric locale to ensure '.' is used as the decimal separator
 					exec(`${ps} ${args}`, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
-						if (err || stderr) {
+						// Silently ignoring the screen size is bogus error. See https://github.com/microsoft/vscode/issues/98590
+						if (err || (stderr && !stderr.includes('screen size is bogus'))) {
 							reject(err || new Error(stderr.toString()));
 						} else {
 							parsePsOutput(stdout, addToTree);
@@ -227,7 +233,11 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							if (process.platform === 'linux') {
 								calculateLinuxCpuUsage();
 							} else {
-								resolve(rootItem);
+								if (!rootItem) {
+									reject(new Error(`Root process ${rootPid} not found`));
+								} else {
+									resolve(rootItem);
+								}
 							}
 						}
 					});

@@ -6,9 +6,10 @@
 import { ILogService } from 'vs/platform/log/common/log';
 import { IURLService } from 'vs/platform/url/common/url';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
-import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { OpenContext, IWindowSettings } from 'vs/platform/windows/common/windows';
+import { IWindowSettings } from 'vs/platform/windows/common/windows';
+import { OpenContext } from 'vs/platform/windows/node/window';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
@@ -17,13 +18,13 @@ import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
 
 export interface IStartArguments {
-	args: ParsedArgs;
+	args: NativeParsedArgs;
 	userEnv: IProcessEnvironment;
 }
 
@@ -32,7 +33,7 @@ export interface IRemoteDiagnosticOptions {
 	includeWorkspaceMetadata?: boolean;
 }
 
-function parseOpenUrl(args: ParsedArgs): URI[] {
+function parseOpenUrl(args: NativeParsedArgs): URI[] {
 	if (args['open-url'] && args._urls && args._urls.length > 0) {
 		// --open-url must contain -- followed by the url(s)
 		// process.argv is used over args._ as args._ are resolved to file paths at this point
@@ -50,39 +51,49 @@ function parseOpenUrl(args: ParsedArgs): URI[] {
 }
 
 export interface ILaunchMainService {
-	_serviceBrand: undefined;
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
+	readonly _serviceBrand: undefined;
+	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 	getMainProcessId(): Promise<number>;
 	getMainProcessInfo(): Promise<IMainProcessInfo>;
-	getLogsPath(): Promise<string>;
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]>;
 }
 
 export class LaunchMainService implements ILaunchMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	start(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
-		const urlsToOpen = parseOpenUrl(args);
+		// macOS: Electron > 7.x changed its behaviour to not
+		// bring the application to the foreground when a window
+		// is focused programmatically. Only via `app.focus` and
+		// the option `steal: true` can you get the previous
+		// behaviour back. The only reason to use this option is
+		// when a window is getting focused while the application
+		// is not in the foreground and since we got instructed
+		// to open a new window from another instance, we ensure
+		// that the app has focus.
+		if (isMacintosh) {
+			app.focus({ steal: true });
+		}
 
 		// Check early for open-url which is handled in URL service
+		const urlsToOpen = parseOpenUrl(args);
 		if (urlsToOpen.length) {
-			let whenWindowReady: Promise<any> = Promise.resolve<any>(null);
+			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
 			// Create a window if there is none
 			if (this.windowsMainService.getWindowCount() === 0) {
-				const window = this.windowsMainService.openEmptyWindow(OpenContext.DESKTOP)[0];
+				const window = this.windowsMainService.openEmptyWindow({ context: OpenContext.DESKTOP })[0];
 				whenWindowReady = window.ready();
 			}
 
@@ -92,15 +103,15 @@ export class LaunchMainService implements ILaunchMainService {
 					this.urlService.open(url);
 				}
 			});
-
-			return Promise.resolve(undefined);
 		}
 
 		// Otherwise handle in windows service
-		return this.startOpenWindow(args, userEnv);
+		else {
+			return this.startOpenWindow(args, userEnv);
+		}
 	}
 
-	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
+	private startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
@@ -224,16 +235,10 @@ export class LaunchMainService implements ILaunchMainService {
 		});
 	}
 
-	getLogsPath(): Promise<string> {
-		this.logService.trace('Received request for logs path from other instance.');
-
-		return Promise.resolve(this.environmentService.logsPath);
-	}
-
 	getRemoteDiagnostics(options: IRemoteDiagnosticOptions): Promise<(IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]> {
 		const windows = this.windowsMainService.getWindows();
 		const promises: Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>[] = windows.map(window => {
-			return new Promise((resolve, reject) => {
+			return new Promise<IDiagnosticInfo | IRemoteDiagnosticError | undefined>((resolve) => {
 				const remoteAuthority = window.remoteAuthority;
 				if (remoteAuthority) {
 					const replyChannel = `vscode:getDiagnosticInfoResponse${window.id}`;
@@ -257,7 +262,7 @@ export class LaunchMainService implements ILaunchMainService {
 						resolve({ hostName: remoteAuthority, errorMessage: `Fetching remote diagnostics for '${remoteAuthority}' timed out.` });
 					}, 5000);
 				} else {
-					resolve();
+					resolve(undefined);
 				}
 			});
 		});

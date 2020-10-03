@@ -148,9 +148,12 @@ class FolderDetector {
 		}
 		let gulpfile = path.join(rootPath, 'gulpfile.js');
 		if (!await exists(gulpfile)) {
-			gulpfile = path.join(rootPath, 'gulpfile.babel.js');
-			if (! await exists(gulpfile)) {
-				return emptyTasks;
+			gulpfile = path.join(rootPath, 'Gulpfile.js');
+			if (!await exists(gulpfile)) {
+				gulpfile = path.join(rootPath, 'gulpfile.babel.js');
+				if (!await exists(gulpfile)) {
+					return emptyTasks;
+				}
 			}
 		}
 

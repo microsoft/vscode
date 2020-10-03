@@ -40,12 +40,12 @@ export interface IUntitledTextEditorModel extends ITextEditorModel, IModeSupport
 	readonly onDidRevert: Event<void>;
 
 	/**
-	 * Wether this untitled text model has an associated file path.
+	 * Whether this untitled text model has an associated file path.
 	 */
 	readonly hasAssociatedFilePath: boolean;
 
 	/**
-	 * Wether this model has an explicit language mode or not.
+	 * Whether this model has an explicit language mode or not.
 	 */
 	readonly hasModeSetExplicitly: boolean;
 
@@ -253,7 +253,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		return !!target;
 	}
 
-	async revert(): Promise<boolean> {
+	async revert(): Promise<void> {
 		this.setDirty(false);
 
 		// Emit as event
@@ -263,8 +263,6 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// no actual source on disk to revert to. As such we
 		// dispose the model.
 		this.dispose();
-
-		return true;
 	}
 
 	async backup(): Promise<IWorkingCopyBackup> {

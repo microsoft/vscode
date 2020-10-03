@@ -19,8 +19,7 @@ import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -66,7 +65,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#endregion
 
-	readonly capabilities = 0;
+	readonly capabilities = WorkingCopyCapabilities.None;
 
 	readonly name = basename(this.labelService.getUriLabel(this.resource));
 
@@ -76,6 +75,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private bufferSavedVersionId: number | undefined;
 	private ignoreDirtyOnModelContentChange = false;
 
+	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
+	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
+
 	private lastResolvedFileStat: IFileStatWithMetadata | undefined;
 
 	private readonly saveSequentializer = new TaskSequentializer();
@@ -84,7 +86,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private inConflictMode = false;
 	private inOrphanMode = false;
 	private inErrorMode = false;
-	private disposed = false;
 
 	constructor(
 		public readonly resource: URI,
@@ -140,12 +141,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			let newInOrphanModeValidated: boolean = false;
 			if (newInOrphanModeGuess) {
 				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
+				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
 				// Since we do not want to mark the model as orphaned, we have to check if the
 				// file is really gone and not just a faulty file event.
 				await timeout(100);
 
-				if (this.disposed) {
+				if (this.isDisposed()) {
 					newInOrphanModeValidated = true;
 				} else {
 					const exists = await this.fileService.exists(this.resource);
@@ -153,7 +154,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				}
 			}
 
-			if (this.inOrphanMode !== newInOrphanModeValidated && !this.disposed) {
+			if (this.inOrphanMode !== newInOrphanModeValidated && !this.isDisposed()) {
 				this.setOrphaned(newInOrphanModeValidated);
 			}
 		}
@@ -206,9 +207,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	//#region Revert
 
-	async revert(options?: IRevertOptions): Promise<boolean> {
+	async revert(options?: IRevertOptions): Promise<void> {
 		if (!this.isResolved()) {
-			return false;
+			return;
 		}
 
 		// Unset flags
@@ -240,8 +241,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (wasDirty) {
 			this._onDidChangeDirty.fire();
 		}
-
-		return true;
 	}
 
 	//#endregion
@@ -289,6 +288,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromBackup(backup: IResolvedBackup<IBackupMetaData>, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		const preferredEncoding = await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding);
 
 		// Load with backup
 		this.loadFromContent({
@@ -299,7 +299,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size: backup.meta ? backup.meta.size : 0,
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
-			encoding: this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding).encoding
+			encoding: preferredEncoding.encoding
 		}, options, true /* from backup */);
 
 		// Restore orphaned flag based on state
@@ -447,20 +447,27 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	private installModelListeners(model: ITextModel): void {
 
-		// See https://github.com/Microsoft/vscode/issues/30189
+		// See https://github.com/microsoft/vscode/issues/30189
 		// This code has been extracted to a different method because it caused a memory leak
 		// where `value` was captured in the content change listener closure scope.
 
 		// Content Change
-		this._register(model.onDidChangeContent(() => this.onModelContentChanged(model)));
+		this._register(model.onDidChangeContent(e => this.onModelContentChanged(model, e.isUndoing || e.isRedoing)));
 	}
 
-	private onModelContentChanged(model: ITextModel): void {
+	private onModelContentChanged(model: ITextModel, isUndoingOrRedoing: boolean): void {
 		this.logService.trace(`[text file model] onModelContentChanged() - enter`, this.resource.toString(true));
 
 		// In any case increment the version id because it tracks the textual content state of the model at all times
 		this.versionId++;
 		this.logService.trace(`[text file model] onModelContentChanged() - new versionId ${this.versionId}`, this.resource.toString(true));
+
+		// Remember when the user changed the model through a undo/redo operation.
+		// We need this information to throttle save participants to fix
+		// https://github.com/microsoft/vscode/issues/102542
+		if (isUndoingOrRedoing) {
+			this.lastModelContentChangeFromUndoRedo = Date.now();
+		}
 
 		// We mark check for a dirty-state change upon model content change, unless:
 		// - explicitly instructed to ignore it (e.g. from model.load())
@@ -641,7 +648,31 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Save participants can also be skipped through API.
 			if (this.isResolved() && !options.skipSaveParticipants) {
 				try {
-					await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+
+					// Measure the time it took from the last undo/redo operation to this save. If this
+					// time is below `UNDO_REDO_SAVE_PARTICIPANTS_THROTTLE_THRESHOLD`, we make sure to
+					// delay the save participant for the remaining time if the reason is auto save.
+					//
+					// This fixes the following issue:
+					// - the user has configured auto save with delay of 100ms or shorter
+					// - the user has a save participant enabled that modifies the file on each save
+					// - the user types into the file and the file gets saved
+					// - the user triggers undo operation
+					// - this will undo the save participant change but trigger the save participant right after
+					// - the user has no chance to undo over the save participant
+					//
+					// Reported as: https://github.com/microsoft/vscode/issues/102542
+					if (options.reason === SaveReason.AUTO && typeof this.lastModelContentChangeFromUndoRedo === 'number') {
+						const timeFromUndoRedoToSave = Date.now() - this.lastModelContentChangeFromUndoRedo;
+						if (timeFromUndoRedoToSave < TextFileEditorModel.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD) {
+							await timeout(TextFileEditorModel.UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD - timeFromUndoRedoToSave);
+						}
+					}
+
+					// Run save participants unless save was cancelled meanwhile
+					if (!saveCancellation.token.isCancellationRequested) {
+						await this.textFileService.files.runSaveParticipants(this, { reason: options.reason ?? SaveReason.EXPLICIT }, saveCancellation.token);
+					}
 				} catch (error) {
 					this.logService.error(`[text file model] runSaveParticipants(${versionId}) - resulted in an error: ${error.toString()}`, this.resource.toString(true));
 				}
@@ -663,9 +694,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
-			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
+			// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).
 			// To fix this issue, we will not store the contents to disk when we got disposed.
-			if (this.disposed) {
+			if (this.isDisposed()) {
 				return;
 			}
 
@@ -682,7 +713,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
 			// - the model version did not change due to save participants running
 			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === this.versionId) {
-				return this.doTouch(this.versionId, options.reason);
+				return this.doTouch(this.versionId, options);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -696,15 +727,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			this.logService.trace(`[text file model] doSave(${versionId}) - before write()`, this.resource.toString(true));
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
-			const textFileEdiorModel = this;
+			const textFileEditorModel = this;
 			return this.saveSequentializer.setPending(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEdiorModel.createSnapshot(), {
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, textFileEditorModel.createSnapshot(), {
 						overwriteReadonly: options.overwriteReadonly,
 						overwriteEncoding: options.overwriteEncoding,
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
-						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEdiorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
+						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, textFileEditorModel.getMode())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
 						writeElevated: options.writeElevated
 					});
 
@@ -757,11 +788,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._onDidSaveError.fire();
 	}
 
-	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, reason: SaveReason): Promise<void> {
+	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, options: ITextFileSaveOptions): Promise<void> {
 		const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 
 		return this.saveSequentializer.setPending(versionId, (async () => {
 			try {
+
+				// Write contents to touch: we used to simply update the mtime of the file
+				// but this lead to weird results, either for external watchers or even for
+				// us where we thought the file has changed on disk. As such, we let the OS
+				// handle the increment of mtime and not deal with it ourselves.
 				const stat = await this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
 					mtime: lastResolvedFileStat.mtime,
 					encoding: this.getEncoding(),
@@ -772,9 +808,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.updateLastResolvedFileStat(stat);
 
 				// Emit File Saved Event
-				this._onDidSave.fire(reason);
+				this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
 			} catch (error) {
-				onUnexpectedError(error); // just log any error but do not notify the user since the file was not dirty
+
+				// In any case of an error, we mark the model as dirty to prevent data loss
+				// It could be possible that the touch corrupted the file on disk (e.g. when
+				// an error happened after truncating the file) and as such we want to preserve
+				// the model contents to prevent data loss
+				this.setDirty(true);
+
+				// Notify user to handle this save error
+				this.handleSaveError(error, versionId, options);
 			}
 		})());
 	}
@@ -910,10 +954,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
 	getStat(): IFileStatWithMetadata | undefined {
 		return this.lastResolvedFileStat;
 	}
@@ -921,7 +961,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	dispose(): void {
 		this.logService.trace('[text file model] dispose()', this.resource.toString(true));
 
-		this.disposed = true;
 		this.inConflictMode = false;
 		this.inOrphanMode = false;
 		this.inErrorMode = false;

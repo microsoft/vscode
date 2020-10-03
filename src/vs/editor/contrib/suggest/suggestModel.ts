@@ -7,7 +7,7 @@ import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, DisposableStore, isDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -22,6 +22,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { WordDistance } from 'vs/editor/contrib/suggest/wordDistance';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isLowSurrogate, isHighSurrogate } from 'vs/base/common/strings';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -43,6 +44,7 @@ export interface ISuggestEvent {
 export interface SuggestTriggerContext {
 	readonly auto: boolean;
 	readonly shy: boolean;
+	readonly triggerKind?: CompletionTriggerKind;
 	readonly triggerCharacter?: string;
 }
 
@@ -116,7 +118,8 @@ export class SuggestModel implements IDisposable {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _editorWorker: IEditorWorkerService
+		private readonly _editorWorkerService: IEditorWorkerService,
+		private readonly _clipboardService: IClipboardService
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -227,7 +230,7 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: CompletionItem[] | undefined = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				const items = this._completionModel?.adopt(supports);
 				this.trigger({ auto: true, shy: false, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
 			}
 		};
@@ -391,16 +394,12 @@ export class SuggestModel implements IDisposable {
 		this._context = ctx;
 
 		// Build context for request
-		let suggestCtx: CompletionContext;
+		let suggestCtx: CompletionContext = { triggerKind: context.triggerKind ?? CompletionTriggerKind.Invoke };
 		if (context.triggerCharacter) {
 			suggestCtx = {
 				triggerKind: CompletionTriggerKind.TriggerCharacter,
 				triggerCharacter: context.triggerCharacter
 			};
-		} else if (onlyFrom && onlyFrom.size > 0) {
-			suggestCtx = { triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions };
-		} else {
-			suggestCtx = { triggerKind: CompletionTriggerKind.Invoke };
 		}
 
 		this._requestToken = new CancellationTokenSource();
@@ -422,9 +421,9 @@ export class SuggestModel implements IDisposable {
 		}
 
 		let itemKindFilter = SuggestModel._createItemKindFilter(this._editor);
-		let wordDistance = WordDistance.create(this._editorWorker, this._editor);
+		let wordDistance = WordDistance.create(this._editorWorkerService, this._editor);
 
-		let items = provideSuggestionItems(
+		let completions = provideSuggestionItems(
 			model,
 			this._editor.getPosition(),
 			new CompletionOptions(snippetSortOrder, itemKindFilter, onlyFrom),
@@ -432,9 +431,9 @@ export class SuggestModel implements IDisposable {
 			this._requestToken.token
 		);
 
-		Promise.all([items, wordDistance]).then(([items, wordDistance]) => {
+		Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
 
-			dispose(this._requestToken);
+			this._requestToken?.dispose();
 
 			if (this._state === State.Idle) {
 				return;
@@ -444,7 +443,13 @@ export class SuggestModel implements IDisposable {
 				return;
 			}
 
+			let clipboardText: string | undefined;
+			if (completions.needsClipboard || isNonEmptyArray(existingItems)) {
+				clipboardText = await this._clipboardService.readText();
+			}
+
 			const model = this._editor.getModel();
+			let items = completions.items;
 
 			if (isNonEmptyArray(existingItems)) {
 				const cmpFn = getSuggestionComparator(snippetSortOrder);
@@ -458,15 +463,12 @@ export class SuggestModel implements IDisposable {
 			},
 				wordDistance,
 				this._editor.getOption(EditorOption.suggest),
-				this._editor.getOption(EditorOption.snippetSuggestions)
+				this._editor.getOption(EditorOption.snippetSuggestions),
+				clipboardText
 			);
 
 			// store containers so that they can be disposed later
-			for (const item of items) {
-				if (isDisposable(item.container)) {
-					this._completionDisposables.add(item.container);
-				}
-			}
+			this._completionDisposables.add(completions.dispoables);
 
 			this._onNewContext(ctx);
 
@@ -511,6 +513,8 @@ export class SuggestModel implements IDisposable {
 		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
 		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
 		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
+		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
+		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
 
 		return result;
 	}
@@ -549,11 +553,25 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
+		if (ctx.leadingWord.word.length !== 0 && ctx.leadingWord.startColumn > this._context.leadingWord.startColumn) {
+			// started a new word while IntelliSense shows -> retrigger
+
+			// Select those providers have not contributed to this completion model and re-trigger completions for
+			// them. Also adopt the existing items and merge them into the new completion model
+			const inactiveProvider = new Set(CompletionProviderRegistry.all(this._editor.getModel()!));
+			for (let provider of this._completionModel.allProvider) {
+				inactiveProvider.delete(provider);
+			}
+			const items = this._completionModel.adopt(new Set());
+			this.trigger({ auto: this._context.auto, shy: false }, true, inactiveProvider, items);
+			return;
+		}
+
 		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
 			const { incomplete } = this._completionModel;
 			const adopted = this._completionModel.adopt(incomplete);
-			this.trigger({ auto: this._state === State.Auto, shy: false }, true, incomplete, adopted);
+			this.trigger({ auto: this._state === State.Auto, shy: false, triggerKind: CompletionTriggerKind.TriggerForIncompleteCompletions }, true, incomplete, adopted);
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI

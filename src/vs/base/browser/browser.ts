@@ -28,7 +28,7 @@ class WindowManager {
 		}
 
 		this._zoomLevel = zoomLevel;
-		// See https://github.com/Microsoft/vscode/issues/26151
+		// See https://github.com/microsoft/vscode/issues/26151
 		this._lastZoomLevelChangeTime = isTrusted ? 0 : Date.now();
 		this._onDidChangeZoomLevel.fire(this._zoomLevel);
 	}
@@ -110,10 +110,7 @@ export const onDidChangeFullscreen = WindowManager.INSTANCE.onDidChangeFullscree
 
 const userAgent = navigator.userAgent;
 
-export const isIE = (userAgent.indexOf('Trident') >= 0);
 export const isEdge = (userAgent.indexOf('Edge/') >= 0);
-export const isEdgeOrIE = isIE || isEdge;
-
 export const isOpera = (userAgent.indexOf('Opera') >= 0);
 export const isFirefox = (userAgent.indexOf('Firefox') >= 0);
 export const isWebKit = (userAgent.indexOf('AppleWebKit') >= 0);

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -261,6 +261,25 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- on type rename
+
+	$registerOnTypeRenameProvider(handle: number, selector: IDocumentFilterDto[], wordPattern?: IRegExpDto): void {
+		const revivedWordPattern = wordPattern ? MainThreadLanguageFeatures._reviveRegExp(wordPattern) : undefined;
+		this._registrations.set(handle, modes.OnTypeRenameProviderRegistry.register(selector, <modes.OnTypeRenameProvider>{
+			wordPattern: revivedWordPattern,
+			provideOnTypeRenameRanges: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<{ ranges: IRange[]; wordPattern?: RegExp; } | undefined> => {
+				const res = await this._proxy.$provideOnTypeRenameRanges(handle, model.uri, position, token);
+				if (res) {
+					return {
+						ranges: res.ranges,
+						wordPattern: res.wordPattern ? MainThreadLanguageFeatures._reviveRegExp(res.wordPattern) : undefined
+					};
+				}
+				return undefined;
+			}
+		}));
+	}
+
 	// --- references
 
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void {
@@ -273,8 +292,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string): void {
-		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
+	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
+		const provider: modes.CodeActionProvider = {
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Promise<modes.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
 				if (!listDto) {
@@ -292,7 +311,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			providedCodeActionKinds: metadata.providedKinds,
 			documentation: metadata.documentation,
 			displayName
-		}));
+		};
+
+		if (supportsResolve) {
+			provider.resolveCodeAction = async (codeAction: modes.CodeAction, token: CancellationToken): Promise<modes.CodeAction> => {
+				const data = await this._proxy.$resolveCodeAction(handle, (<ICodeActionDto>codeAction).cacheId!, token);
+				codeAction.edit = reviveWorkspaceEditDto(data);
+				return codeAction;
+			};
+		}
+
+		this._registrations.set(handle, modes.CodeActionProviderRegistry.register(selector, provider));
 	}
 
 	// --- formatting
@@ -367,8 +396,21 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- semantic tokens
 
-	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
-		this._registrations.set(handle, modes.DocumentSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend)));
+	$registerDocumentSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend, eventHandle: number | undefined): void {
+		let event: Event<void> | undefined = undefined;
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			event = emitter.event;
+		}
+		this._registrations.set(handle, modes.DocumentSemanticTokensProviderRegistry.register(selector, new MainThreadDocumentSemanticTokensProvider(this._proxy, handle, legend, event)));
+	}
+
+	$emitDocumentSemanticTokensEvent(eventHandle: number): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(undefined);
+		}
 	}
 
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: modes.SemanticTokensLegend): void {
@@ -380,8 +422,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
 
 		return {
-			label: data[ISuggestDataDtoField.label2] || data[ISuggestDataDtoField.label],
-			kind: data[ISuggestDataDtoField.kind],
+			label: data[ISuggestDataDtoField.label2] ?? data[ISuggestDataDtoField.label],
+			kind: data[ISuggestDataDtoField.kind] ?? modes.CompletionItemKind.Property,
 			tags: data[ISuggestDataDtoField.kindModifier],
 			detail: data[ISuggestDataDtoField.detail],
 			documentation: data[ISuggestDataDtoField.documentation],
@@ -389,7 +431,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
 			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
-			range: data[ISuggestDataDtoField.range] || defaultRange,
+			range: data[ISuggestDataDtoField.range] ?? defaultRange,
 			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],
@@ -422,8 +464,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			}
 		};
 		if (supportsResolveDetails) {
-			provider.resolveCompletionItem = (model, position, suggestion, token) => {
-				return this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion._id!, token).then(result => {
+			provider.resolveCompletionItem = (suggestion, token) => {
+				return this._proxy.$resolveCompletionItem(handle, suggestion._id!, token).then(result => {
 					if (!result) {
 						return suggestion;
 					}
@@ -661,6 +703,7 @@ export class MainThreadDocumentSemanticTokensProvider implements modes.DocumentS
 		private readonly _proxy: ExtHostLanguageFeaturesShape,
 		private readonly _handle: number,
 		private readonly _legend: modes.SemanticTokensLegend,
+		public readonly onDidChange: Event<void> | undefined,
 	) {
 	}
 

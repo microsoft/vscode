@@ -19,6 +19,7 @@ import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGro
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { TransientMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 //#region --- NEW world
 
@@ -143,22 +144,22 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeTypeDefinitionProvider', '_executeTypeDefinitionProvider', 'Execute all type definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeDeclarationProvider', '_executeDeclarationProvider', 'Execute all declaration providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeImplementationProvider', '_executeImplementationProvider', 'Execute all implementation providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeReferenceProvider', '_executeReferenceProvider', 'Execute all reference providers.',
@@ -174,7 +175,7 @@ const newCommands: ApiCommand[] = [
 	// -- selection range
 	new ApiCommand(
 		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
+		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
 		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
 			return result.map(ranges => {
 				let node: types.SelectionRange | undefined;
@@ -215,8 +216,27 @@ const newCommands: ApiCommand[] = [
 		[ApiCommandArgument.CallHierarchyItem],
 		new ApiCommandResult<IOutgoingCallDto[], types.CallHierarchyOutgoingCall[]>('A CallHierarchyItem or undefined', v => v.map(typeConverters.CallHierarchyOutgoingCall.to))
 	),
+	// --- rename
+	new ApiCommand(
+		'vscode.executeDocumentRenameProvider', '_executeDocumentRenameProvider', 'Execute rename provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('newName', 'The new symbol name', v => typeof v === 'string', v => v)],
+		new ApiCommandResult<IWorkspaceEditDto, types.WorkspaceEdit | undefined>('A promise that resolves to a WorkspaceEdit.', value => {
+			if (!value) {
+				return undefined;
+			}
+			if (value.rejectReason) {
+				throw new Error(value.rejectReason);
+			}
+			return typeConverters.WorkspaceEdit.to(value);
+		})
+	),
+	// --- links
+	new ApiCommand(
+		'vscode.executeLinkProvider', '_executeLinkProvider', 'Execute document link provider.',
+		[ApiCommandArgument.Uri, new ApiCommandArgument('linkResolveCount', '(optional) Number of links that should be resolved, only when links are unresolved.', v => typeof v === 'number' || typeof v === 'undefined', v => v)],
+		new ApiCommandResult<modes.ILink[], vscode.DocumentLink[]>('A promise that resolves to an array of DocumentLink-instances.', value => value.map(typeConverters.DocumentLink.to))
+	)
 ];
-
 
 //#endregion
 
@@ -238,15 +258,6 @@ export class ExtHostApiCommands {
 	}
 
 	registerCommands() {
-		this._register('vscode.executeDocumentRenameProvider', this._executeDocumentRenameProvider, {
-			description: 'Execute rename provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'position', description: 'Position in a text document', constraint: types.Position },
-				{ name: 'newName', description: 'The new symbol name', constraint: String }
-			],
-			returns: 'A promise that resolves to a WorkspaceEdit.'
-		});
 		this._register('vscode.executeSignatureHelpProvider', this._executeSignatureHelpProvider, {
 			description: 'Execute signature help provider.',
 			args: [
@@ -272,6 +283,8 @@ export class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
 				{ name: 'rangeOrSelection', description: 'Range in a text document. Some refactoring provider requires Selection object.', constraint: types.Range },
 				{ name: 'kind', description: '(optional) Code action kind to return code actions for', constraint: (value: any) => !value || typeof value.value === 'string' },
+				{ name: 'itemResolveCount', description: '(optional) Number of code actions to resolve (too large numbers slow down code actions)', constraint: (value: any) => value === undefined || typeof value === 'number' }
+
 			],
 			returns: 'A promise that resolves to an array of Command-instances.'
 		});
@@ -284,13 +297,6 @@ export class ExtHostApiCommands {
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});
 
-		this._register('vscode.executeLinkProvider', this._executeDocumentLinkProvider, {
-			description: 'Execute document link provider.',
-			args: [
-				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
-			],
-			returns: 'A promise that resolves to an array of DocumentLink-instances.'
-		});
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
 			args: [
@@ -305,6 +311,12 @@ export class ExtHostApiCommands {
 				{ name: 'context', description: 'Context object with uri and range' }
 			],
 			returns: 'A promise that resolves to an array of ColorPresentation objects.'
+		});
+
+		this._register('vscode.resolveNotebookContentProviders', this._resolveNotebookContentProviders, {
+			description: 'Resolve Notebook Content Providers',
+			args: [],
+			returns: 'A promise that resolves to an array of NotebookContentProvider static info objects.'
 		});
 
 		// -----------------------------------------------------------------
@@ -376,23 +388,6 @@ export class ExtHostApiCommands {
 		this._disposables.add(disposable);
 	}
 
-	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Promise<types.WorkspaceEdit> {
-		const args = {
-			resource,
-			position: position && typeConverters.Position.from(position),
-			newName
-		};
-		return this._commands.executeCommand<IWorkspaceEditDto>('_executeDocumentRenameProvider', args).then(value => {
-			if (!value) {
-				return undefined;
-			}
-			if (value.rejectReason) {
-				return Promise.reject<any>(new Error(value.rejectReason));
-			}
-			return typeConverters.WorkspaceEdit.to(value);
-		});
-	}
-
 	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Promise<types.SignatureHelp | undefined> {
 		const args = {
 			resource,
@@ -450,13 +445,14 @@ export class ExtHostApiCommands {
 	}
 
 
-	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
+	private _executeCodeActionProvider(resource: URI, rangeOrSelection: types.Range | types.Selection, kind?: string, itemResolveCount?: number): Promise<(vscode.CodeAction | vscode.Command | undefined)[] | undefined> {
 		const args = {
 			resource,
 			rangeOrSelection: types.Selection.isSelection(rangeOrSelection)
 				? typeConverters.Selection.from(rangeOrSelection)
 				: typeConverters.Range.from(rangeOrSelection),
-			kind
+			kind,
+			itemResolveCount,
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
@@ -490,12 +486,28 @@ export class ExtHostApiCommands {
 					typeConverters.Range.to(item.range),
 					item.command ? this._commands.converter.fromInternal(item.command) : undefined);
 			}));
-
 	}
 
-	private _executeDocumentLinkProvider(resource: URI): Promise<vscode.DocumentLink[] | undefined> {
-		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
-			.then(tryMapWith(typeConverters.DocumentLink.to));
+	private _resolveNotebookContentProviders(): Promise<{
+		viewType: string;
+		displayName: string;
+		filenamePattern: vscode.NotebookFilenamePattern[];
+		options: vscode.NotebookDocumentContentOptions;
+	}[] | undefined> {
+		return this._commands.executeCommand<{
+			viewType: string;
+			displayName: string;
+			options: { transientOutputs: boolean; transientMetadata: TransientMetadata };
+			filenamePattern: (string | types.RelativePattern | { include: string | types.RelativePattern, exclude: string | types.RelativePattern })[]
+		}[]>('_resolveNotebookContentProvider')
+			.then(tryMapWith(item => {
+				return {
+					viewType: item.viewType,
+					displayName: item.displayName,
+					options: { transientOutputs: item.options.transientOutputs, transientMetadata: item.options.transientMetadata },
+					filenamePattern: item.filenamePattern.map(pattern => typeConverters.NotebookExclusiveDocumentPattern.to(pattern))
+				};
+			}));
 	}
 }
 
@@ -506,4 +518,19 @@ function tryMapWith<T, R>(f: (x: T) => R) {
 		}
 		return undefined;
 	};
+}
+
+function mapLocationOrLocationLink(values: (modes.Location | modes.LocationLink)[]): (types.Location | vscode.LocationLink)[] | undefined {
+	if (!Array.isArray(values)) {
+		return undefined;
+	}
+	const result: (types.Location | vscode.LocationLink)[] = [];
+	for (const item of values) {
+		if (modes.isLocationLink(item)) {
+			result.push(typeConverters.DefinitionLink.to(item));
+		} else {
+			result.push(typeConverters.location.to(item));
+		}
+	}
+	return result;
 }

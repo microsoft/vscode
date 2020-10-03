@@ -41,6 +41,9 @@ const enum Refilter {
 	Incr = 2
 }
 
+/**
+ * Sorted, filtered completion view model
+ * */
 export class CompletionModel {
 
 	private readonly _items: CompletionItem[];
@@ -52,7 +55,7 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems?: StrictCompletionItem[];
-	private _isIncomplete?: Set<CompletionItemProvider>;
+	private _providerInfo?: Map<CompletionItemProvider, boolean>;
 	private _stats?: ICompletionStats;
 
 	constructor(
@@ -61,7 +64,8 @@ export class CompletionModel {
 		lineContext: LineContext,
 		wordDistance: WordDistance,
 		options: InternalSuggestOptions,
-		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none'
+		snippetSuggestions: 'top' | 'bottom' | 'inline' | 'none',
+		readonly clipboardText: string | undefined
 	) {
 		this._items = items;
 		this._column = column;
@@ -95,13 +99,24 @@ export class CompletionModel {
 		return this._filteredItems!;
 	}
 
+	get allProvider(): IterableIterator<CompletionItemProvider> {
+		this._ensureCachedState();
+		return this._providerInfo!.keys();
+	}
+
 	get incomplete(): Set<CompletionItemProvider> {
 		this._ensureCachedState();
-		return this._isIncomplete!;
+		const result = new Set<CompletionItemProvider>();
+		for (let [provider, incomplete] of this._providerInfo!) {
+			if (incomplete) {
+				result.add(provider);
+			}
+		}
+		return result;
 	}
 
 	adopt(except: Set<CompletionItemProvider>): CompletionItem[] {
-		let res = new Array<CompletionItem>();
+		let res: CompletionItem[] = [];
 		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].provider)) {
 				res.push(this._items[i]);
@@ -131,7 +146,7 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 
-		this._isIncomplete = new Set();
+		this._providerInfo = new Map();
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
@@ -151,11 +166,12 @@ export class CompletionModel {
 
 			const item = source[i];
 
-			// collect those supports that signaled having
-			// an incomplete result
-			if (item.container.incomplete) {
-				this._isIncomplete.add(item.provider);
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
 			}
+
+			// collect all support, know if their result is incomplete
+			this._providerInfo.set(item.provider, Boolean(item.container.incomplete));
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a

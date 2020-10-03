@@ -420,7 +420,7 @@ class HitTestRequest extends BareHitTestRequest {
 		let mouseColumn = this.mouseColumn;
 		if (position && position.column < this._ctx.model.getLineMaxColumn(position.lineNumber)) {
 			// Most likely, the line contains foreign decorations...
-			mouseColumn = CursorColumns.visibleColumnFromColumn(this._ctx.model.getLineContent(position.lineNumber), position.column, this._ctx.model.getOptions().tabSize) + 1;
+			mouseColumn = CursorColumns.visibleColumnFromColumn(this._ctx.model.getLineContent(position.lineNumber), position.column, this._ctx.model.getTextModelOptions().tabSize) + 1;
 		}
 		return new MouseTarget(this.target, type, mouseColumn, position, range, detail);
 	}
@@ -666,7 +666,7 @@ export class MouseTargetFactory {
 
 		if (domHitTestExecuted) {
 			// Check if we are hitting a view-line (can happen in the case of inline decorations on empty lines)
-			// See https://github.com/Microsoft/vscode/issues/46942
+			// See https://github.com/microsoft/vscode/issues/46942
 			if (ElementPath.isStrictChildOfViewLines(request.targetPath)) {
 				const lineNumber = ctx.getLineNumberAtVerticalOffset(request.mouseVerticalOffset);
 				if (ctx.model.getLineLength(lineNumber) === 0) {
@@ -753,7 +753,7 @@ export class MouseTargetFactory {
 
 		if (request.mouseContentHorizontalOffset > lineWidth) {
 			if (browser.isEdge && pos.column === 1) {
-				// See https://github.com/Microsoft/vscode/issues/10875
+				// See https://github.com/microsoft/vscode/issues/10875
 				const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), undefined, detail);
 			}
@@ -922,6 +922,23 @@ export class MouseTargetFactory {
 					position: null,
 					hitTarget: <HTMLElement>hitResult.offsetNode.parentNode
 				};
+			}
+		}
+
+		// For inline decorations, Gecko returns the `<span>` of the line and the offset is the `<span>` with the inline decoration
+		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.ELEMENT_NODE) {
+			const parent1 = hitResult.offsetNode.parentNode; // expected to be the view line div
+			const parent1ClassName = parent1 && parent1.nodeType === parent1.ELEMENT_NODE ? (<HTMLElement>parent1).className : null;
+
+			if (parent1ClassName === ViewLine.CLASS_NAME) {
+				const tokenSpan = hitResult.offsetNode.childNodes[Math.min(hitResult.offset, hitResult.offsetNode.childNodes.length - 1)];
+				if (tokenSpan) {
+					const p = ctx.getPositionFromDOMInfo(<HTMLElement>tokenSpan, 0);
+					return {
+						position: p,
+						hitTarget: null
+					};
+				}
 			}
 		}
 

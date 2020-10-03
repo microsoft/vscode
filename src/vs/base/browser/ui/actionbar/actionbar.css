@@ -5,7 +5,6 @@
 
 .monaco-action-bar {
 	text-align: right;
-	overflow: hidden;
 	white-space: nowrap;
 }
 
@@ -43,6 +42,11 @@
 .monaco-action-bar .action-item .icon,
 .monaco-action-bar .action-item .codicon {
 	display: inline-block;
+}
+
+.monaco-action-bar .action-item .codicon {
+	display: flex;
+	align-items: center;
 }
 
 .monaco-action-bar .action-label {

@@ -4,20 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsToasts';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
+import { isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { Themable, NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotificationsToastsVisibleContext, INotificationsToastController } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
 import { Severity, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -142,19 +141,19 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let notificationsToastsContainer = this.notificationsToastsContainer;
 		if (!notificationsToastsContainer) {
 			notificationsToastsContainer = this.notificationsToastsContainer = document.createElement('div');
-			addClass(notificationsToastsContainer, 'notifications-toasts');
+			notificationsToastsContainer.classList.add('notifications-toasts');
 
 			this.container.appendChild(notificationsToastsContainer);
 		}
 
 		// Make Visible
-		addClass(notificationsToastsContainer, 'visible');
+		notificationsToastsContainer.classList.add('visible');
 
 		const itemDisposables = new DisposableStore();
 
 		// Container
 		const notificationToastContainer = document.createElement('div');
-		addClass(notificationToastContainer, 'notification-toast-container');
+		notificationToastContainer.classList.add('notification-toast-container');
 
 		const firstToast = notificationsToastsContainer.firstChild;
 		if (firstToast) {
@@ -165,13 +164,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Toast
 		const notificationToast = document.createElement('div');
-		addClass(notificationToast, 'notification-toast');
+		notificationToast.classList.add('notification-toast');
 		notificationToastContainer.appendChild(notificationToast);
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
-			ariaRole: 'dialog', // https://github.com/microsoft/vscode/issues/82728
-			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
 		itemDisposables.add(notificationList);
@@ -196,19 +193,24 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// the height computation takes the content of it into account!
 		this.layoutContainer(maxDimensions.height);
 
-		// Update when item height changes due to expansion
+		// Re-draw entire item when expansion changes to reveal or hide details
 		itemDisposables.add(item.onDidChangeExpansion(() => {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 
-		// Update when item height potentially changes due to label changes
-		itemDisposables.add(item.onDidChangeLabel(e => {
-			if (!item.expanded) {
-				return; // dynamic height only applies to expanded notifications
-			}
-
-			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
-				notificationList.updateNotificationsList(0, 1, [item]);
+		// Handle content changes
+		// - actions: re-draw to properly show them
+		// - message: update notification height unless collapsed
+		itemDisposables.add(item.onDidChangeContent(e => {
+			switch (e.kind) {
+				case NotificationViewItemContentChangeKind.ACTIONS:
+					notificationList.updateNotificationsList(0, 1, [item]);
+					break;
+				case NotificationViewItemContentChangeKind.MESSAGE:
+					if (item.expanded) {
+						notificationList.updateNotificationHeight(item);
+					}
+					break;
 			}
 		}));
 
@@ -227,10 +229,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		this.notificationsToastsVisibleContextKey.set(true);
 
 		// Animate in
-		addClass(notificationToast, 'notification-fade-in');
+		notificationToast.classList.add('notification-fade-in');
 		itemDisposables.add(addDisposableListener(notificationToast, 'transitionend', () => {
-			removeClass(notificationToast, 'notification-fade-in');
-			addClass(notificationToast, 'notification-fade-in-done');
+			notificationToast.classList.remove('notification-fade-in');
+			notificationToast.classList.add('notification-fade-in-done');
 		}));
 
 		// Mark as visible
@@ -333,7 +335,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	private doHide(): void {
 		if (this.notificationsToastsContainer) {
-			removeClass(this.notificationsToastsContainer, 'visible');
+			this.notificationsToastsContainer.classList.remove('visible');
 		}
 
 		// Context Key

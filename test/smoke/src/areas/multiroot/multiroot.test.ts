@@ -40,15 +40,15 @@ export function setup() {
 
 			// restart with preventing additional windows from restoring
 			// to ensure the window after restart is the multi-root workspace
-			await app.restart({ workspaceOrFolder: workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+			await app.restart({ workspaceOrFolder: workspaceFilePath });
 		});
 
 		it('shows results from all folders', async function () {
 			const app = this.app as Application;
-			await app.workbench.quickopen.openQuickOpen('*.*');
+			await app.workbench.quickaccess.openQuickAccess('*.*');
 
-			await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 6);
-			await app.workbench.quickopen.closeQuickOpen();
+			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 6);
+			await app.workbench.quickinput.closeQuickInput();
 		});
 
 		it('shows workspace name in title', async function () {

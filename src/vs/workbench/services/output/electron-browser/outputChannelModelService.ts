@@ -21,7 +21,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 class OutputChannelBackedByFile extends AbstractFileOutputChannelModel implements IOutputChannelModel {
 
@@ -168,7 +168,7 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 			const file = resources.joinPath(outputDir, `${id}.log`);
 			outputChannelModel = this.instantiationService.createInstance(OutputChannelBackedByFile, id, modelUri, mimeType, file);
 		} catch (e) {
-			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
+			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/microsoft/vscode/issues/47883)
 			this.logService.error(e);
 			this.telemetryService.publicLog2('output.channel.creation.error');
 			outputChannelModel = this.instantiationService.createInstance(BufferredOutputChannel, modelUri, mimeType);
@@ -199,13 +199,13 @@ class DelegatedOutputChannelModel extends Disposable implements IOutputChannelMo
 
 export class OutputChannelModelService extends AsbtractOutputChannelModelService implements IOutputChannelModelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
 		super(instantiationService);
 	}
@@ -218,7 +218,7 @@ export class OutputChannelModelService extends AsbtractOutputChannelModelService
 	private _outputDir: Promise<URI> | null = null;
 	private get outputDir(): Promise<URI> {
 		if (!this._outputDir) {
-			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.electronEnvironmentService.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
+			const outputDir = URI.file(join(this.environmentService.logsPath, `output_${this.nativeHostService.windowId}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`));
 			this._outputDir = this.fileService.createFolder(outputDir).then(() => outputDir);
 		}
 		return this._outputDir;

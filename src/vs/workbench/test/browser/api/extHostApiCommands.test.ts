@@ -30,7 +30,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { nullExtensionDescription, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 import { NullApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -41,12 +41,13 @@ import 'vs/editor/contrib/codelens/codelens';
 import 'vs/editor/contrib/colorPicker/color';
 import 'vs/editor/contrib/format/format';
 import 'vs/editor/contrib/gotoSymbol/goToCommands';
+import 'vs/editor/contrib/gotoSymbol/documentSymbols';
 import 'vs/editor/contrib/hover/getHover';
 import 'vs/editor/contrib/links/getLinks';
 import 'vs/editor/contrib/parameterHints/provideSignatureHelp';
-import 'vs/editor/contrib/quickOpen/quickOpen';
 import 'vs/editor/contrib/smartSelect/smartSelect';
 import 'vs/editor/contrib/suggest/suggest';
+import 'vs/editor/contrib/rename/rename';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = createTextModel(
@@ -68,6 +69,11 @@ let originalErrorHandler: (e: any) => any;
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
+}
+
+function isLocation(value: vscode.Location | vscode.LocationLink): value is vscode.Location {
+	const candidate = value as vscode.Location;
+	return candidate && candidate.uri instanceof URI && candidate.range instanceof types.Range;
 }
 
 suite('ExtHostLanguageFeatureCommands', function () {
@@ -227,6 +233,27 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	});
 
 
+	// --- rename
+	test('vscode.executeDocumentRenameProvider', async function () {
+		disposables.push(extHost.registerRenameProvider(nullExtensionDescription, defaultSelector, new class implements vscode.RenameProvider {
+			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string) {
+				const edit = new types.WorkspaceEdit();
+				edit.insert(document.uri, <types.Position>position, newName);
+				return edit;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const edit = await commands.executeCommand<vscode.WorkspaceEdit>('vscode.executeDocumentRenameProvider', model.uri, new types.Position(0, 12), 'newNameOfThis');
+
+		assert.ok(edit);
+		assert.equal(edit.has(model.uri), true);
+		const textEdits = edit.get(model.uri);
+		assert.equal(textEdits.length, 1);
+		assert.equal(textEdits[0].newText, 'newNameOfThis');
+	});
+
 	// --- definition
 
 	test('Definition, invalid arguments', function () {
@@ -268,6 +295,34 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('Definition Link', () => {
+		disposables.push(extHost.registerDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.DefinitionProvider>{
+			provideDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 2);
+				for (let v of values) {
+					if (isLocation(v)) {
+						assert.ok(v.uri instanceof URI);
+						assert.ok(v.range instanceof types.Range);
+					} else {
+						assert.ok(v.targetUri instanceof URI);
+						assert.ok(v.targetRange instanceof types.Range);
+						assert.ok(v.targetSelectionRange instanceof types.Range);
+						assert.ok(v.originSelectionRange instanceof types.Range);
+					}
+				}
+			});
+		});
+	});
+
 	// --- declaration
 
 	test('Declaration, back and forth', function () {
@@ -293,6 +348,34 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				for (let v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
+	test('Declaration Link', () => {
+		disposables.push(extHost.registerDeclarationProvider(nullExtensionDescription, defaultSelector, <vscode.DeclarationProvider>{
+			provideDeclaration(doc: any): (vscode.Location | vscode.LocationLink)[] {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeDeclarationProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 2);
+				for (let v of values) {
+					if (isLocation(v)) {
+						assert.ok(v.uri instanceof URI);
+						assert.ok(v.range instanceof types.Range);
+					} else {
+						assert.ok(v.targetUri instanceof URI);
+						assert.ok(v.targetRange instanceof types.Range);
+						assert.ok(v.targetSelectionRange instanceof types.Range);
+						assert.ok(v.originSelectionRange instanceof types.Range);
+					}
 				}
 			});
 		});
@@ -334,6 +417,103 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				for (const v of values) {
 					assert.ok(v.uri instanceof URI);
 					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
+	test('Type Definition Link', () => {
+		disposables.push(extHost.registerTypeDefinitionProvider(nullExtensionDescription, defaultSelector, <vscode.TypeDefinitionProvider>{
+			provideTypeDefinition(doc: any): (vscode.Location | vscode.LocationLink)[] {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeTypeDefinitionProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 2);
+				for (let v of values) {
+					if (isLocation(v)) {
+						assert.ok(v.uri instanceof URI);
+						assert.ok(v.range instanceof types.Range);
+					} else {
+						assert.ok(v.targetUri instanceof URI);
+						assert.ok(v.targetRange instanceof types.Range);
+						assert.ok(v.targetSelectionRange instanceof types.Range);
+						assert.ok(v.originSelectionRange instanceof types.Range);
+					}
+				}
+			});
+		});
+	});
+
+	// --- implementation
+
+	test('Implementation, invalid arguments', function () {
+		const promises = [
+			assertRejects(() => commands.executeCommand('vscode.executeImplementationProvider')),
+			assertRejects(() => commands.executeCommand('vscode.executeImplementationProvider', null)),
+			assertRejects(() => commands.executeCommand('vscode.executeImplementationProvider', undefined)),
+			assertRejects(() => commands.executeCommand('vscode.executeImplementationProvider', true, false))
+		];
+
+		return Promise.all(promises);
+	});
+
+	test('Implementation, back and forth', function () {
+
+		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(doc: any): any {
+				return new types.Location(doc.uri, new types.Range(0, 0, 0, 0));
+			}
+		}));
+		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(doc: any): any {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<vscode.Location[]>('vscode.executeImplementationProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 4);
+				for (const v of values) {
+					assert.ok(v.uri instanceof URI);
+					assert.ok(v.range instanceof types.Range);
+				}
+			});
+		});
+	});
+
+	test('Implementation Definition Link', () => {
+		disposables.push(extHost.registerImplementationProvider(nullExtensionDescription, defaultSelector, <vscode.ImplementationProvider>{
+			provideImplementation(doc: any): (vscode.Location | vscode.LocationLink)[] {
+				return [
+					new types.Location(doc.uri, new types.Range(0, 0, 0, 0)),
+					{ targetUri: doc.uri, targetRange: new types.Range(0, 0, 0, 0), targetSelectionRange: new types.Range(1, 1, 1, 1), originSelectionRange: new types.Range(2, 2, 2, 2) }
+				];
+			}
+		}));
+
+		return rpcProtocol.sync().then(() => {
+			return commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>('vscode.executeImplementationProvider', model.uri, new types.Position(0, 0)).then(values => {
+				assert.equal(values.length, 2);
+				for (let v of values) {
+					if (isLocation(v)) {
+						assert.ok(v.uri instanceof URI);
+						assert.ok(v.range instanceof types.Range);
+					} else {
+						assert.ok(v.targetUri instanceof URI);
+						assert.ok(v.targetRange instanceof types.Range);
+						assert.ok(v.targetSelectionRange instanceof types.Range);
+						assert.ok(v.originSelectionRange instanceof types.Range);
+					}
 				}
 			});
 		});
@@ -585,6 +765,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(b.commitCharacters, undefined);
 	});
 
+	test('vscode.executeCompletionItemProvider returns the wrong CompletionItemKinds in insiders #95715', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [
+					new types.CompletionItem('My Method', types.CompletionItemKind.Method),
+					new types.CompletionItem('My Property', types.CompletionItemKind.Property),
+				];
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 2);
+
+		const [a, b] = list.items;
+		assert.equal(a.kind, types.CompletionItemKind.Method);
+		assert.equal(b.kind, types.CompletionItemKind.Property);
+	});
+
 	// --- signatureHelp
 
 	test('Parameter Hints, back and forth', async () => {
@@ -718,6 +925,38 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		});
 	});
 
+	test('resolving code action', async function () {
+
+		let didCallResolve = 0;
+		class MyAction extends types.CodeAction { }
+
+		disposables.push(extHost.registerCodeActionProvider(nullExtensionDescription, defaultSelector, {
+			provideCodeActions(document, rangeOrSelection): vscode.CodeAction[] {
+				return [new MyAction('title', types.CodeActionKind.Empty.append('foo'))];
+			},
+			resolveCodeAction(action): vscode.CodeAction {
+				assert.ok(action instanceof MyAction);
+
+				didCallResolve += 1;
+				action.title = 'resolved title';
+				action.edit = new types.WorkspaceEdit();
+				return action;
+			}
+		}));
+
+		const selection = new types.Selection(0, 0, 1, 1);
+
+		await rpcProtocol.sync();
+
+		const value = await commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider', model.uri, selection, undefined, 1000);
+		assert.equal(didCallResolve, 1);
+		assert.equal(value.length, 1);
+
+		const [first] = value;
+		assert.equal(first.title, 'title'); // does NOT change
+		assert.ok(first.edit); // is set
+	});
+
 	// --- code lens
 
 	test('CodeLens, back and forth', function () {
@@ -802,6 +1041,29 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.range.end.character, 20);
 			});
 		});
+	});
+
+	test('What\'s the condition for DocumentLink target to be undefined? #106308', async function () {
+		disposables.push(extHost.registerDocumentLinkProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				return [new types.DocumentLink(new types.Range(0, 0, 0, 20), undefined)];
+			},
+			resolveDocumentLink(link) {
+				link.target = URI.parse('foo:bar');
+				return link;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const links1 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri);
+		assert.equal(links1.length, 1);
+		assert.equal(links1[0].target, undefined);
+
+		const links2 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri, 1000);
+		assert.equal(links2.length, 1);
+		assert.equal(links2[0].target!.toString(), URI.parse('foo:bar').toString());
+
 	});
 
 
@@ -895,7 +1157,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		disposables.push(extHost.registerCallHierarchyProvider(nullExtensionDescription, defaultSelector, new class implements vscode.CallHierarchyProvider {
 
-			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position, ): vscode.ProviderResult<vscode.CallHierarchyItem> {
+			prepareCallHierarchy(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.CallHierarchyItem> {
 				return new types.CallHierarchyItem(types.SymbolKind.Constant, 'ROOT', 'ROOT', document.uri, new types.Range(0, 0, 0, 0), new types.Range(0, 0, 0, 0));
 			}
 
@@ -930,5 +1192,54 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const outgoing = await commands.executeCommand<vscode.CallHierarchyOutgoingCall[]>('vscode.provideOutgoingCalls', root[0]);
 		assert.equal(outgoing.length, 1);
 		assert.equal(outgoing[0].to.name, 'OUTGOING');
+	});
+
+	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
+				const [first] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>('vscode.executeSelectionRangeProvider', model.uri, [new types.Position(0, 10)]);
+		assert.equal(value.length, 1);
+		assert.equal(value[0].range.start.line, 0);
+		assert.equal(value[0].range.start.character, 10);
+		assert.equal(value[0].range.end.line, 0);
+		assert.equal(value[0].range.end.character, 10);
+	});
+
+	test('selectionRangeProvider on inner array always returns outer array #91852', async function () {
+
+		disposables.push(extHost.registerSelectionRangeProvider(nullExtensionDescription, defaultSelector, <vscode.SelectionRangeProvider>{
+			provideSelectionRanges(_doc, positions) {
+				const [first, second] = positions;
+				return [
+					new types.SelectionRange(new types.Range(first.line, first.character, first.line, first.character)),
+					new types.SelectionRange(new types.Range(second.line, second.character, second.line, second.character)),
+				];
+			}
+		}));
+
+		await rpcProtocol.sync();
+		let value = await commands.executeCommand<vscode.SelectionRange[]>(
+			'vscode.executeSelectionRangeProvider',
+			model.uri,
+			[new types.Position(0, 0), new types.Position(0, 10)]
+		);
+		assert.equal(value.length, 2);
+		assert.equal(value[0].range.start.line, 0);
+		assert.equal(value[0].range.start.character, 0);
+		assert.equal(value[0].range.end.line, 0);
+		assert.equal(value[0].range.end.character, 0);
+		assert.equal(value[1].range.start.line, 0);
+		assert.equal(value[1].range.start.character, 10);
+		assert.equal(value[1].range.end.line, 0);
+		assert.equal(value[1].range.end.character, 10);
 	});
 });

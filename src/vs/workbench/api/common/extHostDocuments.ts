@@ -53,7 +53,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	}
 
 	public getAllDocumentData(): ExtHostDocumentData[] {
-		return this._documentsAndEditors.allDocuments();
+		return [...this._documentsAndEditors.allDocuments()];
 	}
 
 	public getDocumentData(resource: vscode.Uri): ExtHostDocumentData | undefined {
@@ -69,8 +69,8 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 	public getDocument(resource: vscode.Uri): vscode.TextDocument {
 		const data = this.getDocumentData(resource);
-		if (!data || !data.document) {
-			throw new Error('Unable to retrieve document from URI');
+		if (!data?.document) {
+			throw new Error(`Unable to retrieve document from URI '${resource}'`);
 		}
 		return data.document;
 	}
@@ -84,9 +84,10 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 
 		let promise = this._documentLoader.get(uri.toString());
 		if (!promise) {
-			promise = this._proxy.$tryOpenDocument(uri).then(() => {
+			promise = this._proxy.$tryOpenDocument(uri).then(uriData => {
 				this._documentLoader.delete(uri.toString());
-				return assertIsDefined(this._documentsAndEditors.getDocument(uri));
+				const canonicalUri = URI.revive(uriData);
+				return assertIsDefined(this._documentsAndEditors.getDocument(canonicalUri));
 			}, err => {
 				this._documentLoader.delete(uri.toString());
 				return Promise.reject(err);

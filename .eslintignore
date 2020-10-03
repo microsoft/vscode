@@ -3,7 +3,6 @@
 **/vs/css.build.js
 **/vs/css.js
 **/vs/loader.js
-**/promise-polyfill/**
 **/insane/**
 **/marked/**
 **/test/**/*.js

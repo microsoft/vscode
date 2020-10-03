@@ -1,0 +1,47 @@
+# Query: @deprecated ES6
+# Flags: CaseSensitive WordMatch
+# ContextLines: 2
+
+10 results - 2 files
+
+src/vs/base/browser/dom.ts:
+  74  };
+  75  
+  76: /** @deprecated ES6 - use classList*/
+  77  export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
+  78: /** @deprecated ES6 - use classList*/
+  79  export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
+  80: /** @deprecated ES6 - use classList*/
+  81  export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
+  82: /** @deprecated ES6 - use classList*/
+  83  export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
+  84: /** @deprecated ES6 - use classList*/
+  85  export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
+  86: /** @deprecated ES6 - use classList*/
+  87  export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
+  88  
+
+src/vs/base/common/strings.ts:
+   15  
+   16  /**
+   17:  * @deprecated ES6: use `String.padStart`
+   18   */
+   19  export function pad(n: number, l: number, char: string = '0'): string {
+
+  146  
+  147  /**
+  148:  * @deprecated ES6: use `String.startsWith`
+  149   */
+  150  export function startsWith(haystack: string, needle: string): boolean {
+
+  167  
+  168  /**
+  169:  * @deprecated ES6: use `String.endsWith`
+  170   */
+  171  export function endsWith(haystack: string, needle: string): boolean {
+
+  857  
+  858  /**
+  859:  * @deprecated ES6
+  860   */
+  861  export function repeat(s: string, count: number): string {

@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isArray, withUndefinedAsNull } from 'vs/base/common/types';
+import { isArray, withUndefinedAsNull, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
@@ -15,6 +15,9 @@ import { MODIFIED_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/pr
 import { IExtensionSetting, ISearchResult, ISetting, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -25,18 +28,26 @@ export interface ISettingsEditorViewState {
 	filterToCategory?: SettingsTreeGroupElement;
 }
 
-export abstract class SettingsTreeElement {
+export abstract class SettingsTreeElement extends Disposable {
 	id: string;
 	parent?: SettingsTreeGroupElement;
 
-	/**
-	 * Index assigned in display order, used for paging.
-	 */
-	index: number;
+	private _tabbable = false;
+	protected readonly _onDidChangeTabbable = new Emitter<void>();
+	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
 
-	constructor(_id: string, _index: number) {
+	constructor(_id: string) {
+		super();
 		this.id = _id;
-		this.index = _index;
+	}
+
+	get tabbable(): boolean {
+		return this._tabbable;
+	}
+
+	set tabbable(value: boolean) {
+		this._tabbable = value;
+		this._onDidChangeTabbable.fire();
 	}
 }
 
@@ -66,8 +77,8 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 		});
 	}
 
-	constructor(_id: string, _index: number, count: number | undefined, label: string, level: number, isFirstGroup: boolean) {
-		super(_id, _index);
+	constructor(_id: string, count: number | undefined, label: string, level: number, isFirstGroup: boolean) {
+		super(_id);
 
 		this.count = count;
 		this.label = label;
@@ -84,8 +95,8 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 }
 
 export class SettingsTreeNewExtensionsElement extends SettingsTreeElement {
-	constructor(_id: string, _index: number, public readonly extensionIds: string[]) {
-		super(_id, _index);
+	constructor(_id: string, public readonly extensionIds: string[]) {
+		super(_id);
 	}
 }
 
@@ -122,8 +133,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	description!: string;
 	valueType!: SettingValueType;
 
-	constructor(setting: ISetting, parent: SettingsTreeGroupElement, index: number, inspectResult: IInspectResult) {
-		super(sanitizeId(parent.id + '_' + setting.key), index);
+	constructor(setting: ISetting, parent: SettingsTreeGroupElement, inspectResult: IInspectResult) {
+		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
 		this.parent = parent;
 
@@ -217,6 +228,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			} else {
 				this.valueType = SettingValueType.Complex;
 			}
+		} else if (isObjectSetting(this.setting)) {
+			this.valueType = SettingValueType.Object;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -279,7 +292,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 export class SettingsTreeModel {
 	protected _root!: SettingsTreeGroupElement;
-	protected _treeElementsById = new Map<string, SettingsTreeElement>();
 	private _treeElementsBySettingName = new Map<string, SettingsTreeSettingElement[]>();
 	private _tocRoot!: ITOCEntry;
 
@@ -293,23 +305,33 @@ export class SettingsTreeModel {
 	}
 
 	update(newTocRoot = this._tocRoot): void {
-		this._treeElementsById.clear();
 		this._treeElementsBySettingName.clear();
 
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
 		if (newRoot.children[0] instanceof SettingsTreeGroupElement) {
-			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true; // TODO
+			(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
 		}
 
 		if (this._root) {
+			this.disposeChildren(this._root.children);
 			this._root.children = newRoot.children;
 		} else {
 			this._root = newRoot;
 		}
 	}
 
-	getElementById(id: string): SettingsTreeElement | null {
-		return withUndefinedAsNull(this._treeElementsById.get(id));
+	private disposeChildren(children: SettingsTreeGroupChild[]) {
+		for (let child of children) {
+			this.recursiveDispose(child);
+		}
+	}
+
+	private recursiveDispose(element: SettingsTreeElement) {
+		if (element instanceof SettingsTreeGroupElement) {
+			this.disposeChildren(element.children);
+		}
+
+		element.dispose();
 	}
 
 	getElementsByName(name: string): SettingsTreeSettingElement[] | null {
@@ -329,9 +351,8 @@ export class SettingsTreeModel {
 
 	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
 
-		const index = this._treeElementsById.size;
 		const depth = parent ? this.getDepth(parent) + 1 : 0;
-		const element = new SettingsTreeGroupElement(tocEntry.id, index, undefined, tocEntry.label, depth, false);
+		const element = new SettingsTreeGroupElement(tocEntry.id, undefined, tocEntry.label, depth, false);
 
 		const children: SettingsTreeGroupChild[] = [];
 		if (tocEntry.settings) {
@@ -347,7 +368,6 @@ export class SettingsTreeModel {
 
 		element.children = children;
 
-		this._treeElementsById.set(element.id, element);
 		return element;
 	}
 
@@ -360,10 +380,8 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const index = this._treeElementsById.size;
 		const inspectResult = inspectSetting(setting.key, this._viewState.settingsTarget, this._configurationService);
-		const element = new SettingsTreeSettingElement(setting, parent, index, inspectResult);
-		this._treeElementsById.set(element.id, element);
+		const element = new SettingsTreeSettingElement(setting, parent, inspectResult);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) || [];
 		nameElements.push(element);
@@ -421,7 +439,7 @@ function wordifyKey(key: string): string {
 				match;
 		});
 
-	for (let [k, v] of knownTermMappings) {
+	for (const [k, v] of knownTermMappings) {
 		key = key.replace(new RegExp(`\\b${k}\\b`, 'gi'), v);
 	}
 
@@ -463,6 +481,44 @@ export function isExcludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.exclude' ||
 		setting.key === 'search.exclude' ||
 		setting.key === 'files.watcherExclude';
+}
+
+function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
+	return type === 'string' || type === 'boolean';
+}
+
+function isObjectSetting({
+	type,
+	objectProperties,
+	objectPatternProperties,
+	objectAdditionalProperties
+}: ISetting): boolean {
+	if (type !== 'object') {
+		return false;
+	}
+
+	// object can have any shape
+	if (
+		isUndefinedOrNull(objectProperties) &&
+		isUndefinedOrNull(objectPatternProperties) &&
+		isUndefinedOrNull(objectAdditionalProperties)
+	) {
+		return false;
+	}
+
+	// object additional properties allow it to have any shape
+	if (objectAdditionalProperties === true) {
+		return false;
+	}
+
+	const schemas = [...Object.values(objectProperties ?? {}), ...Object.values(objectPatternProperties ?? {})];
+
+	if (typeof objectAdditionalProperties === 'object') {
+		schemas.push(objectAdditionalProperties);
+	}
+
+	// This should not render boolean only objects
+	return schemas.every(isObjectRenderableSchema) && schemas.some(({ type }) => type === 'string');
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -561,9 +617,8 @@ export class SearchResultModel extends SettingsTreeModel {
 				.filter(setting => setting.extensionName && setting.extensionPublisher)
 				.map(setting => `${setting.extensionPublisher}.${setting.extensionName}`);
 
-			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', this._treeElementsById.size, arrays.distinct(resultExtensionIds));
+			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', arrays.distinct(resultExtensionIds));
 			newExtElement.parent = this._root;
-			this._treeElementsById.set(newExtElement.id, newExtElement);
 			this._root.children.push(newExtElement);
 		}
 	}
@@ -590,7 +645,7 @@ const tagRegex = /(^|\s)@tag:("([^"]*)"|[^"]\S*)/g;
 const extensionRegex = /(^|\s)@ext:("([^"]*)"|[^"]\S*)?/g;
 export function parseQuery(query: string): IParsedQuery {
 	const tags: string[] = [];
-	let extensions: string[] = [];
+	const extensions: string[] = [];
 	query = query.replace(tagRegex, (_, __, quotedTag, tag) => {
 		tags.push(tag || quotedTag);
 		return '';
@@ -602,7 +657,7 @@ export function parseQuery(query: string): IParsedQuery {
 	});
 
 	query = query.replace(extensionRegex, (_, __, quotedExtensionId, extensionId) => {
-		let extensionIdQuery: string = extensionId || quotedExtensionId;
+		const extensionIdQuery: string = extensionId || quotedExtensionId;
 		if (extensionIdQuery) {
 			extensions.push(...extensionIdQuery.split(',').map(s => s.trim()).filter(s => !isFalsyOrWhitespace(s)));
 		}

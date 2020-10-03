@@ -7,11 +7,13 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { isLocalhost, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TunnelInformation, TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { TunnelInformation, TunnelDescription, IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnection';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -29,6 +31,7 @@ export interface ITunnelItem {
 	remoteHost: string;
 	remotePort: number;
 	localAddress?: string;
+	localPort?: number;
 	name?: string;
 	closeable?: boolean;
 	description?: string;
@@ -45,15 +48,34 @@ export interface Tunnel {
 	closeable?: boolean;
 }
 
-function ToLocalHost(host: string): string {
-	if (host === '127.0.0.1') {
-		host = 'localhost';
-	}
-	return host;
+export function MakeAddress(host: string, port: number): string {
+	return host + ':' + port;
 }
 
-export function MakeAddress(host: string, port: number): string {
-	return ToLocalHost(host) + ':' + port;
+export function mapHasTunnel(map: Map<string, Tunnel>, host: string, port: number): boolean {
+	if (!isLocalhost(host)) {
+		return map.has(MakeAddress(host, port));
+	}
+
+	const stringAddress = MakeAddress('localhost', port);
+	if (map.has(stringAddress)) {
+		return true;
+	}
+	const numberAddress = MakeAddress('127.0.0.1', port);
+	if (map.has(numberAddress)) {
+		return true;
+	}
+	return false;
+}
+
+export function mapHasTunnelLocalhostOrAllInterfaces(map: Map<string, Tunnel>, host: string, port: number): boolean {
+	if (!mapHasTunnel(map, host, port)) {
+		const otherHost = host === '0.0.0.0' ? 'localhost' : (host === 'localhost' ? '0.0.0.0' : undefined);
+		if (otherHost) {
+			return mapHasTunnel(map, otherHost, port);
+		}
+	}
+	return true;
 }
 
 export class TunnelModel extends Disposable {
@@ -74,7 +96,9 @@ export class TunnelModel extends Disposable {
 	constructor(
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super();
 		this.forwarded = new Map();
@@ -114,11 +138,9 @@ export class TunnelModel extends Disposable {
 				this._onClosePort.fire(address);
 			}
 		}));
-
-		this.restoreForwarded();
 	}
 
-	private async restoreForwarded() {
+	async restoreForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
 			const tunnelsString = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
 			if (tunnelsString) {
@@ -138,7 +160,12 @@ export class TunnelModel extends Disposable {
 	async forward(remote: { host: string, port: number }, local?: number, name?: string): Promise<RemoteTunnel | void> {
 		const key = MakeAddress(remote.host, remote.port);
 		if (!this.forwarded.has(key)) {
-			const tunnel = await this.tunnelService.openTunnel(remote.host, remote.port, local);
+			const authority = this.environmentService.configuration.remoteAuthority;
+			const addressProvider: IAddressProvider | undefined = authority ? {
+				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
+			} : undefined;
+
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, local);
 			if (tunnel && tunnel.localAddress) {
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,
@@ -181,7 +208,7 @@ export class TunnelModel extends Disposable {
 			this.detected.set(MakeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
 				remoteHost: tunnel.remoteAddress.host,
 				remotePort: tunnel.remoteAddress.port,
-				localAddress: tunnel.localAddress,
+				localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : MakeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 				closeable: false
 			});
 		});
@@ -210,7 +237,7 @@ export class TunnelModel extends Disposable {
 				const nullIndex = value.detail.indexOf('\0');
 				const detail = value.detail.substr(0, nullIndex > 0 ? nullIndex : value.detail.length).trim();
 				return {
-					host: ToLocalHost(value.host),
+					host: value.host,
 					port: value.port,
 					detail
 				};
@@ -225,7 +252,7 @@ export class TunnelModel extends Disposable {
 }
 
 export interface IRemoteExplorerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	onDidChangeTargetType: Event<string[]>;
 	targetType: string[];
 	readonly tunnelModel: TunnelModel;
@@ -238,6 +265,7 @@ export interface IRemoteExplorerService {
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
 	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): IDisposable;
 	refresh(): Promise<void>;
+	restore(): Promise<void>;
 }
 
 class RemoteExplorerService implements IRemoteExplorerService {
@@ -253,9 +281,11 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ITunnelService tunnelService: ITunnelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
-		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService);
+		this._tunnelModel = new TunnelModel(tunnelService, storageService, configurationService, environmentService, remoteAuthorityResolverService);
 	}
 
 	set targetType(name: string[]) {
@@ -327,6 +357,10 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	refresh(): Promise<void> {
 		return this.tunnelModel.refresh();
+	}
+
+	restore(): Promise<void> {
+		return this.tunnelModel.restoreForwarded();
 	}
 }
 

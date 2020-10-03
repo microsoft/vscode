@@ -5,11 +5,10 @@
 
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWindowsShellHelper, ITerminalChildProcess, IDefaultShellAndArgsRequest } from 'vs/workbench/contrib/terminal/common/terminal';
-import { Terminal as XTermTerminal } from 'xterm';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { Emitter, Event } from 'vs/base/common/event';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -17,7 +16,6 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
 let Unicode11Addon: typeof XTermUnicode11Addon;
-let WebLinksAddon: typeof XTermWebLinksAddon;
 let WebglAddon: typeof XTermWebglAddon;
 
 export class TerminalInstanceService implements ITerminalInstanceService {
@@ -47,13 +45,6 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		return Unicode11Addon;
 	}
 
-	public async getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon> {
-		if (!WebLinksAddon) {
-			WebLinksAddon = (await import('xterm-addon-web-links')).WebLinksAddon;
-		}
-		return WebLinksAddon;
-	}
-
 	public async getXtermWebglConstructor(): Promise<typeof XTermWebglAddon> {
 		if (!WebglAddon) {
 			WebglAddon = (await import('xterm-addon-webgl')).WebglAddon;
@@ -69,7 +60,7 @@ export class TerminalInstanceService implements ITerminalInstanceService {
 		throw new Error('Not implemented');
 	}
 
-	public getDefaultShellAndArgs(useAutomationShell: boolean, ): Promise<{ shell: string, args: string[] | string | undefined }> {
+	public getDefaultShellAndArgs(useAutomationShell: boolean,): Promise<{ shell: string, args: string[] | string | undefined }> {
 		return new Promise(r => this._onRequestDefaultShellAndArgs.fire({
 			useAutomationShell,
 			callback: (shell, args) => r({ shell, args })

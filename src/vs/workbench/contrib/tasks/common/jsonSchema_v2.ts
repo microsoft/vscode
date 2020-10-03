@@ -206,7 +206,7 @@ const group: IJSONSchema = {
 const taskType: IJSONSchema = {
 	type: 'string',
 	enum: ['shell'],
-	default: 'shell',
+	default: 'process',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 
@@ -250,8 +250,8 @@ const command: IJSONSchema = {
 					enum: ['escape', 'strong', 'weak'],
 					enumDescriptions: [
 						nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
-						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
+						nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
 					],
 					default: 'strong',
 					description: nls.localize('JsonSchema.command.quotesString.quote', 'How the command value should be quoted.')
@@ -283,8 +283,8 @@ const args: IJSONSchema = {
 						enum: ['escape', 'strong', 'weak'],
 						enumDescriptions: [
 							nls.localize('JsonSchema.tasks.quoting.escape', 'Escapes characters using the shell\'s escape character (e.g. ` under PowerShell and \\ under bash).'),
-							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. " under PowerShell and bash).'),
-							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. \' under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.strong', 'Quotes the argument using the shell\'s strong quote character (e.g. \' under PowerShell and bash).'),
+							nls.localize('JsonSchema.tasks.quoting.weak', 'Quotes the argument using the shell\'s weak quote character (e.g. " under PowerShell and bash).'),
 						],
 						default: 'strong',
 						description: nls.localize('JsonSchema.args.quotesString.quote', 'How the argument value should be quoted.')
@@ -474,7 +474,7 @@ const processTask = Objects.deepClone(taskDescription);
 processTask.properties!.type = {
 	type: 'string',
 	enum: ['process'],
-	default: 'shell',
+	default: 'process',
 	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
 };
 processTask.required!.push('command');

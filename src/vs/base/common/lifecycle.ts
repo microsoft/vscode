@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from 'vs/base/common/functional';
+import { Iterable } from 'vs/base/common/iterator';
 
 /**
  * Enables logging of potentially leaked disposables.
@@ -44,36 +45,56 @@ function trackDisposable<T extends IDisposable>(x: T): T {
 	return x;
 }
 
+export class MultiDisposeError extends Error {
+	constructor(
+		public readonly errors: any[]
+	) {
+		super(`Encounter errors while disposing of store. Errors: [${errors.join(', ')}]`);
+	}
+}
+
 export interface IDisposable {
 	dispose(): void;
 }
 
 export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
-	return typeof (<IDisposable><any>thing).dispose === 'function'
-		&& (<IDisposable><any>thing).dispose.length === 0;
+	return typeof (<IDisposable>thing).dispose === 'function' && (<IDisposable>thing).dispose.length === 0;
 }
 
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
+export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
 export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(disposables: T | T[] | undefined): T | T[] | undefined {
-	if (Array.isArray(disposables)) {
-		disposables.forEach(d => {
+export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
+	if (Iterable.is(arg)) {
+		let errors: any[] = [];
+
+		for (const d of arg) {
 			if (d) {
 				markTracked(d);
-				d.dispose();
+				try {
+					d.dispose();
+				} catch (e) {
+					errors.push(e);
+				}
 			}
-		});
-		return [];
-	} else if (disposables) {
-		markTracked(disposables);
-		disposables.dispose();
-		return disposables;
-	} else {
-		return undefined;
+		}
+
+		if (errors.length === 1) {
+			throw errors[0];
+		} else if (errors.length > 1) {
+			throw new MultiDisposeError(errors);
+		}
+
+		return Array.isArray(arg) ? [] : arg;
+	} else if (arg) {
+		markTracked(arg);
+		arg.dispose();
+		return arg;
 	}
 }
+
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);
@@ -116,15 +137,18 @@ export class DisposableStore implements IDisposable {
 	 * Dispose of all registered disposables but do not mark this object as disposed.
 	 */
 	public clear(): void {
-		this._toDispose.forEach(item => item.dispose());
-		this._toDispose.clear();
+		try {
+			dispose(this._toDispose.values());
+		} finally {
+			this._toDispose.clear();
+		}
 	}
 
 	public add<T extends IDisposable>(t: T): T {
 		if (!t) {
 			return t;
 		}
-		if ((t as any as DisposableStore) === this) {
+		if ((t as unknown as DisposableStore) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 
@@ -158,7 +182,7 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
-		if ((t as any as Disposable) === this) {
+		if ((t as unknown as Disposable) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 		return this._store.add(t);
@@ -219,11 +243,11 @@ export abstract class ReferenceCollection<T> {
 
 	private readonly references: Map<string, { readonly object: T; counter: number; }> = new Map();
 
-	acquire(key: string): IReference<T> {
+	acquire(key: string, ...args: any[]): IReference<T> {
 		let reference = this.references.get(key);
 
 		if (!reference) {
-			reference = { counter: 0, object: this.createReferencedObject(key) };
+			reference = { counter: 0, object: this.createReferencedObject(key, ...args) };
 			this.references.set(key, reference);
 		}
 
@@ -240,7 +264,7 @@ export abstract class ReferenceCollection<T> {
 		return { object, dispose };
 	}
 
-	protected abstract createReferencedObject(key: string): T;
+	protected abstract createReferencedObject(key: string, ...args: any[]): T;
 	protected abstract destroyReferencedObject(key: string, object: T): void;
 }
 

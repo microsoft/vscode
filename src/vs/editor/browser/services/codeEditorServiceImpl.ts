@@ -11,20 +11,20 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { ITheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
-class RefCountedStyleSheet {
+export class RefCountedStyleSheet {
 
 	private readonly _parent: CodeEditorServiceImpl;
 	private readonly _editorId: string;
-	public readonly styleSheet: HTMLStyleElement;
+	private readonly _styleSheet: HTMLStyleElement;
 	private _refCount: number;
 
 	constructor(parent: CodeEditorServiceImpl, editorId: string, styleSheet: HTMLStyleElement) {
 		this._parent = parent;
 		this._editorId = editorId;
-		this.styleSheet = styleSheet;
+		this._styleSheet = styleSheet;
 		this._refCount = 0;
 	}
 
@@ -35,23 +35,41 @@ class RefCountedStyleSheet {
 	public unref(): void {
 		this._refCount--;
 		if (this._refCount === 0) {
-			this.styleSheet.parentNode?.removeChild(this.styleSheet);
+			this._styleSheet.parentNode?.removeChild(this._styleSheet);
 			this._parent._removeEditorStyleSheets(this._editorId);
 		}
 	}
+
+	public insertRule(rule: string, index?: number): void {
+		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
+		sheet.insertRule(rule, index);
+	}
+
+	public removeRulesContainingSelector(ruleName: string): void {
+		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
+	}
 }
 
-class GlobalStyleSheet {
-	public readonly styleSheet: HTMLStyleElement;
+export class GlobalStyleSheet {
+	private readonly _styleSheet: HTMLStyleElement;
 
 	constructor(styleSheet: HTMLStyleElement) {
-		this.styleSheet = styleSheet;
+		this._styleSheet = styleSheet;
 	}
 
 	public ref(): void {
 	}
 
 	public unref(): void {
+	}
+
+	public insertRule(rule: string, index?: number): void {
+		const sheet = <CSSStyleSheet>this._styleSheet.sheet;
+		sheet.insertRule(rule, index);
+	}
+
+	public removeRulesContainingSelector(ruleName: string): void {
+		dom.removeCSSRulesContainingSelector(ruleName, this._styleSheet);
 	}
 }
 
@@ -62,9 +80,9 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 	private readonly _themeService: IThemeService;
 
-	constructor(@IThemeService themeService: IThemeService, styleSheet: HTMLStyleElement | null = null) {
+	constructor(@IThemeService themeService: IThemeService, styleSheet: GlobalStyleSheet | null = null) {
 		super();
-		this._globalStyleSheet = styleSheet ? new GlobalStyleSheet(styleSheet) : null;
+		this._globalStyleSheet = styleSheet ? styleSheet : null;
 		this._themeService = themeService;
 	}
 
@@ -100,7 +118,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
 			const providerArgs: ProviderArguments = {
-				styleSheet: styleSheet.styleSheet,
+				styleSheet: styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
 				options: options || Object.create(null)
@@ -136,7 +154,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
+	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -188,7 +206,7 @@ class DecorationSubTypeOptionsProvider implements IModelDecorationOptionsProvide
 }
 
 interface ProviderArguments {
-	styleSheet: HTMLStyleElement;
+	styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	key: string;
 	parentTypeKey?: string;
 	options: IDecorationRenderOptions;
@@ -320,7 +338,7 @@ const _CSS_MAP: { [prop: string]: string; } = {
 
 class DecorationCSSRules {
 
-	private _theme: ITheme;
+	private _theme: IColorTheme;
 	private readonly _className: string;
 	private readonly _unThemedSelector: string;
 	private _hasContent: boolean;
@@ -330,8 +348,8 @@ class DecorationCSSRules {
 	private readonly _providerArgs: ProviderArguments;
 	private _usesThemeColors: boolean;
 
-	public constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
-		this._theme = themeService.getTheme();
+	constructor(ruleType: ModelDecorationCSSRuleType, providerArgs: ProviderArguments, themeService: IThemeService) {
+		this._theme = themeService.getColorTheme();
 		this._ruleType = ruleType;
 		this._providerArgs = providerArgs;
 		this._usesThemeColors = false;
@@ -349,8 +367,8 @@ class DecorationCSSRules {
 		this._buildCSS();
 
 		if (this._usesThemeColors) {
-			this._themeListener = themeService.onThemeChange(theme => {
-				this._theme = themeService.getTheme();
+			this._themeListener = themeService.onDidColorThemeChange(theme => {
+				this._theme = themeService.getColorTheme();
 				this._removeCSS();
 				this._buildCSS();
 			});
@@ -414,7 +432,7 @@ class DecorationCSSRules {
 			default:
 				throw new Error('Unknown rule type: ' + this._ruleType);
 		}
-		const sheet = <CSSStyleSheet>this._providerArgs.styleSheet.sheet;
+		const sheet = this._providerArgs.styleSheet;
 
 		let hasContent = false;
 		if (unthemedCSS.length > 0) {
@@ -433,7 +451,7 @@ class DecorationCSSRules {
 	}
 
 	private _removeCSS(): void {
-		dom.removeCSSRulesContainingSelector(this._unThemedSelector, this._providerArgs.styleSheet);
+		this._providerArgs.styleSheet.removeRulesContainingSelector(this._unThemedSelector);
 	}
 
 	/**

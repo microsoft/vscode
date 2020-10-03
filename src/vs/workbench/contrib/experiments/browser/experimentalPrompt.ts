@@ -13,6 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { language } from 'vs/base/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class ExperimentalPrompts extends Disposable implements IWorkbenchContribution {
 
@@ -21,7 +22,8 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		@IViewletService private readonly viewletService: IViewletService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IOpenerService private readonly openerService: IOpenerService
+		@IOpenerService private readonly openerService: IOpenerService,
+		@ICommandService private readonly commandService: ICommandService
 
 	) {
 		super();
@@ -77,6 +79,8 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 									viewlet.search('curated:' + command.curatedExtensionsKey);
 								}
 							});
+					} else if (command.codeCommand) {
+						this.commandService.executeCommand(command.codeCommand.id, ...command.codeCommand.arguments);
 					}
 
 					this.experimentService.markAsCompleted(experiment.id);
@@ -93,7 +97,7 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		});
 	}
 
-	static getLocalizedText(text: string | { [key: string]: string }, displayLanguage: string): string {
+	static getLocalizedText(text: string | { [key: string]: string; }, displayLanguage: string): string {
 		if (typeof text === 'string') {
 			return text;
 		}

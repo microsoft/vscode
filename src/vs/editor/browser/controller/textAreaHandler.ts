@@ -30,6 +30,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalPosition | null;
@@ -53,7 +54,7 @@ class VisibleTextAreaData {
 	}
 }
 
-const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
+const canUseZeroSizeTextarea = (browser.isEdge || browser.isFirefox);
 
 export class TextAreaHandler extends ViewPart {
 
@@ -117,14 +118,16 @@ export class TextAreaHandler extends ViewPart {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName('inputarea');
+		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
+		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
@@ -176,14 +179,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-
-				if (browser.isIPad) {
-					// Do not place anything in the textarea for the iPad
-					return TextAreaState.EMPTY;
-				}
-
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
@@ -233,36 +229,36 @@ export class TextAreaHandler extends ViewPart {
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
-			this._viewController.cut('keyboard');
+			this._viewController.cut();
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
 			if (e.replaceCharCnt) {
-				this._viewController.replacePreviousChar('keyboard', e.text, e.replaceCharCnt);
+				this._viewController.replacePreviousChar(e.text, e.replaceCharCnt);
 			} else {
-				this._viewController.type('keyboard', e.text);
+				this._viewController.type(e.text);
 			}
 		}));
 
 		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
-			this._viewController.setSelection('keyboard', modelSelection);
+			this._viewController.setSelection(modelSelection);
 		}));
 
-		this._register(this._textAreaInput.onCompositionStart(() => {
+		this._register(this._textAreaInput.onCompositionStart((e) => {
 			const lineNumber = this._selections[0].startLineNumber;
-			const column = this._selections[0].startColumn;
+			const column = this._selections[0].startColumn - (e.moveOneCharacterLeft ? 1 : 0);
 
-			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+			this._context.model.revealRange(
 				'keyboard',
+				true,
 				new Range(lineNumber, column, lineNumber, column),
 				viewEvents.VerticalRevealType.Simple,
-				true,
 				ScrollType.Immediate
-			));
+			);
 
 			// Find range pixel position
 			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -277,13 +273,13 @@ export class TextAreaHandler extends ViewPart {
 			}
 
 			// Show the textarea
-			this.textArea.setClassName('inputarea ime-input');
+			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
-			this._viewController.compositionStart('keyboard');
+			this._viewController.compositionStart();
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
-			if (browser.isEdgeOrIE) {
+			if (browser.isEdge) {
 				// Due to isEdgeOrIE (where the textarea was not cleared initially)
 				// we cannot assume the text consists only of the composited text
 				this._visibleTextArea = this._visibleTextArea!.setWidth(0);
@@ -299,16 +295,16 @@ export class TextAreaHandler extends ViewPart {
 			this._visibleTextArea = null;
 			this._render();
 
-			this.textArea.setClassName('inputarea');
-			this._viewController.compositionEnd('keyboard');
+			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+			this._viewController.compositionEnd();
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(true));
+			this._context.model.setHasFocus(true);
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(false));
+			this._context.model.setHasFocus(false);
 		}));
 	}
 
@@ -348,7 +344,7 @@ export class TextAreaHandler extends ViewPart {
 	private _getAriaLabel(options: IComputedEditorOptions): string {
 		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		if (accessibilitySupport === AccessibilitySupport.Disabled) {
-			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.");
+			return nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press {0} for options.", platform.isLinux ? 'Shift+Alt+F1' : 'Alt+F1');
 		}
 		return options.get(EditorOption.ariaLabel);
 	}
@@ -357,9 +353,9 @@ export class TextAreaHandler extends ViewPart {
 		this._accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 		const accessibilityPageSize = options.get(EditorOption.accessibilityPageSize);
 		if (this._accessibilitySupport === AccessibilitySupport.Enabled && accessibilityPageSize === EditorOptions.accessibilityPageSize.defaultValue) {
-			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 160 for a better experience
-			// If we put more than 160 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
-			this._accessibilityPageSize = 160;
+			// If a screen reader is attached and the default value is not set we shuold automatically increase the page size to 100 for a better experience
+			// If we put more than 100 lines the nvda can not handle this https://github.com/microsoft/vscode/issues/89717
+			this._accessibilityPageSize = 100;
 		} else {
 			this._accessibilityPageSize = accessibilityPageSize;
 		}
@@ -380,6 +376,7 @@ export class TextAreaHandler extends ViewPart {
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
 			if (options.get(EditorOption.readOnly)) {
@@ -455,6 +452,9 @@ export class TextAreaHandler extends ViewPart {
 			this.textArea.setAttribute('aria-haspopup', 'false');
 			this.textArea.setAttribute('aria-autocomplete', 'both');
 			this.textArea.removeAttribute('aria-activedescendant');
+		}
+		if (options.role) {
+			this.textArea.setAttribute('role', options.role);
 		}
 	}
 

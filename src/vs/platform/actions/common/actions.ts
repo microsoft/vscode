@@ -3,30 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { UriDto } from 'vs/base/common/types';
+import { Iterable } from 'vs/base/common/iterator';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface ILocalizedString {
 	value: string;
 	original: string;
 }
 
+export type Icon = { dark?: URI; light?: URI; } | ThemeIcon;
+
 export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	icon?: { dark?: URI; light?: URI; } | ThemeIcon;
+	tooltip?: string | ILocalizedString;
+	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression;
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -42,6 +47,7 @@ export interface IMenuItem {
 export interface ISubmenuItem {
 	title: string | ILocalizedString;
 	submenu: MenuId;
+	icon?: Icon;
 	when?: ContextKeyExpression;
 	group?: 'navigation' | string;
 	order?: number;
@@ -89,6 +95,7 @@ export class MenuId {
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
+	static readonly MenubarWebNavigationMenu = new MenuId('MenubarWebNavigationMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
@@ -105,17 +112,25 @@ export class MenuId {
 	static readonly TunnelInline = new MenuId('TunnelInline');
 	static readonly TunnelTitle = new MenuId('TunnelTitle');
 	static readonly ViewItemContext = new MenuId('ViewItemContext');
+	static readonly ViewContainerTitleContext = new MenuId('ViewContainerTitleContext');
 	static readonly ViewTitle = new MenuId('ViewTitle');
 	static readonly ViewTitleContext = new MenuId('ViewTitleContext');
 	static readonly CommentThreadTitle = new MenuId('CommentThreadTitle');
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
+	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
+	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
+	static readonly NotebookCellListTop = new MenuId('NotebookCellTop');
+	static readonly NotebookDiffCellMetadataTitle = new MenuId('NotebookDiffCellMetadataTitle');
+	static readonly NotebookDiffCellOutputsTitle = new MenuId('NotebookDiffCellOutputsTitle');
 	static readonly BulkEditTitle = new MenuId('BulkEditTitle');
 	static readonly BulkEditContext = new MenuId('BulkEditContext');
 	static readonly TimelineItemContext = new MenuId('TimelineItemContext');
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
+	static readonly AccountsContext = new MenuId('AccountsContext');
 
 	readonly id: number;
 	readonly _debugName: string;
@@ -140,40 +155,58 @@ export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	createMenu(id: MenuId, scopedKeybindingService: IContextKeyService): IMenu;
 }
 
 export type ICommandsMap = Map<string, ICommandAction>;
 
+export interface IMenuRegistryChangeEvent {
+	has(id: MenuId): boolean;
+}
+
 export interface IMenuRegistry {
+	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent>;
+	addCommands(newCommands: Iterable<ICommandAction>): IDisposable;
 	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
-	readonly onDidChangeMenu: Event<MenuId>;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
-	private readonly _menuItems = new Map<MenuId, Array<IMenuItem | ISubmenuItem>>();
-	private readonly _onDidChangeMenu = new Emitter<MenuId>();
+	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
+	private readonly _onDidChangeMenu = new Emitter<IMenuRegistryChangeEvent>();
 
-	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
+	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): IDisposable {
-		this._commands.set(command.id, command);
-		this._onDidChangeMenu.fire(MenuId.CommandPalette);
-		return {
-			dispose: () => {
-				if (this._commands.delete(command.id)) {
-					this._onDidChangeMenu.fire(MenuId.CommandPalette);
-				}
+		return this.addCommands(Iterable.single(command));
+	}
+
+	private readonly _commandPaletteChangeEvent: IMenuRegistryChangeEvent = {
+		has: id => id === MenuId.CommandPalette
+	};
+
+	addCommands(commands: Iterable<ICommandAction>): IDisposable {
+		for (const command of commands) {
+			this._commands.set(command.id, command);
+		}
+		this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+		return toDisposable(() => {
+			let didChange = false;
+			for (const command of commands) {
+				didChange = this._commands.delete(command.id) || didChange;
 			}
-		};
+			if (didChange) {
+				this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+			}
+		});
 	}
 
 	getCommand(id: string): ICommandAction | undefined {
@@ -187,28 +220,44 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		let array = this._menuItems.get(id);
-		if (!array) {
-			array = [item];
-			this._menuItems.set(id, array);
-		} else {
-			array.push(item);
-		}
-		this._onDidChangeMenu.fire(id);
-		return {
-			dispose: () => {
-				const idx = array!.indexOf(item);
-				if (idx >= 0) {
-					array!.splice(idx, 1);
-					this._onDidChangeMenu.fire(id);
-				}
+		return this.appendMenuItems(Iterable.single({ id, item }));
+	}
+
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
+
+		const changedIds = new Set<MenuId>();
+		const toRemove = new LinkedList<Function>();
+
+		for (const { id, item } of items) {
+			let list = this._menuItems.get(id);
+			if (!list) {
+				list = new LinkedList();
+				this._menuItems.set(id, list);
 			}
-		};
+			toRemove.push(list.push(item));
+			changedIds.add(id);
+		}
+
+		this._onDidChangeMenu.fire(changedIds);
+
+		return toDisposable(() => {
+			if (toRemove.size > 0) {
+				for (let fn of toRemove) {
+					fn();
+				}
+				this._onDidChangeMenu.fire(changedIds);
+				toRemove.clear();
+			}
+		});
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		const result = (this._menuItems.get(id) || []).slice(0);
-
+		let result: Array<IMenuItem | ISubmenuItem>;
+		if (this._menuItems.has(id)) {
+			result = [...this._menuItems.get(id)!];
+		} else {
+			result = [];
+		}
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows
 			// all commands by default
@@ -220,12 +269,12 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
 		const set = new Set<string>();
 
-		const temp = result.filter(item => { return isIMenuItem(item); }) as IMenuItem[];
-
-		for (const { command, alt } of temp) {
-			set.add(command.id);
-			if (alt) {
-				set.add(alt.id);
+		for (const item of result) {
+			if (isIMenuItem(item)) {
+				set.add(item.command.id);
+				if (item.alt) {
+					set.add(item.alt.id);
+				}
 			}
 		}
 		this._commands.forEach((command, id) => {
@@ -251,12 +300,35 @@ export class ExecuteCommandAction extends Action {
 	}
 }
 
-export class SubmenuItemAction extends Action {
+export class SubmenuItemAction extends SubmenuAction {
 
-	readonly item: ISubmenuItem;
-	constructor(item: ISubmenuItem) {
-		typeof item.title === 'string' ? super('', item.title, 'submenu') : super('', item.title.value, 'submenu');
-		this.item = item;
+	constructor(
+		readonly item: ISubmenuItem,
+		menuService: IMenuService,
+		contextKeyService: IContextKeyService,
+		options?: IMenuActionOptions
+	) {
+		super(`submenuitem.${item.submenu.id}`, typeof item.title === 'string' ? item.title : item.title.value, () => {
+			const result: IAction[] = [];
+			const menu = menuService.createMenu(item.submenu, contextKeyService);
+			const groups = menu.getActions(options);
+			menu.dispose();
+
+			for (let group of groups) {
+				const [, actions] = group;
+
+				if (actions.length > 0) {
+					result.push(...actions);
+					result.push(new Separator());
+				}
+			}
+
+			if (result.length) {
+				result.pop(); // remove last separator
+			}
+
+			return result;
+		}, 'submenu');
 	}
 }
 
@@ -275,9 +347,20 @@ export class MenuItemAction extends ExecuteCommandAction {
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
+
 		this._cssClass = undefined;
 		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
-		this._checked = Boolean(item.toggled && contextKeyService.contextMatchesRules(item.toggled));
+		this._tooltip = item.tooltip ? typeof item.tooltip === 'string' ? item.tooltip : item.tooltip.value : undefined;
+
+		if (item.toggled) {
+			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
+				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString
+			};
+			this._checked = contextKeyService.contextMatchesRules(toggled.condition);
+			if (this._checked && toggled.tooltip) {
+				this._tooltip = typeof toggled.tooltip === 'string' ? toggled.tooltip : toggled.tooltip.value;
+			}
+		}
 
 		this._options = options || {};
 
@@ -321,6 +404,17 @@ export class SyncActionDescriptor {
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
 		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+	}
+
+	public static from<Services extends BrandedService[]>(
+		ctor: {
+			new(id: string, label: string, ...services: Services): Action;
+			readonly ID: string;
+			readonly LABEL: string;
+		},
+		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
+	): SyncActionDescriptor {
+		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
 	}
 
 	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
@@ -396,39 +490,41 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 
+	const { f1, menu, keybinding, description, ...command } = action.desc;
+
 	// command
 	disposables.add(CommandsRegistry.registerCommand({
-		id: action.desc.id,
+		id: command.id,
 		handler: (accessor, ...args) => action.run(accessor, ...args),
-		description: action.desc.description,
+		description: description,
 	}));
 
 	// menu
-	if (Array.isArray(action.desc.menu)) {
-		for (let item of action.desc.menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: action.desc, ...item }));
-		}
-	} else if (action.desc.menu) {
-		disposables.add(MenuRegistry.appendMenuItem(action.desc.menu.id, { command: action.desc, ...action.desc.menu }));
+	if (Array.isArray(menu)) {
+		disposables.add(MenuRegistry.appendMenuItems(menu.map(item => ({ id: item.id, item: { command, ...item } }))));
+
+	} else if (menu) {
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
 	}
-	if (action.desc.f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: action.desc, ...action.desc }));
+	if (f1) {
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));
+		disposables.add(MenuRegistry.addCommand(command));
 	}
 
 	// keybinding
-	if (Array.isArray(action.desc.keybinding)) {
-		for (let item of action.desc.keybinding) {
+	if (Array.isArray(keybinding)) {
+		for (let item of keybinding) {
 			KeybindingsRegistry.registerKeybindingRule({
 				...item,
-				id: action.desc.id,
-				when: ContextKeyExpr.and(action.desc.precondition, item.when)
+				id: command.id,
+				when: command.precondition ? ContextKeyExpr.and(command.precondition, item.when) : item.when
 			});
 		}
-	} else if (action.desc.keybinding) {
+	} else if (keybinding) {
 		KeybindingsRegistry.registerKeybindingRule({
-			...action.desc.keybinding,
-			id: action.desc.id,
-			when: ContextKeyExpr.and(action.desc.precondition, action.desc.keybinding.when)
+			...keybinding,
+			id: command.id,
+			when: command.precondition ? ContextKeyExpr.and(command.precondition, keybinding.when) : keybinding.when
 		});
 	}
 

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TestFilesConfigurationService, TestEnvironmentService, workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestFilesConfigurationService, workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -56,8 +56,7 @@ suite('EditorAutoSave', () => {
 
 		instantiationService.stub(IFilesConfigurationService, new TestFilesConfigurationService(
 			<IContextKeyService>instantiationService.createInstance(MockContextKeyService),
-			configurationService,
-			TestEnvironmentService
+			configurationService
 		));
 
 		const part = instantiationService.createInstance(EditorPart);

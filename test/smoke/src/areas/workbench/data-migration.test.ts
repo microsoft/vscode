@@ -8,7 +8,7 @@ import { join } from 'path';
 
 export function setup(stableCodePath: string, testDataPath: string) {
 
-	describe('Data Migration: This test MUST run before releasing by providing the --stable-build command line argument', () => {
+	describe('Datamigration', () => {
 		it(`verifies opened editors are restored`, async function () {
 			if (!stableCodePath) {
 				this.skip();
@@ -24,11 +24,11 @@ export function setup(stableCodePath: string, testDataPath: string) {
 			await stableApp!.start();
 
 			// Open 3 editors and pin 2 of them
-			await stableApp.workbench.quickopen.openFile('www');
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.openFile('www');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 
-			await stableApp.workbench.quickopen.openFile('app.js');
-			await stableApp.workbench.quickopen.runCommand('View: Keep Editor');
+			await stableApp.workbench.quickaccess.openFile('app.js');
+			await stableApp.workbench.quickaccess.runCommand('View: Keep Editor');
 
 			await stableApp.workbench.editors.newUntitledFile();
 
@@ -70,7 +70,7 @@ export function setup(stableCodePath: string, testDataPath: string) {
 
 			const readmeMd = 'readme.md';
 			const textToType = 'Hello, Code';
-			await stableApp.workbench.quickopen.openFile(readmeMd);
+			await stableApp.workbench.quickaccess.openFile(readmeMd);
 			await stableApp.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
 
 			await stableApp.stop();

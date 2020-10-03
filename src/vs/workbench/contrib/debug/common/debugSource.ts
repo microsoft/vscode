@@ -12,8 +12,9 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Schemas } from 'vs/base/common/network';
 import { isUri } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { ITextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const UNKNOWN_SOURCE_LABEL = nls.localize('unknownSource', "Unknown Source");
 
@@ -36,7 +37,7 @@ export class Source {
 	available: boolean;
 	raw: DebugProtocol.Source;
 
-	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string) {
+	constructor(raw_: DebugProtocol.Source | undefined, sessionId: string, uriIdentityService: IUriIdentityService) {
 		let path: string;
 		if (raw_) {
 			this.raw = raw_;
@@ -48,7 +49,7 @@ export class Source {
 			path = `${DEBUG_SCHEME}:${UNKNOWN_SOURCE_LABEL}`;
 		}
 
-		this.uri = getUriFromSource(this.raw, path, sessionId);
+		this.uri = getUriFromSource(this.raw, path, sessionId, uriIdentityService);
 	}
 
 	get name() {
@@ -71,7 +72,7 @@ export class Source {
 		return this.uri.scheme === DEBUG_SCHEME;
 	}
 
-	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
+	openInEditor(editorService: IEditorService, selection: IRange, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
 		return !this.available ? Promise.resolve(undefined) : editorService.openEditor({
 			resource: this.uri,
 			description: this.origin,
@@ -127,7 +128,7 @@ export class Source {
 	}
 }
 
-export function getUriFromSource(raw: DebugProtocol.Source, path: string | undefined, sessionId: string): URI {
+export function getUriFromSource(raw: DebugProtocol.Source, path: string | undefined, sessionId: string, uriIdentityService: IUriIdentityService): URI {
 	if (typeof raw.sourceReference === 'number' && raw.sourceReference > 0) {
 		return URI.from({
 			scheme: DEBUG_SCHEME,
@@ -137,17 +138,17 @@ export function getUriFromSource(raw: DebugProtocol.Source, path: string | undef
 	}
 
 	if (path && isUri(path)) {	// path looks like a uri
-		return URI.parse(path);
+		return uriIdentityService.asCanonicalUri(URI.parse(path));
 	}
 	// assume a filesystem path
 	if (path && isAbsolute(path)) {
-		return URI.file(path);
+		return uriIdentityService.asCanonicalUri(URI.file(path));
 	}
 	// path is relative: since VS Code cannot deal with this by itself
 	// create a debug url that will result in a DAP 'source' request when the url is resolved.
-	return URI.from({
+	return uriIdentityService.asCanonicalUri(URI.from({
 		scheme: DEBUG_SCHEME,
 		path,
 		query: `session=${sessionId}`
-	});
+	}));
 }

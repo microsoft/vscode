@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { ExperimentActionType, ExperimentState, IExperiment, ExperimentService, getCurrentActivationRecord, currentSchemaVersion } from 'vs/workbench/contrib/experiments/common/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestLifecycleService, TestExtensionService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import {
 	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, ILocalExtension
 } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -15,20 +15,22 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { Emitter } from 'vs/base/common/event';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
-import { URLService } from 'vs/platform/url/node/urlService';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWillActivateEvent, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { timeout } from 'vs/base/common/async';
+import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
+import { OS } from 'vs/base/common/platform';
 
 interface ExperimentSettings {
 	enabled?: boolean;
@@ -43,8 +45,8 @@ let experimentData: { [i: string]: any; } = {
 const local = aLocalExtension('installedExtension1', { version: '1.0.0' });
 
 function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
-	manifest = assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
-	properties = assign({
+	manifest = Object.assign({ name, publisher: 'pub', version: '1.0.0' }, manifest);
+	properties = Object.assign({
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
 		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
@@ -86,7 +88,7 @@ suite('Experiment Service', () => {
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IURLService, URLService);
+		instantiationService.stub(IURLService, NativeURLService);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
@@ -306,6 +308,44 @@ suite('Experiment Service', () => {
 		});
 	});
 
+	test('Experiment with OS should be enabled on current OS', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						os: [OS],
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.state, ExperimentState.Run);
+		});
+	});
+
+	test('Experiment with OS should be disabled on other OS', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						os: [OS - 1],
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.state, ExperimentState.NoRun);
+		});
+	});
+
 	test('Activation event experiment with not enough events should be evaluating', () => {
 		experimentData = {
 			experiments: [
@@ -443,7 +483,7 @@ suite('Experiment Service', () => {
 					condition: {
 						activationEvent: {
 							event: 'my:event',
-							minEvents: 5,
+							minEvents: 2,
 						}
 					}
 				}
@@ -467,10 +507,47 @@ suite('Experiment Service', () => {
 		});
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		await testObject.getExperimentById('experiment1'); // ensure loaded
+		await testObject.getExperimentById('experiment1');
 		activationEvent.fire({ event: 'not our event', activation: Promise.resolve() });
 		activationEvent.fire({ event: 'my:event', activation: Promise.resolve() });
 		assert(didGetCall);
+	});
+
+	test('Activation events run experiments in realtime', async () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: true,
+					condition: {
+						activationEvent: {
+							event: 'my:event',
+							minEvents: 2,
+						}
+					}
+				}
+			]
+		};
+
+		let calls = 0;
+		instantiationService.stub(IStorageService, 'get', (a: string, b: StorageScope, c?: string) => {
+			return a === 'experimentEventRecord-my-event'
+				? JSON.stringify({ count: [++calls, 0, 0, 0, 0, 0, 0], mostRecentBucket: Date.now() })
+				: undefined;
+		});
+
+		const enabledListener = sinon.stub();
+		testObject = instantiationService.createInstance(TestExperimentService);
+		testObject.onExperimentEnabled(enabledListener);
+
+		assert.equal((await testObject.getExperimentById('experiment1')).state, ExperimentState.Evaluating);
+		assert.equal((await testObject.getExperimentById('experiment1')).state, ExperimentState.Evaluating);
+		assert.equal(enabledListener.callCount, 0);
+
+		activationEvent.fire({ event: 'my:event', activation: Promise.resolve() });
+		await timeout(1);
+		assert.equal(enabledListener.callCount, 1);
+		assert.equal((await testObject.getExperimentById('experiment1')).state, ExperimentState.Run);
 	});
 
 	test('Experiment not matching user setting should be disabled', () => {
@@ -730,10 +807,34 @@ suite('Experiment Service', () => {
 		testObject = instantiationService.createInstance(TestExperimentService);
 		return testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, false);
+			assert.equal(result.action?.type, 'Prompt');
 			assert.equal(result.state, ExperimentState.NoRun);
 			return testObject.getCuratedExtensionsList(curatedExtensionsKey).then(curatedList => {
 				assert.equal(curatedList.length, 0);
 			});
+		});
+	});
+
+	test('Maps action2 to action.', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: false,
+					action2: {
+						type: 'Prompt',
+						properties: {
+							promptText: 'Hello world',
+							commands: []
+						}
+					}
+				}
+			]
+		};
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+		return testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.action?.type, 'Prompt');
 		});
 	});
 

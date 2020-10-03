@@ -292,7 +292,7 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 
 	const filename = path.join(SRC_DIR, module);
 	const fileContents = fs.readFileSync(filename).toString();
-	const inlineResources = 'base64'; // see https://github.com/Microsoft/monaco-editor/issues/148
+	const inlineResources = 'base64'; // see https://github.com/microsoft/monaco-editor/issues/148
 
 	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
 	write(module, newContents);

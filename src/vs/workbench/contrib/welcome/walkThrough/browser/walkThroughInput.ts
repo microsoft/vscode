@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -97,7 +96,7 @@ export class WalkThroughInput extends EditorInput {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
-					if (strings.endsWith(this.resource.path, '.html')) {
+					if (this.resource.path.endsWith('.html')) {
 						return new WalkThroughModel(ref, []);
 					}
 

@@ -12,7 +12,6 @@ import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyCodiconAware, parseCodicons } from 'vs/base/common/codicon';
 import { compareAnything } from 'vs/base/common/comparers';
 import { Emitter, Event } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
@@ -25,7 +24,9 @@ import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IListOptions, List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -33,17 +34,22 @@ interface IListElement {
 	readonly index: number;
 	readonly item: IQuickPickItem;
 	readonly saneLabel: string;
+	readonly saneAriaLabel: string;
 	readonly saneDescription?: string;
 	readonly saneDetail?: string;
+	readonly labelHighlights?: IMatch[];
+	readonly descriptionHighlights?: IMatch[];
+	readonly detailHighlights?: IMatch[];
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
-class ListElement implements IListElement {
+class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
+	saneAriaLabel!: string;
 	saneDescription?: string;
 	saneDetail?: string;
 	hidden = false;
@@ -66,7 +72,11 @@ class ListElement implements IListElement {
 	fireButtonTriggered!: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 
 	constructor(init: IListElement) {
-		assign(this, init);
+		Object.assign(this, init);
+	}
+
+	dispose() {
+		this._onChecked.dispose();
 	}
 }
 
@@ -74,6 +84,7 @@ interface IListElementTemplateData {
 	entry: HTMLDivElement;
 	checkbox: HTMLInputElement;
 	label: IconLabel;
+	keybinding: KeybindingLabel;
 	detail: HighlightedLabel;
 	separator: HTMLDivElement;
 	actionBar: ActionBar;
@@ -99,6 +110,11 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Checkbox
 		const label = dom.append(data.entry, $('label.quick-input-list-label'));
+		data.toDisposeTemplate.push(dom.addStandardDisposableListener(label, dom.EventType.CLICK, e => {
+			if (!data.checkbox.offsetParent) { // If checkbox not visible:
+				e.preventDefault(); // Prevent toggle of checkbox when it is immediately shown afterwards. #91740
+			}
+		}));
 		data.checkbox = <HTMLInputElement>dom.append(label, $('input.quick-input-list-checkbox'));
 		data.checkbox.type = 'checkbox';
 		data.toDisposeTemplate.push(dom.addStandardDisposableListener(data.checkbox, dom.EventType.CHANGE, e => {
@@ -112,6 +128,10 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 
 		// Label
 		data.label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true, supportCodicons: true });
+
+		// Keybinding
+		const keybindingContainer = dom.append(row1, $('.quick-input-list-entry-keybinding'));
+		data.keybinding = new KeybindingLabel(keybindingContainer, platform.OS);
 
 		// Detail
 		const detailContainer = dom.append(row2, $('.quick-input-list-label-meta'));
@@ -142,16 +162,15 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		options.descriptionTitle = element.saneDescription;
 		options.descriptionMatches = descriptionHighlights || [];
 		options.extraClasses = element.item.iconClasses;
+		options.italic = element.item.italic;
+		options.strikethrough = element.item.strikethrough;
 		data.label.setLabel(element.saneLabel, element.saneDescription, options);
+
+		// Keybinding
+		data.keybinding.set(element.item.keybinding);
 
 		// Meta
 		data.detail.set(element.saneDetail, detailHighlights);
-
-		// ARIA label
-		data.entry.setAttribute('aria-label', [element.saneLabel, element.saneDescription, element.saneDetail]
-			.map(s => s && parseCodicons(s).text)
-			.filter(s => !!s)
-			.join(', '));
 
 		// Separator
 		if (element.separator && element.separator.label) {
@@ -160,18 +179,18 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 		} else {
 			data.separator.style.display = 'none';
 		}
-		if (element.separator) {
-			dom.addClass(data.entry, 'quick-input-list-separator-border');
-		} else {
-			dom.removeClass(data.entry, 'quick-input-list-separator-border');
-		}
+		data.entry.classList.toggle('quick-input-list-separator-border', !!element.separator);
 
 		// Actions
 		data.actionBar.clear();
 		const buttons = element.item.buttons;
 		if (buttons && buttons.length) {
 			data.actionBar.push(buttons.map((button, index) => {
-				const action = new Action(`id-${index}`, '', button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined), true, () => {
+				let cssClasses = button.iconClass || (button.iconPath ? getIconClass(button.iconPath) : undefined);
+				if (button.alwaysVisible) {
+					cssClasses = cssClasses ? `${cssClasses} always-visible` : 'always-visible';
+				}
+				const action = new Action(`id-${index}`, '', cssClasses, true, () => {
 					element.fireButtonTriggered({
 						button,
 						item: element.item
@@ -181,9 +200,9 @@ class ListElementRenderer implements IListRenderer<ListElement, IListElementTemp
 				action.tooltip = button.tooltip || '';
 				return action;
 			}), { icon: true, label: false });
-			dom.addClass(data.entry, 'has-actions');
+			data.entry.classList.add('has-actions');
 		} else {
-			dom.removeClass(data.entry, 'has-actions');
+			data.entry.classList.remove('has-actions');
 		}
 	}
 
@@ -208,6 +227,16 @@ class ListElementDelegate implements IListVirtualDelegate<ListElement> {
 	}
 }
 
+export enum QuickInputListFocus {
+	First = 1,
+	Second,
+	Last,
+	Next,
+	Previous,
+	NextPage,
+	PreviousPage
+}
+
 export class QuickInputList {
 
 	readonly id: string;
@@ -230,6 +259,8 @@ export class QuickInputList {
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;
+	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
+	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -244,12 +275,13 @@ export class QuickInputList {
 		this.id = id;
 		this.container = dom.append(this.parent, $('.quick-input-list'));
 		const delegate = new ListElementDelegate();
+		const accessibilityProvider = new QuickInputAccessibilityProvider();
 		this.list = options.createList('QuickInput', this.container, delegate, [new ListElementRenderer()], {
 			identityProvider: { getId: element => element.saneLabel },
-			openController: { shouldOpen: () => false }, // Workaround #58124
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -265,20 +297,20 @@ export class QuickInputList {
 					}
 					break;
 				case KeyCode.UpArrow:
-				case KeyCode.PageUp:
 					const focus1 = this.list.getFocus();
 					if (focus1.length === 1 && focus1[0] === 0) {
 						this._onLeave.fire();
 					}
 					break;
 				case KeyCode.DownArrow:
-				case KeyCode.PageDown:
 					const focus2 = this.list.getFocus();
 					if (focus2.length === 1 && focus2[0] === this.list.length - 1) {
 						this._onLeave.fire();
 					}
 					break;
 			}
+
+			this._onKeyDown.fire(event);
 		}));
 		this.disposables.push(this.list.onMouseDown(e => {
 			if (e.browserEvent.button !== 2) {
@@ -291,16 +323,40 @@ export class QuickInputList {
 				this._onLeave.fire();
 			}
 		}));
+		this.disposables.push(this.list.onMouseMiddleClick(e => {
+			this._onLeave.fire();
+		}));
+		this.disposables.push(this.list.onContextMenu(e => {
+			if (typeof e.index === 'number') {
+				e.browserEvent.preventDefault();
+
+				// we want to treat a context menu event as
+				// a gesture to open the item at the index
+				// since we do not have any context menu
+				// this enables for example macOS to Ctrl-
+				// click on an item to open it.
+				this.list.setSelection([e.index]);
+			}
+		}));
+		this.disposables.push(
+			this._onChangedAllVisibleChecked,
+			this._onChangedCheckedCount,
+			this._onChangedVisibleCount,
+			this._onChangedCheckedElements,
+			this._onButtonTriggered,
+			this._onLeave,
+			this._onKeyDown
+		);
 	}
 
 	@memoize
 	get onDidChangeFocus() {
-		return Event.map(this.list.onFocusChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeFocus, e => e.elements.map(e => e.item));
 	}
 
 	@memoize
 	get onDidChangeSelection() {
-		return Event.map(this.list.onSelectionChange, e => e.elements.map(e => e.item));
+		return Event.map(this.list.onDidChangeSelection, e => ({ items: e.elements.map(e => e.item), event: e.browserEvent }));
 	}
 
 	getAllVisibleChecked() {
@@ -364,12 +420,24 @@ export class QuickInputList {
 		this.elements = inputElements.reduce((result, item, index) => {
 			if (item.type !== 'separator') {
 				const previous = index && inputElements[index - 1];
+				const saneLabel = item.label && item.label.replace(/\r?\n/g, ' ');
+				const saneDescription = item.description && item.description.replace(/\r?\n/g, ' ');
+				const saneDetail = item.detail && item.detail.replace(/\r?\n/g, ' ');
+				const saneAriaLabel = item.ariaLabel || [saneLabel, saneDescription, saneDetail]
+					.map(s => s && parseCodicons(s).text)
+					.filter(s => !!s)
+					.join(', ');
+
 				result.push(new ListElement({
 					index,
 					item,
-					saneLabel: item.label && item.label.replace(/\r?\n/g, ' '),
-					saneDescription: item.description && item.description.replace(/\r?\n/g, ' '),
-					saneDetail: item.detail && item.detail.replace(/\r?\n/g, ' '),
+					saneLabel,
+					saneAriaLabel,
+					saneDescription,
+					saneDetail,
+					labelHighlights: item.highlights?.label,
+					descriptionHighlights: item.highlights?.description,
+					detailHighlights: item.highlights?.detail,
 					checked: false,
 					separator: previous && previous.type === 'separator' ? previous : undefined,
 					fireButtonTriggered
@@ -377,6 +445,7 @@ export class QuickInputList {
 			}
 			return result;
 		}, [] as ListElement[]);
+		this.elementDisposables.push(...this.elements);
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
@@ -386,6 +455,10 @@ export class QuickInputList {
 		this.list.splice(0, this.list.length); // Clear focus and selection first, sending the events when the list is empty.
 		this.list.splice(0, this.list.length, this.elements);
 		this._onChangedVisibleCount.fire(this.elements.length);
+	}
+
+	getElementsCount(): number {
+		return this.inputElements.length;
 	}
 
 	getFocusedElements() {
@@ -398,7 +471,10 @@ export class QuickInputList {
 			.filter(item => this.elementsToIndexes.has(item))
 			.map(item => this.elementsToIndexes.get(item)!));
 		if (items.length > 0) {
-			this.list.reveal(this.list.getFocus()[0]);
+			const focused = this.list.getFocus()[0];
+			if (typeof focused === 'number') {
+				this.list.reveal(focused);
+			}
 		}
 	}
 
@@ -439,22 +515,54 @@ export class QuickInputList {
 	}
 
 	set enabled(value: boolean) {
-		this.list.getHTMLElement().style.pointerEvents = value ? null : 'none';
+		this.list.getHTMLElement().style.pointerEvents = value ? '' : 'none';
 	}
 
-	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
+	focus(what: QuickInputListFocus): void {
 		if (!this.list.length) {
 			return;
 		}
 
-		if ((what === 'Next' || what === 'NextPage') && this.list.getFocus()[0] === this.list.length - 1) {
-			what = 'First';
+		if (what === QuickInputListFocus.Next && this.list.getFocus()[0] === this.list.length - 1) {
+			what = QuickInputListFocus.First;
 		}
-		if ((what === 'Previous' || what === 'PreviousPage') && this.list.getFocus()[0] === 0) {
-			what = 'Last';
+
+		if (what === QuickInputListFocus.Previous && this.list.getFocus()[0] === 0) {
+			what = QuickInputListFocus.Last;
 		}
-		this.list['focus' + what as 'focusFirst' | 'focusLast' | 'focusNext' | 'focusPrevious' | 'focusNextPage' | 'focusPreviousPage']();
-		this.list.reveal(this.list.getFocus()[0]);
+
+		if (what === QuickInputListFocus.Second && this.list.length < 2) {
+			what = QuickInputListFocus.First;
+		}
+
+		switch (what) {
+			case QuickInputListFocus.First:
+				this.list.focusFirst();
+				break;
+			case QuickInputListFocus.Second:
+				this.list.focusNth(1);
+				break;
+			case QuickInputListFocus.Last:
+				this.list.focusLast();
+				break;
+			case QuickInputListFocus.Next:
+				this.list.focusNext();
+				break;
+			case QuickInputListFocus.Previous:
+				this.list.focusPrevious();
+				break;
+			case QuickInputListFocus.NextPage:
+				this.list.focusNextPage();
+				break;
+			case QuickInputListFocus.PreviousPage:
+				this.list.focusPreviousPage();
+				break;
+		}
+
+		const focused = this.list.getFocus()[0];
+		if (typeof focused === 'number') {
+			this.list.reveal(focused);
+		}
 	}
 
 	clearFocus() {
@@ -470,9 +578,10 @@ export class QuickInputList {
 		this.list.layout();
 	}
 
-	filter(query: string) {
+	filter(query: string): boolean {
 		if (!(this.sortByLabel || this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
-			return;
+			this.list.layout();
+			return false;
 		}
 		query = query.trim();
 
@@ -530,6 +639,8 @@ export class QuickInputList {
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
 		this._onChangedVisibleCount.fire(shownElements.length);
+
+		return true;
 	}
 
 	toggleCheckbox() {
@@ -588,5 +699,28 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 1;
 	}
 
+	if (labelHighlightsA.length === 0 && labelHighlightsB.length === 0) {
+		return 0;
+	}
+
 	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
+}
+
+class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
+
+	getWidgetAriaLabel(): string {
+		return localize('quickInput', "Quick Input");
+	}
+
+	getAriaLabel(element: ListElement): string | null {
+		return element.saneAriaLabel;
+	}
+
+	getWidgetRole() {
+		return 'listbox';
+	}
+
+	getRole() {
+		return 'option';
+	}
 }

@@ -6,14 +6,14 @@ import * as assert from 'assert';
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/en.darwin'; // 15%
 import 'vs/workbench/services/keybinding/browser/keyboardLayouts/de.darwin';
 import { KeyboardLayoutContribution } from 'vs/workbench/services/keybinding/browser/keyboardLayouts/_.contribution';
-import { BrowserKeyboardMapperFactoryBase } from '../../browser/keymapService';
-import { KeymapInfo, IKeymapInfo } from '../../common/keymapInfo';
+import { BrowserKeyboardMapperFactoryBase } from 'vs/workbench/services/keybinding/browser/keymapService';
+import { KeymapInfo, IKeymapInfo } from 'vs/workbench/services/keybinding/common/keymapInfo';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { TestStorageService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {

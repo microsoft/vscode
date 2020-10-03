@@ -15,10 +15,10 @@ import * as extpath from 'vs/base/common/extpath';
 import * as Platform from 'vs/base/common/platform';
 import { LineDecoder } from 'vs/base/node/decoder';
 import { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode, Executable } from 'vs/base/common/processes';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
 
-export type ValueCallback<T> = (value?: T | Promise<T>) => void;
+export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;
 export type ProgressCallback<T> = (progress: T) => void;
 
@@ -67,7 +67,7 @@ function terminateProcess(process: cp.ChildProcess, cwd?: string): Promise<Termi
 		}
 	} else if (Platform.isLinux || Platform.isMacintosh) {
 		try {
-			const cmd = getPathFromAmdModule(require, 'vs/base/node/terminateProcess.sh');
+			const cmd = FileAccess.asFileUri('vs/base/node/terminateProcess.sh', require).fsPath;
 			return new Promise((resolve, reject) => {
 				cp.execFile(cmd, [process.pid.toString()], { encoding: 'utf8', shell: true } as cp.ExecFileOptions, (err, stdout, stderr) => {
 					if (err) {
@@ -98,7 +98,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	private childProcess: cp.ChildProcess | null;
 	protected childProcessPromise: Promise<cp.ChildProcess> | null;
-	private pidResolve?: ValueCallback<number>;
+	private pidResolve: ValueCallback<number> | undefined;
 	protected terminateRequested: boolean;
 
 	private static WellKnowCommands: IStringDictionary<boolean> = {
@@ -457,7 +457,7 @@ export namespace win32 {
 
 		async function fileExists(path: string): Promise<boolean> {
 			if (await promisify(fs.exists)(path)) {
-				return !((await promisify(fs.stat)(path)).isDirectory);
+				return !((await promisify(fs.stat)(path)).isDirectory());
 			}
 			return false;
 		}

@@ -3,25 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
-import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
 }
@@ -46,14 +40,14 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 
-		super(viewletId, `${viewletId}.state`, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(viewletId, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
 		}));
 
-		this._register(this.viewsModel.onDidChangeActiveViews((viewDescriptors) => {
-			this.updateAllViews(viewDescriptors);
+		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
+			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}));
 	}
 
@@ -68,7 +62,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			}
 			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
 			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
-				this.viewsModel.setVisible(descriptor.id, false);
+				this.viewContainerModel.setVisible(descriptor.id, false);
 			}
 		});
 	}
@@ -81,17 +75,17 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	private onFilterChanged(newFilterValue: string[]) {
 		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewsModel.viewDescriptors);
+			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
-		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, false));
-		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsModel.setVisible(item.id, true));
+		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, false));
+		this.getViewsForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, true));
 	}
 
 	getContextMenuActions(): IAction[] {
 		const result: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
 			label: viewDescriptor.name,
-			checked: this.viewsModel.isVisible(viewDescriptor.id),
+			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
 			enabled: viewDescriptor.canToggleVisibility,
 			run: () => this.toggleViewVisibility(viewDescriptor.id)
 		}));
@@ -139,37 +133,14 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		}
 		// Check that allViews is ready
 		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewsModel.viewDescriptors);
+			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
 		return panes;
 	}
 
 	abstract getTitle(): string;
-}
 
-export class FileIconThemableWorkbenchTree extends WorkbenchTree {
-
-	constructor(
-		container: HTMLElement,
-		configuration: ITreeConfiguration,
-		options: ITreeOptions,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IWorkbenchThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService, instantiationService, configurationService);
-
-		DOM.addClass(container, 'file-icon-themable-tree');
-		DOM.addClass(container, 'show-file-icons');
-
-		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
-			DOM.toggleClass(container, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
-			DOM.toggleClass(container, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
-		};
-
-		this.disposables.push(themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		onFileIconThemeChange(themeService.getFileIconTheme());
+	getViewsVisibilityActions(): IAction[] {
+		return [];
 	}
 }

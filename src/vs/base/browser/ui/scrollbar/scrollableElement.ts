@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scrollbars';
-import { isEdgeOrIE } from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent, StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
@@ -18,6 +17,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { INewScrollDimensions, INewScrollPosition, IScrollDimensions, IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { getZoomFactor } from 'vs/base/browser/browser';
 
 const HIDE_TIMEOUT = 500;
 const SCROLL_WHEEL_SENSITIVITY = 50;
@@ -131,12 +131,17 @@ export class MouseWheelClassifier {
 			// }
 		}
 
-		if (Math.abs(item.deltaX - Math.round(item.deltaX)) > 0 || Math.abs(item.deltaY - Math.round(item.deltaY)) > 0) {
+		if (!this._isAlmostInt(item.deltaX) || !this._isAlmostInt(item.deltaY)) {
 			// non-integer deltas => indicator that this is not a physical mouse wheel
 			score += 0.25;
 		}
 
 		return Math.min(Math.max(score, 0), 1);
+	}
+
+	private _isAlmostInt(value: number): boolean {
+		const delta = Math.abs(Math.round(value) - value);
+		return (delta < 0.01);
 	}
 }
 
@@ -266,7 +271,7 @@ export abstract class AbstractScrollableElement extends Widget {
 	}
 
 	public setScrollDimensions(dimensions: INewScrollDimensions): void {
-		this._scrollable.setScrollDimensions(dimensions);
+		this._scrollable.setScrollDimensions(dimensions, false);
 	}
 
 	/**
@@ -287,12 +292,22 @@ export abstract class AbstractScrollableElement extends Widget {
 	 * depend on Editor.
 	 */
 	public updateOptions(newOptions: ScrollableElementChangeOptions): void {
-		let massagedOptions = resolveOptions(newOptions);
-		this._options.handleMouseWheel = massagedOptions.handleMouseWheel;
-		this._options.mouseWheelScrollSensitivity = massagedOptions.mouseWheelScrollSensitivity;
-		this._options.fastScrollSensitivity = massagedOptions.fastScrollSensitivity;
-		this._options.scrollPredominantAxis = massagedOptions.scrollPredominantAxis;
-		this._setListeningToMouseWheel(this._options.handleMouseWheel);
+		if (typeof newOptions.handleMouseWheel !== 'undefined') {
+			this._options.handleMouseWheel = newOptions.handleMouseWheel;
+			this._setListeningToMouseWheel(this._options.handleMouseWheel);
+		}
+		if (typeof newOptions.mouseWheelScrollSensitivity !== 'undefined') {
+			this._options.mouseWheelScrollSensitivity = newOptions.mouseWheelScrollSensitivity;
+		}
+		if (typeof newOptions.fastScrollSensitivity !== 'undefined') {
+			this._options.fastScrollSensitivity = newOptions.fastScrollSensitivity;
+		}
+		if (typeof newOptions.scrollPredominantAxis !== 'undefined') {
+			this._options.scrollPredominantAxis = newOptions.scrollPredominantAxis;
+		}
+		if (typeof newOptions.horizontalScrollbarSize !== 'undefined') {
+			this._horizontalScrollbar.updateScrollbarSize(newOptions.horizontalScrollbarSize);
+		}
 
 		if (!this._options.lazyRender) {
 			this._render();
@@ -326,7 +341,7 @@ export abstract class AbstractScrollableElement extends Widget {
 				this._onMouseWheel(new StandardWheelEvent(browserEvent));
 			};
 
-			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, isEdgeOrIE ? 'mousewheel' : 'wheel', onMouseWheel, { passive: false }));
+			this._mouseWheelToDispose.push(dom.addDisposableListener(this._listenOnDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { passive: false }));
 		}
 	}
 
@@ -334,7 +349,14 @@ export abstract class AbstractScrollableElement extends Widget {
 
 		const classifier = MouseWheelClassifier.INSTANCE;
 		if (SCROLL_WHEEL_SMOOTH_SCROLL_ENABLED) {
-			classifier.accept(Date.now(), e.deltaX, e.deltaY);
+			const osZoomFactor = window.devicePixelRatio / getZoomFactor();
+			if (platform.isWindows || platform.isLinux) {
+				// On Windows and Linux, the incoming delta events are multiplied with the OS zoom factor.
+				// The OS zoom factor can be reverse engineered by using the device pixel ratio and the configured zoom factor into account.
+				classifier.accept(Date.now(), e.deltaX / osZoomFactor, e.deltaY / osZoomFactor);
+			} else {
+				classifier.accept(Date.now(), e.deltaX, e.deltaY);
+			}
 		}
 
 		// console.log(`${Date.now()}, ${e.deltaY}, ${e.deltaX}`);
@@ -522,6 +544,14 @@ export class SmoothScrollableElement extends AbstractScrollableElement {
 
 	constructor(element: HTMLElement, options: ScrollableElementCreationOptions, scrollable: Scrollable) {
 		super(element, options, scrollable);
+	}
+
+	public setScrollPosition(update: INewScrollPosition): void {
+		this._scrollable.setScrollPositionNow(update);
+	}
+
+	public getScrollPosition(): IScrollPosition {
+		return this._scrollable.getCurrentScrollPosition();
 	}
 
 }
