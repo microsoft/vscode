@@ -51,6 +51,11 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
+export const SPLIT_EDITOR_UP_EMPTY = 'workbench.action.splitEditorUpEmpty';
+export const SPLIT_EDITOR_DOWN_EMPTY = 'workbench.action.splitEditorDownEmpty';
+export const SPLIT_EDITOR_LEFT_EMPTY = 'workbench.action.splitEditorLeftEmpty';
+export const SPLIT_EDITOR_RIGHT_EMPTY = 'workbench.action.splitEditorRightEmpty';
+
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
 export interface ActiveEditorMoveArguments {
@@ -432,7 +437,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 	}
 }
 
-export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, context?: IEditorCommandsContext): void {
+export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, context?: IEditorCommandsContext, copy: boolean = true): void {
 	let sourceGroup: IEditorGroup | undefined;
 	if (context && typeof context.groupId === 'number') {
 		sourceGroup = editorGroupService.getGroup(context.groupId);
@@ -448,15 +453,17 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
 
 	// Split editor (if it can be split)
-	let editorToCopy: IEditorInput | undefined;
-	if (context && typeof context.editorIndex === 'number') {
-		editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
-	} else {
-		editorToCopy = withNullAsUndefined(sourceGroup.activeEditor);
-	}
+	if (copy) {
+		let editorToCopy: IEditorInput | undefined;
+		if (context && typeof context.editorIndex === 'number') {
+			editorToCopy = sourceGroup.getEditorByIndex(context.editorIndex);
+		} else {
+			editorToCopy = withNullAsUndefined(sourceGroup.activeEditor);
+		}
 
-	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
-		sourceGroup.copyEditor(editorToCopy, newGroup);
+		if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
+			sourceGroup.copyEditor(editorToCopy, newGroup);
+		}
 	}
 
 	// Focus
@@ -472,6 +479,17 @@ function registerSplitEditorCommands() {
 	].forEach(({ id, direction }) => {
 		CommandsRegistry.registerCommand(id, function (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 			splitEditor(accessor.get(IEditorGroupsService), direction, getCommandsContext(resourceOrContext, context));
+		});
+	});
+
+	[
+		{ id: SPLIT_EDITOR_UP_EMPTY, direction: GroupDirection.UP },
+		{ id: SPLIT_EDITOR_DOWN_EMPTY, direction: GroupDirection.DOWN },
+		{ id: SPLIT_EDITOR_LEFT_EMPTY, direction: GroupDirection.LEFT },
+		{ id: SPLIT_EDITOR_RIGHT_EMPTY, direction: GroupDirection.RIGHT }
+	].forEach(({ id, direction }) => {
+		CommandsRegistry.registerCommand(id, function (accessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
+			splitEditor(accessor.get(IEditorGroupsService), direction, getCommandsContext(resourceOrContext, context), false);
 		});
 	});
 }
