@@ -1161,6 +1161,9 @@ export class SearchView extends ViewPane {
 	}
 
 	setSearchParameters(args: IFindInFilesArgs = {}): void {
+		if (typeof args.preserveCase === 'boolean') {
+			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
+		}
 		if (typeof args.isCaseSensitive === 'boolean') {
 			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
 		}
@@ -1175,6 +1178,9 @@ export class SearchView extends ViewPane {
 		}
 		if (typeof args.filesToExclude === 'string') {
 			this.searchExcludePattern.setValue(String(args.filesToExclude));
+		}
+		if (typeof args.excludeIgnoredFiles === 'boolean') {
+			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.excludeIgnoredFiles);
 		}
 		if (typeof args.query === 'string') {
 			this.searchWidget.searchInput.setValue(args.query);

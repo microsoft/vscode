@@ -158,9 +158,11 @@ export interface IFindInFilesArgs {
 	triggerSearch?: boolean;
 	filesToInclude?: string;
 	filesToExclude?: string;
+	excludeIgnoredFiles?: boolean;
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	matchWholeWord?: boolean;
+	preserveCase?: boolean;
 }
 export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFilesArgs = {}) => {
 
