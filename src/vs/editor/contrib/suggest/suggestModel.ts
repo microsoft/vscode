@@ -559,7 +559,9 @@ export class SuggestModel implements IDisposable {
 			// Select those providers have not contributed to this completion model and re-trigger completions for
 			// them. Also adopt the existing items and merge them into the new completion model
 			const inactiveProvider = new Set(CompletionProviderRegistry.all(this._editor.getModel()!));
-			this._completionModel.allProvider.forEach(provider => inactiveProvider.delete(provider));
+			for (let provider of this._completionModel.allProvider) {
+				inactiveProvider.delete(provider);
+			}
 			const items = this._completionModel.adopt(new Set());
 			this.trigger({ auto: this._context.auto, shy: false }, true, inactiveProvider, items);
 			return;
