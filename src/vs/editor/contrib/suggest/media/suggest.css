@@ -144,7 +144,8 @@
 
 /** ReadMore Icon styles **/
 
-.monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore::before {
+.monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore::before {
 	color: inherit;
 	opacity: 1;
 	font-size: 14px;
@@ -153,8 +154,7 @@
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close {
 	position: absolute;
-	top: 2px;
-	right: 2px;
+	top: 6px;
 }
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close:hover, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore:hover {
