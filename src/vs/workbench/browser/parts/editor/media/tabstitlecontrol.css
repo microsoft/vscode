@@ -47,7 +47,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element {
-	height: auto; /* For when breadcrumbs are enabled */
+	height: auto !important; /* For when breadcrumbs are enabled */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.multi-line > .monaco-scrollable-element > .tabs-container > .tab {
