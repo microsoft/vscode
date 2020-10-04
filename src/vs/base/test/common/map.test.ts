@@ -368,7 +368,7 @@ suite('Map', () => {
 	});
 
 	test('URIIterator', function () {
-		const iter = new UriIterator();
+		const iter = new UriIterator(false);
 		iter.reset(URI.parse('file:///usr/bin/file.txt'));
 
 		assert.equal(iter.value(), 'file');
@@ -609,7 +609,7 @@ suite('Map', () => {
 
 
 	test('TernarySearchTree (URI) - basics', function () {
-		let trie = new TernarySearchTree<URI, number>(new UriIterator());
+		let trie = new TernarySearchTree<URI, number>(new UriIterator(false));
 
 		trie.set(URI.file('/user/foo/bar'), 1);
 		trie.set(URI.file('/user/foo'), 2);
@@ -629,7 +629,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (URI) - lookup', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		const map = new TernarySearchTree<URI, number>(new UriIterator(false));
 		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
 		map.set(URI.parse('http://foo.bar/user/foo?query'), 2);
 		map.set(URI.parse('http://foo.bar/user/foo?QUERY'), 3);
@@ -646,7 +646,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (PathSegments) - superstr', function () {
 
-		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		const map = new TernarySearchTree<URI, number>(new UriIterator(false));
 		map.set(URI.file('/user/foo/bar'), 1);
 		map.set(URI.file('/user/foo'), 2);
 		map.set(URI.file('/user/foo/flip/flop'), 3);

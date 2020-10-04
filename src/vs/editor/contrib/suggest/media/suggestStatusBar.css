@@ -3,11 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor .suggest-widget .suggest-status-bar {
+	visibility: hidden;
+	box-sizing: border-box;
+	display: flex;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+	width: 100%;
+	font-size: 80%;
+	padding: 0 8px 0 4px;
+	border-top: 1px solid transparent;
+}
+
+.monaco-editor .suggest-widget.list-right.docs-side .suggest-status-bar {
+	left: auto;
+	right: 0;
+}
+
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
 	visibility: visible;
-}
-.monaco-editor .suggest-widget.with-status-bar > .tree {
-	margin-bottom: 18px;
 }
 
 .monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
@@ -25,11 +39,10 @@
 	margin-right: 0.3em;
 }
 
-.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row > .contents > .main > .right > .readMore,
-.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label > .contents > .main > .right > .readMore {
+.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row>.contents>.main>.right>.readMore, .monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label>.contents>.main>.right>.readMore {
 	display: none;
 }
 
-.monaco-editor .suggest-widget.with-status-bar:not(.docs-side) .monaco-list .monaco-list-row:hover > .contents > .main > .right.can-expand-details > .details-label {
+.monaco-editor .suggest-widget.with-status-bar:not(.docs-side) .monaco-list .monaco-list-row:hover>.contents>.main>.right.can-expand-details>.details-label {
 	width: 100%;
 }

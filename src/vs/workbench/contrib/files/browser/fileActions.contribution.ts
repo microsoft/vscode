@@ -10,7 +10,7 @@ import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTI
 import { SyncActionDescriptor, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, DirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, ReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { openWindowCommand, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, OpenEditorsGroupContext, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, OpenEditorsDirtyEditorContext, COMPARE_SELECTED_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL, SAVE_FILES_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_LABEL, newWindowCommand, OpenEditorsReadonlyEditorContext, OPEN_WITH_EXPLORER_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -22,11 +22,11 @@ import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfi
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { WorkbenchListDoubleSelection } from 'vs/platform/list/browser/listService';
 import { Schemas } from 'vs/base/common/network';
-import { WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
+import { DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -42,7 +42,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(CollapseExplorerView)
 registry.registerWorkbenchAction(SyncActionDescriptor.from(RefreshExplorerView), 'File: Refresh Explorer', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CompareWithClipboardAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_C) }), 'File: Compare Active File with Clipboard', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleAutoSaveAction), 'File: Toggle Auto Save', category.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowOpenedFileInNewWindow, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowOpenedFileInNewWindow, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category.value, EmptyWorkspaceSupportContext);
 
 const workspacesCategory = nls.localize('workspaces', "Workspaces");
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWorkspaceAction), 'Workspaces: Open Workspace...', workspacesCategory);
@@ -220,7 +220,6 @@ appendToCommandPalette(SAVE_FILES_COMMAND_ID, { value: nls.localize('saveFiles',
 appendToCommandPalette(REVERT_FILE_COMMAND_ID, { value: nls.localize('revert', "Revert File"), original: 'Revert File' }, category);
 appendToCommandPalette(COMPARE_WITH_SAVED_COMMAND_ID, { value: nls.localize('compareActiveWithSaved', "Compare Active File with Saved"), original: 'Compare Active File with Saved' }, category);
 appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, { value: SAVE_FILE_AS_LABEL, original: 'Save As...' }, category);
-appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, { value: nls.localize('closeEditor', "Close Editor"), original: 'Close Editor' }, { value: nls.localize('view', "View"), original: 'View' });
 appendToCommandPalette(NEW_FILE_COMMAND_ID, { value: NEW_FILE_LABEL, original: 'New File' }, category, WorkspaceFolderCountContext.notEqualsTo('0'));
 appendToCommandPalette(NEW_FOLDER_COMMAND_ID, { value: NEW_FOLDER_LABEL, original: 'New Folder' }, category, WorkspaceFolderCountContext.notEqualsTo('0'));
 appendToCommandPalette(DOWNLOAD_COMMAND_ID, { value: DOWNLOAD_LABEL, original: 'Download' }, category, ContextKeyExpr.and(ResourceContextKey.Scheme.notEqualsTo(Schemas.file)));
@@ -259,7 +258,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: {
 		id: SAVE_FILE_COMMAND_ID,
 		title: SAVE_FILE_LABEL,
-		precondition: DirtyEditorContext
+		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.or(
 		// Untitled Editors
@@ -269,7 +268,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 			// Not: editor groups
 			OpenEditorsGroupContext.toNegated(),
 			// Not: readonly editors
-			ReadonlyEditorContext.toNegated(),
+			OpenEditorsReadonlyEditorContext.toNegated(),
 			// Not: auto save after short delay
 			AutoSaveAfterShortDelayContext.toNegated()
 		)
@@ -282,13 +281,13 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize('revert', "Revert File"),
-		precondition: DirtyEditorContext
+		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.and(
 		// Not: editor groups
 		OpenEditorsGroupContext.toNegated(),
 		// Not: readonly editors
-		ReadonlyEditorContext.toNegated(),
+		OpenEditorsReadonlyEditorContext.toNegated(),
 		// Not: untitled editors (revert closes them)
 		ResourceContextKey.Scheme.notEqualsTo(Schemas.untitled),
 		// Not: auto save after short delay
@@ -314,7 +313,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	command: {
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
 		title: nls.localize('compareWithSaved', "Compare with Saved"),
-		precondition: DirtyEditorContext
+		precondition: OpenEditorsDirtyEditorContext
 	},
 	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, AutoSaveAfterShortDelayContext.toNegated(), WorkbenchListDoubleSelection.toNegated())
 });
@@ -428,7 +427,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: OPEN_WITH_EXPLORER_COMMAND_ID,
 		title: nls.localize('explorerOpenWith', "Open With..."),
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceAvailableEditorIdsContext),
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ExplorerResourceAvailableEditorIdsContext),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {

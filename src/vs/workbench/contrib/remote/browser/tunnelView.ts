@@ -26,7 +26,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel, mapHasTunnelLocalhostOrAllInterfaces } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -42,8 +42,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false);
 
@@ -74,8 +72,7 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 	private _candidates: Map<string, { host: string, port: number, detail: string }> = new Map();
 
 	constructor(
-		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
-		@ITerminalService readonly terminalService: ITerminalService) {
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService) {
 		super();
 		this.model = remoteExplorerService.tunnelModel;
 		this._register(this.model.onForwardPort(() => this._onForwardedPortsChanged.fire()));
@@ -89,11 +86,6 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 			remotePort: 0,
 			description: ''
 		};
-
-		const urlFinder = this._register(new UrlFinder(terminalService));
-		this._register(urlFinder.onDidMatchLocalUrl(localUrl => {
-			this.model.forward(localUrl);
-		}));
 	}
 
 	async groups(): Promise<ITunnelGroup[]> {
@@ -163,37 +155,11 @@ export class TunnelViewModel extends Disposable implements ITunnelViewModel {
 		});
 	}
 
-	private mapHasTunnel(map: Map<string, Tunnel>, host: string, port: number): boolean {
-		if (!isLocalhost(host)) {
-			return map.has(MakeAddress(host, port));
-		}
-
-		const stringAddress = MakeAddress('localhost', port);
-		if (map.has(stringAddress)) {
-			return true;
-		}
-		const numberAddress = MakeAddress('127.0.0.1', port);
-		if (map.has(numberAddress)) {
-			return true;
-		}
-		return false;
-	}
-
 	get candidates(): TunnelItem[] {
 		const candidates: TunnelItem[] = [];
 		this._candidates.forEach(value => {
-			if (!this.mapHasTunnel(this.model.forwarded, value.host, value.port) &&
-				!this.mapHasTunnel(this.model.detected, value.host, value.port)) {
-				// The host:port hasn't been forwarded or detected. However, if the candidate is 0.0.0.0,
-				// also check that the port hasn't already been forwarded with localhost, and vice versa.
-				// For example: no need to show 0.0.0.0:3000 as a candidate if localhost:3000 is already forwarded.
-				const otherHost = value.host === '0.0.0.0' ? 'localhost' : (value.host === 'localhost' ? '0.0.0.0' : undefined);
-				if (otherHost) {
-					if (this.mapHasTunnel(this.model.forwarded, otherHost, value.port) ||
-						this.mapHasTunnel(this.model.detected, otherHost, value.port)) {
-						return;
-					}
-				}
+			if (!mapHasTunnelLocalhostOrAllInterfaces(this.model.forwarded, value.host, value.port) &&
+				!mapHasTunnelLocalhostOrAllInterfaces(this.model.detected, value.host, value.port)) {
 				candidates.push(new TunnelItem(TunnelType.Candidate, value.host, value.port, undefined, undefined, false, undefined, value.detail));
 			}
 		});
@@ -866,7 +832,7 @@ namespace ClosePortAction {
 	}
 }
 
-namespace OpenPortInBrowserAction {
+export namespace OpenPortInBrowserAction {
 	export const ID = 'remote.tunnel.open';
 	export const LABEL = nls.localize('remote.tunnel.open', "Open in Browser");
 
@@ -876,14 +842,18 @@ namespace OpenPortInBrowserAction {
 				const model = accessor.get(IRemoteExplorerService).tunnelModel;
 				const openerService = accessor.get(IOpenerService);
 				const key = MakeAddress(arg.remoteHost, arg.remotePort);
-				const tunnel = model.forwarded.get(key) || model.detected.get(key);
-				let address: string | undefined;
-				if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remoteHost, tunnel.remotePort))) {
-					return openerService.open(URI.parse('http://' + address));
-				}
-				return Promise.resolve();
+				return run(model, openerService, key);
 			}
 		};
+	}
+
+	export function run(model: TunnelModel, openerService: IOpenerService, key: string) {
+		const tunnel = model.forwarded.get(key) || model.detected.get(key);
+		let address: string | undefined;
+		if (tunnel && tunnel.localAddress && (address = model.address(tunnel.remoteHost, tunnel.remotePort))) {
+			return openerService.open(URI.parse('http://' + address));
+		}
+		return Promise.resolve();
 	}
 }
 

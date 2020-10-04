@@ -66,7 +66,7 @@ function getUnixShellEnvironment(logService: ILogService): Promise<typeof proces
 					delete env['ELECTRON_NO_ATTACH_CONSOLE'];
 				}
 
-				// https://github.com/Microsoft/vscode/issues/22593#issuecomment-336050758
+				// https://github.com/microsoft/vscode/issues/22593#issuecomment-336050758
 				delete env['XDG_RUNTIME_DIR'];
 
 				logService.trace('getUnixShellEnvironment#result', env);

@@ -652,7 +652,7 @@ export function registerTerminalActions() {
 			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const instance = terminalService.getActiveOrCreateInstance();
-			let editor = codeEditorService.getFocusedCodeEditor();
+			let editor = codeEditorService.getActiveCodeEditor();
 			if (!editor || !editor.hasModel()) {
 				return;
 			}
@@ -692,7 +692,7 @@ export function registerTerminalActions() {
 			}
 
 			const uri = editor.getModel().uri;
-			if (uri.scheme !== 'file') {
+			if (uri.scheme !== Schemas.file) {
 				notificationService.warn(localize('workbench.action.terminal.runActiveFile.noFile', 'Only files on disk can be run in the terminal'));
 				return;
 			}

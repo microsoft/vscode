@@ -186,7 +186,7 @@ class RichRenderer implements IOutputTransformContribution {
 		const image = document.createElement('img');
 		image.src = `data:image/png;base64,${output.data['image/png']}`;
 		const display = document.createElement('div');
-		DOM.addClasses(display, 'display');
+		display.classList.add('display');
 		display.appendChild(image);
 		container.appendChild(display);
 		return { type: RenderOutputType.None, hasDynamicHeight: true };
@@ -196,7 +196,7 @@ class RichRenderer implements IOutputTransformContribution {
 		const image = document.createElement('img');
 		image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
 		const display = document.createElement('div');
-		DOM.addClasses(display, 'display');
+		display.classList.add('display');
 		display.appendChild(image);
 		container.appendChild(display);
 		return { type: RenderOutputType.None, hasDynamicHeight: true };

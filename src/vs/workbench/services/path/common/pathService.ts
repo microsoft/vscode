@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from 'vs/base/common/network';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -27,6 +28,14 @@ export interface IPathService {
 	 * the local file system's path library depending on the OS.
 	 */
 	readonly path: Promise<IPath>;
+
+	/**
+	 * Determines the best default URI scheme for the current workspace.
+	 * It uses information about whether we're running remote, in browser,
+	 * or native combined with information about the current workspace to
+	 * find the best default scheme.
+	 */
+	readonly defaultUriScheme: string;
 
 	/**
 	 * Converts the given path to a file URI to use for the target
@@ -59,6 +68,8 @@ export abstract class AbstractPathService implements IPathService {
 
 	private resolveUserHome: Promise<URI>;
 	private maybeUnresolvedUserHome: URI | undefined;
+
+	abstract readonly defaultUriScheme: string;
 
 	constructor(
 		private localUserHome: URI,
@@ -122,9 +133,8 @@ export abstract class AbstractPathService implements IPathService {
 			}
 		}
 
-		// return new _URI('file', authority, path, '', '');
 		return URI.from({
-			scheme: 'file',
+			scheme: Schemas.file,
 			authority,
 			path: _path,
 			query: '',

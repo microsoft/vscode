@@ -41,7 +41,7 @@ import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/pl
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions, MinimapPosition } from 'vs/editor/common/model';
-import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
+import { sortedDiff } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
@@ -769,7 +769,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			return;
 		}
 
-		const index = firstIndex(model.changes, change => lineIntersectsChange(lineNumber, change));
+		const index = model.changes.findIndex(change => lineIntersectsChange(lineNumber, change));
 
 		if (index < 0) {
 			return;
@@ -1301,7 +1301,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 	private setViewState(state: IViewState): void {
 		this.viewState = state;
-		this.stylesheet.innerHTML = `
+		this.stylesheet.textContent = `
 			.monaco-editor .dirty-diff-modified,.monaco-editor .dirty-diff-added{border-left-width:${state.width}px;}
 			.monaco-editor .dirty-diff-modified, .monaco-editor .dirty-diff-added, .monaco-editor .dirty-diff-deleted {
 				opacity: ${state.visibility === 'always' ? 1 : 0};

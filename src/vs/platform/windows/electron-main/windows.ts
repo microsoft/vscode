@@ -98,6 +98,7 @@ export interface IWindowsMainService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onWindowOpened: Event<ICodeWindow>;
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 

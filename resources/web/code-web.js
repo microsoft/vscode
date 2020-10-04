@@ -28,7 +28,7 @@ const BUILTIN_MARKETPLACE_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'built
 const WEB_DEV_EXTENSIONS_ROOT = path.join(APP_ROOT, '.build', 'builtInWebDevExtensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
 
-const WEB_PLAYGROUND_VERSION = '0.0.8';
+const WEB_PLAYGROUND_VERSION = '0.0.9';
 
 const args = minimist(process.argv, {
 	boolean: [
@@ -276,12 +276,13 @@ async function handleStatic(req, res, parsedUrl) {
 	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
 		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
 		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
-		if (!filePath) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
-		return serveFile(req, res, filePath, {
+		const responseHeaders = {
 			'Access-Control-Allow-Origin': '*'
-		});
+		};
+		if (!filePath) {
+			return serveError(req, res, 400, `Bad request.`, responseHeaders);
+		}
+		return serveFile(req, res, filePath, responseHeaders);
 	}
 
 	// Strip `/static/` from the path
@@ -299,12 +300,13 @@ async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
 	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
-	if (!filePath) {
-		return serveError(req, res, 400, `Bad request.`);
-	}
-	return serveFile(req, res, filePath, {
+	const responseHeaders = {
 		'Access-Control-Allow-Origin': '*'
-	});
+	};
+	if (!filePath) {
+		return serveError(req, res, 400, `Bad request.`, responseHeaders);
+	}
+	return serveFile(req, res, filePath, responseHeaders);
 }
 
 /**
@@ -369,32 +371,17 @@ async function handleRoot(req, res) {
 		webConfigJSON._wrapWebWorkerExtHostInIframe = true;
 	}
 
-	const credentials = [];
-	if (args['github-auth']) {
-		const sessionId = uuid.v4();
-		credentials.push({
-			service: 'code-oss.login',
-			account: 'account',
-			password: JSON.stringify({
-				id: sessionId,
-				providerId: 'github',
-				accessToken: args['github-auth']
-			})
-		}, {
-			service: 'code-oss-github.login',
-			account: 'account',
-			password: JSON.stringify([{
-				id: sessionId,
-				scopes: ['user:email'],
-				accessToken: args['github-auth']
-			}])
-		});
-	}
+	const authSessionInfo = args['github-auth'] ? {
+		id: uuid.v4(),
+		providerId: 'github',
+		accessToken: args['github-auth'],
+		scopes: [['user:email'], ['repo']]
+	} : undefined;
 
 	const data = (await readFile(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => escapeAttribute(JSON.stringify(webConfigJSON))) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WORKBENCH_BUILTIN_EXTENSIONS}}', () => escapeAttribute(JSON.stringify(dedupedBuiltInExtensions)))
-		.replace('{{WORKBENCH_CREDENTIALS}}', () => escapeAttribute(JSON.stringify(credentials)))
+		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
 		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
 
@@ -532,8 +519,9 @@ function getExtensionFilePath(relativePath, locations) {
  * @param {import('http').ServerResponse} res
  * @param {string} errorMessage
  */
-function serveError(req, res, errorCode, errorMessage) {
-	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
+function serveError(req, res, errorCode, errorMessage, responseHeaders = Object.create(null)) {
+	responseHeaders['Content-Type'] = 'text/plain';
+	res.writeHead(errorCode, responseHeaders);
 	res.end(errorMessage);
 }
 
@@ -598,7 +586,8 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 		fs.createReadStream(filePath).pipe(res);
 	} catch (error) {
 		console.error(error.toString());
-		res.writeHead(404, { 'Content-Type': 'text/plain' });
+		responseHeaders['Content-Type'] = 'text/plain';
+		res.writeHead(404, responseHeaders);
 		return res.end('Not found');
 	}
 }

@@ -13,7 +13,7 @@ import { execFile } from 'child_process';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-browser/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -26,12 +26,12 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IRemoteAgentService readonly remoteAgentService: IRemoteAgentService,
-		@IElectronService readonly electronService: IElectronService
+		@INativeHostService readonly nativeHostService: INativeHostService
 	) {
 		super();
 
 		ipcRenderer.on('vscode:openFiles', (_: unknown, request: INativeOpenFileRequest) => this._onOpenFileRequest(request));
-		this._register(electronService.onOSResume(() => this._onOsResume()));
+		this._register(nativeHostService.onOSResume(() => this._onOsResume()));
 
 		this._terminalService.setLinuxDistro(linuxDistro);
 		this._terminalService.setNativeWindowsDelegate({

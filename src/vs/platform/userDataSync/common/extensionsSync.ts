@@ -18,7 +18,6 @@ import { merge, getIgnoredExtensions } from 'vs/platform/userDataSync/common/ext
 import { AbstractInitializer, AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, dirname, basename, isEqual } from 'vs/base/common/resources';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { compare } from 'vs/base/common/strings';
@@ -82,7 +81,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	protected readonly version: number = 4;
 
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
-	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'extensions.json');
+	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'extensions.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -183,17 +182,17 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	protected async getAcceptResult(resourcePreview: IExtensionResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IExtensionResourceMergeResult> {
 
 		/* Accept local resource */
-		if (isEqual(resource, this.localResource)) {
+		if (this.extUri.isEqual(resource, this.localResource)) {
 			return this.acceptLocal(resourcePreview);
 		}
 
 		/* Accept remote resource */
-		if (isEqual(resource, this.remoteResource)) {
+		if (this.extUri.isEqual(resource, this.remoteResource)) {
 			return this.acceptRemote(resourcePreview);
 		}
 
 		/* Accept preview resource */
-		if (isEqual(resource, this.previewResource)) {
+		if (this.extUri.isEqual(resource, this.previewResource)) {
 			return resourcePreview.previewResult;
 		}
 
@@ -272,18 +271,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		return [{ resource: joinPath(uri, 'extensions.json'), comparableResource: ExtensionsSynchroniser.EXTENSIONS_DATA_URI }];
+		return [{ resource: this.extUri.joinPath(uri, 'extensions.json'), comparableResource: ExtensionsSynchroniser.EXTENSIONS_DATA_URI }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
+		if (this.extUri.isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
 			const installedExtensions = await this.extensionManagementService.getInstalled();
 			const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
 			const localExtensions = this.getLocalExtensions(installedExtensions).filter(e => !ignoredExtensions.some(id => areSameExtensions({ id }, e.identifier)));
 			return this.format(localExtensions);
 		}
 
-		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 
@@ -292,11 +291,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			return content;
 		}
 
-		content = await super.resolveContent(dirname(uri));
+		content = await super.resolveContent(this.extUri.dirname(uri));
 		if (content) {
 			const syncData = this.parseSyncData(content);
 			if (syncData) {
-				switch (basename(uri)) {
+				switch (this.extUri.basename(uri)) {
 					case 'extensions.json':
 						return this.format(this.parseExtensions(syncData));
 				}

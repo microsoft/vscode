@@ -5,10 +5,10 @@
 
 import 'vs/css!./media/scm';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename, dirname, isEqual } from 'vs/base/common/resources';
+import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { append, $, addClass, toggleClass, removeClass, Dimension } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { IAction, IActionViewItem, ActionRunner, Action, RadioGroup, Separator, SubmenuAction, IActionViewItemProvider } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, StatusBarAction, StatusBarActionViewItem, getRepositoryVisibilityActions } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { WorkbenchCompressibleObjectTree, IOpenEvent } from 'vs/platform/list/browser/listService';
@@ -43,7 +43,7 @@ import { localize } from 'vs/nls';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, PANEL_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { ITextModel } from 'vs/editor/common/model';
@@ -75,6 +75,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmRepositoryRenderer';
 import { IPosition } from 'vs/editor/common/core/position';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -136,17 +138,18 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	constructor(
 		private outerLayout: ISCMLayout,
+		private overflowWidgetsDomNode: HTMLElement,
 		private updateHeight: (input: ISCMInput, height: number) => void,
 		@IInstantiationService private instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
 		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-no-twistie');
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
 
 		const disposables = new DisposableStore();
 		const inputElement = append(container, $('.scm-input'));
-		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement);
+		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		disposables.add(inputWidget);
 
 		return { inputWidget, disposable: Disposable.None, templateDisposable: disposables };
@@ -266,7 +269,7 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
 		// hack
-		addClass(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement, 'force-twistie');
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
@@ -389,24 +392,24 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			if (resourceOrFolder.element) {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.element.resourceGroup.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder.element), template.actionBar));
-				toggleClass(template.name, 'strike-through', resourceOrFolder.element.decorations.strikeThrough);
-				toggleClass(template.element, 'faded', resourceOrFolder.element.decorations.faded);
+				template.name.classList.toggle('strike-through', resourceOrFolder.element.decorations.strikeThrough);
+				template.element.classList.toggle('faded', resourceOrFolder.element.decorations.faded);
 			} else {
 				const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.context.provider);
 				elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(resourceOrFolder.context), template.actionBar));
-				removeClass(template.name, 'strike-through');
-				removeClass(template.element, 'faded');
+				template.name.classList.remove('strike-through');
+				template.element.classList.remove('faded');
 			}
 		} else {
 			const menus = this.scmViewService.menus.getRepositoryMenus(resourceOrFolder.resourceGroup.provider);
 			elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceMenu(resourceOrFolder), template.actionBar));
-			toggleClass(template.name, 'strike-through', resourceOrFolder.decorations.strikeThrough);
-			toggleClass(template.element, 'faded', resourceOrFolder.decorations.faded);
+			template.name.classList.toggle('strike-through', resourceOrFolder.decorations.strikeThrough);
+			template.element.classList.toggle('faded', resourceOrFolder.decorations.faded);
 		}
 
 		const render = () => {
 			const theme = this.themeService.getColorTheme();
-			const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
+			const icon = iconResource && (theme.type === ColorScheme.LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
 			template.fileLabel.setFile(uri, {
 				fileDecorations: { colors: false, badges: !icon },
@@ -418,7 +421,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 			if (icon) {
 				template.decorationIcon.style.display = '';
-				template.decorationIcon.style.backgroundImage = `url('${icon}')`;
+				template.decorationIcon.style.backgroundImage = asCSSUrl(icon);
 				template.decorationIcon.title = tooltip;
 			} else {
 				template.decorationIcon.style.display = 'none';
@@ -462,8 +465,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const menus = this.scmViewService.menus.getRepositoryMenus(folder.context.provider);
 		elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.getResourceFolderMenu(folder.context), template.actionBar));
 
-		removeClass(template.name, 'strike-through');
-		removeClass(template.element, 'faded');
+		template.name.classList.remove('strike-through');
+		template.element.classList.remove('faded');
 		template.decorationIcon.style.display = 'none';
 		template.decorationIcon.style.backgroundImage = '';
 
@@ -770,7 +773,8 @@ class ViewModel {
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
-		@ISCMViewService private scmViewService: ISCMViewService
+		@ISCMViewService private scmViewService: ISCMViewService,
+		@IUriIdentityService private uriIdentityService: IUriIdentityService
 	) {
 		this.onDidChangeRepositoryCollapseState = Event.any(
 			this._onDidChangeRepositoryCollapseState.event,
@@ -957,13 +961,7 @@ class ViewModel {
 			return;
 		}
 
-		const editor = this.editorService.activeEditor;
-
-		if (!editor) {
-			return;
-		}
-
-		const uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!uri) {
 			return;
@@ -976,8 +974,8 @@ class ViewModel {
 			for (let j = item.groupItems.length - 1; j >= 0; j--) {
 				const groupItem = item.groupItems[j];
 				const resource = this.mode === ViewModelMode.Tree
-					? groupItem.tree.getNode(uri)?.element
-					: groupItem.resources.find(r => isEqual(r.sourceUri, uri));
+					? groupItem.tree.getNode(uri)?.element // TODO@Joao URI identity?
+					: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
 				if (resource) {
 					this.tree.reveal(resource);
@@ -1252,7 +1250,7 @@ class SCMInputWidget extends Disposable {
 		}
 
 		this.validationDisposable.dispose();
-		removeClass(this.editorContainer, 'synthetic-focus');
+		this.editorContainer.classList.remove('synthetic-focus');
 
 		this.repositoryDisposables.dispose();
 		this.repositoryDisposables = new DisposableStore();
@@ -1309,12 +1307,12 @@ class SCMInputWidget extends Disposable {
 			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
-			textModel.setValue(value);
+			textModel.setValue(input.value);
 			this.inputEditor.setPosition(textModel.getFullModelRange().getEndPosition());
 		}));
 
 		// Keep API in sync with model, update placeholder visibility and validate
-		const updatePlaceholderVisibility = () => toggleClass(this.placeholderTextContainer, 'hidden', textModel.getValueLength() > 0);
+		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
 			input.value = textModel.getValue();
 			updatePlaceholderVisibility();
@@ -1372,13 +1370,14 @@ class SCMInputWidget extends Disposable {
 
 	constructor(
 		container: HTMLElement,
+		overflowWidgetsDomNode: HTMLElement,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModelService private modelService: IModelService,
 		@IModeService private modeService: IModeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextViewService private readonly contextViewService: IContextViewService
 	) {
 		super();
 
@@ -1401,7 +1400,8 @@ class SCMInputWidget extends Disposable {
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false }
+			scrollbar: { alwaysConsumeMouseWheel: false },
+			overflowWidgetsDomNode
 		};
 
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
@@ -1425,11 +1425,11 @@ class SCMInputWidget extends Disposable {
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => {
 			this.input?.repository.setSelected(true); // TODO@joao: remove
-			addClass(this.editorContainer, 'synthetic-focus');
+			this.editorContainer.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
 		this._register(this.inputEditor.onDidBlurEditorText(() => {
-			removeClass(this.editorContainer, 'synthetic-focus');
+			this.editorContainer.classList.remove('synthetic-focus');
 			this.validationDisposable.dispose();
 		}));
 
@@ -1457,7 +1457,7 @@ class SCMInputWidget extends Disposable {
 
 	focus(): void {
 		this.inputEditor.focus();
-		addClass(this.editorContainer, 'synthetic-focus');
+		this.editorContainer.classList.add('synthetic-focus');
 	}
 
 	hasFocus(): boolean {
@@ -1467,9 +1467,9 @@ class SCMInputWidget extends Disposable {
 	private renderValidation(): void {
 		this.validationDisposable.dispose();
 
-		toggleClass(this.editorContainer, 'validation-info', this.validation?.type === InputValidationType.Information);
-		toggleClass(this.editorContainer, 'validation-warning', this.validation?.type === InputValidationType.Warning);
-		toggleClass(this.editorContainer, 'validation-error', this.validation?.type === InputValidationType.Error);
+		this.editorContainer.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
+		this.editorContainer.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
+		this.editorContainer.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
 
 		if (!this.validation || !this.inputEditor.hasTextFocus()) {
 			return;
@@ -1479,9 +1479,9 @@ class SCMInputWidget extends Disposable {
 			getAnchor: () => this.editorContainer,
 			render: container => {
 				const element = append(container, $('.scm-editor-validation'));
-				toggleClass(element, 'validation-info', this.validation!.type === InputValidationType.Information);
-				toggleClass(element, 'validation-warning', this.validation!.type === InputValidationType.Warning);
-				toggleClass(element, 'validation-error', this.validation!.type === InputValidationType.Error);
+				element.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
+				element.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
+				element.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
 				element.style.width = `${this.editorContainer.clientWidth}px`;
 				element.textContent = this.validation!.message;
 				return Disposable.None;
@@ -1591,21 +1591,23 @@ export class SCMViewPane extends ViewPane {
 		// List
 		this.listContainer = append(container, $('.scm-view.show-file-icons'));
 
-		const updateActionsVisibility = () => toggleClass(this.listContainer, 'show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
+		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
+
+		const updateActionsVisibility = () => this.listContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'))(updateActionsVisibility));
 		updateActionsVisibility();
 
 		const updateProviderCountVisibility = () => {
 			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
-			toggleClass(this.listContainer, 'hide-provider-counts', value === 'hidden');
-			toggleClass(this.listContainer, 'auto-provider-counts', value === 'auto');
+			this.listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			this.listContainer.classList.toggle('auto-provider-counts', value === 'auto');
 		};
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'))(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
 		this._register(this.scmViewService.onDidChangeVisibleRepositories(() => this.updateActions()));
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, (input, height) => this.tree.updateElementHeight(input, height));
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ListDelegate(this.inputRenderer);
 
 		const actionViewItemProvider = (action: IAction) => this.getActionViewItem(action);
@@ -1642,7 +1644,6 @@ export class SCMViewPane extends ViewPane {
 				filter,
 				sorter,
 				keyboardNavigationLabelProvider,
-				transformOptimization: false,
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Sidebar ? SIDE_BAR_BACKGROUND : PANEL_BACKGROUND
 				},
@@ -1655,6 +1656,8 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
 		this._register(this.tree);
 
+		append(this.listContainer, overflowWidgetsDomNode);
+
 		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;
 
@@ -1665,8 +1668,8 @@ export class SCMViewPane extends ViewPane {
 		this.viewModel = this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer, viewMode, ViewModelSortKey.Path);
 		this._register(this.viewModel);
 
-		addClass(this.listContainer, 'file-icon-themable-tree');
-		addClass(this.listContainer, 'show-file-icons');
+		this.listContainer.classList.add('file-icon-themable-tree');
+		this.listContainer.classList.add('show-file-icons');
 
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
@@ -1682,10 +1685,10 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
-		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
-		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
-		toggleClass(this.listContainer, 'align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
+		this.listContainer.classList.toggle('list-view-mode', this.viewModel.mode === ViewModelMode.List);
+		this.listContainer.classList.toggle('tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
+		this.listContainer.classList.toggle('align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.listContainer.classList.toggle('hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
 	private onDidChangeMode(): void {

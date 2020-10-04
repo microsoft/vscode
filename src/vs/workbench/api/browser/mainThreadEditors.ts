@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
@@ -44,7 +43,7 @@ function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceE
 		} else if (edit._type === WorkspaceEditType.Text) {
 			result.push(new ResourceTextEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
 		} else if (edit._type === WorkspaceEditType.Cell) {
-			result.push(new ResourceNotebookCellEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
+			result.push(new ResourceNotebookCellEdit(edit.resource, edit.edit, edit.notebookVersionId, edit.metadata));
 		}
 	}
 	return result;
@@ -346,10 +345,6 @@ CommandsRegistry.registerCommand('_workbench.diff', async function (accessor: Se
 		options = {
 			preserveFocus: false
 		};
-	}
-
-	if (!label) {
-		label = localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 	}
 
 	await editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position));

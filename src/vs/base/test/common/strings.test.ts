@@ -140,28 +140,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
 	});
 
-	test('startsWith', () => {
-		assert(strings.startsWith('foo', 'f'));
-		assert(strings.startsWith('foo', 'fo'));
-		assert(strings.startsWith('foo', 'foo'));
-		assert(!strings.startsWith('foo', 'o'));
-		assert(!strings.startsWith('', 'f'));
-		assert(strings.startsWith('foo', ''));
-		assert(strings.startsWith('', ''));
-	});
-
-	test('endsWith', () => {
-		assert(strings.endsWith('foo', 'o'));
-		assert(strings.endsWith('foo', 'oo'));
-		assert(strings.endsWith('foo', 'foo'));
-		assert(strings.endsWith('foo bar foo', 'foo'));
-		assert(!strings.endsWith('foo', 'f'));
-		assert(!strings.endsWith('', 'f'));
-		assert(strings.endsWith('foo', ''));
-		assert(strings.endsWith('', ''));
-		assert(strings.endsWith('/', '/'));
-	});
-
 	test('ltrim', () => {
 		assert.strictEqual(strings.ltrim('foo', 'f'), 'oo');
 		assert.strictEqual(strings.ltrim('foo', 'o'), 'foo');
@@ -203,13 +181,6 @@ suite('Strings', () => {
 		assert.strictEqual('bar  '.trim(), 'bar');
 		assert.strictEqual('   '.trim(), '');
 		assert.strictEqual(' 	  '.trim(), '');
-	});
-
-	test('repeat', () => {
-		assert.strictEqual(strings.repeat(' ', 4), '    ');
-		assert.strictEqual(strings.repeat(' ', 1), ' ');
-		assert.strictEqual(strings.repeat(' ', 0), '');
-		assert.strictEqual(strings.repeat('abc', 2), 'abcabc');
 	});
 
 	test('lastNonWhitespaceIndex', () => {

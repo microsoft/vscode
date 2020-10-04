@@ -10,7 +10,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups, UNPIN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -406,6 +406,24 @@ export class CloseEditorAction extends Action {
 	}
 }
 
+export class UnpinEditorAction extends Action {
+
+	static readonly ID = 'workbench.action.unpinActiveEditor';
+	static readonly LABEL = nls.localize('unpinEditor', "Unpin Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super(id, label, Codicon.pinned.classNames);
+	}
+
+	run(context?: IEditorCommandsContext): Promise<void> {
+		return this.commandService.executeCommand(UNPIN_EDITOR_COMMAND_ID, undefined, context);
+	}
+}
+
 export class CloseOneEditorAction extends Action {
 
 	static readonly ID = 'workbench.action.closeActiveEditor';
@@ -760,7 +778,7 @@ export class BaseMoveGroupAction extends Action {
 
 		// Allow the target group to be in alternative locations to support more
 		// scenarios of moving the group to the taret location.
-		// Helps for https://github.com/Microsoft/vscode/issues/50741
+		// Helps for https://github.com/microsoft/vscode/issues/50741
 		switch (this.direction) {
 			case GroupDirection.LEFT:
 			case GroupDirection.RIGHT:
@@ -1828,20 +1846,20 @@ export class ToggleEditorTypeAction extends Action {
 			return;
 		}
 
-		const input = activeEditorPane.input;
-		if (!input.resource) {
+		const activeEditorResource = activeEditorPane.input.resource;
+		if (!activeEditorResource) {
 			return;
 		}
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(input.resource, undefined, options, group, this.editorService);
+		const overrides = getAllAvailableEditors(activeEditorResource, undefined, options, group, this.editorService);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+		await firstNonActiveOverride[0].open(activeEditorPane.input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 }

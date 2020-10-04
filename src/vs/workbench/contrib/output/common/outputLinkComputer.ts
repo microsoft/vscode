@@ -12,7 +12,6 @@ import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
-import { find } from 'vs/base/common/arrays';
 
 export interface ICreateData {
 	workspaceFolders: string[];
@@ -47,7 +46,7 @@ export class OutputLinkComputer {
 	private getModel(uri: string): IMirrorModel | undefined {
 		const models = this.ctx.getMirrorModels();
 
-		return find(models, model => model.uri.toString() === uri);
+		return models.find(model => model.uri.toString() === uri);
 	}
 
 	computeLinks(uri: string): ILink[] {
@@ -156,7 +155,7 @@ export class OutputLinkComputer {
 				const fullMatch = strings.rtrim(match[0], '.'); // remove trailing "." that likely indicate end of sentence
 
 				const index = line.indexOf(fullMatch, offset);
-				offset += index + fullMatch.length;
+				offset = index + fullMatch.length;
 
 				const linkRange = {
 					startColumn: index + 1,

@@ -18,7 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -74,7 +74,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
+		if (now > this.lastRun /* https://github.com/microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
 			return;
 		}
 		this.lastRun = now;
@@ -200,7 +200,10 @@ export class AccountsActionViewItem extends ActivityActionViewItem {
 						return this.authenticationService.signOutOfAccount(sessionInfo.providerId, accountName);
 					});
 
-					const actions = hasEmbedderAccountSession ? [manageExtensionsAction] : [manageExtensionsAction, signOutAction];
+					const actions = [manageExtensionsAction];
+					if (!hasEmbedderAccountSession || authenticationSession?.canSignOut) {
+						actions.push(signOutAction);
+					}
 
 					const menu = new SubmenuAction('activitybar.submenu', `${accountName} (${providerDisplayName})`, actions);
 					menus.push(menu);
@@ -536,5 +539,5 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 });
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', CATEGORIES.View.value);

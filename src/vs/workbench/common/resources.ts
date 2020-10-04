@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import * as objects from 'vs/base/common/objects';
 import { Emitter } from 'vs/base/common/event';
-import { basename, extname, relativePath } from 'vs/base/common/resources';
+import { basename, dirname, extname, relativePath } from 'vs/base/common/resources';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -24,6 +24,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 	static readonly Scheme = new RawContextKey<string>('resourceScheme', undefined);
 	static readonly Filename = new RawContextKey<string>('resourceFilename', undefined);
+	static readonly Dirname = new RawContextKey<string>('resourceDirname', undefined);
+	static readonly Path = new RawContextKey<string>('resourcePath', undefined);
 	static readonly LangId = new RawContextKey<string>('resourceLangId', undefined);
 	static readonly Resource = new RawContextKey<URI>('resource', undefined);
 	static readonly Extension = new RawContextKey<string>('resourceExtname', undefined);
@@ -33,6 +35,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 	private readonly _resourceKey: IContextKey<URI | null>;
 	private readonly _schemeKey: IContextKey<string | null>;
 	private readonly _filenameKey: IContextKey<string | null>;
+	private readonly _dirnameKey: IContextKey<string | null>;
+	private readonly _pathKey: IContextKey<string | null>;
 	private readonly _langIdKey: IContextKey<string | null>;
 	private readonly _extensionKey: IContextKey<string | null>;
 	private readonly _hasResource: IContextKey<boolean>;
@@ -47,6 +51,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(this._contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(this._contextKeyService);
+		this._dirnameKey = ResourceContextKey.Dirname.bindTo(this._contextKeyService);
+		this._pathKey = ResourceContextKey.Path.bindTo(this._contextKeyService);
 		this._langIdKey = ResourceContextKey.LangId.bindTo(this._contextKeyService);
 		this._resourceKey = ResourceContextKey.Resource.bindTo(this._contextKeyService);
 		this._extensionKey = ResourceContextKey.Extension.bindTo(this._contextKeyService);
@@ -70,6 +76,8 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 				this._resourceKey.set(value);
 				this._schemeKey.set(value ? value.scheme : null);
 				this._filenameKey.set(value ? basename(value) : null);
+				this._dirnameKey.set(value ? dirname(value).fsPath : null);
+				this._pathKey.set(value ? value.fsPath : null);
 				this._langIdKey.set(value ? this._modeService.getModeIdByFilepathOrFirstLine(value) : null);
 				this._extensionKey.set(value ? extname(value) : null);
 				this._hasResource.set(!!value);
@@ -80,9 +88,11 @@ export class ResourceContextKey extends Disposable implements IContextKey<URI> {
 
 	reset(): void {
 		this._contextKeyService.bufferChangeEvents(() => {
-			this._schemeKey.reset();
-			this._langIdKey.reset();
 			this._resourceKey.reset();
+			this._schemeKey.reset();
+			this._filenameKey.reset();
+			this._dirnameKey.reset();
+			this._pathKey.reset();
 			this._langIdKey.reset();
 			this._extensionKey.reset();
 			this._hasResource.reset();

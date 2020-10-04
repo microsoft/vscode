@@ -30,9 +30,9 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITimelineService, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvidersChangeEvent, TimelineRequest, Timeline } from 'vs/workbench/contrib/timeline/common/timeline';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { SideBySideEditor, toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IThemeService, LIGHT, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -41,6 +41,7 @@ import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntr
 import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const ItemHeight = 22;
 
@@ -342,16 +343,11 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		let uri;
-
-		const editor = this.editorService.activeEditor;
-		if (editor) {
-			uri = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		}
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if ((uri?.toString(true) === this.uri?.toString(true) && uri !== undefined) ||
 			// Fallback to match on fsPath if we are dealing with files or git schemes
-			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === 'file' || uri?.scheme === 'git') && (this.uri?.scheme === 'file' || this.uri?.scheme === 'git'))) {
+			(uri?.fsPath === this.uri?.fsPath && (uri?.scheme === Schemas.file || uri?.scheme === 'git') && (this.uri?.scheme === Schemas.file || this.uri?.scheme === 'git'))) {
 
 			// If the uri hasn't changed, make sure we have valid caches
 			for (const source of this.timelineService.getSources()) {
@@ -1117,7 +1113,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 
 		const { element: item } = node;
 
-		const icon = this.themeService.getColorTheme().type === LIGHT ? item.icon : item.iconDark;
+		const icon = this.themeService.getColorTheme().type === ColorScheme.LIGHT ? item.icon : item.iconDark;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {

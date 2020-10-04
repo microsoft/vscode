@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -13,7 +12,6 @@ import { getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client, IIPCOptions } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { parseSearchPort } from 'vs/platform/environment/node/environmentService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -27,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { FileAccess } from 'vs/base/common/network';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -36,7 +35,7 @@ export class LocalSearchService extends SearchService {
 		@ILogService logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IInstantiationService readonly instantiationService: IInstantiationService
 	) {
 		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
@@ -62,7 +61,7 @@ export class DiskSearch implements ISearchResultProvider {
 			serverName: 'Search',
 			timeout,
 			args: ['--type=searchService'],
-			// See https://github.com/Microsoft/vscode/issues/27665
+			// See https://github.com/microsoft/vscode/issues/27665
 			// Pass in fresh execArgv to the forked process such that it doesn't inherit them from `process.execArgv`.
 			// e.g. Launching the extension host process with `--inspect-brk=xxx` and then forking a process from the extension host
 			// results in the forked process inheriting `--inspect-brk=xxx`.
@@ -83,10 +82,7 @@ export class DiskSearch implements ISearchResultProvider {
 			}
 		}
 
-		const client = new Client(
-			getPathFromAmdModule(require, 'bootstrap-fork'),
-			opts);
-
+		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
 		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
 	}

@@ -68,7 +68,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		DOM.addClass(parent, 'side-by-side-editor');
+		parent.classList.add('side-by-side-editor');
 
 		const splitview = this.splitview = this._register(new SplitView(parent, { orientation: Orientation.HORIZONTAL }));
 		this._register(this.splitview.onDidSashReset(() => splitview.distributeViewSizes()));

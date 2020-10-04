@@ -8,7 +8,7 @@ import { IRelativePattern, parse } from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import type * as vscode from 'vscode';
-import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, MainThreadTextEditorsShape, SourceTargetPair, IWorkspaceEditDto } from './extHost.protocol';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, MainContext, SourceTargetPair, IWorkspaceEditDto, MainThreadBulkEditsShape } from './extHost.protocol';
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -123,7 +123,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
-		private readonly _mainThreadTextEditors: MainThreadTextEditorsShape = mainContext.getProxy(MainContext.MainThreadTextEditors)
+		private readonly _mainThreadBulkEdits: MainThreadBulkEditsShape = mainContext.getProxy(MainContext.MainThreadBulkEdits)
 	) {
 		//
 	}
@@ -222,7 +222,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 				let { edits } = typeConverter.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 				dto.edits = dto.edits.concat(edits);
 			}
-			return this._mainThreadTextEditors.$tryApplyWorkspaceEdit(dto);
+			return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
 		}
 	}
 }

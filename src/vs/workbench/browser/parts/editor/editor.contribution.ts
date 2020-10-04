@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, EditorPinnedContext, EditorGroupEditorsCountContext, EditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInputFactory, SideBySideEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext } from 'vs/workbench/common/editor';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { ChangeEncodingAction, ChangeEOLAction, ChangeModeAction, EditorStatus } from 'vs/workbench/browser/parts/editor/editorStatus';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor, MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
@@ -53,6 +53,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess, AllEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { FileAccess } from 'vs/base/common/network';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -113,7 +115,8 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 	constructor(
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IPathService private readonly pathService: IPathService
 	) { }
 
 	canSerialize(editorInput: EditorInput): boolean {
@@ -129,7 +132,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
-			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority); // untitled with associated file path use the local schema
+			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
 		}
 
 		// Mode: only remember mode if it is either specific (not text)
@@ -307,91 +310,90 @@ quickAccessRegistry.registerQuickAccessProvider({
 });
 
 // Register Editor Actions
-const category = nls.localize('view', "View");
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageDown, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET] } }), 'View: Open Next Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageUp, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET] } }), 'View: Open Previous Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditorInGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.PageDown), mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow) } }), 'View: Open Next Editor in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousEditorInGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.PageUp), mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow) } }), 'View: Open Previous Editor in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextRecentlyUsedEditorAction), 'View: Open Next Recently Used Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousRecentlyUsedEditorAction), 'View: Open Previous Recently Used Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextRecentlyUsedEditorInGroupAction), 'View: Open Next Recently Used Editor In Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousRecentlyUsedEditorInGroupAction), 'View: Open Previous Recently Used Editor In Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenFirstEditorInGroup), 'View: Open First Editor in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLastEditorInGroup, { primary: KeyMod.Alt | KeyCode.KEY_0, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_9], mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_0, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_9] } }), 'View: Open Last Editor in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenClosedEditorAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), 'View: Reopen Closed Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByAppearanceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P), mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors By Appearance', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByMostRecentlyUsedAction), 'View: Show All Editors By Most Recently Used', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowEditorsInActiveGroupByMostRecentlyUsedAction), 'View: Show Editors in Active Group By Most Recently Used', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageDown, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_CLOSE_SQUARE_BRACKET] } }), 'View: Open Next Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousEditor, { primary: KeyMod.CtrlCmd | KeyCode.PageUp, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_OPEN_SQUARE_BRACKET] } }), 'View: Open Previous Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextEditorInGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.PageDown), mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow) } }), 'View: Open Next Editor in Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousEditorInGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.PageUp), mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow) } }), 'View: Open Previous Editor in Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextRecentlyUsedEditorAction), 'View: Open Next Recently Used Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousRecentlyUsedEditorAction), 'View: Open Previous Recently Used Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenNextRecentlyUsedEditorInGroupAction), 'View: Open Next Recently Used Editor In Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenPreviousRecentlyUsedEditorInGroupAction), 'View: Open Previous Recently Used Editor In Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenFirstEditorInGroup), 'View: Open First Editor in Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLastEditorInGroup, { primary: KeyMod.Alt | KeyCode.KEY_0, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_9], mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_0, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_9] } }), 'View: Open Last Editor in Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenClosedEditorAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_T }), 'View: Reopen Closed Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByAppearanceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_P), mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Tab } }), 'View: Show All Editors By Appearance', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowAllEditorsByMostRecentlyUsedAction), 'View: Show All Editors By Most Recently Used', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowEditorsInActiveGroupByMostRecentlyUsedAction), 'View: Show Editors in Active Group By Most Recently Used', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearRecentFilesAction), 'File: Clear Recently Opened', nls.localize('file', "File"));
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), 'View: Close All Editors', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorGroupsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), 'View: Close All Editor Groups', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseLeftEditorsInGroupAction), 'View: Close Editors to the Left in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseEditorsInOtherGroupsAction), 'View: Close Editors in Other Groups', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseEditorInAllGroupsAction), 'View: Close Editor in All Groups', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorAction, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorOrthogonalAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH) }), 'View: Split Editor Orthogonal', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorLeftAction), 'View: Split Editor Left', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorRightAction), 'View: Split Editor Right', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorUpAction), 'Split Editor Up', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorDownAction), 'View: Split Editor Down', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(JoinTwoGroupsAction), 'View: Join Editor Group with Next Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(JoinAllGroupsAction), 'View: Join All Editor Groups', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBetweenGroupsAction), 'View: Navigate Between Editor Groups', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetGroupSizesAction), 'View: Reset Editor Group Sizes', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleGroupSizesAction), 'View: Toggle Editor Group Sizes', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MaximizeGroupAction), 'View: Maximize Editor Group and Hide Side Bar', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MinimizeOtherGroupsAction), 'View: Maximize Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorLeftInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow) } }), 'View: Move Editor Left', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorRightInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow) } }), 'View: Move Editor Right', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupLeftAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Editor Group Left', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupRightAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Editor Group Right', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupUpAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), 'View: Move Editor Group Up', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupDownAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.DownArrow) }), 'View: Move Editor Group Down', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToPreviousGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow } }), 'View: Move Editor into Previous Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToNextGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow } }), 'View: Move Editor into Next Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToFirstGroupAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_1 } }), 'View: Move Editor into First Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLastGroupAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_9, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_9 } }), 'View: Move Editor into Last Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLeftGroupAction), 'View: Move Editor into Left Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToRightGroupAction), 'View: Move Editor into Right Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToAboveGroupAction), 'View: Move Editor into Above Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToBelowGroupAction), 'View: Move Editor into Below Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusActiveGroupAction), 'View: Focus Active Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFirstGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus First Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLastGroupAction), 'View: Focus Last Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousGroup), 'View: Focus Previous Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextGroup), 'View: Focus Next Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLeftGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow) }), 'View: Focus Left Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusRightGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow) }), 'View: Focus Right Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAboveGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.UpArrow) }), 'View: Focus Above Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusBelowGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.DownArrow) }), 'View: Focus Below Editor Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupLeftAction), 'View: New Editor Group to the Left', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupRightAction), 'View: New Editor Group to the Right', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupAboveAction), 'View: New Editor Group Above', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupBelowAction), 'View: New Editor Group Below', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_W) }), 'View: Close All Editors', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseAllEditorGroupsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W) }), 'View: Close All Editor Groups', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseLeftEditorsInGroupAction), 'View: Close Editors to the Left in Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseEditorsInOtherGroupsAction), 'View: Close Editors in Other Groups', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseEditorInAllGroupsAction), 'View: Close Editor in All Groups', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorAction, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorOrthogonalAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_BACKSLASH) }), 'View: Split Editor Orthogonal', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorLeftAction), 'View: Split Editor Left', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorRightAction), 'View: Split Editor Right', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorUpAction), 'Split Editor Up', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(SplitEditorDownAction), 'View: Split Editor Down', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(JoinTwoGroupsAction), 'View: Join Editor Group with Next Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(JoinAllGroupsAction), 'View: Join All Editor Groups', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBetweenGroupsAction), 'View: Navigate Between Editor Groups', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ResetGroupSizesAction), 'View: Reset Editor Group Sizes', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleGroupSizesAction), 'View: Toggle Editor Group Sizes', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MaximizeGroupAction), 'View: Maximize Editor Group and Hide Side Bar', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MinimizeOtherGroupsAction), 'View: Maximize Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorLeftInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow) } }), 'View: Move Editor Left', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorRightInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow) } }), 'View: Move Editor Right', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupLeftAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Editor Group Left', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupRightAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.RightArrow) }), 'View: Move Editor Group Right', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupUpAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.UpArrow) }), 'View: Move Editor Group Up', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveGroupDownAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.DownArrow) }), 'View: Move Editor Group Down', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToPreviousGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.LeftArrow } }), 'View: Move Editor into Previous Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToNextGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow } }), 'View: Move Editor into Next Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToFirstGroupAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_1 } }), 'View: Move Editor into First Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLastGroupAction, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_9, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_9 } }), 'View: Move Editor into Last Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToLeftGroupAction), 'View: Move Editor into Left Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToRightGroupAction), 'View: Move Editor into Right Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToAboveGroupAction), 'View: Move Editor into Above Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveEditorToBelowGroupAction), 'View: Move Editor into Below Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusActiveGroupAction), 'View: Focus Active Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFirstGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_1 }), 'View: Focus First Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLastGroupAction), 'View: Focus Last Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousGroup), 'View: Focus Previous Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextGroup), 'View: Focus Next Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusLeftGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow) }), 'View: Focus Left Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusRightGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow) }), 'View: Focus Right Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusAboveGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.UpArrow) }), 'View: Focus Above Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusBelowGroup, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.DownArrow) }), 'View: Focus Below Editor Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupLeftAction), 'View: New Editor Group to the Left', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupRightAction), 'View: New Editor Group to the Right', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupAboveAction), 'View: New Editor Group Above', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NewEditorGroupBelowAction), 'View: New Editor Group Below', CATEGORIES.View.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateForwardAction, { primary: 0, win: { primary: KeyMod.Alt | KeyCode.RightArrow }, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Forward');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateBackwardsAction, { primary: 0, win: { primary: KeyMod.Alt | KeyCode.LeftArrow }, mac: { primary: KeyMod.WinCtrl | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_MINUS } }), 'Go Back');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateToLastEditLocationAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_Q) }), 'Go to Last Edit Location');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLastAction), 'Go Last');
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ClearEditorHistoryAction), 'Clear Editor History');
-registry.registerWorkbenchAction(SyncActionDescriptor.from(RevertAndCloseEditorAction), 'View: Revert and Close Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutSingleAction), 'View: Single Column Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsAction), 'View: Two Columns Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeColumnsAction), 'View: Three Columns Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsAction), 'View: Two Rows Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeRowsAction), 'View: Three Rows Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoByTwoGridAction), 'View: Grid Editor Layout (2x2)', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsRightAction), 'View: Two Rows Right Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsBottomAction), 'View: Two Columns Bottom Editor Layout', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'View: Reopen Editor With...', category, ActiveEditorAvailableEditorIdsContext);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorTypeAction), 'View: Toggle Editor Type', category, ActiveEditorAvailableEditorIdsContext);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(RevertAndCloseEditorAction), 'View: Revert and Close Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutSingleAction), 'View: Single Column Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsAction), 'View: Two Columns Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeColumnsAction), 'View: Three Columns Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsAction), 'View: Two Rows Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutThreeRowsAction), 'View: Three Rows Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoByTwoGridAction), 'View: Grid Editor Layout (2x2)', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoRowsRightAction), 'View: Two Rows Right Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(EditorLayoutTwoColumnsBottomAction), 'View: Two Columns Bottom Editor Layout', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'View: Reopen Editor With...', CATEGORIES.View.value, ActiveEditorAvailableEditorIdsContext);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleEditorTypeAction), 'View: Toggle Editor Type', CATEGORIES.View.value, ActiveEditorAvailableEditorIdsContext);
 
 // Register Quick Editor Actions including built in quick navigate support for some
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousRecentlyUsedEditorAction), 'View: Quick Open Previous Recently Used Editor', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessLeastRecentlyUsedEditorAction), 'View: Quick Open Least Recently Used Editor', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousRecentlyUsedEditorAction), 'View: Quick Open Previous Recently Used Editor', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessLeastRecentlyUsedEditorAction), 'View: Quick Open Least Recently Used Editor', CATEGORIES.View.value);
 
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousRecentlyUsedEditorInGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'View: Quick Open Previous Recently Used Editor in Group', category);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessLeastRecentlyUsedEditorInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } }), 'View: Quick Open Least Recently Used Editor in Group', category);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousRecentlyUsedEditorInGroupAction, { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } }), 'View: Quick Open Previous Recently Used Editor in Group', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessLeastRecentlyUsedEditorInGroupAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab } }), 'View: Quick Open Least Recently Used Editor in Group', CATEGORIES.View.value);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickAccessPreviousEditorFromHistoryAction), 'Quick Open Previous Editor from History');
 
@@ -421,13 +423,13 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/back-tb.png', require) } },
 		group: 'navigation',
 		order: 0
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, icon: { dark: FileAccess.asFileUri('vs/workbench/browser/parts/editor/media/forward-tb.png', require) } },
 		group: 'navigation',
 		order: 1
 	});
@@ -447,9 +449,9 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCo
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '1_close', order: 40 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '1_close', order: 50 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: ReopenResourcesAction.ID, title: ReopenResourcesAction.LABEL }, group: '1_open', order: 10, when: ActiveEditorAvailableEditorIdsContext });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepOpen', "Keep Open"), precondition: EditorPinnedContext.toNegated() }, group: '3_preview', order: 10, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.PIN_EDITOR_COMMAND_ID, title: nls.localize('pin', "Pin") }, group: '3_preview', order: 20, when: ContextKeyExpr.and(EditorStickyContext.toNegated(), ContextKeyExpr.has('config.workbench.editor.showTabs')) });
-MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.UNPIN_EDITOR_COMMAND_ID, title: nls.localize('unpin', "Unpin") }, group: '3_preview', order: 20, when: ContextKeyExpr.and(EditorStickyContext, ContextKeyExpr.has('config.workbench.editor.showTabs')) });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepOpen', "Keep Open"), precondition: ActiveEditorPinnedContext.toNegated() }, group: '3_preview', order: 10, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.PIN_EDITOR_COMMAND_ID, title: nls.localize('pin', "Pin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext.toNegated() });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.UNPIN_EDITOR_COMMAND_ID, title: nls.localize('unpin', "Unpin") }, group: '3_preview', order: 20, when: ActiveEditorStickyContext });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_UP, title: nls.localize('splitUp', "Split Up") }, group: '5_split', order: 10 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_DOWN, title: nls.localize('splitDown', "Split Down") }, group: '5_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: editorCommands.SPLIT_EDITOR_LEFT, title: nls.localize('splitLeft', "Split Left") }, group: '5_split', order: 30 });
@@ -518,14 +520,14 @@ appendEditorToolItem(
 	}
 );
 
-// Editor Title Menu: Close Group (tabs disabled)
+// Editor Title Menu: Close (tabs disabled, normal editor)
 appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
 		icon: { id: 'codicon/close' }
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
@@ -534,18 +536,51 @@ appendEditorToolItem(
 	}
 );
 
+// Editor Title Menu: Close (tabs disabled, dirty editor)
 appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
 		icon: { id: 'codicon/close-dirty' }
 	},
-	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext.toNegated()),
 	1000000, // towards the far end
 	{
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
 		icon: { id: 'codicon/close-all' }
+	}
+);
+
+// Editor Title Menu: Close (tabs disabled, sticky editor)
+appendEditorToolItem(
+	{
+		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
+		title: nls.localize('unpin', "Unpin"),
+		icon: { id: 'codicon/pinned' }
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext.toNegated(), ActiveEditorStickyContext),
+	1000000, // towards the far end
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		icon: { id: 'codicon/close' }
+	}
+);
+
+// Editor Title Menu: Close (tabs disabled, dirty & sticky editor)
+appendEditorToolItem(
+	{
+		id: editorCommands.UNPIN_EDITOR_COMMAND_ID,
+		title: nls.localize('unpin', "Unpin"),
+		icon: { id: 'codicon/close-dirty' }
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ActiveEditorDirtyContext, ActiveEditorStickyContext),
+	1000000, // towards the far end
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		icon: { id: 'codicon/close' }
 	}
 );
 
@@ -594,15 +629,16 @@ appendEditorToolItem(
 );
 
 // Editor Commands for Command Palette
-const viewCategory = { value: nls.localize('view', "View"), original: 'View' };
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: { value: nls.localize('keepEditor', "Keep Editor"), original: 'Keep Editor' }, category: viewCategory }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.PIN_EDITOR_COMMAND_ID, title: { value: nls.localize('pinEditor', "Pin Editor"), original: 'Pin Editor' }, category: viewCategory }, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.UNPIN_EDITOR_COMMAND_ID, title: { value: nls.localize('unpinEditor', "Unpin Editor"), original: 'Unpin Editor' }, category: viewCategory }, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'Close All Editors in Group' }, category: viewCategory } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'Close Saved Editors in Group' }, category: viewCategory } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeOtherEditors', "Close Other Editors in Group"), original: 'Close Other Editors in Group' }, category: viewCategory } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'Close Editors to the Right in Group' }, category: viewCategory } });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: viewCategory }, when: MultipleEditorGroupsContext });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: { value: nls.localize('keepEditor', "Keep Editor"), original: 'Keep Editor' }, category: CATEGORIES.View }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.PIN_EDITOR_COMMAND_ID, title: { value: nls.localize('pinEditor', "Pin Editor"), original: 'Pin Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.UNPIN_EDITOR_COMMAND_ID, title: { value: nls.localize('unpinEditor', "Unpin Editor"), original: 'Unpin Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITOR_COMMAND_ID, title: { value: nls.localize('closeEditor', "Close Editor"), original: 'Close Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_PINNED_EDITOR_COMMAND_ID, title: { value: nls.localize('closePinnedEditor', "Close Pinned Editor"), original: 'Close Pinned Editor' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), original: 'Close All Editors in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: nls.localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'Close Saved Editors in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: nls.localize('closeOtherEditors', "Close Other Editors in Group"), original: 'Close Other Editors in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: nls.localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'Close Editors to the Right in Group' }, category: CATEGORIES.View } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: nls.localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: CATEGORIES.View }, when: MultipleEditorGroupsContext });
 
 // File menu
 MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {

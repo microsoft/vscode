@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -180,7 +180,7 @@ CommandsRegistry.registerCommand('_executePrepareCallHierarchy', async (accessor
 		return [model.root];
 
 	} finally {
-		dispose(textModelReference);
+		textModelReference?.dispose();
 	}
 });
 

@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { dirname, join } from 'vs/base/common/path';
-import product from 'vs/platform/product/common/product';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { join } from 'vs/base/common/path';
+import { IProductService } from 'vs/platform/product/common/productService';
 
-export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
+export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -20,7 +19,7 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get webviewExternalEndpoint(): string {
 		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
 
-		return baseEndpoint.replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
+		return baseEndpoint.replace('{{commit}}', this.productService.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -59,42 +58,12 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 		return undefined;
 	}
 
-	@memoize
-	get cliPath(): string { return this.doGetCLIPath(); }
-
 	readonly execPath = this.configuration.execPath;
 
 	constructor(
-		readonly configuration: INativeWorkbenchConfiguration
+		readonly configuration: INativeWorkbenchConfiguration,
+		private readonly productService: IProductService
 	) {
 		super(configuration);
-	}
-
-	private doGetCLIPath(): string {
-
-		// Windows
-		if (isWindows) {
-			if (this.isBuilt) {
-				return join(dirname(this.execPath), 'bin', `${product.applicationName}.cmd`);
-			}
-
-			return join(this.appRoot, 'scripts', 'code-cli.bat');
-		}
-
-		// Linux
-		if (isLinux) {
-			if (this.isBuilt) {
-				return join(dirname(this.execPath), 'bin', `${product.applicationName}`);
-			}
-
-			return join(this.appRoot, 'scripts', 'code-cli.sh');
-		}
-
-		// macOS
-		if (this.isBuilt) {
-			return join(this.appRoot, 'bin', 'code');
-		}
-
-		return join(this.appRoot, 'scripts', 'code-cli.sh');
 	}
 }

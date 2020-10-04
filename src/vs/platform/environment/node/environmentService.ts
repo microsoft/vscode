@@ -14,17 +14,17 @@ import { memoize } from 'vs/base/common/decorators';
 import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
 import { isWindows, Platform, platform } from 'vs/base/common/platform';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
-export class EnvironmentService implements INativeEnvironmentService {
+export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
 	get args(): NativeParsedArgs { return this._args; }
 
 	@memoize
-	get appRoot(): string { return path.dirname(getPathFromAmdModule(require, '')); }
+	get appRoot(): string { return path.dirname(FileAccess.asFileUri('', require).fsPath); }
 
 	readonly logsPath: string;
 
@@ -45,6 +45,9 @@ export class EnvironmentService implements INativeEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
+	get tmpDir(): URI { return URI.file(os.tmpdir()); }
+
+	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
@@ -58,9 +61,6 @@ export class EnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
-
-	@memoize
-	get enableSyncByDefault(): boolean { return false; }
 
 	@memoize
 	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }
@@ -111,7 +111,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 		if (fromArgs) {
 			return fromArgs;
 		} else {
-			return path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+			return path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
 		}
 	}
 
@@ -228,7 +228,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 }
 
 // Read this before there's any chance it is overwritten
-// Related to https://github.com/Microsoft/vscode/issues/30624
+// Related to https://github.com/microsoft/vscode/issues/30624
 export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {

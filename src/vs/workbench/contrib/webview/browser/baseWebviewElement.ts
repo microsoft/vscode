@@ -15,7 +15,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
-import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const enum WebviewMessageChannels {
@@ -171,8 +171,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		if (this.element) {
 			this.element.remove();
 		}
-
 		this._element = undefined;
+
+		this._onDidDispose.fire();
+
 		super.dispose();
 	}
 
@@ -202,6 +204,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidBlur = this._register(new Emitter<void>());
 	public readonly onDidBlur = this._onDidBlur.event;
+
+	private readonly _onDidDispose = this._register(new Emitter<void>());
+	public readonly onDidDispose = this._onDidDispose.event;
 
 	public postMessage(data: any): void {
 		this._send('message', data);

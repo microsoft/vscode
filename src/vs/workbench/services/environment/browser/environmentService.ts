@@ -8,10 +8,10 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { ColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
@@ -70,13 +70,8 @@ class BrowserWorkbenchConfiguration implements IWindowConfiguration {
 		return undefined;
 	}
 
-	// TODO@martin TODO@ben this currently does not support high-contrast theme preference (no browser support yet)
-	get colorScheme() {
-		if (window.matchMedia(`(prefers-color-scheme: dark)`).matches) {
-			return ColorScheme.DARK;
-		}
-
-		return ColorScheme.DEFAULT;
+	get colorScheme(): IColorScheme {
+		return { dark: false, highContrast: false };
 	}
 }
 
@@ -107,7 +102,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	@memoize
-	get isBuilt(): boolean { return !!product.commit; }
+	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
 	get logsPath(): string { return this.options.logsPath.path; }
@@ -148,9 +143,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
-
-	@memoize
-	get enableSyncByDefault(): boolean { return !!this.options.enableSyncByDefault; }
 
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
@@ -211,13 +203,13 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	private get webviewEndpoint(): string {
-		// TODO@matt: get fallback from product.json
+		// TODO@matt: get fallback from product service
 		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
 	}
 
 	@memoize
 	get webviewExternalEndpoint(): string {
-		return (this.webviewEndpoint).replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
+		return (this.webviewEndpoint).replace('{{commit}}', this.productService.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -238,7 +230,10 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	private payload: Map<string, string> | undefined;
 
-	constructor(readonly options: IBrowserWorkbenchOptions) {
+	constructor(
+		readonly options: IBrowserWorkbenchOptions,
+		private readonly productService: IProductService
+	) {
 		if (options.workspaceProvider && Array.isArray(options.workspaceProvider.payload)) {
 			try {
 				this.payload = new Map(options.workspaceProvider.payload);

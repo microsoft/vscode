@@ -19,7 +19,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService, IAddedViewDescriptorRef, IViewsService } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -28,7 +28,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IProgress, IProgressStep, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -37,14 +37,14 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ReconnectionWaitEvent, PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import Severity from 'vs/base/common/severity';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SwitchRemoteViewItem, SwitchRemoteAction } from 'vs/workbench/contrib/remote/browser/explorerViewItems';
 import { Action, IActionViewItem, IAction } from 'vs/base/common/actions';
 import { isStringArray } from 'vs/base/common/types';
-import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, MakeAddress, mapHasTunnelLocalhostOrAllInterfaces } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
+import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled, OpenPortInBrowserAction } from 'vs/workbench/contrib/remote/browser/tunnelView';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
@@ -56,6 +56,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteStatusIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { UrlFinder } from 'vs/workbench/contrib/remote/browser/urlFinder';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export interface HelpInformation {
@@ -274,7 +276,7 @@ class HelpItemValue {
 	constructor(private commandService: ICommandService, public extensionDescription: IExtensionDescription, public remoteAuthority: string[] | undefined, private urlOrCommand?: string) { }
 
 	get url(): Promise<string> {
-		return new Promise(async (resolve) => {
+		return new Promise<string>(async (resolve) => {
 			if (this._url === undefined) {
 				if (this.urlOrCommand) {
 					let url = URI.parse(this.urlOrCommand);
@@ -286,9 +288,10 @@ class HelpItemValue {
 						const emptyString: Promise<string> = new Promise(resolve => setTimeout(() => resolve(''), 500));
 						this._url = await Promise.race([urlCommand, emptyString]);
 					}
-				} else {
-					this._url = '';
 				}
+			}
+			if (this._url === undefined) {
+				this._url = '';
 			}
 			resolve(this._url);
 		});
@@ -426,7 +429,6 @@ class HelpPanel extends ViewPane {
 			[new HelpTreeRenderer()],
 			new HelpDataSource(),
 			{
-				keyboardSupport: true,
 				accessibilityProvider: {
 					getAriaLabel: (item: HelpItemBase) => {
 						return item.label;
@@ -484,8 +486,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 		super(VIEWLET_ID, remoteExplorerService.onDidChangeTargetType, configurationService, layoutService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService, viewDescriptorService);
 		this.addConstantViewDescriptors([this.helpPanelDescriptor]);
@@ -560,7 +561,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
-			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService, this.terminalService), this.environmentService);
+			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], this.viewContainer);
 		}
@@ -619,7 +620,7 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 		primary: 0
 	}),
 	'View: Show Remote Explorer',
-	nls.localize('view', "View")
+	CATEGORIES.View.value
 );
 
 class VisibleProgress {
@@ -839,6 +840,68 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 	}
 }
 
+class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
+	private contextServiceListener: IDisposable;
+
+	constructor(
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IRemoteExplorerService private readonly remoteExplorerService: IRemoteExplorerService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
+	) {
+		super();
+		if (this.environmentService.configuration.remoteAuthority) {
+			this.startUrlFinder();
+		}
+		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
+				this.startUrlFinder();
+			}
+		}));
+	}
+
+	private isStarted = false;
+	private startUrlFinder() {
+		if (!this.isStarted && !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
+			return;
+		}
+		this.contextServiceListener.dispose();
+		this.isStarted = true;
+		const urlFinder = this._register(new UrlFinder(this.terminalService));
+		this._register(urlFinder.onDidMatchLocalUrl(async (localUrl) => {
+			if (mapHasTunnelLocalhostOrAllInterfaces(this.remoteExplorerService.tunnelModel.forwarded, localUrl.host, localUrl.port)) {
+				return;
+			}
+			const forwarded = await this.remoteExplorerService.forward(localUrl);
+			if (forwarded) {
+				const address = MakeAddress(forwarded.tunnelRemoteHost, forwarded.tunnelRemotePort);
+				const message = nls.localize('remote.tunnelsView.automaticForward', "{0} from the remote has been forwarded to {1} locally.",
+					address, forwarded.localAddress);
+				const browserChoice: IPromptChoice = {
+					label: OpenPortInBrowserAction.LABEL,
+					run: () => OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address)
+				};
+				const showChoice: IPromptChoice = {
+					label: nls.localize('remote.tunnelsView.showView', "Show Forwarded Ports"),
+					run: () => {
+						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] : undefined;
+						if (explorerType) {
+							this.remoteExplorerService.targetType = explorerType;
+						}
+						this.viewsService.openViewContainer(VIEWLET_ID);
+					}
+				};
+				this.notificationService.prompt(Severity.Info, message, [browserChoice, showChoice], { neverShowAgain: { id: 'remote.tunnelsView.autoForwardNeverShow', isSecondary: true } });
+			}
+		}));
+	}
+}
+
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteStatusIndicator, LifecyclePhase.Starting);
+workbenchContributionsRegistry.registerWorkbenchContribution(AutomaticPortForwarding, LifecyclePhase.Eventually);

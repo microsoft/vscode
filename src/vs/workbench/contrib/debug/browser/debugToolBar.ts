@@ -75,7 +75,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
-					return this.instantiationService.createInstance(FocusSessionActionViewItem, action);
+					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
 				} else if (action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
 				} else if (action instanceof SubmenuItemAction) {
@@ -94,7 +94,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 
 			const { actions, disposable } = DebugToolBar.getActions(this.debugToolBarMenu, this.debugService, this.instantiationService);
-			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
+			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id && first.enabled === second.enabled)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
 				this.activeActions = actions;
@@ -142,7 +142,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}));
 
 		this._register(dom.addDisposableGenericMouseDownListner(this.dragArea, (event: MouseEvent) => {
-			dom.addClass(this.dragArea, 'dragged');
+			this.dragArea.classList.add('dragged');
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListner(window, (e: MouseEvent) => {
 				const mouseMoveEvent = new StandardMouseEvent(e);
@@ -154,7 +154,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListner(window, (e: MouseEvent) => {
 				this.storePosition();
-				dom.removeClass(this.dragArea, 'dragged');
+				this.dragArea.classList.remove('dragged');
 
 				mouseMoveListener.dispose();
 				mouseUpListener.dispose();

@@ -377,5 +377,5 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 	return result;
 }
 function escapeCSS(str: string) {
-	return (<any>window)['CSS'].escape(str);
+	return window.CSS.escape(str);
 }

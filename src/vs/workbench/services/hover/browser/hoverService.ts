@@ -47,6 +47,14 @@ export class HoverService implements IHoverService {
 		return hover;
 	}
 
+	hideHover(): void {
+		if (!this._currentHoverOptions) {
+			return;
+		}
+		this._currentHoverOptions = undefined;
+		this._contextViewService.hideContextView();
+	}
+
 	private _intersectionChange(entries: IntersectionObserverEntry[], hover: IDisposable): void {
 		const entry = entries[entries.length - 1];
 		if (!entry.isIntersecting) {

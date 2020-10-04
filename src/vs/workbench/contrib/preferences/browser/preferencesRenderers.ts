@@ -31,7 +31,6 @@ import { DefaultSettingsEditorModel, SettingsEditorModel, WorkspaceConfiguration
 import { IMarkerService, IMarkerData, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { find } from 'vs/base/common/arrays';
 
 export interface IPreferencesRenderer<T> extends IDisposable {
 	readonly preferencesModel: IPreferencesEditorModel<T>;
@@ -321,7 +320,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		const { key, overrideOf } = setting;
 		if (overrideOf) {
 			const setting = this.getSetting(overrideOf);
-			return find(setting!.overrides!, override => override.key === key);
+			return setting!.overrides!.find(override => override.key === key);
 		}
 		const settingsGroups = this.filterResult ? this.filterResult.filteredGroups : this.preferencesModel.settingsGroups;
 		return this.getPreference(key, settingsGroups);
@@ -762,7 +761,7 @@ class EditSettingRenderer extends Disposable {
 			if (configurationNode) {
 				if (this.isDefaultSettings()) {
 					if (setting.key === 'launch') {
-						// Do not show because of https://github.com/Microsoft/vscode/issues/32593
+						// Do not show because of https://github.com/microsoft/vscode/issues/32593
 						return false;
 					}
 					return true;

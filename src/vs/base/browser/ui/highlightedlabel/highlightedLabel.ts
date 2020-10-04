@@ -5,7 +5,7 @@
 
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
-import { renderCodiconsAsElement } from 'vs/base/browser/codicons';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export interface IHighlight {
 	start: number;
@@ -61,12 +61,12 @@ export class HighlightedLabel {
 			}
 			if (pos < highlight.start) {
 				const substring = this.text.substring(pos, highlight.start);
-				children.push(dom.$('span', undefined, ...this.supportCodicons ? renderCodiconsAsElement(substring) : [substring]));
+				children.push(dom.$('span', undefined, ...this.supportCodicons ? renderCodicons(substring) : [substring]));
 				pos = highlight.end;
 			}
 
 			const substring = this.text.substring(highlight.start, highlight.end);
-			const element = dom.$('span.highlight', undefined, ...this.supportCodicons ? renderCodiconsAsElement(substring) : [substring]);
+			const element = dom.$('span.highlight', undefined, ...this.supportCodicons ? renderCodicons(substring) : [substring]);
 			if (highlight.extraClasses) {
 				element.classList.add(highlight.extraClasses);
 			}
@@ -76,7 +76,7 @@ export class HighlightedLabel {
 
 		if (pos < this.text.length) {
 			const substring = this.text.substring(pos,);
-			children.push(dom.$('span', undefined, ...this.supportCodicons ? renderCodiconsAsElement(substring) : [substring]));
+			children.push(dom.$('span', undefined, ...this.supportCodicons ? renderCodicons(substring) : [substring]));
 		}
 
 		dom.reset(this.domNode, ...children);
