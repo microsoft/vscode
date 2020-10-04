@@ -360,7 +360,7 @@ registry.registerWorkbenchAction(SyncActionDescriptor.from(QuickPickRecentAction
 registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenRecentAction, { primary: KeyMod.CtrlCmd | KeyCode.KEY_R, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_R } }), 'File: Open Recent...', fileCategory);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleFullScreenAction, { primary: KeyCode.F11, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_F } }), 'View: Toggle Full Screen', CATEGORIES.View.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ExitFullScreenAction, { primary: KeyCode.Escape }), 'View: Exit Full Screen', CATEGORIES.View.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ExitFullScreenAction), 'View: Exit Full Screen', CATEGORIES.View.value);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowAction), 'Developer: Reload Window', CATEGORIES.Developer.value, IsWebContext.toNegated());
 
