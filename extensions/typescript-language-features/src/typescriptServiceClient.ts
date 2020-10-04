@@ -366,6 +366,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		let version = this._versionManager.currentVersion;
+		if (!version.isValid) {
+			vscode.window.showWarningMessage(localize('noServerFound', 'The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.', version.path));
+
+			this._versionManager.reset();
+			version = this._versionManager.currentVersion;
+		}
 
 		this.info(`Using tsserver from: ${version.path}`);
 
@@ -526,7 +532,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			preferences: {
 				providePrefixAndSuffixTextForRename: true,
 				allowRenameOfImportPath: true,
-				// @ts-expect-error, remove after 4.0 protocol update
 				includePackageJsonAutoImports: this._configuration.includePackageJsonAutoImports,
 			},
 			watchOptions
@@ -631,6 +636,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public normalizedPath(resource: vscode.Uri): string | undefined {
+		if (fileSchemes.disabledSchemes.has(resource.scheme)) {
+			return undefined;
+		}
+
 		switch (resource.scheme) {
 			case fileSchemes.file:
 				{
@@ -642,10 +651,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 					// Both \ and / must be escaped in regular expressions
 					return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
-				}
-			case fileSchemes.git:
-				{
-					return undefined;
 				}
 			default:
 				{
@@ -660,10 +665,32 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	public toOpenedFilePath(document: vscode.TextDocument): string | undefined {
 		if (!this.bufferSyncSupport.ensureHasBuffer(document.uri)) {
-			console.error(`Unexpected resource ${document.uri}`);
+			if (!fileSchemes.disabledSchemes.has(document.uri.scheme)) {
+				console.error(`Unexpected resource ${document.uri}`);
+			}
 			return undefined;
 		}
 		return this.toPath(document.uri) || undefined;
+	}
+
+	public hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean {
+		switch (capability) {
+			case ClientCapability.Semantic:
+				{
+					switch (resource.scheme) {
+						case fileSchemes.file:
+						case fileSchemes.untitled:
+							return true;
+						default:
+							return false;
+					}
+				}
+			case ClientCapability.Syntax:
+			case ClientCapability.EnhancedSyntax:
+				{
+					return true;
+				}
+		}
 	}
 
 	public toResource(filepath: string): vscode.Uri {
@@ -946,7 +973,7 @@ The log file may contain personal data, including full paths and source code fro
 
 		sections.push(`**TS Server Log**
 
-Server logging disabled. To help us fix crashes like this, please enable logging by setting:
+❗️Server logging disabled. To help us fix crashes like this, please enable logging by setting:
 
 \`\`\`json
 "typescript.tsserver.log": "verbose"
@@ -956,6 +983,8 @@ After enabling this setting, future crash reports will include the server log.`)
 	}
 
 	sections.push(`**TS Server Error Stack**
+
+Server: \`${error.serverId}\`
 
 \`\`\`
 ${error.serverStack}
@@ -999,7 +1028,7 @@ class ServerInitializingIndicator extends Disposable {
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
 			title: localize('serverLoading.progress', "Initializing JS/TS language features"),
-		}, () => new Promise((resolve, reject) => {
+		}, () => new Promise<void>((resolve, reject) => {
 			this._task = { project: projectName, resolve, reject };
 		}));
 	}

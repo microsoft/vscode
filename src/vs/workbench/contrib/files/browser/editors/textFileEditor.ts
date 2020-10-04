@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -91,13 +91,13 @@ export class TextFileEditor extends BaseTextEditor {
 		return this._input as FileEditorInput;
 	}
 
-	async setInput(input: FileEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
 
 		// Set input and resolve
-		await super.setInput(input, options, token);
+		await super.setInput(input, options, context, token);
 		try {
 			const resolvedModel = await input.resolve();
 
@@ -119,10 +119,12 @@ export class TextFileEditor extends BaseTextEditor {
 			const textEditor = assertIsDefined(this.getControl());
 			textEditor.setModel(textFileModel.textEditorModel);
 
-			// Always restore View State if any associated
-			const editorViewState = this.loadTextEditorViewState(input.resource);
-			if (editorViewState) {
-				textEditor.restoreViewState(editorViewState);
+			// Always restore View State if any associated and not disabled via settings
+			if (this.shouldRestoreTextEditorViewState(input, context)) {
+				const editorViewState = this.loadTextEditorViewState(input.resource);
+				if (editorViewState) {
+					textEditor.restoreViewState(editorViewState);
+				}
 			}
 
 			// TextOptions (avoiding instanceof here for a reason, do not change!)
@@ -158,14 +160,14 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 
 		// Offer to create a file from the error if we have a file not found and the name is valid
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.resource))) {
+		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND && isValidBasename(basename(input.preferredResource))) {
 			throw createErrorWithActions(toErrorMessage(error), {
 				actions: [
 					new Action('workbench.files.action.createMissingFile', nls.localize('createFile', "Create File"), undefined, true, async () => {
-						await this.textFileService.create(input.resource);
+						await this.textFileService.create(input.preferredResource);
 
 						return this.editorService.openEditor({
-							resource: input.resource,
+							resource: input.preferredResource,
 							options: {
 								pinned: true // new file gets pinned by default
 							}
@@ -205,10 +207,10 @@ export class TextFileEditor extends BaseTextEditor {
 		await this.group.closeEditor(this.input);
 
 		// Best we can do is to reveal the folder in the explorer
-		if (this.contextService.isInsideWorkspace(input.resource)) {
+		if (this.contextService.isInsideWorkspace(input.preferredResource)) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 
-			this.explorerService.select(input.resource, true);
+			this.explorerService.select(input.preferredResource, true);
 		}
 	}
 
@@ -242,7 +244,7 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
-		if (!this.shouldRestoreViewState && (!this.group || !this.group.isOpened(input))) {
+		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.isOpened(input))) {
 			this.clearTextEditorViewState([input.resource], this.group);
 		}
 

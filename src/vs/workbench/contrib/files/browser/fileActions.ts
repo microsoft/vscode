@@ -10,13 +10,12 @@ import { extname, basename } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -31,7 +30,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -40,7 +39,7 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { triggerDownload, asDomUri } from 'vs/base/browser/dom';
+import { triggerDownload } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -49,6 +48,7 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { once } from 'vs/base/common/functional';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
+import { trim, rtrim } from 'vs/base/common/strings';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -375,8 +375,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g2);
 			return number < maxNumber
-				? g1 + strings.pad(number + 1, g2.length) + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+				? g1 + String(number + 1).padStart(g2.length, '0') + g3
+				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
@@ -386,8 +386,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2 + g3
-				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+				? String(number + 1).padStart(g1.length, '0') + g2 + g3
+				: `${g1}${g2}.1${g3}`;
 		});
 	}
 
@@ -397,15 +397,15 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
 			let number = parseInt(g1);
 			return number < maxNumber
-				? strings.pad(number + 1, g1.length) + g2
-				: strings.format('{0}.1{1}', g1, g2);
+				? String(number + 1).padStart(g1.length, '0') + g2
+				: `${g1}.1${g2}`;
 		});
 	}
 
 	// file.txt=>file.1.txt
 	const lastIndexOfDot = name.lastIndexOf('.');
 	if (!isFolder && lastIndexOfDot >= 0) {
-		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
+		return `${name.substr(0, lastIndexOfDot)}.1${name.substr(lastIndexOfDot)}`;
 	}
 
 	// folder.1=>folder.2
@@ -413,8 +413,8 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/(\d+)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length)
-				: strings.format('{0}.1', groups[0]);
+				? String(number + 1).padStart(groups[0].length, '0')
+				: `${groups[0]}.1`;
 		});
 	}
 
@@ -423,13 +423,13 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
-				? strings.pad(number + 1, groups[0].length) + groups[1]
-				: strings.format('{0}{1}.1', groups[0], groups[1]);
+				? String(number + 1).padStart(groups[0].length, '0') + groups[1]
+				: `${groups[0]}${groups[1]}.1`;
 		});
 	}
 
 	// file/folder=>file.1/folder.1
-	return strings.format('{0}.1', name);
+	return `${name}.1`;
 }
 
 // Global Compare with
@@ -451,7 +451,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.resource : undefined;
+		const activeResource = EditorResourceAccessor.getOriginalUri(activeInput);
 		if (activeResource && this.textModelService.canHandleResource(activeResource)) {
 
 			// Compare with next editor that opens
@@ -462,7 +462,7 @@ export class GlobalCompareResourcesAction extends Action {
 					toDispose.dispose();
 
 					// Open editor as diff
-					const resource = editor.resource;
+					const resource = EditorResourceAccessor.getOriginalUri(editor);
 					if (resource && this.textModelService.canHandleResource(resource)) {
 						return {
 							override: this.editorService.openEditor({
@@ -633,7 +633,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -701,7 +701,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	}
 
 	async run(): Promise<void> {
-		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const fileResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
@@ -781,12 +781,12 @@ export function getWellFormedFileName(filename: string): string {
 	}
 
 	// Trim tabs
-	filename = strings.trim(filename, '\t');
+	filename = trim(filename, '\t');
 
 	// Remove trailing dots and slashes
-	filename = strings.rtrim(filename, '.');
-	filename = strings.rtrim(filename, '/');
-	filename = strings.rtrim(filename, '\\');
+	filename = rtrim(filename, '.');
+	filename = rtrim(filename, '/');
+	filename = rtrim(filename, '\\');
 
 	return filename;
 }
@@ -813,7 +813,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
@@ -1015,7 +1015,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				try {
 					bufferOrUri = (await fileService.readFile(s.resource, { limits: { size: 1024 * 1024  /* set a limit to reduce memory pressure */ } })).value.buffer;
 				} catch (error) {
-					bufferOrUri = asDomUri(s.resource);
+					bufferOrUri = FileAccess.asBrowserUri(s.resource);
 				}
 
 				triggerDownload(bufferOrUri, s.name);

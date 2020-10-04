@@ -60,7 +60,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 
 		if (tsEntry.source) {
 			// De-prioritze auto-imports
-			// https://github.com/Microsoft/vscode/issues/40311
+			// https://github.com/microsoft/vscode/issues/40311
 			this.sortText = '\uffff' + tsEntry.sortText;
 		} else {
 			this.sortText = tsEntry.sortText;
@@ -338,14 +338,13 @@ class CompletionAcceptedCommand implements Command {
 		if (item instanceof MyCompletionItem) {
 			/* __GDPR__
 				"completions.accept" : {
-					"isPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+					"isPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
 				}
 			*/
 			this.telemetryReporter.logTelemetry('completions.accept', {
-				// @ts-expect-error - remove after TS 4.0 protocol update
 				isPackageJsonImport: item.tsEntry.isPackageJsonImport ? 'true' : undefined,
 			});
 		}
@@ -369,29 +368,19 @@ class ApplyCompletionCodeActionCommand implements Command {
 			return applyCodeAction(this.client, codeActions[0], nulToken);
 		}
 
-		interface MyQuickPickItem extends vscode.QuickPickItem {
-			index: number;
-		}
-
-		const selection = await vscode.window.showQuickPick<MyQuickPickItem>(
-			codeActions.map((action, i): MyQuickPickItem => ({
+		const selection = await vscode.window.showQuickPick(
+			codeActions.map(action => ({
 				label: action.description,
 				description: '',
-				index: i
+				action,
 			})), {
 			placeHolder: localize('selectCodeAction', 'Select code action to apply')
-		}
-		);
+		});
 
-		if (!selection) {
-			return false;
+		if (selection) {
+			return applyCodeAction(this.client, selection.action, nulToken);
 		}
-
-		const action = codeActions[selection.index];
-		if (!action) {
-			return false;
-		}
-		return applyCodeAction(this.client, action, nulToken);
+		return false;
 	}
 }
 
@@ -445,7 +434,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionList<MyCompletionItem> | null> {
+	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
 		if (this.typingsStatus.isAcquiringTypings) {
 			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
 				label: localize(
@@ -459,14 +448,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
-			return null;
+			return undefined;
 		}
 
 		const line = document.lineAt(position.line);
 		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.modeId, document.uri);
 
 		if (!this.shouldTrigger(context, line, position)) {
-			return null;
+			return undefined;
 		}
 
 		const wordRange = document.getWordRangeAtPosition(position);
@@ -498,7 +487,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 			if (response.type !== 'response' || !response.body) {
 				this.logCompletionsTelemetry(duration, response);
-				return null;
+				return undefined;
 			}
 			isNewIdentifierLocation = response.body.isNewIdentifierLocation;
 			isMemberCompletion = response.body.isMemberCompletion;
@@ -516,7 +505,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		} else {
 			const response = await this.client.interruptGetErr(() => this.client.execute('completions', args, token));
 			if (response.type !== 'response' || !response.body) {
-				return null;
+				return undefined;
 			}
 
 			entries = response.body;
@@ -540,7 +529,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		for (let entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
-				// @ts-expect-error - remove after TS 4.0 protocol update
 				includesPackageJsonImport = !!entry.isPackageJsonImport;
 			}
 		}
@@ -557,11 +545,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 	) {
 		/* __GDPR__
 			"completions.execute" : {
-				"duration" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"type" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"count" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"updateGraphDurationMs" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
-				"includesPackageJsonImport" : { "classification": "SystemMetadata", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"updateGraphDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"createAutoImportProviderProgramDurationMs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"includesPackageJsonImport" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"${include}": [
 					"${TypeScriptCommonProperties}"
 				]
@@ -572,13 +561,14 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			type: response?.type ?? 'unknown',
 			count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
 			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
+			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? (response.performanceData as Proto.PerformanceData & { createAutoImportProviderProgramDurationMs?: number })?.createAutoImportProviderProgramDurationMs : undefined,
 			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
 		});
 	}
 
 	private getTsTriggerCharacter(context: vscode.CompletionContext): Proto.CompletionsTriggerCharacter | undefined {
 		switch (context.triggerCharacter) {
-			case '@': // Workaround for https://github.com/Microsoft/TypeScript/issues/27321
+			case '@': // Workaround for https://github.com/microsoft/TypeScript/issues/27321
 				return this.client.apiVersion.gte(API.v310) && this.client.apiVersion.lt(API.v320) ? undefined : '@';
 
 			case '#': // Workaround for https://github.com/microsoft/TypeScript/issues/36367
@@ -641,7 +631,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
 				item.insertText = snippet;
 				if (parameterCount > 0) {
-					commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					//Fix for https://github.com/microsoft/vscode/issues/104059
+					//Don't show parameter hints if "editor.parameterHints.enabled": false
+					if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
+						commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+					}
 				}
 			}
 		}
@@ -716,7 +710,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		position: vscode.Position
 	): boolean {
 		if (this.client.apiVersion.lt(API.v320)) {
-			// Workaround for https://github.com/Microsoft/TypeScript/issues/27742
+			// Workaround for https://github.com/microsoft/TypeScript/issues/27742
 			// Only enable dot completions when previous character not a dot preceded by whitespace.
 			// Prevents incorrectly completing while typing spread operators.
 			if (position.character > 1) {
@@ -789,7 +783,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		document: vscode.TextDocument,
 		token: vscode.CancellationToken
 	): Promise<boolean> {
-		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
+		// Workaround for https://github.com/microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assignments or imports
 		try {
 			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
@@ -808,7 +802,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		}
 
 		// Don't complete function call if there is already something that looks like a function call
-		// https://github.com/Microsoft/vscode/issues/18131
+		// https://github.com/microsoft/vscode/issues/18131
 		const after = document.lineAt(position.line).text.slice(position.character);
 		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
 	}

@@ -72,7 +72,7 @@ interface InMemoryClipboardMetadata {
  * Every time we read from the cipboard, if the text matches our last written text,
  * we can fetch the previous metadata.
  */
-class InMemoryClipboardMetadataManager {
+export class InMemoryClipboardMetadataManager {
 	public static readonly INSTANCE = new InMemoryClipboardMetadataManager();
 
 	private _lastState: InMemoryClipboardMetadata | null;
@@ -252,7 +252,7 @@ export class TextAreaInput extends Disposable {
 		};
 
 		const compositionDataInValid = (locale: string): boolean => {
-			// https://github.com/Microsoft/monaco-editor/issues/339
+			// https://github.com/microsoft/monaco-editor/issues/339
 			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
 			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
 			// which breaks this path of code.
@@ -272,7 +272,7 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 
-			const [newState, typeInput] = deduceComposition(e.data);
+			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
 			this._onCompositionUpdate.fire(e);
@@ -285,12 +285,12 @@ export class TextAreaInput extends Disposable {
 				return;
 			}
 			if (compositionDataInValid(e.locale)) {
-				// https://github.com/Microsoft/monaco-editor/issues/339
+				// https://github.com/microsoft/monaco-editor/issues/339
 				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			} else {
-				const [newState, typeInput] = deduceComposition(e.data);
+				const [newState, typeInput] = deduceComposition(e.data || '');
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 			}
@@ -380,7 +380,7 @@ export class TextAreaInput extends Disposable {
 	}
 
 	private _installSelectionChangeListener(): IDisposable {
-		// See https://github.com/Microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
+		// See https://github.com/microsoft/vscode/issues/27216 and https://github.com/microsoft/vscode/issues/98256
 		// When using a Braille display, it is possible for users to reposition the
 		// system caret. This is reflected in Chrome as a `selectionchange` event.
 		//
@@ -708,7 +708,7 @@ class TextAreaWrapper extends Disposable implements ITextAreaWrapper {
 
 		if (currentIsFocused && currentSelectionStart === selectionStart && currentSelectionEnd === selectionEnd) {
 			// No change
-			// Firefox iframe bug https://github.com/Microsoft/monaco-editor/issues/643#issuecomment-367871377
+			// Firefox iframe bug https://github.com/microsoft/monaco-editor/issues/643#issuecomment-367871377
 			if (browser.isFirefox && window.parent !== window) {
 				textArea.focus();
 			}

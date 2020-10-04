@@ -8,6 +8,7 @@ import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/wo
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
+import { Schemas } from 'vs/base/common/network';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -145,7 +146,7 @@ function uriToString(source: PathContainer): string | undefined {
 	if (typeof source.path === 'object') {
 		const u = uri.revive(source.path);
 		if (u) {
-			if (u.scheme === 'file') {
+			if (u.scheme === Schemas.file) {
 				return u.fsPath;
 			} else {
 				return u.toString();

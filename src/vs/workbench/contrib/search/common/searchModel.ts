@@ -10,7 +10,6 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, TernarySearchTree } from 'vs/base/common/map';
-import * as objects from 'vs/base/common/objects';
 import { lcut } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
@@ -31,6 +30,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 export class Match {
 
@@ -360,9 +360,12 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._onChange.fire({ didRemove: true });
 	}
 
-	replace(toReplace: Match): Promise<void> {
-		return this.replaceService.replace(toReplace)
-			.then(() => this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false));
+	private replaceQ = Promise.resolve();
+	async replace(toReplace: Match): Promise<void> {
+		return this.replaceQ = this.replaceQ.finally(async () => {
+			await this.replaceService.replace(toReplace);
+			this.updatesMatchesForLineAfterReplace(toReplace.range().startLineNumber, false);
+		});
 	}
 
 	setSelectedMatch(match: Match | null): void {
@@ -605,7 +608,7 @@ export class FolderMatch extends Disposable {
 			fileMatches = [fileMatches];
 		}
 
-		for (let match of fileMatches as FileMatch[]) {
+		for (const match of fileMatches as FileMatch[]) {
 			this._fileMatches.delete(match.resource);
 			if (dispose) {
 				match.dispose();
@@ -734,7 +737,7 @@ export class SearchResult extends Disposable {
 	set query(query: ITextQuery | null) {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
-		new Promise(resolve => this.disposePastResults = resolve)
+		new Promise<void>(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.clear()))
 			.then(() => oldFolderMatches.forEach(match => match.dispose()))
 			.then(() => this._isDirty = false);
@@ -1099,14 +1102,14 @@ export class SearchModel extends Disposable {
 		this._searchResult.add(this._resultQueue);
 		this._resultQueue = [];
 
-		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
+		const options: IPatternInfo = Object.assign({}, this._searchQuery.contentPattern);
 		delete (options as any).pattern;
 
 		const stats = completed && completed.stats as ITextSearchStats;
 
-		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === 'file');
-		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== 'file');
-		const scheme = fileSchemeOnly ? 'file' :
+		const fileSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
+		const otherSchemeOnly = this._searchQuery.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
+		const scheme = fileSchemeOnly ? Schemas.file :
 			otherSchemeOnly ? 'other' :
 				'mixed';
 

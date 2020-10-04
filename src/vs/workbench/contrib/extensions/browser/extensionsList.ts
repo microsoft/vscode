@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/extension';
-import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -135,9 +135,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	}
 
 	renderPlaceholder(index: number, data: ITemplateData): void {
-		addClass(data.element, 'loading');
+		data.element.classList.add('loading');
 
 		data.root.removeAttribute('aria-label');
+		data.root.removeAttribute('data-extension-id');
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
@@ -149,7 +150,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	}
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
-		removeClass(data.element, 'loading');
+		data.element.classList.remove('loading');
+		data.root.setAttribute('data-extension-id', extension.identifier.id);
 
 		if (extension.state !== ExtensionState.Uninstalled && !extension.server) {
 			// Get the extension if it is installed and has no server information
@@ -166,7 +168,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				const runningExtension = runningExtensions.filter(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier))[0];
 				isDisabled = !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
 			}
-			toggleClass(data.root, 'disabled', isDisabled);
+			data.root.classList.toggle('disabled', isDisabled);
 		};
 		updateEnablement();
 		this.extensionService.onDidChangeExtensions(() => updateEnablement(), this, data.extensionDisposables);
@@ -222,38 +224,40 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	}
 
 	const listActiveSelectionForegroundColor = theme.getColor(listActiveSelectionForeground);
-	const listActiveSelectionBackgroundColor = theme.getColor(listActiveSelectionBackground);
-	if (listActiveSelectionForegroundColor && listActiveSelectionBackgroundColor) {
-		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(listActiveSelectionBackgroundColor);
+	if (listActiveSelectionForegroundColor) {
+		const backgroundColor = theme.getColor(listActiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listActiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused.selected .author { color: ${authorForeground}; }`);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(listActiveSelectionBackgroundColor);
+		const disabledExtensionForeground = listActiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
+		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused.selected { color: ${disabledExtensionForeground}; }`);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listInactiveSelectionForegroundColor = theme.getColor(listInactiveSelectionForeground);
-	const listInactiveSelectionBackgroundColor = theme.getColor(listInactiveSelectionBackground);
-	if (listInactiveSelectionForegroundColor && listInactiveSelectionBackgroundColor) {
-		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(listInactiveSelectionBackgroundColor);
+	if (listInactiveSelectionForegroundColor) {
+		const backgroundColor = theme.getColor(listInactiveSelectionBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listInactiveSelectionForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:not(.disabled).selected .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(listInactiveSelectionBackgroundColor);
+		const disabledExtensionForeground = listInactiveSelectionForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled.selected { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listFocusForegroundColor = theme.getColor(listFocusForeground);
-	const listFocusBackgroundColor = theme.getColor(listFocusBackground);
-	if (listFocusForegroundColor && listFocusBackgroundColor) {
-		const authorForeground = listFocusForegroundColor.transparent(.9).makeOpaque(listFocusBackgroundColor);
+	if (listFocusForegroundColor) {
+		const backgroundColor = theme.getColor(listFocusBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listFocusForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row:not(.disabled).focused .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listFocusForegroundColor.transparent(.5).makeOpaque(listFocusBackgroundColor);
+		const disabledExtensionForeground = listFocusForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list:focus .monaco-list-row.disabled.focused { color: ${disabledExtensionForeground}; }`);
 	}
 
 	const listHoverForegroundColor = theme.getColor(listHoverForeground);
-	const listHoverBackgroundColor = theme.getColor(listHoverBackground);
-	if (listHoverForegroundColor && listHoverBackgroundColor) {
-		const authorForeground = listHoverForegroundColor.transparent(.9).makeOpaque(listHoverBackgroundColor);
+	if (listHoverForegroundColor) {
+		const backgroundColor = theme.getColor(listHoverBackground) || WORKBENCH_BACKGROUND(theme);
+		const authorForeground = listHoverForegroundColor.transparent(.9).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row:hover:not(.disabled):not(.selected):.not(.focused) .author { color: ${authorForeground}; }`);
-		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(listHoverBackgroundColor);
+		const disabledExtensionForeground = listHoverForegroundColor.transparent(.5).makeOpaque(backgroundColor);
 		collector.addRule(`.extensions-list .monaco-list .monaco-list-row.disabled:hover:not(.selected):.not(.focused) { color: ${disabledExtensionForeground}; }`);
 	}
 });

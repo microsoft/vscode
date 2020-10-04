@@ -21,13 +21,13 @@ import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IExtensionHost, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
-const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
 export class ExtensionHostManager extends Disposable {
 
@@ -38,9 +38,9 @@ export class ExtensionHostManager extends Disposable {
 	public readonly onDidChangeResponsiveState: Event<ResponsiveState> = this._onDidChangeResponsiveState.event;
 
 	/**
-	 * A map of already activated events to speed things up if the same activation event is triggered multiple times.
+	 * A map of already requested activation events to speed things up if the same activation event is triggered multiple times.
 	 */
-	private readonly _finishedActivateEvents: { [activationEvent: string]: boolean; };
+	private readonly _cachedActivationEvents: Map<string, Promise<void>>;
 	private _rpcProtocol: RPCProtocol | null;
 	private readonly _customers: IDisposable[];
 	private readonly _extensionHost: IExtensionHost;
@@ -49,6 +49,7 @@ export class ExtensionHostManager extends Disposable {
 	 */
 	private _proxy: Promise<{ value: ExtHostExtensionServiceShape; } | null> | null;
 	private _resolveAuthorityAttempt: number;
+	private _hasStarted = false;
 
 	constructor(
 		extensionHost: IExtensionHost,
@@ -57,7 +58,7 @@ export class ExtensionHostManager extends Disposable {
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
-		this._finishedActivateEvents = Object.create(null);
+		this._cachedActivationEvents = new Map<string, Promise<void>>();
 		this._rpcProtocol = null;
 		this._customers = [];
 
@@ -66,6 +67,7 @@ export class ExtensionHostManager extends Disposable {
 		this.onDidExit = this._extensionHost.onExit;
 		this._proxy = this._extensionHost.start()!.then(
 			(protocol) => {
+				this._hasStarted = true;
 				return { value: this._createExtensionHostCustomers(protocol) };
 			},
 			(err) => {
@@ -75,7 +77,7 @@ export class ExtensionHostManager extends Disposable {
 			}
 		);
 		this._proxy.then(() => {
-			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent));
+			initialActivationEvents.forEach((activationEvent) => this.activateByEvent(activationEvent, ActivationKind.Normal));
 			this._register(registerLatencyTestProvider({
 				measure: () => this.measure()
 			}));
@@ -218,20 +220,28 @@ export class ExtensionHostManager extends Disposable {
 		return proxy.$activate(extension, reason);
 	}
 
-	public activateByEvent(activationEvent: string): Promise<void> {
-		if (this._finishedActivateEvents[activationEvent] || !this._proxy) {
-			return NO_OP_VOID_PROMISE;
+	public activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		if (activationKind === ActivationKind.Immediate && !this._hasStarted) {
+			return Promise.resolve();
 		}
-		return this._proxy.then((proxy) => {
-			if (!proxy) {
-				// this case is already covered above and logged.
-				// i.e. the extension host could not be started
-				return NO_OP_VOID_PROMISE;
-			}
-			return proxy.value.$activateByEvent(activationEvent);
-		}).then(() => {
-			this._finishedActivateEvents[activationEvent] = true;
-		});
+
+		if (!this._cachedActivationEvents.has(activationEvent)) {
+			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent, activationKind));
+		}
+		return this._cachedActivationEvents.get(activationEvent)!;
+	}
+
+	private async _activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
+		if (!this._proxy) {
+			return;
+		}
+		const proxy = await this._proxy;
+		if (!proxy) {
+			// this case is already covered above and logged.
+			// i.e. the extension host could not be started
+			return;
+		}
+		return proxy.value.$activateByEvent(activationEvent, activationKind);
 	}
 
 	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
@@ -394,7 +404,7 @@ registerAction2(class MeasureExtHostLatencyAction extends Action2 {
 				value: nls.localize('measureExtHostLatency', "Measure Extension Host Latency"),
 				original: 'Measure Extension Host Latency'
 			},
-			category: { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' },
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}

@@ -95,8 +95,12 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 	}
 
 	let quote: (s: string) => string;
+
+	// cancel the current input (to avoid executing the command accidentally)
+	let command = '\u0003'; // Control-C
+
 	// begin command with a space to avoid polluting shell history
-	let command = ' ';
+	command += ' ';
 
 	switch (shellType) {
 
@@ -177,7 +181,7 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 				command += `cd ${quote(cwd)} ; `;
 			}
 			if (env) {
-				command += 'env';
+				command += '/usr/bin/env';
 				for (let key in env) {
 					const value = env[key];
 					if (value === null) {

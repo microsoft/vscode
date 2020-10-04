@@ -9,7 +9,7 @@ import { EditorCommand, ICommandOptions, ServicesAccessor, registerEditorCommand
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
+import { DeleteWordContext, WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { WordCharacterClassifier, getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,6 +21,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { EditorOption, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -101,13 +102,7 @@ export class CursorWordStartLeft extends WordLeftCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'cursorWordStartLeft',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: undefined
 		});
 	}
 }
@@ -129,7 +124,13 @@ export class CursorWordLeft extends WordLeftCommand {
 			inSelectionMode: false,
 			wordNavigationType: WordNavigationType.WordStartFast,
 			id: 'cursorWordLeft',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 }
@@ -140,13 +141,7 @@ export class CursorWordStartLeftSelect extends WordLeftCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordStart,
 			id: 'cursorWordStartLeftSelect',
-			precondition: undefined,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
-				weight: KeybindingWeight.EditorContrib
-			}
+			precondition: undefined
 		});
 	}
 }
@@ -168,7 +163,13 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 			inSelectionMode: true,
 			wordNavigationType: WordNavigationType.WordStartFast,
 			id: 'cursorWordLeftSelect',
-			precondition: undefined
+			precondition: undefined,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow },
+				weight: KeybindingWeight.EditorContrib
+			}
 		});
 	}
 }
@@ -354,9 +355,20 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators));
 		const model = editor.getModel();
 		const selections = editor.getSelections();
+		const autoClosingBrackets = editor.getOption(EditorOption.autoClosingBrackets);
+		const autoClosingQuotes = editor.getOption(EditorOption.autoClosingQuotes);
+		const autoClosingPairs = LanguageConfigurationRegistry.getAutoClosingPairs(model.getLanguageIdentifier().id);
 
 		const commands = selections.map((sel) => {
-			const deleteRange = this._delete(wordSeparators, model, sel, this._whitespaceHeuristics, this._wordNavigationType);
+			const deleteRange = this._delete({
+				wordSeparators,
+				model,
+				selection: sel,
+				whitespaceHeuristics: this._whitespaceHeuristics,
+				autoClosingBrackets,
+				autoClosingQuotes,
+				autoClosingPairs,
+			}, this._wordNavigationType);
 			return new ReplaceCommand(deleteRange, '');
 		});
 
@@ -365,12 +377,12 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		editor.pushUndoStop();
 	}
 
-	protected abstract _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range;
+	protected abstract _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range;
 }
 
 export class DeleteWordLeftCommand extends DeleteWordCommand {
-	protected _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
+		let r = WordOperations.deleteWordLeft(ctx, wordNavigationType);
 		if (r) {
 			return r;
 		}
@@ -379,13 +391,13 @@ export class DeleteWordLeftCommand extends DeleteWordCommand {
 }
 
 export class DeleteWordRightCommand extends DeleteWordCommand {
-	protected _delete(wordSeparators: WordCharacterClassifier, model: ITextModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
-		let r = WordOperations.deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+	protected _delete(ctx: DeleteWordContext, wordNavigationType: WordNavigationType): Range {
+		let r = WordOperations.deleteWordRight(ctx, wordNavigationType);
 		if (r) {
 			return r;
 		}
-		const lineCount = model.getLineCount();
-		const maxColumn = model.getLineMaxColumn(lineCount);
+		const lineCount = ctx.model.getLineCount();
+		const maxColumn = ctx.model.getLineMaxColumn(lineCount);
 		return new Range(lineCount, maxColumn, lineCount, maxColumn);
 	}
 }

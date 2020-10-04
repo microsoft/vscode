@@ -536,7 +536,7 @@ suite('vscode API - workspace', () => {
 		assert.equal(callCount, 1);
 		assert.equal(doc.getText(), 'call0');
 
-		return new Promise(resolve => {
+		return new Promise<void>(resolve => {
 
 			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
 				assert.ok(event.document === doc);
@@ -551,7 +551,7 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles', () => {
-		return vscode.workspace.findFiles('**/*.png').then((res) => {
+		return vscode.workspace.findFiles('**/image.png').then((res) => {
 			assert.equal(res.length, 2);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
@@ -572,14 +572,14 @@ suite('vscode API - workspace', () => {
 	});
 
 	test('findFiles - exclude', () => {
-		return vscode.workspace.findFiles('**/*.png').then((res) => {
+		return vscode.workspace.findFiles('**/image.png').then((res) => {
 			assert.equal(res.length, 2);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
 	});
 
 	test('findFiles, exclude', () => {
-		return vscode.workspace.findFiles('**/*.png', '**/sub/**').then((res) => {
+		return vscode.workspace.findFiles('**/image.png', '**/sub/**').then((res) => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'image.png');
 		});
@@ -926,7 +926,10 @@ suite('vscode API - workspace', () => {
 			assert.ok(await vscode.workspace.applyEdit(we));
 
 			const document = await vscode.workspace.openTextDocument(newUri);
-			assert.equal(document.isDirty, true);
+			// See https://github.com/microsoft/vscode/issues/107739
+			// RenameOperation currently saves the file before applying the rename
+			// so that is why the document is not dirty here
+			assert.equal(document.isDirty, false);
 
 			await document.save();
 			assert.equal(document.isDirty, false);

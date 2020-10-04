@@ -14,9 +14,11 @@ import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
 import { resolvePath } from 'vs/base/common/resources';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { renderCodicons } from 'vs/base/browser/codicons';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -68,7 +70,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
-			return DOM.asDomUri(uri).toString(true);
+			return FileAccess.asBrowserUri(uri).toString(true);
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
@@ -142,7 +144,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 	};
 	renderer.paragraph = (text): string => {
-		return `<p>${markdown.supportThemeIcons ? renderCodicons(text) : text}</p>`;
+		if (markdown.supportThemeIcons) {
+			const elements = renderCodicons(text);
+			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
+		}
+		return `<p>${text}</p>`;
 	};
 
 	if (options.codeBlockRenderer) {
@@ -171,25 +177,32 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const actionHandler = options.actionHandler;
 	if (actionHandler) {
-		actionHandler.disposeables.add(DOM.addStandardDisposableListener(element, 'click', event => {
-			let target: HTMLElement | null = event.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
+		[DOM.EventType.CLICK, DOM.EventType.AUXCLICK].forEach(event => {
+			actionHandler.disposeables.add(DOM.addDisposableListener(element, event, (e: MouseEvent) => {
+				const mouseEvent = new StandardMouseEvent(e);
+				if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 					return;
 				}
-			}
-			try {
-				const href = target.dataset['href'];
-				if (href) {
-					actionHandler.callback(href, event);
+
+				let target: HTMLElement | null = mouseEvent.target;
+				if (target.tagName !== 'A') {
+					target = target.parentElement;
+					if (!target || target.tagName !== 'A') {
+						return;
+					}
 				}
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
-				event.preventDefault();
-			}
-		}));
+				try {
+					const href = target.dataset['href'];
+					if (href) {
+						actionHandler.callback(href, mouseEvent);
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				} finally {
+					mouseEvent.preventDefault();
+				}
+			}));
+		});
 	}
 
 	// Use our own sanitizer so that we can let through only spans.

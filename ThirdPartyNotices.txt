@@ -7,7 +7,7 @@ This project incorporates components from the projects listed below. The origina
 
 1.	atom/language-clojure version 0.22.7 (https://github.com/atom/language-clojure)
 2.	atom/language-coffee-script version 0.49.3 (https://github.com/atom/language-coffee-script)
-3.	atom/language-java version 0.31.4 (https://github.com/atom/language-java)
+3.	atom/language-java version 0.31.5 (https://github.com/atom/language-java)
 4.	atom/language-sass version 0.62.1 (https://github.com/atom/language-sass)
 5.	atom/language-shellscript version 0.26.0 (https://github.com/atom/language-shellscript)
 6.	atom/language-xml version 0.35.2 (https://github.com/atom/language-xml)
@@ -33,14 +33,14 @@ This project incorporates components from the projects listed below. The origina
 26.	Jxck/assert version 1.0.0 (https://github.com/Jxck/assert)
 27.	language-docker (https://github.com/moby/moby)
 28.	language-less version 0.34.2 (https://github.com/atom/language-less)
-29.	language-php version 0.44.4 (https://github.com/atom/language-php)
+29.	language-php version 0.44.5 (https://github.com/atom/language-php)
 30.	language-rust version 0.4.12 (https://github.com/zargony/atom-language-rust)
 31.	MagicStack/MagicPython version 1.1.1 (https://github.com/MagicStack/MagicPython)
 32.	marked version 0.6.2 (https://github.com/markedjs/marked)
 33.	mdn-data version 1.1.12 (https://github.com/mdn/data)
-34.	Microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/Microsoft/TypeScript-TmLanguage)
-35.	Microsoft/vscode-JSON.tmLanguage (https://github.com/Microsoft/vscode-JSON.tmLanguage)
-36.	Microsoft/vscode-mssql version 1.9.0 (https://github.com/Microsoft/vscode-mssql)
+34.	microsoft/TypeScript-TmLanguage version 0.0.1 (https://github.com/microsoft/TypeScript-TmLanguage)
+35.	microsoft/vscode-JSON.tmLanguage (https://github.com/microsoft/vscode-JSON.tmLanguage)
+36.	microsoft/vscode-mssql version 1.9.0 (https://github.com/microsoft/vscode-mssql)
 37.	mmims/language-batchfile version 0.7.5 (https://github.com/mmims/language-batchfile)
 38.	octref/language-css version 0.42.11 (https://github.com/octref/language-css)
 39.	PowerShell/EditorSyntax version 1.0.0 (https://github.com/PowerShell/EditorSyntax)
@@ -59,11 +59,11 @@ This project incorporates components from the projects listed below. The origina
 52.	textmate/perl.tmbundle (https://github.com/textmate/perl.tmbundle)
 53.	textmate/ruby.tmbundle (https://github.com/textmate/ruby.tmbundle)
 54.	textmate/yaml.tmbundle (https://github.com/textmate/yaml.tmbundle)
-55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/Microsoft/TypeScript-TmLanguage)
-56.	TypeScript-TmLanguage version 1.0.0 (https://github.com/Microsoft/TypeScript-TmLanguage)
-57.	Unicode version 12.0.0 (http://www.unicode.org/)
+55.	TypeScript-TmLanguage version 0.1.8 (https://github.com/microsoft/TypeScript-TmLanguage)
+56.	TypeScript-TmLanguage version 1.0.0 (https://github.com/microsoft/TypeScript-TmLanguage)
+57.	Unicode version 12.0.0 (https://home.unicode.org/)
 58.	vscode-codicons version 0.0.1 (https://github.com/microsoft/vscode-codicons)
-59.	vscode-logfile-highlighter version 2.6.0 (https://github.com/emilast/vscode-logfile-highlighter)
+59.	vscode-logfile-highlighter version 2.8.0 (https://github.com/emilast/vscode-logfile-highlighter)
 60.	vscode-swift version 0.0.1 (https://github.com/owensd/vscode-swift)
 61.	Web Background Synchronization (https://github.com/WICG/BackgroundSync)
 
@@ -1581,7 +1581,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 =========================================
 END OF mdn-data NOTICES AND INFORMATION
 
-%% Microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION BEGIN HERE
+%% microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================
 Copyright (c) Microsoft Corporation
 All rights reserved.
@@ -1606,9 +1606,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 =========================================
-END OF Microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION
+END OF microsoft/TypeScript-TmLanguage NOTICES AND INFORMATION
 
-%% Microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION BEGIN HERE
+%% microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION BEGIN HERE
 =========================================
 vscode-JSON.tmLanguage
 
@@ -1630,9 +1630,9 @@ TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONIN
 THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
 CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================
-END OF Microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION
+END OF microsoft/vscode-JSON.tmLanguage NOTICES AND INFORMATION
 
-%% Microsoft/vscode-mssql NOTICES AND INFORMATION BEGIN HERE
+%% microsoft/vscode-mssql NOTICES AND INFORMATION BEGIN HERE
 =========================================
 ------------------------------------------ START OF LICENSE -----------------------------------------
 vscode-mssql
@@ -1645,7 +1645,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ----------------------------------------------- END OF LICENSE -----------------------------------------
 =========================================
-END OF Microsoft/vscode-mssql NOTICES AND INFORMATION
+END OF microsoft/vscode-mssql NOTICES AND INFORMATION
 
 %% mmims/language-batchfile NOTICES AND INFORMATION BEGIN HERE
 =========================================

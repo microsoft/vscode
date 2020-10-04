@@ -20,11 +20,12 @@ import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { pad } from 'vs/base/common/strings';
+import { pad, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 const $ = dom.$;
 
@@ -151,7 +152,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = true;
 		setTimeout(() => {
 			if (this.domNodes) {
-				dom.addClass(this.domNodes.element, 'visible');
+				this.domNodes.element.classList.add('visible');
 			}
 		}, 100);
 		this.editor.layoutContentWidget(this);
@@ -168,7 +169,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.visible = false;
 		this.announcedLabel = null;
 		if (this.domNodes) {
-			dom.removeClass(this.domNodes.element, 'visible');
+			this.domNodes.element.classList.remove('visible');
 		}
 		this.editor.layoutContentWidget(this);
 	}
@@ -194,8 +195,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.toggleClass(this.domNodes.element, 'multiple', multiple);
 		this.keyMultipleSignatures.set(multiple);
 
-		this.domNodes.signature.innerHTML = '';
-		this.domNodes.docs.innerHTML = '';
+		this.domNodes.signature.innerText = '';
+		this.domNodes.docs.innerText = '';
 
 		const signature = hints.signatures[hints.activeSignature];
 		if (!signature) {
@@ -224,7 +225,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 				documentation.textContent = activeParameter.documentation;
 			} else {
 				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
-				dom.addClass(renderedContents.element, 'markdown-docs');
+				renderedContents.element.classList.add('markdown-docs');
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
@@ -236,7 +237,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
 			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
-			dom.addClass(renderedContents.element, 'markdown-docs');
+			renderedContents.element.classList.add('markdown-docs');
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
@@ -311,9 +312,11 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		} else if (Array.isArray(param.label)) {
 			return param.label;
 		} else {
-			const idx = signature.label.lastIndexOf(param.label);
+			const regex = new RegExp(`\\b${escapeRegExpCharacters(param.label)}\\b`, 'g');
+			regex.test(signature.label);
+			const idx = regex.lastIndex - param.label.length;
 			return idx >= 0
-				? [idx, idx + param.label.length]
+				? [idx, regex.lastIndex]
 				: [0, 0];
 		}
 	}
@@ -364,7 +367,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 registerThemingParticipant((theme, collector) => {
 	const border = theme.getColor(editorHoverBorder);
 	if (border) {
-		const borderWidth = theme.type === HIGH_CONTRAST ? 2 : 1;
+		const borderWidth = theme.type === ColorScheme.HIGH_CONTRAST ? 2 : 1;
 		collector.addRule(`.monaco-editor .parameter-hints-widget { border: ${borderWidth}px solid ${border}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget.multiple .body { border-left: 1px solid ${border.transparent(0.5)}; }`);
 		collector.addRule(`.monaco-editor .parameter-hints-widget .signature.has-docs { border-bottom: 1px solid ${border.transparent(0.5)}; }`);

@@ -10,7 +10,7 @@ import * as types from 'vs/base/common/types';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
-import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, append, $ } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 
 const DEBUG = false;
@@ -86,9 +86,9 @@ export class Sash extends Disposable {
 			return;
 		}
 
-		toggleClass(this.el, 'disabled', state === SashState.Disabled);
-		toggleClass(this.el, 'minimum', state === SashState.Minimum);
-		toggleClass(this.el, 'maximum', state === SashState.Maximum);
+		this.el.classList.toggle('disabled', state === SashState.Disabled);
+		this.el.classList.toggle('minimum', state === SashState.Minimum);
+		this.el.classList.toggle('maximum', state === SashState.Maximum);
 
 		this._state = state;
 		this._onDidEnablementChange.fire(state);
@@ -151,7 +151,7 @@ export class Sash extends Disposable {
 		this.el = append(container, $('.monaco-sash'));
 
 		if (isMacintosh) {
-			addClass(this.el, 'mac');
+			this.el.classList.add('mac');
 		}
 
 		this._register(domEvent(this.el, 'mousedown')(this.onMouseDown, this));
@@ -185,14 +185,14 @@ export class Sash extends Disposable {
 		this.orientation = options.orientation || Orientation.VERTICAL;
 
 		if (this.orientation === Orientation.HORIZONTAL) {
-			addClass(this.el, 'horizontal');
-			removeClass(this.el, 'vertical');
+			this.el.classList.add('horizontal');
+			this.el.classList.remove('vertical');
 		} else {
-			removeClass(this.el, 'horizontal');
-			addClass(this.el, 'vertical');
+			this.el.classList.remove('horizontal');
+			this.el.classList.add('vertical');
 		}
 
-		toggleClass(this.el, 'debug', DEBUG);
+		this.el.classList.toggle('debug', DEBUG);
 
 		this.layout();
 	}
@@ -238,10 +238,10 @@ export class Sash extends Disposable {
 		const altKey = mouseDownEvent.altKey;
 		const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
 
-		addClass(this.el, 'active');
+		this.el.classList.add('active');
 		this._onDidStart.fire(startEvent);
 
-		// fix https://github.com/Microsoft/vscode/issues/21675
+		// fix https://github.com/microsoft/vscode/issues/21675
 		const style = createStyleSheet(this.el);
 		const updateStyle = () => {
 			let cursor = '';
@@ -266,7 +266,7 @@ export class Sash extends Disposable {
 				}
 			}
 
-			style.innerHTML = `* { cursor: ${cursor} !important; }`;
+			style.textContent = `* { cursor: ${cursor} !important; }`;
 		};
 
 		const disposables = new DisposableStore();
@@ -290,7 +290,7 @@ export class Sash extends Disposable {
 
 			this.el.removeChild(style);
 
-			removeClass(this.el, 'active');
+			this.el.classList.remove('active');
 			this._onDidEnd.fire();
 
 			disposables.dispose();
@@ -396,11 +396,11 @@ export class Sash extends Disposable {
 	}
 
 	private onOrthogonalStartSashEnablementChange(state: SashState): void {
-		toggleClass(this.el, 'orthogonal-start', state !== SashState.Disabled);
+		this.el.classList.toggle('orthogonal-start', state !== SashState.Disabled);
 	}
 
 	private onOrthogonalEndSashEnablementChange(state: SashState): void {
-		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
+		this.el.classList.toggle('orthogonal-end', state !== SashState.Disabled);
 	}
 
 	private getOrthogonalSash(e: MouseEvent): Sash | undefined {

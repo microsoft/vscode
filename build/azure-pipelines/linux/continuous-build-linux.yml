@@ -35,6 +35,12 @@ steps:
   condition: and(succeeded(), ne(variables['CacheRestored'], 'true'))
 
 - script: |
+    set -e
+    yarn postinstall
+  displayName: Run postinstall scripts
+  condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
+
+- script: |
     yarn electron x64
   displayName: Download Electron
 
@@ -63,7 +69,7 @@ steps:
   displayName: Run Unit Tests (Electron)
 
 - script: |
-    DISPLAY=:10 yarn test-browser --browser chromium
+    DISPLAY=:10 yarn test-browser --browser chromium --tfs "Browser Unit Tests"
   displayName: Run Unit Tests (Browser)
 
 - script: |

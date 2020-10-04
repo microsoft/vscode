@@ -109,8 +109,9 @@ export class ViewController {
 				return data.ctrlKey;
 			case 'metaKey':
 				return data.metaKey;
+			default:
+				return false;
 		}
-		return false;
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
@@ -121,8 +122,9 @@ export class ViewController {
 				return data.altKey || data.metaKey;
 			case 'metaKey':
 				return data.ctrlKey || data.altKey;
+			default:
+				return false;
 		}
-		return false;
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {

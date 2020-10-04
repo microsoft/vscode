@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { JSONVisitor, visit } from 'jsonc-parser';
 import * as path from 'path';
 import {
-	Event, EventEmitter, ExtensionContext, Task2 as Task,
-	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, window, workspace, tasks, Selection, TaskGroup
+	commands, Event, EventEmitter, ExtensionContext,
+	Selection, Task,
+	TaskGroup, tasks, TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
+	window, workspace, WorkspaceFolder
 } from 'vscode';
-import { visit, JSONVisitor } from 'jsonc-parser';
-import {
-	NpmTaskDefinition, getPackageJsonUriFromTask, getScripts,
-	isWorkspaceFolder, getTaskName, createTask, extractDebugArgFromScript, startDebugging, isAutoDetectionEnabled
-} from './tasks';
 import * as nls from 'vscode-nls';
+import {
+	createTask, getTaskName, isAutoDetectionEnabled, isWorkspaceFolder, NpmTaskDefinition,
+	startDebugging
+} from './tasks';
 
 const localize = nls.loadMessageBundle();
 
@@ -90,9 +91,6 @@ class NpmScript extends TreeItem {
 			}
 		};
 		this.contextValue = 'script';
-		if (task.group && task.group === TaskGroup.Rebuild) {
-			this.contextValue = 'debugScript';
-		}
 		this.package = packageJson;
 		this.task = task;
 		this.command = commandList[command];
@@ -131,7 +129,6 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.runScript', this.runScript, this));
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
-		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
 		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
@@ -139,27 +136,8 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		tasks.executeTask(script.task);
 	}
 
-	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
-		return extractDebugArgFromScript(scripts[task.name]);
-	}
-
 	private async debugScript(script: NpmScript) {
-		let task = script.task;
-		let uri = getPackageJsonUriFromTask(task);
-		let scripts = await getScripts(uri!);
-
-		let debugArg = this.extractDebugArg(scripts, task);
-		if (!debugArg) {
-			let message = localize('noDebugOptions', 'Could not launch "{0}" for debugging because the scripts lacks a node debug option, e.g. "--inspect-brk".', task.name);
-			let learnMore = localize('learnMore', 'Learn More');
-			let ok = localize('ok', 'OK');
-			let result = await window.showErrorMessage(message, { modal: true }, ok, learnMore);
-			if (result === learnMore) {
-				commands.executeCommand('vscode.open', Uri.parse('https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools'));
-			}
-			return;
-		}
-		startDebugging(task.name, debugArg[0], debugArg[1], script.getFolder());
+		startDebugging(script.task.definition.script, path.dirname(script.package.resourceUri!.fsPath), script.getFolder());
 	}
 
 	private findScript(document: TextDocument, script?: NpmScript): number {

@@ -29,7 +29,7 @@ export interface IFileService {
 	readonly onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
 
 	/**
-	 * An even that is fired when a registered file system provider changes it's capabilities.
+	 * An event that is fired when a registered file system provider changes it's capabilities.
 	 */
 	readonly onDidChangeFileSystemProviderCapabilities: Event<IFileSystemProviderCapabilitiesChangeEvent>;
 
@@ -58,6 +58,11 @@ export interface IFileService {
 	 * Checks if the provider for the provided resource has the provided file system capability.
 	 */
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean;
+
+	/**
+	 * List the schemes and capabilies for registered file system providers
+	 */
+	listCapabilities(): Iterable<{ scheme: string, capabilities: FileSystemProviderCapabilities }>
 
 	/**
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
@@ -361,7 +366,7 @@ export function createFileSystemProviderError(error: Error | string, code: FileS
 
 export function ensureFileSystemProviderError(error?: Error): Error {
 	if (!error) {
-		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/Microsoft/vscode/issues/72798
+		return createFileSystemProviderError(localize('unknownError', "Unknown Error"), FileSystemProviderErrorCode.Unknown); // https://github.com/microsoft/vscode/issues/72798
 	}
 
 	return error;
@@ -856,6 +861,7 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
 		return Promise.resolve();
 	}
+
 	return new Promise((c, e) => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {
@@ -867,7 +873,7 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 }
 
 /**
- * Desktop only: limits for memory sizes
+ * Native only: limits for memory sizes
  */
 export const MIN_MAX_MEMORY_SIZE_MB = 2048;
 export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

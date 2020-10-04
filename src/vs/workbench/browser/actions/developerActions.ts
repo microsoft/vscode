@@ -8,6 +8,7 @@ import 'vs/css!./media/actions';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { domEvent } from 'vs/base/browser/event';
+import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
@@ -26,8 +27,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-const developerCategory = { value: nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"), original: 'Developer' };
+import { CATEGORIES } from 'vs/workbench/common/actions';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -35,7 +35,7 @@ class InspectContextKeysAction extends Action2 {
 		super({
 			id: 'workbench.action.inspectContextKeys',
 			title: { value: nls.localize('inspect context keys', "Inspect Context Keys"), original: 'Inspect Context Keys' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -97,7 +97,7 @@ class ToggleScreencastModeAction extends Action2 {
 		super({
 			id: 'workbench.action.toggleScreencastMode',
 			title: { value: nls.localize('toggle screencast mode', "Toggle Screencast Mode"), original: 'Toggle Screencast Mode' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -123,14 +123,29 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = domEvent(container, 'mouseup', true);
 		const onMouseMove = domEvent(container, 'mousemove', true);
 
+		const updateMouseIndicatorColor = () => {
+			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
+		};
+
+		let mouseIndicatorSize: number;
+		const updateMouseIndicatorSize = () => {
+			mouseIndicatorSize = clamp(configurationService.getValue<number>('screencastMode.mouseIndicatorSize') || 20, 20, 100);
+
+			mouseMarker.style.height = `${mouseIndicatorSize}px`;
+			mouseMarker.style.width = `${mouseIndicatorSize}px`;
+		};
+
+		updateMouseIndicatorColor();
+		updateMouseIndicatorSize();
+
 		disposables.add(onMouseDown(e => {
-			mouseMarker.style.top = `${e.clientY - 10}px`;
-			mouseMarker.style.left = `${e.clientX - 10}px`;
+			mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+			mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			mouseMarker.style.display = 'block';
 
 			const mouseMoveListener = onMouseMove(e => {
-				mouseMarker.style.top = `${e.clientY - 10}px`;
-				mouseMarker.style.left = `${e.clientX - 10}px`;
+				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
+				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 			});
 
 			Event.once(onMouseUp)(() => {
@@ -150,8 +165,14 @@ class ToggleScreencastModeAction extends Action2 {
 			keyboardMarker.style.bottom = `${clamp(configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
+		let keyboardMarkerTimeout: number;
+		const updateKeyboardMarkerTimeout = () => {
+			keyboardMarkerTimeout = clamp(configurationService.getValue<number>('screencastMode.keyboardOverlayTimeout') || 800, 500, 5000);
+		};
+
 		updateKeyboardFontSize();
 		updateKeyboardMarker();
+		updateKeyboardMarkerTimeout();
 
 		disposables.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
@@ -160,6 +181,18 @@ class ToggleScreencastModeAction extends Action2 {
 
 			if (e.affectsConfiguration('screencastMode.fontSize')) {
 				updateKeyboardFontSize();
+			}
+
+			if (e.affectsConfiguration('screencastMode.keyboardOverlayTimeout')) {
+				updateKeyboardMarkerTimeout();
+			}
+
+			if (e.affectsConfiguration('screencastMode.mouseIndicatorColor')) {
+				updateMouseIndicatorColor();
+			}
+
+			if (e.affectsConfiguration('screencastMode.mouseIndicatorSize')) {
+				updateMouseIndicatorSize();
 			}
 		}));
 
@@ -179,7 +212,7 @@ class ToggleScreencastModeAction extends Action2 {
 					|| length > 20
 					|| event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Escape
 				) {
-					keyboardMarker.innerHTML = '';
+					keyboardMarker.innerText = '';
 					length = 0;
 				}
 
@@ -190,7 +223,7 @@ class ToggleScreencastModeAction extends Action2 {
 				append(keyboardMarker, key);
 			}
 
-			const promise = timeout(800);
+			const promise = timeout(keyboardMarkerTimeout);
 			keyboardTimeout = toDisposable(() => promise.cancel());
 
 			promise.then(() => {
@@ -209,7 +242,7 @@ class LogStorageAction extends Action2 {
 		super({
 			id: 'workbench.action.logStorage',
 			title: { value: nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents"), original: 'Log Storage Database Contents' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -225,7 +258,7 @@ class LogWorkingCopiesAction extends Action2 {
 		super({
 			id: 'workbench.action.logWorkingCopies',
 			title: { value: nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies"), original: 'Log Working Copies' },
-			category: developerCategory,
+			category: CATEGORIES.Developer,
 			f1: true
 		});
 	}
@@ -276,8 +309,28 @@ configurationRegistry.registerConfiguration({
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',
-			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in Screencast Mode."),
+			description: nls.localize('screencastMode.onlyKeyboardShortcuts', "Only show keyboard shortcuts in screencast mode."),
 			default: false
-		}
+		},
+		'screencastMode.keyboardOverlayTimeout': {
+			type: 'number',
+			default: 800,
+			minimum: 500,
+			maximum: 5000,
+			description: nls.localize('screencastMode.keyboardOverlayTimeout', "Controls how long (in milliseconds) the keyboard overlay is shown in screencast mode.")
+		},
+		'screencastMode.mouseIndicatorColor': {
+			type: 'string',
+			format: 'color-hex',
+			default: '#FF0000',
+			description: nls.localize('screencastMode.mouseIndicatorColor', "Controls the color in hex (#RGB, #RGBA, #RRGGBB or #RRGGBBAA) of the mouse indicator in screencast mode.")
+		},
+		'screencastMode.mouseIndicatorSize': {
+			type: 'number',
+			default: 20,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.mouseIndicatorSize', "Controls the size (in pixels) of the mouse indicator in screencast mode.")
+		},
 	}
 });

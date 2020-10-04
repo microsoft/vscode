@@ -9,6 +9,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 
+export const IS_NEW_KEY = '__$__isNewStorageMarker';
+
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
 export enum WillSaveStateReason {
@@ -104,12 +106,11 @@ export interface IStorageService {
 	migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void>;
 
 	/**
-	 * Wether the storage for the given scope was created during this session or
+	 * Whether the storage for the given scope was created during this session or
 	 * existed before.
 	 *
-	 * Note: currently only implemented for `WORKSPACE` scope.
 	 */
-	isNew(scope: StorageScope.WORKSPACE): boolean;
+	isNew(scope: StorageScope): boolean;
 
 	/**
 	 * Allows to flush state, e.g. in cases where a shutdown is
@@ -239,6 +240,8 @@ export class InMemoryStorageService extends Disposable implements IStorageServic
 	isNew(): boolean {
 		return true; // always new when in-memory
 	}
+
+	async close(): Promise<void> { }
 }
 
 export async function logStorage(global: Map<string, string>, workspace: Map<string, string>, globalPath: string, workspacePath: string): Promise<void> {

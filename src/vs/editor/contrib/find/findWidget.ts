@@ -363,7 +363,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 		if (e.searchString || e.matchesCount || e.matchesPosition) {
 			let showRedOutline = (this._state.searchString.length > 0 && this._state.matchesCount === 0);
-			dom.toggleClass(this._domNode, 'no-results', showRedOutline);
+			this._domNode.classList.toggle('no-results', showRedOutline);
 
 			this._updateMatchesCount();
 			this._updateButtons();
@@ -477,7 +477,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		let canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
@@ -510,7 +510,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			this._updateButtons();
 
 			setTimeout(() => {
-				dom.addClass(this._domNode, 'visible');
+				this._domNode.classList.add('visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
 			}, 0);
 
@@ -557,7 +557,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 			this._updateButtons();
 
-			dom.removeClass(this._domNode, 'visible');
+			this._domNode.classList.remove('visible');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			this._findInput.clearMessage();
 			if (focusTheEditor) {
@@ -695,10 +695,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		if (editorContentWidth <= 0) {
 			// for example, diff view original editor
-			dom.addClass(this._domNode, 'hiddenEditor');
+			this._domNode.classList.add('hiddenEditor');
 			return;
-		} else if (dom.hasClass(this._domNode, 'hiddenEditor')) {
-			dom.removeClass(this._domNode, 'hiddenEditor');
+		} else if (this._domNode.classList.contains('hiddenEditor')) {
+			this._domNode.classList.remove('hiddenEditor');
 		}
 
 		const editorWidth = layoutInfo.width;
@@ -727,9 +727,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth - MAX_MATCHES_COUNT_WIDTH >= editorWidth + 50) {
 			collapsedFindWidget = true;
 		}
-		dom.toggleClass(this._domNode, 'collapsed-find-widget', collapsedFindWidget);
-		dom.toggleClass(this._domNode, 'narrow-find-widget', narrowFindWidget);
-		dom.toggleClass(this._domNode, 'reduced-find-widget', reducedFindWidget);
+		this._domNode.classList.toggle('collapsed-find-widget', collapsedFindWidget);
+		this._domNode.classList.toggle('narrow-find-widget', narrowFindWidget);
+		this._domNode.classList.toggle('reduced-find-widget', reducedFindWidget);
 
 		if (!narrowFindWidget && !collapsedFindWidget) {
 			// the minimal left offset of findwidget is 15px.
@@ -804,16 +804,26 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (this._toggleSelectionFind.checked) {
-			let selection = this._codeEditor.getSelection();
-			if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-				selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-			}
-			const currentMatch = this._state.currentMatch;
-			if (selection.startLineNumber !== selection.endLineNumber) {
-				if (!Range.equalsRange(selection, currentMatch)) {
-					// Reseed find scope
-					this._state.change({ searchScope: selection }, true);
+			let selections = this._codeEditor.getSelections();
+
+			selections.map(selection => {
+				if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+					selection = selection.setEndPosition(
+						selection.endLineNumber - 1,
+						this._codeEditor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1)
+					);
 				}
+				const currentMatch = this._state.currentMatch;
+				if (selection.startLineNumber !== selection.endLineNumber) {
+					if (!Range.equalsRange(selection, currentMatch)) {
+						return selection;
+					}
+				}
+				return null;
+			}).filter(element => !!element);
+
+			if (selections.length) {
+				this._state.change({ searchScope: selections as Range[] }, true);
 			}
 		}
 	}
@@ -1028,12 +1038,19 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._register(this._toggleSelectionFind.onChange(() => {
 			if (this._toggleSelectionFind.checked) {
 				if (this._codeEditor.hasModel()) {
-					let selection = this._codeEditor.getSelection();
-					if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
-						selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel().getLineMaxColumn(selection.endLineNumber - 1));
-					}
-					if (!selection.isEmpty()) {
-						this._state.change({ searchScope: selection }, true);
+					let selections = this._codeEditor.getSelections();
+					selections.map(selection => {
+						if (selection.endColumn === 1 && selection.endLineNumber > selection.startLineNumber) {
+							selection = selection.setEndPosition(selection.endLineNumber - 1, this._codeEditor.getModel()!.getLineMaxColumn(selection.endLineNumber - 1));
+						}
+						if (!selection.isEmpty()) {
+							return selection;
+						}
+						return null;
+					}).filter(element => !!element);
+
+					if (selections.length) {
+						this._state.change({ searchScope: selections as Range[] }, true);
 					}
 				}
 			} else {
@@ -1289,7 +1306,7 @@ export class SimpleButton extends Widget {
 	}
 
 	public setEnabled(enabled: boolean): void {
-		dom.toggleClass(this._domNode, 'disabled', !enabled);
+		this._domNode.classList.toggle('disabled', !enabled);
 		this._domNode.setAttribute('aria-disabled', String(!enabled));
 		this._domNode.tabIndex = enabled ? 0 : -1;
 	}
@@ -1297,11 +1314,11 @@ export class SimpleButton extends Widget {
 	public setExpanded(expanded: boolean): void {
 		this._domNode.setAttribute('aria-expanded', String(!!expanded));
 		if (expanded) {
-			dom.removeClasses(this._domNode, findCollapsedIcon.classNames);
-			dom.addClasses(this._domNode, findExpandedIcon.classNames);
+			this._domNode.classList.remove(...findCollapsedIcon.classNames.split(' '));
+			this._domNode.classList.add(...findExpandedIcon.classNames.split(' '));
 		} else {
-			dom.removeClasses(this._domNode, findExpandedIcon.classNames);
-			dom.addClasses(this._domNode, findCollapsedIcon.classNames);
+			this._domNode.classList.remove(...findExpandedIcon.classNames.split(' '));
+			this._domNode.classList.add(...findCollapsedIcon.classNames.split(' '));
 		}
 	}
 }

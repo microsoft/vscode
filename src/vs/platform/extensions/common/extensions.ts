@@ -108,6 +108,11 @@ export interface ICodeActionContribution {
 	readonly actions: readonly ICodeActionContributionAction[];
 }
 
+export interface IAuthenticationContribution {
+	readonly id: string;
+	readonly label: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration | IConfiguration[];
@@ -126,6 +131,7 @@ export interface IExtensionContributions {
 	localizations?: ILocalization[];
 	readonly customEditors?: readonly IWebviewEditor[];
 	readonly codeActions?: readonly ICodeActionContribution[];
+	authentication?: IAuthenticationContribution[];
 }
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
@@ -268,12 +274,26 @@ export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
 	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
 }
 
+export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
+	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+}
+
 export interface IScannedExtension {
 	readonly identifier: IExtensionIdentifier;
 	readonly location: URI;
 	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest
+	readonly packageJSON: IExtensionManifest;
+	readonly packageNLS?: any;
 	readonly packageNLSUrl?: URI;
+	readonly readmeUrl?: URI;
+	readonly changelogUrl?: URI;
+}
+
+export interface ITranslatedScannedExtension {
+	readonly identifier: IExtensionIdentifier;
+	readonly location: URI;
+	readonly type: ExtensionType;
+	readonly packageJSON: IExtensionManifest;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 }

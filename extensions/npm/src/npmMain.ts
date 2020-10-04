@@ -8,10 +8,18 @@ import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
 import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
-import { invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
+import { invalidateTasksCache, NpmTaskProvider } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
+
+function invalidateScriptCaches() {
+	invalidateHoverScriptsCache();
+	invalidateTasksCache();
+	if (treeDataProvider) {
+		treeDataProvider.refresh();
+	}
+}
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	configureHttpRequest();
@@ -44,12 +52,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerHoverProvider(context);
 
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runSelectedScript', runSelectedScript));
-
-	if (await hasPackageJson()) {
-		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
-	}
-
 	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
+	context.subscriptions.push(vscode.commands.registerCommand('npm.refresh', () => {
+		invalidateScriptCaches();
+	}));
+
 }
 
 function canRunNpmInCurrentWorkspace() {
@@ -60,15 +67,6 @@ function canRunNpmInCurrentWorkspace() {
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
-
-	function invalidateScriptCaches() {
-		invalidateHoverScriptsCache();
-		invalidateTasksCache();
-		if (treeDataProvider) {
-			treeDataProvider.refresh();
-		}
-	}
-
 	if (vscode.workspace.workspaceFolders) {
 		let watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
 		watcher.onDidChange((_e) => invalidateScriptCaches());

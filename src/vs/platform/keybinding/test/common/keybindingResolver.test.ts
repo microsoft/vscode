@@ -27,7 +27,8 @@ suite('KeybindingResolver', () => {
 			command,
 			commandArgs,
 			when,
-			isDefault
+			isDefault,
+			null
 		);
 	}
 
@@ -44,7 +45,7 @@ suite('KeybindingResolver', () => {
 		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'baz' }), contextRules), true);
 		assert.equal(KeybindingResolver.contextMatchesRules(createContext({ bar: 'bz' }), contextRules), false);
 
-		let resolver = new KeybindingResolver([keybindingItem], []);
+		let resolver = new KeybindingResolver([keybindingItem], [], () => { });
 		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
 		assert.equal(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
 	});
@@ -56,7 +57,7 @@ suite('KeybindingResolver', () => {
 		let contextRules = ContextKeyExpr.equals('bar', 'baz');
 		let keybindingItem = kbItem(keybinding, 'yes', commandArgs, contextRules, true);
 
-		let resolver = new KeybindingResolver([keybindingItem], []);
+		let resolver = new KeybindingResolver([keybindingItem], [], () => { });
 		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandArgs, commandArgs);
 	});
 
@@ -307,7 +308,7 @@ suite('KeybindingResolver', () => {
 			)
 		];
 
-		let resolver = new KeybindingResolver(items, []);
+		let resolver = new KeybindingResolver(items, [], () => { });
 
 		let testKey = (commandId: string, expectedKeys: number[]) => {
 			// Test lookup

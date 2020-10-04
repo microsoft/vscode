@@ -5,10 +5,9 @@
 
 import { URI as uri } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import * as path from 'vs/base/common/path';
 import * as Types from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
-import { toResource } from 'vs/workbench/common/editor';
+import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IStringDictionary, forEach, fromMap } from 'vs/base/common/collections';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -17,11 +16,11 @@ import { IWorkspaceFolder, IWorkspaceContextService, WorkbenchState } from 'vs/p
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IQuickInputService, IInputOptions, IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
 import { ConfiguredInput, IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class BaseConfigurationResolverService extends AbstractVariableResolverService {
 
@@ -34,7 +33,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 		private readonly configurationService: IConfigurationService,
 		private readonly commandService: ICommandService,
 		private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly quickInputService: IQuickInputService
+		private readonly quickInputService: IQuickInputService,
+		private readonly labelService: ILabelService
 	) {
 		super({
 			getFolderUri: (folderName: string): uri | undefined => {
@@ -51,15 +51,14 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				return context.getExecPath();
 			},
 			getFilePath: (): string | undefined => {
-				let activeEditor = editorService.activeEditor;
-				if (activeEditor instanceof DiffEditorInput) {
-					activeEditor = activeEditor.modifiedInput;
-				}
-				const fileResource = toResource(activeEditor, { filterByScheme: [Schemas.file, Schemas.userData] });
+				const fileResource = EditorResourceAccessor.getOriginalUri(editorService.activeEditor, {
+					supportSideBySide: SideBySideEditor.PRIMARY,
+					filterByScheme: [Schemas.file, Schemas.userData, Schemas.vscodeRemote]
+				});
 				if (!fileResource) {
 					return undefined;
 				}
-				return path.normalize(fileResource.fsPath);
+				return this.labelService.getUriLabel(fileResource, { noPrefix: true });
 			},
 			getSelectedText: (): string | undefined => {
 				const activeTextEditorControl = editorService.activeTextEditorControl;
@@ -83,7 +82,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 				}
 				return undefined;
 			}
-		}, envVariables);
+		}, labelService, envVariables);
 	}
 
 	public async resolveWithInteractionReplace(folder: IWorkspaceFolder | undefined, config: any, section?: string, variables?: IStringDictionary<string>, target?: ConfigurationTarget): Promise<any> {
@@ -264,7 +263,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					if (!Types.isString(info.description)) {
 						missingAttribute('description');
 					}
-					const inputOptions: IInputOptions = { prompt: info.description };
+					const inputOptions: IInputOptions = { prompt: info.description, ignoreFocusLost: true };
 					if (info.default) {
 						inputOptions.value = info.default;
 					}
@@ -310,7 +309,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 							picks.push(item);
 						}
 					});
-					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true };
+					const pickOptions: IPickOptions<PickStringItem> = { placeHolder: info.description, matchOnDetail: true, ignoreFocusLost: true };
 					return this.quickInputService.pick(picks, pickOptions, undefined).then(resolvedInput => {
 						if (resolvedInput) {
 							return resolvedInput.value;
@@ -347,9 +346,10 @@ export class ConfigurationResolverService extends BaseConfigurationResolverServi
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILabelService labelService: ILabelService
 	) {
-		super({ getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService);
+		super({ getExecPath: () => undefined }, Object.create(null), editorService, configurationService, commandService, workspaceContextService, quickInputService, labelService);
 	}
 }
 

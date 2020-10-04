@@ -1528,7 +1528,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (this._taskSystem?.isTaskVisible(executeResult.task)) {
 					const message = nls.localize('TaskSystem.activeSame.noBackground', 'The task \'{0}\' is already active.', executeResult.task.getQualifiedLabel());
 					let lastInstance = this.getTaskSystem().getLastInstance(executeResult.task) ?? executeResult.task;
-					this.notificationService.prompt(Severity.Info, message,
+					this.notificationService.prompt(Severity.Warning, message,
 						[{
 							label: nls.localize('terminateTask', "Terminate Task"),
 							run: () => this.terminate(lastInstance)
@@ -1586,11 +1586,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
 			this.pathService, this.viewDescriptorService, this.logService,
-			(workspaceFolder: IWorkspaceFolder) => {
-				if (!workspaceFolder) {
+			(workspaceFolder: IWorkspaceFolder | undefined) => {
+				if (workspaceFolder) {
+					return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+				} else if (this._taskSystemInfos.size > 0) {
+					return this._taskSystemInfos.values().next().value;
+				} else {
 					return undefined;
 				}
-				return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
 			}
 		);
 	}
@@ -2390,7 +2393,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 				picker.dispose();
 				if (!selection) {
-					resolve();
+					resolve(undefined);
 				}
 				resolve(selection);
 			}));
@@ -2606,7 +2609,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			if (buildTasks.length === 1) {
 				this.tryResolveTask(buildTasks[0]).then(resolvedTask => {
-					this.run(resolvedTask).then(undefined, reason => {
+					this.run(resolvedTask, undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 				});
@@ -2617,7 +2620,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (tasks.length > 0) {
 					let { defaults, users } = this.splitPerGroupType(tasks);
 					if (defaults.length === 1) {
-						this.run(defaults[0]).then(undefined, reason => {
+						this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
 						return;
@@ -2641,7 +2644,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								this.runConfigureDefaultBuildTask();
 								return;
 							}
-							this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+							this.run(task, { attachProblemMatcher: true }, TaskRunSource.User).then(undefined, reason => {
 								// eat the error, it has already been surfaced to the user and we don't care about it here
 							});
 						});
@@ -2667,7 +2670,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (tasks.length > 0) {
 				let { defaults, users } = this.splitPerGroupType(tasks);
 				if (defaults.length === 1) {
-					this.run(defaults[0]).then(undefined, reason => {
+					this.run(defaults[0], undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 					return;
@@ -2691,7 +2694,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this.runConfigureTasks();
 						return;
 					}
-					this.run(task).then(undefined, reason => {
+					this.run(task, undefined, TaskRunSource.User).then(undefined, reason => {
 						// eat the error, it has already been surfaced to the user and we don't care about it here
 					});
 				});
@@ -2963,7 +2966,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
 						for (let task of tasks) {
-							entries.push({ label: task._label, task, description: this.getTaskDescription(task) });
+							entries.push({ label: task._label, task, description: this.getTaskDescription(task), detail: this.showDetail() ? task.configurationProperties.detail : undefined });
 							if (!ContributedTask.is(task)) {
 								needsCreateOrOpen = false;
 							}
@@ -3059,7 +3062,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (selectedTask) {
 					selectedEntry = {
 						label: nls.localize('TaskService.defaultBuildTaskExists', '{0} is already marked as the default build task', selectedTask.getQualifiedLabel()),
-						task: selectedTask
+						task: selectedTask,
+						detail: this.showDetail() ? selectedTask.configurationProperties.detail : undefined
 					};
 				}
 				this.showIgnoredFoldersMessage().then(() => {
@@ -3110,7 +3114,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (selectedTask) {
 					selectedEntry = {
 						label: nls.localize('TaskService.defaultTestTaskExists', '{0} is already marked as the default test task.', selectedTask.getQualifiedLabel()),
-						task: selectedTask
+						task: selectedTask,
+						detail: this.showDetail() ? selectedTask.configurationProperties.detail : undefined
 					};
 				}
 

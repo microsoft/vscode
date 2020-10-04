@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IActionViewItemOptions, ActionViewItem, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const enum ActionsOrientation {
@@ -35,6 +35,7 @@ export interface IActionBarOptions {
 	readonly triggerKeys?: ActionTrigger;
 	readonly allowContextMenu?: boolean;
 	readonly preventLoopNavigation?: boolean;
+	readonly ignoreOrientationForPreviousAndNextKey?: boolean;
 }
 
 export interface IActionOptions extends IActionViewItemOptions {
@@ -47,8 +48,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	private _actionRunner: IActionRunner;
 	private _context: unknown;
-	private _orientation: ActionsOrientation;
-	private _triggerKeys: ActionTrigger;
+	private readonly _orientation: ActionsOrientation;
+	private readonly _triggerKeys: ActionTrigger;
+	private _actionIds: string[];
 
 	// View Items
 	viewItems: IActionViewItem[];
@@ -60,16 +62,17 @@ export class ActionBar extends Disposable implements IActionRunner {
 	protected actionsList: HTMLElement;
 
 	private _onDidBlur = this._register(new Emitter<void>());
-	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	readonly onDidBlur = this._onDidBlur.event;
 
-	private _onDidCancel = this._register(new Emitter<void>());
-	readonly onDidCancel: Event<void> = this._onDidCancel.event;
+	private _onDidCancel = this._register(new Emitter<void>({ onFirstListenerAdd: () => this.cancelHasListener = true }));
+	readonly onDidCancel = this._onDidCancel.event;
+	private cancelHasListener = false;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
+	readonly onDidRun = this._onDidRun.event;
 
 	private _onDidBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidBeforeRun: Event<IRunEvent> = this._onDidBeforeRun.event;
+	readonly onDidBeforeRun = this._onDidBeforeRun.event;
 
 	constructor(container: HTMLElement, options: IActionBarOptions = {}) {
 		super();
@@ -92,6 +95,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this._register(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
 		this._register(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
 
+		this._actionIds = [];
 		this.viewItems = [];
 		this.focusedItem = undefined;
 
@@ -99,30 +103,30 @@ export class ActionBar extends Disposable implements IActionRunner {
 		this.domNode.className = 'monaco-action-bar';
 
 		if (options.animated !== false) {
-			DOM.addClass(this.domNode, 'animated');
+			this.domNode.classList.add('animated');
 		}
 
-		let previousKey: KeyCode;
-		let nextKey: KeyCode;
+		let previousKeys: KeyCode[];
+		let nextKeys: KeyCode[];
 
 		switch (this._orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKey = KeyCode.LeftArrow;
-				nextKey = KeyCode.RightArrow;
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKey = KeyCode.RightArrow;
-				nextKey = KeyCode.LeftArrow;
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.RightArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.LeftArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKey = KeyCode.UpArrow;
-				nextKey = KeyCode.DownArrow;
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKey = KeyCode.DownArrow;
-				nextKey = KeyCode.UpArrow;
+				previousKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.RightArrow, KeyCode.DownArrow] : [KeyCode.DownArrow];
+				nextKeys = this.options.ignoreOrientationForPreviousAndNextKey ? [KeyCode.LeftArrow, KeyCode.UpArrow] : [KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -131,11 +135,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(previousKey)) {
+			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				eventHandled = this.focusPrevious();
-			} else if (event.equals(nextKey)) {
+			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				eventHandled = this.focusNext();
-			} else if (event.equals(KeyCode.Escape)) {
+			} else if (event.equals(KeyCode.Escape) && this.cancelHasListener) {
 				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
@@ -245,6 +249,10 @@ export class ActionBar extends Disposable implements IActionRunner {
 		return this.domNode;
 	}
 
+	hasAction(action: IAction): boolean {
+		return this._actionIds.includes(action.id);
+	}
+
 	push(arg: IAction | ReadonlyArray<IAction>, options: IActionOptions = {}): void {
 		const actions: ReadonlyArray<IAction> = Array.isArray(arg) ? arg : [arg];
 
@@ -279,12 +287,18 @@ export class ActionBar extends Disposable implements IActionRunner {
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionViewItemElement);
 				this.viewItems.push(item);
+				this._actionIds.push(action.id);
 			} else {
 				this.actionsList.insertBefore(actionViewItemElement, this.actionsList.children[index]);
 				this.viewItems.splice(index, 0, item);
+				this._actionIds.splice(index, 0, action.id);
 				index++;
 			}
 		});
+		if (this.focusedItem) {
+			// After a clear actions might be re-added to simply toggle some actions. We should preserve focus #97128
+			this.focus(this.focusedItem);
+		}
 	}
 
 	getWidth(index: number): number {
@@ -313,12 +327,14 @@ export class ActionBar extends Disposable implements IActionRunner {
 		if (index >= 0 && index < this.viewItems.length) {
 			this.actionsList.removeChild(this.actionsList.childNodes[index]);
 			dispose(this.viewItems.splice(index, 1));
+			this._actionIds.splice(index, 1);
 		}
 	}
 
 	clear(): void {
 		dispose(this.viewItems);
 		this.viewItems = [];
+		this._actionIds = [];
 		DOM.clearNode(this.actionsList);
 	}
 
@@ -459,7 +475,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 		dispose(this.viewItems);
 		this.viewItems = [];
 
-		DOM.removeNode(this.getContainer());
+		this._actionIds = [];
+
+		this.getContainer().remove();
 
 		super.dispose();
 	}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import { isFirefox } from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -559,9 +560,9 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.ViewPortCenter:
 				case CursorMove_.Direction.ViewPortIfOutside:
 					return CursorMoveCommands.viewportMove(viewModel, cursors, args.direction, inSelectionMode, value);
+				default:
+					return null;
 			}
-
-			return null;
 		}
 	}
 
@@ -1640,6 +1641,11 @@ export namespace CoreNavigationCommands {
 			super(SelectAllCommand);
 		}
 		public runDOMCommand(): void {
+			if (isFirefox) {
+				(<HTMLInputElement>document.activeElement).focus();
+				(<HTMLInputElement>document.activeElement).select();
+			}
+
 			document.execCommand('selectAll');
 		}
 		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {

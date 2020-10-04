@@ -37,7 +37,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -82,6 +82,7 @@ export class SearchEditor extends BaseTextEditor {
 	private messageDisposables: IDisposable[] = [];
 	private container: HTMLElement;
 	private searchModel: SearchModel;
+	private ongoingOperations: number = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -202,10 +203,6 @@ export class SearchEditor extends BaseTextEditor {
 		}
 	}
 
-	protected getConfigurationOverrides() {
-		return { ...super.getConfigurationOverrides(), links: false };
-	}
-
 	private createResultsEditor(parent: HTMLElement) {
 		const searchResultContainer = DOM.append(parent, DOM.$('.search-results'));
 		super.createEditor(searchResultContainer);
@@ -281,6 +278,14 @@ export class SearchEditor extends BaseTextEditor {
 		} else if (this.searchResultEditor.hasWidgetFocus()) {
 			// unreachable.
 		}
+	}
+
+	setQuery(query: string) {
+		this.queryEditorWidget.searchInput.setValue(query);
+	}
+
+	selectQuery() {
+		this.queryEditorWidget.searchInput.select();
 	}
 
 	toggleWholeWords() {
@@ -393,7 +398,7 @@ export class SearchEditor extends BaseTextEditor {
 		const matchText = model.getValueInRange(matchRange);
 		let file = '';
 		for (let line = matchRange.startLineNumber; line >= 1; line--) {
-			let lineText = model.getValueInRange(new Range(line, 1, line, 2));
+			const lineText = model.getValueInRange(new Range(line, 1, line, 2));
 			if (lineText !== ' ') { file = model.getLineContent(line); break; }
 		}
 		alert(localize('searchResultItem', "Matched {0} at {1} in file {2}", matchText, matchLineText, file.slice(0, file.length - 1)));
@@ -497,7 +502,14 @@ export class SearchEditor extends BaseTextEditor {
 		}
 
 		this.searchOperation.start(500);
-		await this.searchModel.search(query).finally(() => this.searchOperation.stop());
+		this.ongoingOperations++;
+		const exit = await this.searchModel.search(query).finally(() => {
+			this.ongoingOperations--;
+			if (this.ongoingOperations === 0) {
+				this.searchOperation.stop();
+			}
+		});
+
 		const input = this.getInput();
 		if (!input ||
 			input !== startInput ||
@@ -505,10 +517,11 @@ export class SearchEditor extends BaseTextEditor {
 			return;
 		}
 
+		const sortOrder = this.configurationService.getValue<ISearchConfigurationProperties>('search').sortOrder;
 		const controller = ReferencesController.get(this.searchResultEditor);
 		controller.closeWidget(false);
 		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter);
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, config.includes, config.excludes, config.contextLines, labelFormatter, sortOrder, exit?.limitHit);
 		const { body } = await input.getModels();
 		this.modelService.updateModel(body, results.text);
 		input.config = config;
@@ -543,10 +556,10 @@ export class SearchEditor extends BaseTextEditor {
 		return this._input as SearchEditorInput;
 	}
 
-	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
-		await super.setInput(newInput, options, token);
+		await super.setInput(newInput, options, context, token);
 		if (token.isCancellationRequested) { return; }
 
 		const { body, config } = await newInput.getModels();
@@ -578,17 +591,17 @@ export class SearchEditor extends BaseTextEditor {
 
 	private toggleIncludesExcludes(_shouldShow?: boolean): void {
 		const cls = 'expanded';
-		const shouldShow = _shouldShow ?? !DOM.hasClass(this.includesExcludesContainer, cls);
+		const shouldShow = _shouldShow ?? !this.includesExcludesContainer.classList.contains(cls);
 
 		if (shouldShow) {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
-			DOM.addClass(this.includesExcludesContainer, cls);
+			this.includesExcludesContainer.classList.add(cls);
 		} else {
 			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
-			DOM.removeClass(this.includesExcludesContainer, cls);
+			this.includesExcludesContainer.classList.remove(cls);
 		}
 
-		this.showingIncludesExcludes = DOM.hasClass(this.includesExcludesContainer, cls);
+		this.showingIncludesExcludes = this.includesExcludesContainer.classList.contains(cls);
 
 		this.reLayout();
 	}

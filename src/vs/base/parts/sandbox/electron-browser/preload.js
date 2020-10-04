@@ -9,6 +9,14 @@
 
 	const { ipcRenderer, webFrame, crashReporter, contextBridge } = require('electron');
 
+	// #######################################################################
+	// ###                                                                 ###
+	// ###       !!! DO NOT USE GET/SET PROPERTIES ANYWHERE HERE !!!       ###
+	// ###       !!!  UNLESS THE ACCESS IS WITHOUT SIDE EFFECTS  !!!       ###
+	// ###       (https://github.com/electron/electron/issues/25516)       ###
+	// ###                                                                 ###
+	// #######################################################################
+
 	const globals = {
 
 		/**
@@ -91,8 +99,61 @@
 		 * Support for a subset of access to node.js global `process`.
 		 */
 		process: {
-			platform: process.platform,
-			env: process.env,
+			get platform() { return process.platform; },
+			get env() { return process.env; },
+			get versions() { return process.versions; },
+			get type() { return 'renderer'; },
+
+			_whenEnvResolved: undefined,
+			whenEnvResolved:
+				/**
+				 * @returns when the shell environment has been resolved.
+				 */
+				function () {
+					if (!this._whenEnvResolved) {
+						this._whenEnvResolved = resolveEnv();
+					}
+
+					return this._whenEnvResolved;
+				},
+
+			nextTick:
+				/**
+				 * Adds callback to the "next tick queue". This queue is fully drained
+				 * after the current operation on the JavaScript stack runs to completion
+				 * and before the event loop is allowed to continue.
+				 *
+				 * @param {Function} callback
+				 * @param {any[]} args
+				 */
+				function nextTick(callback, ...args) {
+					return process.nextTick(callback, ...args);
+				},
+
+			cwd:
+				/**
+				 * @returns the current working directory.
+				 */
+				function () {
+					return process.cwd();
+				},
+
+			getuid:
+				/**
+				 * @returns the numeric user identity of the process
+				 */
+				function () {
+					return process.getuid();
+				},
+
+			getProcessMemoryInfo:
+				/**
+				 * @returns {Promise<import('electron').ProcessMemoryInfo>}
+				 */
+				function () {
+					return process.getProcessMemoryInfo();
+				},
+
 			on:
 				/**
 				 * @param {string} type
@@ -109,7 +170,7 @@
 		 * Some information about the context we are running in.
 		 */
 		context: {
-			sandbox: process.argv.includes('--enable-sandbox')
+			get sandbox() { return process.argv.includes('--enable-sandbox'); }
 		}
 	};
 
@@ -155,6 +216,34 @@
 		}
 
 		return true;
+	}
+
+	/**
+	 * If VSCode is not run from a terminal, we should resolve additional
+	 * shell specific environment from the OS shell to ensure we are seeing
+	 * all development related environment variables. We do this from the
+	 * main process because it may involve spawning a shell.
+	 */
+	function resolveEnv() {
+		return new Promise(function (resolve) {
+			const handle = setTimeout(function () {
+				console.warn('Preload: Unable to resolve shell environment in a reasonable time');
+
+				// It took too long to fetch the shell environment, return
+				resolve();
+			}, 3000);
+
+			ipcRenderer.once('vscode:acceptShellEnv', function (event, shellEnv) {
+				clearTimeout(handle);
+
+				// Assign all keys of the shell environment to our process environment
+				Object.assign(process.env, shellEnv);
+
+				resolve();
+			});
+
+			ipcRenderer.send('vscode:fetchShellEnv');
+		});
 	}
 
 	//#endregion

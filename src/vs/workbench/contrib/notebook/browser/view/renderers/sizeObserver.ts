@@ -33,7 +33,7 @@ export class BrowserResizeObserver extends Disposable implements IResizeObserver
 		this.height = -1;
 
 		this.observer = new ResizeObserver((entries: any) => {
-			for (let entry of entries) {
+			for (const entry of entries) {
 				if (entry.target === referenceDomElement && entry.contentRect) {
 					if (this.width !== entry.contentRect.width || this.height !== entry.contentRect.height) {
 						this.width = entry.contentRect.width;

@@ -8,7 +8,6 @@ import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isObject } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -269,6 +268,7 @@ export interface HoverProvider {
 /**
  * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
  * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
+ * @internal
  */
 export interface EvaluatableExpression {
 	/**
@@ -284,6 +284,7 @@ export interface EvaluatableExpression {
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ * @internal
  */
 export interface EvaluatableExpressionProvider {
 	/**
@@ -359,7 +360,7 @@ export const completionKindToCssClass = (function () {
 	data[CompletionItemKind.User] = 'account';
 	data[CompletionItemKind.Issue] = 'issues';
 
-	return function (kind: CompletionItemKind) {
+	return function (kind: CompletionItemKind): string {
 		const name = data[kind];
 		let codicon = name && iconRegistry.get(name);
 		if (!codicon) {
@@ -656,6 +657,11 @@ export interface CodeActionProvider {
 	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
 
 	/**
+	 * Given a code action fill in the edit. Will only invoked when missing.
+	 */
+	resolveCodeAction?(codeAction: CodeAction, token: CancellationToken): ProviderResult<CodeAction>;
+
+	/**
 	 * Optional list of CodeActionKinds that this provider returns.
 	 */
 	readonly providedCodeActionKinds?: ReadonlyArray<string>;
@@ -813,12 +819,12 @@ export interface DocumentHighlightProvider {
  */
 export interface OnTypeRenameProvider {
 
-	stopPattern?: RegExp;
+	wordPattern?: RegExp;
 
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
 }
 
 /**
@@ -1337,29 +1343,6 @@ export class FoldingRangeKind {
 	}
 }
 
-/**
- * @internal
- */
-export namespace WorkspaceFileEdit {
-	/**
-	 * @internal
-	 */
-	export function is(thing: any): thing is WorkspaceFileEdit {
-		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
-	}
-}
-
-/**
- * @internal
- */
-export namespace WorkspaceTextEdit {
-	/**
-	 * @internal
-	 */
-	export function is(thing: any): thing is WorkspaceTextEdit {
-		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
-	}
-}
 
 export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
@@ -1512,11 +1495,13 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	readOnly: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeReadOnly: Event<boolean>;
 	isDisposed: boolean;
 }
 

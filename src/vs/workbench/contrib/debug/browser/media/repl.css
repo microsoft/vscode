@@ -35,7 +35,7 @@
 }
 
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source .value {
-	flex: 1;
+	margin-right: 4px;
 }
 
 .monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
@@ -44,14 +44,14 @@
 }
 
 .monaco-workbench .repl .repl-tree .output.expression.value-and-source .source {
-	margin-left: 4px;
+	margin-left: auto;
 	margin-right: 8px;
 	cursor: pointer;
 	text-decoration: underline;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	max-width: 150px;
+	text-align: right;
 }
 
 .monaco-workbench .repl .repl-tree .output.expression > .value,
@@ -87,3 +87,53 @@
 .monaco-workbench .repl .repl-tree .output.expression .code-bold	{ font-weight: bold; }
 .monaco-workbench .repl .repl-tree .output.expression .code-italic	{ font-style: italic; }
 .monaco-workbench .repl .repl-tree .output.expression .code-underline { text-decoration: underline; }
+
+.monaco-action-bar .action-item.repl-panel-filter-container {
+	cursor: default;
+	display: flex;
+}
+
+.monaco-action-bar .panel-action-tree-filter{
+	display: flex;
+	align-items: center;
+	flex: 1;
+}
+
+.monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
+}
+
+.pane-header .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 20px;
+	line-height: 18px;
+}
+
+.monaco-workbench.vs .monaco-action-bar .panel-action-tree-filter .monaco-inputbox {
+	height: 25px;
+}
+
+.panel > .title .monaco-action-bar .action-item.repl-panel-filter-container {
+	min-width: 300px;
+	margin-right: 10px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls {
+	position: absolute;
+	top: 0px;
+	bottom: 0;
+	right: 0px;
+	display: flex;
+	align-items: center;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge {
+	margin: 4px;
+	padding: 0px 8px;
+	border-radius: 2px;
+}
+
+.repl-panel-filter-container .repl-panel-filter-controls > .repl-panel-filter-badge.hidden {
+	display: none;
+}

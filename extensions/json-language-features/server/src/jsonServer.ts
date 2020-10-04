@@ -14,17 +14,10 @@ import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLan
 import { getLanguageModelCache } from './languageModelCache';
 import { RequestService, basename, resolvePath } from './requests';
 
-interface ISchemaAssociations {
-	[pattern: string]: string[];
-}
-
-interface ISchemaAssociation {
-	fileMatch: string[];
-	uri: string;
-}
+type ISchemaAssociations = Record<string, string[]>;
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | SchemaConfiguration[], any> = new NotificationType('json/schemaAssociations');
 }
 
 namespace VSCodeContentRequest {
@@ -144,7 +137,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			} : undefined,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
+			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
@@ -212,7 +205,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}();
 
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
-	let schemaAssociations: ISchemaAssociations | ISchemaAssociation[] | undefined = undefined;
+	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
 	let formatterRegistration: Thenable<Disposable> | null = null;
 
 	// The settings have changed. Is send on server activation as well.

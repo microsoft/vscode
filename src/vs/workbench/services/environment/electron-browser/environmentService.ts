@@ -3,32 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
-import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
 import { join } from 'vs/base/common/path';
-import product from 'vs/platform/product/common/product';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { IProductService } from 'vs/platform/product/common/productService';
 
-export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
-
-	readonly configuration: INativeEnvironmentConfiguration;
-
-	readonly crashReporterDirectory?: string;
-	readonly crashReporterId?: string;
-
-	readonly cliPath: string;
-
-	readonly log?: string;
-	readonly extHostLogsPath: URI;
-}
-
-export interface INativeEnvironmentConfiguration extends IEnvironmentConfiguration, INativeWindowConfiguration { }
-
-export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
+export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -36,7 +19,7 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get webviewExternalEndpoint(): string {
 		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
 
-		return baseEndpoint.replace('{{commit}}', product.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
+		return baseEndpoint.replace('{{commit}}', this.productService.commit || '0d728c31ebdf03869d2687d9be0b017667c9ff37');
 	}
 
 	@memoize
@@ -48,6 +31,9 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
+	// Do not memoize as `backupPath` can change in configuration
+	get backupWorkspaceHome(): URI | undefined { return this.configuration.backupPath ? URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme }) : undefined; }
+
 	@memoize
 	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
 
@@ -57,12 +43,27 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
 
-	constructor(
-		readonly configuration: INativeEnvironmentConfiguration,
-		execPath: string
-	) {
-		super(configuration, execPath);
+	@memoize
+	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
-		this.configuration.backupWorkspaceResource = this.configuration.backupPath ? toBackupWorkspaceResource(this.configuration.backupPath, this) : undefined;
+	get extensionEnabledProposedApi(): string[] | undefined {
+		if (Array.isArray(this.args['enable-proposed-api'])) {
+			return this.args['enable-proposed-api'];
+		}
+
+		if ('enable-proposed-api' in this.args) {
+			return [];
+		}
+
+		return undefined;
+	}
+
+	readonly execPath = this.configuration.execPath;
+
+	constructor(
+		readonly configuration: INativeWorkbenchConfiguration,
+		private readonly productService: IProductService
+	) {
+		super(configuration);
 	}
 }

@@ -142,10 +142,9 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				return undefined;
 			}
 
-			const actions = Array.isArray(entry.actions) ? entry.actions : entry.actions();
 			return {
 				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
-				submenu: this.createMenu(delegate, actions, onHide, new Set([...submenuIds, entry.id]))
+				submenu: this.createMenu(delegate, entry.actions, onHide, new Set([...submenuIds, entry.id]))
 			};
 		}
 
@@ -169,7 +168,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 					// To preserve pre-electron-2.x behaviour, we first trigger
 					// the onHide callback and then the action.
-					// Fixes https://github.com/Microsoft/vscode/issues/45601
+					// Fixes https://github.com/microsoft/vscode/issues/45601
 					onHide();
 
 					// Run action which will close the menu

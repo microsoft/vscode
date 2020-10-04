@@ -5,10 +5,11 @@
 
 import 'vs/css!./media/issueReporter';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
-import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { ipcRenderer, process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
-import { $, windowOpenNoOpener, addClass } from 'vs/base/browser/dom';
+import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import * as collections from 'vs/base/common/collections';
@@ -23,7 +24,7 @@ import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
+import { IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 const MAX_URL_LENGTH = 2045;
@@ -55,7 +56,7 @@ export interface IssueReporterConfiguration extends IWindowConfiguration {
 
 export function startup(configuration: IssueReporterConfiguration) {
 	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
-	addClass(document.body, platformClass); // used by our fonts
+	document.body.classList.add(platformClass); // used by our fonts
 
 	document.body.innerHTML = BaseHtml();
 	const issueReporter = new IssueReporter(configuration);
@@ -65,7 +66,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 }
 
 export class IssueReporter extends Disposable {
-	private electronService!: IElectronService;
+	private nativeHostService!: INativeHostService;
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
@@ -148,10 +149,6 @@ export class IssueReporter extends Disposable {
 		applyZoom(configuration.data.zoomLevel);
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
-
-		if (configuration.data.issueType === IssueType.SettingsSearchIssue) {
-			this.handleSettingsSearchData(<ISettingsSearchIssueReporterData>configuration.data);
-		}
 	}
 
 	render(): void {
@@ -244,7 +241,7 @@ export class IssueReporter extends Disposable {
 			content.push(`.monaco-text-button:not(.disabled):hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
-		styleTag.innerHTML = content.join('\n');
+		styleTag.textContent = content.join('\n');
 		document.head.appendChild(styleTag);
 		document.body.style.color = styles.color || '';
 	}
@@ -266,54 +263,13 @@ export class IssueReporter extends Disposable {
 		this.updateExtensionSelector(installedExtensions);
 	}
 
-	private handleSettingsSearchData(data: ISettingsSearchIssueReporterData): void {
-		this.issueReporterModel.update({
-			actualSearchResults: data.actualSearchResults,
-			query: data.query,
-			filterResultCount: data.filterResultCount
-		});
-		this.updateSearchedExtensionTable(data.enabledExtensions);
-		this.updateSettingsSearchDetails(data);
-	}
-
-	private updateSettingsSearchDetails(data: ISettingsSearchIssueReporterData): void {
-		const target = document.querySelector('.block-settingsSearchResults .block-info');
-		if (target) {
-			const details = `
-			<div class='block-settingsSearchResults-details'>
-				<div>Query: "${data.query}"</div>
-				<div>Literal match count: ${data.filterResultCount}</div>
-			</div>
-			`;
-
-			let table = `
-				<tr>
-					<th>Setting</th>
-					<th>Extension</th>
-					<th>Score</th>
-				</tr>`;
-
-			data.actualSearchResults
-				.forEach(setting => {
-					table += `
-						<tr>
-							<td>${setting.key}</td>
-							<td>${setting.extensionId}</td>
-							<td>${String(setting.score).slice(0, 5)}</td>
-						</tr>`;
-				});
-
-			target.innerHTML = `${details}<table>${table}</table>`;
-		}
-	}
-
 	private initServices(configuration: IssueReporterConfiguration): void {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
-		serviceCollection.set(IElectronService, this.electronService);
+		this.nativeHostService = new NativeHostService(configuration.windowId, mainProcessService) as INativeHostService;
+		serviceCollection.set(INativeHostService, this.nativeHostService);
 	}
 
 	private setEventHandlers(): void {
@@ -506,10 +462,6 @@ export class IssueReporter extends Disposable {
 			return true;
 		}
 
-		if (issueType === IssueType.SettingsSearchIssue) {
-			return true;
-		}
-
 		return false;
 	}
 
@@ -553,7 +505,7 @@ export class IssueReporter extends Disposable {
 
 	private clearSearchResults(): void {
 		const similarIssues = this.getElementById('similar-issues')!;
-		similarIssues.innerHTML = '';
+		similarIssues.innerText = '';
 		this.numberOfSearchResultsDisplayed = 0;
 	}
 
@@ -564,7 +516,7 @@ export class IssueReporter extends Disposable {
 
 		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
 			response.json().then(result => {
-				similarIssues.innerHTML = '';
+				similarIssues.innerText = '';
 				if (result && result.items) {
 					this.displaySearchResults(result.items);
 				} else {
@@ -654,9 +606,9 @@ export class IssueReporter extends Disposable {
 					issueState.appendChild(issueIcon);
 					issueState.appendChild(issueStateLabel);
 
-					item = $('div.issue', {}, issueState, link);
+					item = $('div.issue', undefined, issueState, link);
 				} else {
-					item = $('div.issue', {}, link);
+					item = $('div.issue', undefined, link);
 				}
 
 				issues.appendChild(item);
@@ -672,20 +624,15 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setUpTypes(): void {
-		const makeOption = (issueType: IssueType, description: string) => `<option value="${issueType.valueOf()}">${escape(description)}</option>`;
+		const makeOption = (issueType: IssueType, description: string) => $('option', { 'value': issueType.valueOf() }, escape(description));
 
 		const typeSelect = this.getElementById('issue-type')! as HTMLSelectElement;
 		const { issueType } = this.issueReporterModel.getData();
-		if (issueType === IssueType.SettingsSearchIssue) {
-			typeSelect.innerHTML = makeOption(IssueType.SettingsSearchIssue, localize('settingsSearchIssue', "Settings Search Issue"));
-			typeSelect.disabled = true;
-		} else {
-			typeSelect.innerHTML = [
-				makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
-				makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
-				makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
-			].join('\n');
-		}
+		reset(typeSelect,
+			makeOption(IssueType.Bug, localize('bugReporter', "Bug Report")),
+			makeOption(IssueType.FeatureRequest, localize('featureRequest', "Feature Request")),
+			makeOption(IssueType.PerformanceIssue, localize('performanceIssue', "Performance Issue"))
+		);
 
 		typeSelect.value = issueType.toString();
 
@@ -713,7 +660,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		sourceSelect.innerHTML = '';
+		sourceSelect.innerText = '';
 		if (issueType === IssueType.FeatureRequest) {
 			sourceSelect.append(...[
 				this.makeOption('', localize('selectSource', "Select source"), true),
@@ -774,9 +721,8 @@ export class IssueReporter extends Disposable {
 			} else {
 				show(extensionsBlock);
 			}
-
-			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('bugDescription', "Share the steps needed to reliably reproduce the problem. Please include actual and expected results. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.PerformanceIssue) {
 			show(blockContainer);
 			show(systemBlock);
@@ -790,33 +736,29 @@ export class IssueReporter extends Disposable {
 				show(extensionsBlock);
 			}
 
-			descriptionTitle.innerHTML = `${localize('stepsToReproduce', "Steps to Reproduce")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('stepsToReproduce', "Steps to Reproduce"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('performanceIssueDesciption', "When did this performance issue happen? Does it occur on startup or after a specific series of actions? We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 		} else if (issueType === IssueType.FeatureRequest) {
-			descriptionTitle.innerHTML = `${localize('description', "Description")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
+			reset(descriptionTitle, localize('description', "Description"), $('span.required-input', undefined, '*'));
+			reset(descriptionSubtitle, localize('featureRequestDescription', "Please describe the feature you would like to see. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub."));
 			show(problemSource);
 
 			if (fileOnExtension) {
 				show(extensionSelector);
 			}
-		} else if (issueType === IssueType.SettingsSearchIssue) {
-			show(blockContainer);
-			show(searchedExtensionsBlock);
-			show(settingsSearchResultsBlock);
-
-			descriptionTitle.innerHTML = `${localize('expectedResults', "Expected Results")} <span class="required-input">*</span>`;
-			descriptionSubtitle.innerHTML = localize('settingsSearchResultsDescription', "Please list the results that you were expecting to see when you searched with this query. We support GitHub-flavored Markdown. You will be able to edit your issue and add screenshots when we preview it on GitHub.");
 		}
 	}
 
 	private validateInput(inputId: string): boolean {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
+		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
 		if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
+			inputValidationMessage?.classList.remove('hidden');
 			return false;
 		} else {
 			inputElement.classList.remove('invalid-input');
+			inputValidationMessage?.classList.add('hidden');
 			return true;
 		}
 	}
@@ -886,7 +828,7 @@ export class IssueReporter extends Disposable {
 		return new Promise((resolve, reject) => {
 			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
 				if (shouldWrite) {
-					await this.electronService.writeClipboardText(issueBody);
+					await this.nativeHostService.writeClipboardText(issueBody);
 					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
 				} else {
 					reject();
@@ -925,42 +867,82 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateSystemInfo(state: IssueReporterModelData) {
-		const target = document.querySelector('.block-system .block-info');
+		const target = document.querySelector<HTMLElement>('.block-system .block-info');
+
 		if (target) {
 			const systemInfo = state.systemInfo!;
-			let renderedData = `
-			<table>
-				<tr><td>CPUs</td><td>${systemInfo.cpus}</td></tr>
-				<tr><td>GPU Status</td><td>${Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('<br>')}</td></tr>
-				<tr><td>Load (avg)</td><td>${systemInfo.load}</td></tr>
-				<tr><td>Memory (System)</td><td>${systemInfo.memory}</td></tr>
-				<tr><td>Process Argv</td><td>${systemInfo.processArgs}</td></tr>
-				<tr><td>Screen Reader</td><td>${systemInfo.screenReader}</td></tr>
-				<tr><td>VM</td><td>${systemInfo.vmHint}</td></tr>
-			</table>`;
+			const renderedDataTable = $('table', undefined,
+				$('tr', undefined,
+					$('td', undefined, 'CPUs'),
+					$('td', undefined, systemInfo.cpus || ''),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'GPU Status' as string),
+					$('td', undefined, Object.keys(systemInfo.gpuStatus).map(key => `${key}: ${systemInfo.gpuStatus[key]}`).join('\n')),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Load (avg)' as string),
+					$('td', undefined, systemInfo.load || ''),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Memory (System)' as string),
+					$('td', undefined, systemInfo.memory),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Process Argv' as string),
+					$('td', undefined, systemInfo.processArgs),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'Screen Reader' as string),
+					$('td', undefined, systemInfo.screenReader),
+				),
+				$('tr', undefined,
+					$('td', undefined, 'VM'),
+					$('td', undefined, systemInfo.vmHint),
+				),
+			);
+			reset(target, renderedDataTable);
 
 			systemInfo.remoteData.forEach(remote => {
+				target.appendChild($<HTMLHRElement>('hr'));
 				if (isRemoteDiagnosticError(remote)) {
-					renderedData += `
-					<hr>
-					<table>
-						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
-						<tr><td></td><td>${remote.errorMessage}</td></tr>
-					</table>`;
+					const remoteDataTable = $('table', undefined,
+						$('tr', undefined,
+							$('td', undefined, 'Remote'),
+							$('td', undefined, remote.hostName)
+						),
+						$('tr', undefined,
+							$('td', undefined, ''),
+							$('td', undefined, remote.errorMessage)
+						)
+					);
+					target.appendChild(remoteDataTable);
 				} else {
-					renderedData += `
-					<hr>
-					<table>
-						<tr><td>Remote</td><td>${remote.hostName}</td></tr>
-						<tr><td>OS</td><td>${remote.machineInfo.os}</td></tr>
-						<tr><td>CPUs</td><td>${remote.machineInfo.cpus}</td></tr>
-						<tr><td>Memory (System)</td><td>${remote.machineInfo.memory}</td></tr>
-						<tr><td>VM</td><td>${remote.machineInfo.vmHint}</td></tr>
-					</table>`;
+					const remoteDataTable = $('table', undefined,
+						$('tr', undefined,
+							$('td', undefined, 'Remote'),
+							$('td', undefined, remote.hostName)
+						),
+						$('tr', undefined,
+							$('td', undefined, 'OS'),
+							$('td', undefined, remote.machineInfo.os)
+						),
+						$('tr', undefined,
+							$('td', undefined, 'CPUs'),
+							$('td', undefined, remote.machineInfo.cpus || '')
+						),
+						$('tr', undefined,
+							$('td', undefined, 'Memory (System)' as string),
+							$('td', undefined, remote.machineInfo.memory)
+						),
+						$('tr', undefined,
+							$('td', undefined, 'VM'),
+							$('td', undefined, remote.machineInfo.vmHint)
+						),
+					);
+					target.appendChild(remoteDataTable);
 				}
 			});
-
-			target.innerHTML = renderedData;
 		}
 	}
 
@@ -992,15 +974,18 @@ export class IssueReporter extends Disposable {
 			return 0;
 		});
 
-		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData) => {
+		const makeOption = (extension: IOption, selectedExtension?: IssueReporterExtensionData): HTMLOptionElement => {
 			const selected = selectedExtension && extension.id === selectedExtension.id;
-			return `<option value="${extension.id}" ${selected ? 'selected' : ''}>${escape(extension.name)}</option>`;
+			return $<HTMLOptionElement>('option', {
+				'value': extension.id,
+				'selected': selected || ''
+			}, extension.name);
 		};
 
 		const extensionsSelector = this.getElementById('extension-selector');
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
-			extensionsSelector.innerHTML = '<option></option>' + extensionOptions.map(extension => makeOption(extension, selectedExtension)).join('\n');
+			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
@@ -1068,9 +1053,9 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateProcessInfo(state: IssueReporterModelData) {
-		const target = document.querySelector('.block-process .block-info');
+		const target = document.querySelector('.block-process .block-info') as HTMLElement;
 		if (target) {
-			target.innerHTML = `<code>${state.processInfo}</code>`;
+			reset(target, $('code', undefined, state.processInfo));
 		}
 	}
 
@@ -1079,10 +1064,10 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updateExtensionTable(extensions: IssueReporterExtensionData[], numThemeExtensions: number): void {
-		const target = document.querySelector('.block-extensions .block-info');
+		const target = document.querySelector<HTMLElement>('.block-extensions .block-info');
 		if (target) {
 			if (this.configuration.disableExtensions) {
-				target.innerHTML = localize('disabledExtensions', "Extensions are disabled");
+				reset(target, localize('disabledExtensions', "Extensions are disabled"));
 				return;
 			}
 
@@ -1090,46 +1075,27 @@ export class IssueReporter extends Disposable {
 			extensions = extensions || [];
 
 			if (!extensions.length) {
-				target.innerHTML = 'Extensions: none' + themeExclusionStr;
+				target.innerText = 'Extensions: none' + themeExclusionStr;
 				return;
 			}
 
-			const table = this.getExtensionTableHtml(extensions);
-			target.innerHTML = `<table>${table}</table>${themeExclusionStr}`;
+			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
 		}
 	}
 
-	private updateSearchedExtensionTable(extensions: IssueReporterExtensionData[]): void {
-		const target = document.querySelector('.block-searchedExtensions .block-info');
-		if (target) {
-			if (!extensions.length) {
-				target.innerHTML = 'Extensions: none';
-				return;
-			}
-
-			const table = this.getExtensionTableHtml(extensions);
-			target.innerHTML = `<table>${table}</table>`;
-		}
-	}
-
-	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): string {
-		let table = `
-			<tr>
-				<th>Extension</th>
-				<th>Author (truncated)</th>
-				<th>Version</th>
-			</tr>`;
-
-		table += extensions.map(extension => {
-			return `
-				<tr>
-					<td>${extension.name}</td>
-					<td>${extension.publisher.substr(0, 3)}</td>
-					<td>${extension.version}</td>
-				</tr>`;
-		}).join('');
-
-		return table;
+	private getExtensionTableHtml(extensions: IssueReporterExtensionData[]): HTMLTableElement {
+		return $('table', undefined,
+			$('tr', undefined,
+				$('th', undefined, 'Extension'),
+				$('th', undefined, 'Author (truncated)' as string),
+				$('th', undefined, 'Version'),
+			),
+			...extensions.map(extension => $('tr', undefined,
+				$('td', undefined, extension.name),
+				$('td', undefined, extension.publisher.substr(0, 3)),
+				$('td', undefined, extension.version),
+			))
+		);
 	}
 
 	private openLink(event: MouseEvent): void {

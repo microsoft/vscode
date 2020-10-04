@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { isLocalhost, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -48,15 +48,34 @@ export interface Tunnel {
 	closeable?: boolean;
 }
 
-function ToLocalHost(host: string): string {
-	if (host === '127.0.0.1') {
-		host = 'localhost';
-	}
-	return host;
+export function MakeAddress(host: string, port: number): string {
+	return host + ':' + port;
 }
 
-export function MakeAddress(host: string, port: number): string {
-	return ToLocalHost(host) + ':' + port;
+export function mapHasTunnel(map: Map<string, Tunnel>, host: string, port: number): boolean {
+	if (!isLocalhost(host)) {
+		return map.has(MakeAddress(host, port));
+	}
+
+	const stringAddress = MakeAddress('localhost', port);
+	if (map.has(stringAddress)) {
+		return true;
+	}
+	const numberAddress = MakeAddress('127.0.0.1', port);
+	if (map.has(numberAddress)) {
+		return true;
+	}
+	return false;
+}
+
+export function mapHasTunnelLocalhostOrAllInterfaces(map: Map<string, Tunnel>, host: string, port: number): boolean {
+	if (!mapHasTunnel(map, host, port)) {
+		const otherHost = host === '0.0.0.0' ? 'localhost' : (host === 'localhost' ? '0.0.0.0' : undefined);
+		if (otherHost) {
+			return mapHasTunnel(map, otherHost, port);
+		}
+	}
+	return true;
 }
 
 export class TunnelModel extends Disposable {
@@ -218,7 +237,7 @@ export class TunnelModel extends Disposable {
 				const nullIndex = value.detail.indexOf('\0');
 				const detail = value.detail.substr(0, nullIndex > 0 ? nullIndex : value.detail.length).trim();
 				return {
-					host: ToLocalHost(value.host),
+					host: value.host,
 					port: value.port,
 					detail
 				};

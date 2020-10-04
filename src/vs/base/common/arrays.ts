@@ -399,32 +399,6 @@ export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean):
 	return -1;
 }
 
-/**
- * @deprecated ES6: use `Array.findIndex`
- */
-export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
-	for (let i = 0; i < array.length; i++) {
-		const element = array[i];
-
-		if (fn(element)) {
-			return i;
-		}
-	}
-
-	return -1;
-}
-
-
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
-	const index = firstIndex(array, fn);
-	return index < 0 ? notFoundValue : array[index];
-}
-
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
 export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
@@ -565,21 +539,6 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	}
 }
 
-
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
-	for (let i = 0; i < arr.length; i++) {
-		const element = arr[i];
-		if (predicate(element, i, arr)) {
-			return element;
-		}
-	}
-
-	return undefined;
-}
-
 export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :
@@ -588,14 +547,6 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 
 export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
-}
-
-export function toArray<T>(iterable: IterableIterator<T>): T[] {
-	const result: T[] = [];
-	for (let element of iterable) {
-		result.push(element);
-	}
-	return result;
 }
 
 export function getRandomElement<T>(arr: T[]): T | undefined {

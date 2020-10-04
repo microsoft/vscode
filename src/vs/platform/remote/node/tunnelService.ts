@@ -86,7 +86,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this.tunnelLocalPort = address.port;
 
 		await this._barrier.wait();
-		this.localAddress = 'localhost:' + address.port;
+		this.localAddress = `${this.tunnelRemoteHost === '127.0.0.1' ? '127.0.0.1' : 'localhost'}:${address.port}`;
 		return this;
 	}
 
@@ -107,10 +107,17 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 			this._socketsDispose.delete(localSocket.localAddress);
 			remoteSocket.end();
 		});
-
 		localSocket.on('close', () => remoteSocket.end());
+		localSocket.on('error', () => {
+			this._socketsDispose.delete(localSocket.localAddress);
+			remoteSocket.destroy();
+		});
+
 		remoteSocket.on('end', () => localSocket.end());
 		remoteSocket.on('close', () => localSocket.end());
+		remoteSocket.on('error', () => {
+			localSocket.destroy();
+		});
 
 		localSocket.pipe(remoteSocket);
 		remoteSocket.pipe(localSocket);
@@ -132,8 +139,7 @@ export class TunnelService extends AbstractTunnelService {
 	}
 
 	protected retainOrCreateTunnel(addressProvider: IAddressProvider, remoteHost: string, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined {
-		const portMap = this._tunnels.get(remoteHost);
-		const existing = portMap ? portMap.get(remotePort) : undefined;
+		const existing = this.getTunnelFromMap(remoteHost, remotePort);
 		if (existing) {
 			++existing.refcount;
 			return existing.value;
@@ -151,7 +157,8 @@ export class TunnelService extends AbstractTunnelService {
 				socketFactory: nodeSocketFactory,
 				addressProvider,
 				signService: this.signService,
-				logService: this.logService
+				logService: this.logService,
+				ipcLogger: null
 			};
 
 			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);

@@ -33,6 +33,8 @@ import { FileReferences, OneReference, ReferencesModel } from '../referencesMode
 import { FuzzyScore } from 'vs/base/common/filters';
 import { SplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 
 class DecorationsManager implements IDisposable {
@@ -219,6 +221,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		@peekView.IPeekViewService private readonly _peekViewService: peekView.IPeekViewService,
 		@ILabelService private readonly _uriLabel: ILabelService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true }, _instantiationService);
 
@@ -322,6 +325,15 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
+		if (this._defaultTreeKeyboardSupport) {
+			// the tree will consume `Escape` and prevent the widget from closing
+			this._callOnDispose.add(dom.addStandardDisposableListener(this._treeContainer, 'keydown', (e) => {
+				if (e.equals(KeyCode.Escape)) {
+					this._keybindingService.dispatchEvent(e, e.target);
+					e.stopPropagation();
+				}
+			}, true));
+		}
 		this._tree = this._instantiationService.createInstance(
 			ReferencesTree,
 			'ReferencesWidget',
@@ -429,7 +441,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 		if (this._model.isEmpty) {
 			this.setTitle('');
-			this._messageContainer.innerHTML = nls.localize('noResults', "No results");
+			this._messageContainer.innerText = nls.localize('noResults', "No results");
 			dom.show(this._messageContainer);
 			return Promise.resolve(undefined);
 		}
@@ -479,6 +491,11 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			}
 		}
 		return undefined;
+	}
+
+	async revealReference(reference: OneReference): Promise<void> {
+		await this._revealReference(reference, false);
+		this._onDidSelectReference.fire({ element: reference, kind: 'goto', source: 'tree' });
 	}
 
 	private _revealedReference?: OneReference;

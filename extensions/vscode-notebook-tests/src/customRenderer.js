@@ -11,3 +11,11 @@ vscode.postMessage({
 		firstMessage: true
 	}
 });
+
+const notebook = acquireNotebookRendererApi('notebookCoreTestRenderer');
+
+notebook.onDidCreateOutput(({ element, mimeType }) => {
+	const div = document.createElement('div');
+	div.innerText = `Hello ${mimeType}!`;
+	element.appendChild(div);
+});

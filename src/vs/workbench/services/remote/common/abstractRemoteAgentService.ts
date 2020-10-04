@@ -5,9 +5,9 @@
 
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { connectRemoteAgentManagement, IConnectionOptions, ISocketFactory, PersistenConnectionEvent } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IRemoteAgentConnection, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -22,35 +22,70 @@ import { Emitter } from 'vs/base/common/event';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { URI } from 'vs/base/common/uri';
 
-export abstract class AbstractRemoteAgentService extends Disposable {
+export abstract class AbstractRemoteAgentService extends Disposable implements IRemoteAgentService {
 
 	declare readonly _serviceBrand: undefined;
 
+	public readonly socketFactory: ISocketFactory;
+	private readonly _connection: IRemoteAgentConnection | null;
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 
 	constructor(
-		@IEnvironmentService protected readonly _environmentService: IEnvironmentService,
-		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService
+		socketFactory: ISocketFactory,
+		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
+		@IProductService productService: IProductService,
+		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ISignService signService: ISignService,
+		@ILogService logService: ILogService
 	) {
 		super();
+		this.socketFactory = socketFactory;
+		if (this._environmentService.configuration.remoteAuthority) {
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.configuration.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+		} else {
+			this._connection = null;
+		}
 		this._environment = null;
 	}
 
-	abstract getConnection(): IRemoteAgentConnection | null;
+	getConnection(): IRemoteAgentConnection | null {
+		return this._connection;
+	}
 
-	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> {
+	getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+		return this.getRawEnvironment().then(undefined, () => null);
+	}
+
+	getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
 			this._environment = this._withChannel(
 				async (channel, connection) => {
-					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI);
+					const env = await RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority);
 					this._remoteAuthorityResolverService._setAuthorityConnectionToken(connection.remoteAuthority, env.connectionToken);
 					return env;
 				},
 				null
 			);
 		}
-		return bail ? this._environment : this._environment.then(undefined, () => null);
+		return this._environment;
+	}
+
+	scanExtensions(skipExtensions: ExtensionIdentifier[] = []): Promise<IExtensionDescription[]> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanExtensions(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI, skipExtensions),
+			[]
+		).then(undefined, () => []);
+	}
+
+	scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> {
+		return this._withChannel(
+			(channel, connection) => RemoteExtensionEnvironmentChannelClient.scanSingleExtension(channel, connection.remoteAuthority, isBuiltin, extensionLocation),
+			null
+		).then(undefined, () => null);
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
@@ -152,7 +187,8 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 				}
 			},
 			signService: this._signService,
-			logService: this._logService
+			logService: this._logService,
+			ipcLogger: false ? new IPCLogger(`Local \u2192 Remote`, `Remote \u2192 Local`) : null
 		};
 		const connection = this._register(await connectRemoteAgentManagement(options, this.remoteAuthority, `renderer`));
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
@@ -167,7 +203,7 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 		@INotificationService notificationService: INotificationService,
 	) {
 		// Let's cover the case where connecting to fetch the remote extension info fails
-		remoteAgentService.getEnvironment(true)
+		remoteAgentService.getRawEnvironment()
 			.then(undefined, err => {
 				if (!RemoteAuthorityResolverError.isHandled(err)) {
 					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));

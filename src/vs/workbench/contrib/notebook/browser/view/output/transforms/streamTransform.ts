@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { IRenderOutput, CellOutputKind, IStreamOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IRenderOutput, CellOutputKind, IStreamOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
@@ -18,10 +18,7 @@ class StreamRenderer implements IOutputTransformContribution {
 		const contentNode = DOM.$('.output-stream');
 		contentNode.innerText = output.text;
 		container.appendChild(contentNode);
-		return {
-			hasDynamicHeight: false
-		};
-
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 
 	dispose(): void {

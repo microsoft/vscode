@@ -57,6 +57,13 @@ suite('Paths', () => {
 			assert.ok(!extpath.isValidBasename('aux'));
 			assert.ok(!extpath.isValidBasename('Aux'));
 			assert.ok(!extpath.isValidBasename('LPT0'));
+			assert.ok(!extpath.isValidBasename('aux.txt'));
+			assert.ok(!extpath.isValidBasename('com0.abc'));
+			assert.ok(extpath.isValidBasename('LPT00'));
+			assert.ok(extpath.isValidBasename('aux1'));
+			assert.ok(extpath.isValidBasename('aux1.txt'));
+			assert.ok(extpath.isValidBasename('aux1.aux.txt'));
+
 			assert.ok(!extpath.isValidBasename('test.txt.'));
 			assert.ok(!extpath.isValidBasename('test.txt..'));
 			assert.ok(!extpath.isValidBasename('test.txt '));

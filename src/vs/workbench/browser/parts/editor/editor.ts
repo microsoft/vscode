@@ -12,11 +12,9 @@ import { Event } from 'vs/base/common/event';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
-
-export const EDITOR_TITLE_HEIGHT = 35;
 
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
@@ -30,6 +28,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	pinnedTabSizing: 'normal',
 	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
@@ -109,13 +108,23 @@ export interface IEditorGroupsAccessor {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 }
 
-export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
-	readonly group: EditorGroup;
-	readonly whenRestored: Promise<void>;
-	readonly disposed: boolean;
+export interface IEditorGroupTitleDimensions {
 
-	readonly isEmpty: boolean;
-	readonly isMinimized: boolean;
+	/**
+	 * The overall height of the editor group title control.
+	 */
+	height: number;
+
+	/**
+	 * The height offset to e.g. use when drawing drop overlays.
+	 * This number may be smaller than `height` if the title control
+	 * decides to have an `offset` that is within the title area
+	 * (e.g. when breadcrumbs are enabled).
+	 */
+	offset: number;
+}
+
+export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
@@ -123,6 +132,16 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	readonly onDidOpenEditorFail: Event<IEditorInput>;
 	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	readonly group: EditorGroup;
+	readonly whenRestored: Promise<void>;
+
+	readonly titleDimensions: IEditorGroupTitleDimensions;
+
+	readonly isEmpty: boolean;
+	readonly isMinimized: boolean;
+
+	readonly disposed: boolean;
 
 	setActive(isActive: boolean): void;
 
@@ -132,7 +151,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
-	const activeGroupCodeEditor = group.activeEditorPane ? getCodeEditor(group.activeEditorPane.getControl()) : undefined;
+	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
 			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);

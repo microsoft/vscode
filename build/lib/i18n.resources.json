@@ -95,6 +95,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/keybindings",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/markers",
 			"project": "vscode-workbench"
 		},
@@ -200,6 +204,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/webview",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/webviewPanel",
 			"project": "vscode-workbench"
 		},
 		{

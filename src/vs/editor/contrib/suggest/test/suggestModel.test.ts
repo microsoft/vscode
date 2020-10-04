@@ -34,14 +34,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-
-export interface Ctor<T> {
-	new(): T;
-}
-
-export function mock<T>(): Ctor<T> {
-	return function () { } as any;
-}
+import { mock } from 'vs/base/test/common/mock';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -796,6 +789,73 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.equal(disposeB, 1);
 			});
 
+		});
+	});
+
+
+	test('Trigger (full) completions when (incomplete) completions are already active #99504', function () {
+
+		let countA = 0;
+		let countB = 0;
+
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				countA += 1;
+				return {
+					incomplete: false, // doesn't matter if incomplete or not
+					suggestions: [{
+						kind: CompletionItemKind.Class,
+						label: 'Z aaa',
+						insertText: 'Z aaa',
+						range: new Range(1, 1, pos.lineNumber, pos.column)
+					}],
+				};
+			}
+		}));
+		disposables.push(CompletionProviderRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				countB += 1;
+				if (!doc.getWordUntilPosition(pos).word.startsWith('a')) {
+					return;
+				}
+				return {
+					incomplete: false,
+					suggestions: [{
+						kind: CompletionItemKind.Folder,
+						label: 'aaa',
+						insertText: 'aaa',
+						range: getDefaultSuggestRange(doc, pos)
+					}],
+				};
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'Z' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				assert.equal(event.completionModel.items[0].textLabel, 'Z aaa');
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				// started another word: Z a|
+				// item should be: Z aaa, aaa
+				editor.trigger('keyboard', Handler.Type, { text: ' a' });
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 2);
+				assert.equal(event.completionModel.items[0].textLabel, 'Z aaa');
+				assert.equal(event.completionModel.items[1].textLabel, 'aaa');
+
+				assert.equal(countA, 1); // should we keep the suggestions from the "active" provider?, Yes! See: #106573
+				assert.equal(countB, 2);
+			});
 		});
 	});
 });

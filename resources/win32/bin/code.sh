@@ -28,8 +28,8 @@ else
 		else
 			# If running under older WSL, don't pass cli.js to Electron as
 			# environment vars cannot be transferred from WSL to Windows
-			# See: https://github.com/Microsoft/BashOnWindows/issues/1363
-			#      https://github.com/Microsoft/BashOnWindows/issues/1494
+			# See: https://github.com/microsoft/BashOnWindows/issues/1363
+			#      https://github.com/microsoft/BashOnWindows/issues/1494
 			"$ELECTRON" "$@"
 			exit $?
 		fi
@@ -37,7 +37,7 @@ else
 fi
 if [ $IN_WSL = true ]; then
 
-	export WSLENV=ELECTRON_RUN_AS_NODE/w:$WSLENV
+	export WSLENV="ELECTRON_RUN_AS_NODE/w:$WSLENV"
 	CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")
 
 	# use the Remote WSL extension if installed

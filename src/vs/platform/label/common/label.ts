@@ -49,4 +49,5 @@ export interface ResourceLabelFormatting {
 	normalizeDriveLetter?: boolean;
 	workspaceSuffix?: string;
 	authorityPrefix?: string;
+	stripPathStartingSeparator?: boolean;
 }

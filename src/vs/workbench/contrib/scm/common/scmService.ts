@@ -7,6 +7,8 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 class SCMInput implements ISCMInput {
 
@@ -22,6 +24,12 @@ class SCMInput implements ISCMInput {
 		}
 
 		this._value = value;
+
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this.storageService.store(key, value, StorageScope.WORKSPACE);
+		}
+
 		this._onDidChange.fire(value);
 	}
 
@@ -54,7 +62,8 @@ class SCMInput implements ISCMInput {
 	}
 
 	private readonly _onDidChangeVisibility = new Emitter<boolean>();
-	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility
+		.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
 
@@ -70,7 +79,15 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeValidateInput = new Emitter<void>();
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
-	constructor(readonly repository: ISCMRepository) { }
+	constructor(
+		readonly repository: ISCMRepository,
+		@IStorageService private storageService: IStorageService
+	) {
+		if (this.repository.provider.rootUri) {
+			const key = `scm/input:${this.repository.provider.label}:${this.repository.provider.rootUri.path}`;
+			this._value = this.storageService.get(key, StorageScope.WORKSPACE, '');
+		}
+	}
 }
 
 class SCMRepository implements ISCMRepository {
@@ -83,11 +100,12 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput = new SCMInput(this);
+	readonly input: ISCMInput = new SCMInput(this, this.storageService);
 
 	constructor(
 		public readonly provider: ISCMProvider,
-		private disposable: IDisposable
+		private disposable: IDisposable,
+		@IStorageService private storageService: IStorageService
 	) { }
 
 	setSelected(selected: boolean): void {
@@ -113,6 +131,7 @@ export class SCMService implements ISCMService {
 	private _repositories: ISCMRepository[] = [];
 	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
+	private providerCount: IContextKey<number>;
 	private _selectedRepository: ISCMRepository | undefined;
 
 	private readonly _onDidSelectRepository = new Emitter<ISCMRepository | undefined>();
@@ -124,7 +143,13 @@ export class SCMService implements ISCMService {
 	private readonly _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	readonly onDidRemoveRepository: Event<ISCMRepository> = this._onDidRemoveProvider.event;
 
-	constructor(@ILogService private readonly logService: ILogService) { }
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IStorageService private storageService: IStorageService
+	) {
+		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
+	}
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		this.logService.trace('SCMService#registerSCMProvider');
@@ -150,9 +175,11 @@ export class SCMService implements ISCMService {
 			if (this._selectedRepository === repository) {
 				this.select(this._repositories[0]);
 			}
+
+			this.providerCount.set(this._repositories.length);
 		});
 
-		const repository = new SCMRepository(provider, disposable);
+		const repository = new SCMRepository(provider, disposable, this.storageService);
 		const selectedDisposable = Event.map(Event.filter(repository.onDidChangeSelection, selected => selected), _ => repository)(this.select, this);
 
 		this._repositories.push(repository);
@@ -162,6 +189,7 @@ export class SCMService implements ISCMService {
 			repository.setSelected(true);
 		}
 
+		this.providerCount.set(this._repositories.length);
 		return repository;
 	}
 

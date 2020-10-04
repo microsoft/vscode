@@ -6,10 +6,11 @@
 import 'vs/css!./media/extensionsWidgets';
 import { Disposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService, IExtensionContainer } from 'vs/workbench/contrib/extensions/common/extensions';
-import { append, $, addClass, removeNode } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IExtensionRecommendationsService, IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { extensionButtonProminentBackground, extensionButtonProminentForeground, ExtensionToolTipAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -50,12 +51,12 @@ export class InstallCountWidget extends ExtensionWidget {
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super();
-		addClass(container, 'extension-install-count');
+		container.classList.add('extension-install-count');
 		this.render();
 	}
 
 	render(): void {
-		this.container.innerHTML = '';
+		this.container.innerText = '';
 
 		if (!this.extension) {
 			return;
@@ -95,17 +96,17 @@ export class RatingsWidget extends ExtensionWidget {
 		private small: boolean
 	) {
 		super();
-		addClass(container, 'extension-ratings');
+		container.classList.add('extension-ratings');
 
 		if (this.small) {
-			addClass(container, 'small');
+			container.classList.add('small');
 		}
 
 		this.render();
 	}
 
 	render(): void {
-		this.container.innerHTML = '';
+		this.container.innerText = '';
 
 		if (!this.extension) {
 			return;
@@ -198,7 +199,7 @@ export class RecommendationWidget extends ExtensionWidget {
 		super();
 		this.render();
 		this._register(toDisposable(() => this.clear()));
-		this._register(this.extensionRecommendationsService.onRecommendationChange(() => this.render()));
+		this._register(this.extensionRecommendationsService.onDidChangeRecommendations(() => this.render()));
 	}
 
 	private clear(): void {
@@ -325,7 +326,7 @@ export class ExtensionPackCountWidget extends ExtensionWidget {
 
 	private clear(): void {
 		if (this.element) {
-			removeNode(this.element);
+			this.element.remove();
 		}
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	TaskDefinition, Task2 as Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
+	TaskDefinition, Task, TaskGroup, WorkspaceFolder, RelativePattern, ShellExecution, Uri, workspace,
 	DebugConfiguration, debug, TaskProvider, TextDocument, tasks, TaskScope, QuickPickItem
 } from 'vscode';
 import * as path from 'path';
@@ -249,6 +249,8 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		if (prePostScripts.has(each)) {
 			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 		}
+
+		// todo@connor4312: all scripts are now debuggable, what is a 'debug script'?
 		if (isDebugScript(scripts![each])) {
 			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
@@ -355,44 +357,17 @@ export function runScript(script: string, document: TextDocument) {
 	}
 }
 
-export function extractDebugArgFromScript(scriptValue: string): [string, number] | undefined {
-	// matches --debug, --debug=1234, --debug-brk, debug-brk=1234, --inspect,
-	// --inspect=1234, --inspect-brk, --inspect-brk=1234,
-	// --inspect=localhost:1245, --inspect=127.0.0.1:1234, --inspect=[aa:1:0:0:0]:1234, --inspect=:1234
-	let match = scriptValue.match(/--(inspect|debug)(-brk)?(=((\[[0-9a-fA-F:]*\]|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+|[a-zA-Z0-9\.]*):)?(\d+))?/);
-
-	if (match) {
-		if (match[6]) {
-			return [match[1], parseInt(match[6])];
-		}
-		if (match[1] === 'inspect') {
-			return [match[1], 9229];
-		}
-		if (match[1] === 'debug') {
-			return [match[1], 5858];
-		}
-	}
-	return undefined;
-}
-
-export function startDebugging(scriptName: string, protocol: string, port: number, folder: WorkspaceFolder) {
-	let p = 'inspector';
-	if (protocol === 'debug') {
-		p = 'legacy';
-	}
-
-	let packageManager = getPackageManager(folder);
+export function startDebugging(scriptName: string, cwd: string, folder: WorkspaceFolder) {
 	const config: DebugConfiguration = {
-		type: 'node',
+		type: 'pwa-node',
 		request: 'launch',
 		name: `Debug ${scriptName}`,
-		runtimeExecutable: packageManager,
+		cwd,
+		runtimeExecutable: getPackageManager(folder),
 		runtimeArgs: [
 			'run',
 			scriptName,
 		],
-		port: port,
-		protocol: p
 	};
 
 	if (folder) {
