@@ -272,10 +272,11 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
 			},
-			'workbench.settings.confirmBeforeQuit': {
+			'workbench.confirmBeforeQuit': {
 				'type': 'boolean',
 				'default': false,
-				'description': nls.localize('confirmBeforeQuit', "Controls whether to ask for confirmation before quitting.")
+				'description': nls.localize('confirmBeforeQuit', "Controls whether to ask for confirmation before quitting."),
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
