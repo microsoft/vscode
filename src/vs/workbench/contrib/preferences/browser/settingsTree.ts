@@ -1327,17 +1327,20 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const displayOptions = dataElement.setting.enum!
 			.map(String)
 			.map(escapeInvisibleChars)
-			.map((data, index) => <ISelectOptionItem>{
-				text: data,
-				description: (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index])),
-				descriptionIsMarkdown: enumDescriptionsAreMarkdown,
-				descriptionMarkdownActionHandler: {
-					callback: (content) => {
-						this._openerService.open(content).catch(onUnexpectedError);
+			.map((data, index) => {
+				const description = (enumDescriptions && enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
+				return <ISelectOptionItem>{
+					text: dataElement.setting.showEnumDescriptionInSelectBox ? description : data,
+					description: dataElement.setting.showEnumDescriptionInSelectBox ? data : description,
+					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
+					descriptionMarkdownActionHandler: {
+						callback: (content) => {
+							this._openerService.open(content).catch(onUnexpectedError);
+						},
+						disposeables: disposables
 					},
-					disposeables: disposables
-				},
-				decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+					decoratorRight: (data === dataElement.defaultValue ? localize('settings.Default', "default") : '')
+				};
 			});
 
 		template.selectBox.setOptions(displayOptions);

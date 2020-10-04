@@ -113,6 +113,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	included?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
+	showEnumDescriptionInSelectBox?: boolean;
 }
 
 export interface IConfigurationExtensionInfo {
