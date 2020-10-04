@@ -1232,23 +1232,25 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	getDimensions(): IEditorGroupTitleDimensions {
-		let height = TabsTitleControl.TAB_HEIGHT;
+		let height: number;
+		let offset: number;
 
 		// Multi-line: we need to ask `offsetHeight` to get
 		// the real height of the title area with wrapping.
 		if (this.accessor.partOptions.multiLineTabs) {
 			const tabsAndActionsContainer = assertIsDefined(this.tabsAndActionsContainer);
 			height = tabsAndActionsContainer.offsetHeight;
+		} else {
+			height = TabsTitleControl.TAB_HEIGHT;
 		}
+
+		offset = height;
 
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			height += BreadcrumbsControl.HEIGHT;
 		}
 
-		return {
-			height,
-			offset: TabsTitleControl.TAB_HEIGHT
-		};
+		return { height, offset };
 	}
 
 	layout(dimension: Dimension | undefined): void {
