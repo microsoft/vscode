@@ -556,8 +556,36 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 	}
 
 	onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+		const updatedAdded = added.map(view => {
+			const addedViewDescriptor: IAddedViewDescriptorRef = {
+				collapsed: view.collapsed,
+				index: view.index,
+				size: view.size,
+				viewDescriptor: {
+					canMoveView: false,
+					ctorDescriptor: view.viewDescriptor.ctorDescriptor,
+					id: view.viewDescriptor.id,
+					// eslint-disable-next-line no-restricted-globals
+					name: view.viewDescriptor.name,
+					canToggleVisibility: view.viewDescriptor.canToggleVisibility,
+					collapsed: view.viewDescriptor.collapsed,
+					containerIcon: view.viewDescriptor.containerIcon,
+					containerTitle: view.viewDescriptor.containerTitle,
+					focusCommand: view.viewDescriptor.focusCommand,
+					group: view.viewDescriptor.group,
+					hideByDefault: view.viewDescriptor.hideByDefault,
+					order: view.viewDescriptor.order,
+					remoteAuthority: view.viewDescriptor.remoteAuthority,
+					type: view.viewDescriptor.type,
+					weight: view.viewDescriptor.weight,
+					when: view.viewDescriptor.when,
+					workspace: view.viewDescriptor.workspace
+				}
+			};
+			return addedViewDescriptor;
+		});
 		// Call to super MUST be first, since registering the additional view will cause this to be called again.
-		const panels: ViewPane[] = super.onDidAddViewDescriptors(added);
+		const panels: ViewPane[] = super.onDidAddViewDescriptors(updatedAdded);
 		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
 		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
