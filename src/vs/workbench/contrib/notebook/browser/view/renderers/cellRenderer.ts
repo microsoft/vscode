@@ -647,7 +647,7 @@ class CodeCellDragImageRenderer {
 			return null;
 		}
 
-		editorContainer.innerHTML = richEditorText as unknown as string;
+		DOM.trustedInnerHTML(editorContainer, richEditorText);
 
 		return dragImageContainer;
 	}
