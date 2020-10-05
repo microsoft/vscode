@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo, NEW_GROUP_TYPE, NEW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct, insert } from 'vs/base/common/arrays';
@@ -42,7 +42,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
-type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
+type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | NEW_GROUP_TYPE;
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -614,6 +614,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			targetGroup = this.findSideBySideGroup();
 		}
 
+		// Group: New group
+		else if (group === NEW_GROUP) {
+			targetGroup = this.newGroup();
+		}
+
 		// Group: Specific Group
 		else if (typeof group === 'number' && group >= 0) {
 			targetGroup = this.editorGroupService.getGroup(group);
@@ -679,6 +684,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		return neighbourGroup;
+	}
+
+	private newGroup(): IEditorGroup {
+		const direction = preferredSideBySideGroupDirection(this.configurationService);
+
+		const lastGroupIndex = this.editorGroupService.groups.length - 1;
+		return this.editorGroupService.addGroup(this.editorGroupService.groups[lastGroupIndex], direction);
 	}
 
 	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {

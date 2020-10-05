@@ -27,6 +27,9 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
+export const NEW_GROUP = -3;
+export type NEW_GROUP_TYPE = typeof NEW_GROUP;
+
 export interface IOpenEditorOverrideEntry {
 	id: string;
 	label: string;

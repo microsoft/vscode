@@ -5,7 +5,7 @@
 
 import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
-import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, NEW_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export type EditorViewColumn = number;
 
@@ -24,6 +24,10 @@ export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService
 	let firstGroup = groups[0];
 	if (groups.length === 1 && firstGroup.count === 0) {
 		return firstGroup.id; // first editor should always open in first group independent from position provided
+	}
+
+	if (groups.length === position) {
+		return NEW_GROUP; // create a new group if position is one group more than the number of groups
 	}
 
 	return SIDE_GROUP; // open to the side if group not found or we are instructed to

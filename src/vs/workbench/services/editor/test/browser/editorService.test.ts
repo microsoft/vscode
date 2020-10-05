@@ -15,7 +15,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, NEW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -469,6 +469,12 @@ suite('EditorService', () => {
 		editor = await service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP);
 		assert.equal(part.activeGroup, rootGroup);
 		assert.equal(part.count, 2);
+		assert.equal(editor?.group, part.groups[1]);
+
+		// opens to the side as a new group
+		editor = await service.openEditor(input2, { pinned: true, preserveFocus: true }, NEW_GROUP);
+		assert.equal(part.activeGroup, rootGroup);
+		assert.equal(part.count, 3);
 		assert.equal(editor?.group, part.groups[1]);
 
 		part.dispose();
