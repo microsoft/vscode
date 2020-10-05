@@ -22,7 +22,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
+import { joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -144,18 +144,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 						continue; // ignore if resources are considered equal
 					}
 
-					// find all models that related to either source or target (can be many if resource is a folder)
+					// find all models that related to source (can be many if resource is a folder)
 					const sourceModels: TextFileEditorModel[] = [];
-					const targetModels: TextFileEditorModel[] = [];
 					for (const model of this.models) {
-						const resource = model.resource;
-
-						if (isEqualOrParent(resource, target)) {
-							// EXPLICITLY do not ignorecase, see https://github.com/microsoft/vscode/issues/56384
-							targetModels.push(model);
-						}
-
-						if (this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
+						if (this.uriIdentityService.extUri.isEqualOrParent(model.resource, source)) {
 							sourceModels.push(model);
 						}
 					}
