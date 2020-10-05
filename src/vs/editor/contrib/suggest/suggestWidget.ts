@@ -82,10 +82,10 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private isAddedAsContentWidget: boolean = false;
 	private isAuto: boolean = false;
 	private loadingTimeout: IDisposable = Disposable.None;
-	private currentSuggestionDetails: CancelablePromise<void> | null = null;
-	private focusedItem: CompletionItem | null;
+	private currentSuggestionDetails?: CancelablePromise<void>;
+	private focusedItem?: CompletionItem;
 	private ignoreFocusEvents: boolean = false;
-	private completionModel: CompletionModel | null = null;
+	private completionModel?: CompletionModel;
 
 	private element: HTMLElement;
 	private messageElement: HTMLElement;
@@ -121,7 +121,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 	private firstFocusInCurrentList: boolean = false;
 
 	private preferDocPositionTop: boolean = false;
-	private docsPositionPreviousWidgetY: number | null = null;
+	private docsPositionPreviousWidgetY?: number;
 	private explainMode: boolean = false;
 
 	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
@@ -139,11 +139,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		const markdownRenderer = this._disposables.add(new MarkdownRenderer(editor, modeService, openerService));
-
 		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
-
-		this.isAuto = false;
-		this.focusedItem = null;
 
 		this.element = $('.editor-widget.suggest-widget');
 		this._disposables.add(addDisposableListener(this.element, 'click', e => {
@@ -313,8 +309,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		if (!e.elements.length) {
 			if (this.currentSuggestionDetails) {
 				this.currentSuggestionDetails.cancel();
-				this.currentSuggestionDetails = null;
-				this.focusedItem = null;
+				this.currentSuggestionDetails = undefined;
+				this.focusedItem = undefined;
 			}
 
 			this.editor.setAriaOptions({ activeDescendant: undefined });
@@ -331,10 +327,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item !== this.focusedItem) {
 
-			if (this.currentSuggestionDetails) {
-				this.currentSuggestionDetails.cancel();
-				this.currentSuggestionDetails = null;
-			}
+			this.currentSuggestionDetails?.cancel();
+			this.currentSuggestionDetails = undefined;
 
 			this.focusedItem = item;
 
@@ -396,7 +390,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}
-				this.focusedItem = null;
+				this.focusedItem = undefined;
 				break;
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
@@ -404,7 +398,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				show(this.messageElement);
 				this.element.classList.remove('docs-side');
 				this.show();
-				this.focusedItem = null;
+				this.focusedItem = undefined;
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
@@ -412,7 +406,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				show(this.messageElement);
 				this.element.classList.remove('docs-side');
 				this.show();
-				this.focusedItem = null;
+				this.focusedItem = undefined;
 				break;
 			case State.Open:
 				hide(this.messageElement);
@@ -446,14 +440,12 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
 		this.preferDocPositionTop = false;
-		this.docsPositionPreviousWidgetY = null;
+		this.docsPositionPreviousWidgetY = undefined;
 
 		this.loadingTimeout.dispose();
 
-		if (this.currentSuggestionDetails) {
-			this.currentSuggestionDetails.cancel();
-			this.currentSuggestionDetails = null;
-		}
+		this.currentSuggestionDetails?.cancel();
+		this.currentSuggestionDetails = undefined;
 
 		if (this.completionModel !== completionModel) {
 			this.completionModel = completionModel;
@@ -476,7 +468,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.setState(State.Empty);
 			}
 
-			this.completionModel = null;
+			this.completionModel = undefined;
 
 		} else {
 
@@ -494,7 +486,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 				this.telemetryService.publicLog('suggestWidget', { ...stats });
 			}
 
-			this.focusedItem = null;
+			this.focusedItem = undefined;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {
@@ -771,7 +763,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		// Fixes #27649
 		// Check if the Y changed to the top of the cursor and keep the widget flagged to prefer top
-		if (this.docsPositionPreviousWidgetY &&
+		if (this.docsPositionPreviousWidgetY !== undefined &&
 			this.docsPositionPreviousWidgetY < widgetY &&
 			!this.preferDocPositionTop
 		) {

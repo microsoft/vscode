@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { append, $, hide, show } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -15,7 +15,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 
-export function canExpandCompletionItem(item: CompletionItem | null): boolean {
+export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
@@ -43,21 +43,21 @@ export class SuggestionDetails {
 		private readonly _markdownRenderer: MarkdownRenderer,
 		private readonly _kbToggleDetails: string
 	) {
-		this.element = append(container, $('.details'));
+		this.element = dom.append(container, dom.$('.details'));
 		this._disposables.add(toDisposable(() => this.element.remove()));
 
-		this._body = $('.body');
+		this._body = dom.$('.body');
 
 		this._scrollbar = new DomScrollableElement(this._body, {});
-		append(this.element, this._scrollbar.getDomNode());
+		dom.append(this.element, this._scrollbar.getDomNode());
 		this._disposables.add(this._scrollbar);
 
-		this._header = append(this._body, $('.header'));
-		this._close = append(this._header, $('span' + Codicon.close.cssSelector));
+		this._header = dom.append(this._body, dom.$('.header'));
+		this._close = dom.append(this._header, dom.$('span' + Codicon.close.cssSelector));
 		this._close.title = nls.localize('readLess', "Read Less ({0})", this._kbToggleDetails);
-		this._type = append(this._header, $('p.type'));
+		this._type = dom.append(this._header, dom.$('p.type'));
 
-		this._docs = append(this._body, $('p.docs'));
+		this._docs = dom.append(this._body, dom.$('p.docs'));
 
 		this._configureFont();
 
@@ -134,11 +134,11 @@ export class SuggestionDetails {
 
 		// --- details
 		if (detail) {
-			this._type.innerText = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
-			show(this._type);
+			this._type.textContent = detail.length > 100000 ? `${detail.substr(0, 100000)}…` : detail;
+			dom.show(this._type);
 		} else {
-			this._type.innerText = '';
-			hide(this._type);
+			dom.clearNode(this._type);
+			dom.hide(this._type);
 		}
 
 		this.element.style.height = this._header.offsetHeight + this._docs.offsetHeight + (this._borderWidth * 2) + 'px';

@@ -91,6 +91,7 @@
     "@types/mocha": "2.2.39",
     "@types/node": "^12.11.7",
     "@types/sinon": "^1.16.36",
+    "@types/trusted-types": "^1.0.6",
     "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.4.10",
     "@types/windows-foreground-love": "^0.3.0",
