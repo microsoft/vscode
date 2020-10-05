@@ -64,8 +64,6 @@ export interface IViewContainerDescriptor {
 
 	readonly order?: number;
 
-	readonly canMoveViews?: boolean;
-
 	requestedIndex?: number;
 }
 
