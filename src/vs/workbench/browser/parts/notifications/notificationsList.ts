@@ -24,19 +24,17 @@ export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchList<INotificationViewItem> | undefined;
 	private listDelegate: NotificationsListDelegate | undefined;
-	private viewModel: INotificationViewItem[];
+	private viewModel: INotificationViewItem[] = [];
 	private isVisible: boolean | undefined;
 
 	constructor(
-		private container: HTMLElement,
-		private options: IListOptions<INotificationViewItem>,
+		private readonly container: HTMLElement,
+		private readonly options: IListOptions<INotificationViewItem>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super(themeService);
-
-		this.viewModel = [];
 	}
 
 	show(focus?: boolean): void {
