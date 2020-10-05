@@ -26,6 +26,9 @@ suite('Files', () => {
 
 		assert(!r1.contains(toResource.call(this, '/foo'), FileChangeType.UPDATED));
 		assert(r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
+		assert(r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED));
+		assert(r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED));
+		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED, FileChangeType.DELETED));
 		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED));
 		assert(!r1.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
 
