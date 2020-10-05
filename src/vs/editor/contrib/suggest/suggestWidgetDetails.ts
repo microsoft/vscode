@@ -15,7 +15,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 
-export function canExpandCompletionItem(item: CompletionItem | null): boolean {
+export function canExpandCompletionItem(item: CompletionItem | undefined): boolean {
 	return !!item && Boolean(item.completion.documentation || item.completion.detail && item.completion.detail !== item.completion.label);
 }
 
