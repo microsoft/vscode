@@ -434,11 +434,22 @@ suite('Map', () => {
 		map.forEach((value, key) => {
 			assert.equal(trie.get(key), value);
 		});
+
+		// forEach
+		let forEachCount = 0;
 		trie.forEach((element, key) => {
 			assert.equal(element, map.get(key));
-			map.delete(key);
+			forEachCount++;
 		});
-		assert.equal(map.size, 0);
+		assert.equal(map.size, forEachCount);
+
+		// iterator
+		let iterCount = 0;
+		for (let [key, value] of trie) {
+			assert.equal(value, map.get(key));
+			iterCount++;
+		}
+		assert.equal(map.size, iterCount);
 	}
 
 	test('TernarySearchTree - set', function () {
