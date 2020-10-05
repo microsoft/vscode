@@ -29,8 +29,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { dirname } from 'vs/base/common/resources';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { JoinCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
@@ -879,33 +877,20 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			const insertContent = (cell.textModel?.getEOL() ?? '') + cell.getText();
 			const aboveCellLineCount = above.textModel.getLineCount();
 			const aboveCellLastLineEndColumn = above.textModel.getLineLength(aboveCellLineCount);
-			const editOperation = { range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent };
-			const editorSelections = above.getSelections();
-			above.textModel.applyEdits([editOperation]);
-			const inverseRange = PieceTreeTextBuffer._getInverseEditRange(editOperation.range, editOperation.text);
 
-			await this.deleteCell(index, true, false);
-
-			this._undoService.pushElement(new JoinCellEdit(
-				this.uri,
-				index,
-				direction,
-				above,
-				editorSelections,
-				inverseRange,
-				insertContent,
-				cell,
-				{
-					insertCell: (index: number, cell: NotebookCellTextModel, endSelections?: number[]) => {
-						this.createCell(index, cell.getValue(), cell.language, cell.cellKind, cell.metadata, cell.outputs, true, false);
-					},
-					deleteCell: (index: number) => {
-						this.deleteCell(index, true, false);
-					},
-					createCellViewModel: (cell: NotebookCellTextModel) => {
-						return createCellViewModel(this._instantiationService, this, cell);
-					}
-				})
+			await this._bulkEditService.apply(
+				[
+					new ResourceTextEdit(above.uri, { range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent }),
+					new ResourceNotebookCellEdit(this._notebook.uri,
+						{
+							editType: CellEditType.Replace,
+							index: index,
+							count: 1,
+							cells: []
+						}
+					)
+				],
+				{ quotableLabel: 'Join Notebook Cells' }
 			);
 
 			this.selectionHandles = endSelections;
@@ -930,33 +915,20 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 			const cellLineCount = cell.textModel.getLineCount();
 			const cellLastLineEndColumn = cell.textModel.getLineLength(cellLineCount);
-			const editOperation = { range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent };
-			const editorSelections = cell.getSelections();
-			cell.textModel.applyEdits([editOperation]);
-			const inverseRange = PieceTreeTextBuffer._getInverseEditRange(editOperation.range, editOperation.text);
 
-			await this.deleteCell(index + 1, true, false);
-
-			this._undoService.pushElement(new JoinCellEdit(
-				this.uri,
-				index + 1,
-				direction,
-				cell,
-				editorSelections,
-				inverseRange,
-				insertContent,
-				below,
-				{
-					insertCell: (index: number, cell: NotebookCellTextModel, endSelections?: number[]) => {
-						this.createCell(index, cell.getValue(), cell.language, cell.cellKind, cell.metadata, cell.outputs, true, false);
-					},
-					deleteCell: (index: number) => {
-						this.deleteCell(index, true, false);
-					},
-					createCellViewModel: (cell: NotebookCellTextModel) => {
-						return createCellViewModel(this._instantiationService, this, cell);
-					}
-				})
+			await this._bulkEditService.apply(
+				[
+					new ResourceTextEdit(cell.uri, { range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent }),
+					new ResourceNotebookCellEdit(this._notebook.uri,
+						{
+							editType: CellEditType.Replace,
+							index: index + 1,
+							count: 1,
+							cells: []
+						}
+					)
+				],
+				{ quotableLabel: 'Join Notebook Cells' }
 			);
 
 			return { cell, deletedCells: [below] };
