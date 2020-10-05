@@ -1236,6 +1236,7 @@ class TimelinePaneCommands extends Disposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
+		scoped.dispose();
 
 		return result;
 	}
