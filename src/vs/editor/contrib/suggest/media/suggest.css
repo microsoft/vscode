@@ -155,6 +155,7 @@
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close {
 	position: absolute;
 	top: 6px;
+	right: 2px;
 }
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close:hover, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore:hover {
@@ -237,7 +238,7 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right {
 	overflow: hidden;
 	flex-shrink: 2;
-	max-width: 82%;
+	max-width: 77%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
