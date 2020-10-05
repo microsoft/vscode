@@ -21,7 +21,7 @@ import { SaveReason } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
-import { ITextSnapshot, ITextBufferFactory } from 'vs/editor/common/model';
+import { ITextSnapshot } from 'vs/editor/common/model';
 import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -237,26 +237,20 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 						await Promise.all(modelsToRestore.map(async modelToRestore => {
 
-							// restore the model, forcing a reload. this is important because
-							// we know the file has changed on disk after the move and the
-							// model might have still existed with the previous state. this
-							// ensures we are not tracking a stale state.
-							const restoredModel = await this.resolve(modelToRestore.target, { reload: { async: false }, encoding: modelToRestore.encoding });
+							// restore the model at the target. if we have previous dirty content, we pass it
+							// over to be used, otherwise we force a reload from disk. this is important
+							// because we know the file has changed on disk after the move and the model might
+							// have still existed with the previous state. this ensures that the model is not
+							// tracking a stale state.
+							const restoredModel = await this.resolve(modelToRestore.target, {
+								reload: { async: false }, // enforce a reload
+								contents: modelToRestore.snapshot ? createTextBufferFactoryFromSnapshot(modelToRestore.snapshot) : undefined,
+								encoding: modelToRestore.encoding
+							});
 
-							// restore previous dirty content if any and ensure to mark the model as dirty
-							let textBufferFactory: ITextBufferFactory | undefined = undefined;
-							if (modelToRestore.snapshot) {
-								textBufferFactory = createTextBufferFactoryFromSnapshot(modelToRestore.snapshot);
-							}
-
-							// restore previous mode only if the mode is now unspecified
-							let preferredMode: string | undefined = undefined;
-							if (restoredModel.getMode() === PLAINTEXT_MODE_ID && modelToRestore.mode !== PLAINTEXT_MODE_ID) {
-								preferredMode = modelToRestore.mode;
-							}
-
-							if (textBufferFactory || preferredMode) {
-								restoredModel.updateTextEditorModel(textBufferFactory, preferredMode);
+							// restore previous mode only if the mode is now unspecified and it was specified
+							if (modelToRestore.mode && modelToRestore.mode !== PLAINTEXT_MODE_ID && restoredModel.getMode() === PLAINTEXT_MODE_ID) {
+								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);
 							}
 						}));
 					}
@@ -271,10 +265,12 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	async resolve(resource: URI, options?: ITextFileEditorModelLoadOrCreateOptions): Promise<TextFileEditorModel> {
 
-		// Return early if model is currently being loaded
-		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
-		if (pendingLoad) {
-			return pendingLoad;
+		// Await a pending model load first before proceeding
+		// to ensure that we never load a model more than once
+		// in parallel
+		const pendingResolve = this.joinPendingResolve(resource);
+		if (pendingResolve) {
+			await pendingResolve;
 		}
 
 		let modelPromise: Promise<TextFileEditorModel>;
@@ -283,7 +279,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 		// Model exists
 		if (model) {
-			if (options?.reload) {
+
+			// Always reload if contents are provided
+			if (options?.contents) {
+				modelPromise = model.load(options);
+			}
+
+			// Reload async or sync based on options
+			else if (options?.reload) {
 
 				// async reload: trigger a reload but return immediately
 				if (options.reload.async) {
@@ -295,7 +298,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				else {
 					modelPromise = model.load(options);
 				}
-			} else {
+			}
+
+			// Do not reload
+			else {
 				modelPromise = Promise.resolve(model);
 			}
 		}
@@ -357,6 +363,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			throw error;
 		}
+	}
+
+	private joinPendingResolve(resource: URI): false | Promise<boolean> {
+		const pendingModelLoad = this.mapResourceToPendingModelLoaders.get(resource);
+		if (pendingModelLoad) {
+			return pendingModelLoad.then(() => true, () => true); // ignore any error here, it will bubble to the original requestor
+		}
+
+		return false;
 	}
 
 	private registerModel(model: TextFileEditorModel): void {
@@ -452,14 +467,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	private async doCanDispose(model: TextFileEditorModel): Promise<true> {
 
-		// pending model load: wait for the load to finish before trying again
-		const pendingModelLoad = this.mapResourceToPendingModelLoaders.get(model.resource);
-		if (pendingModelLoad) {
-			try {
-				await pendingModelLoad;
-			} catch (error) {
-				// ignore any error
-			}
+		// if we have a pending model load, await it first and then try again
+		const pendingResolve = this.joinPendingResolve(model.resource);
+		if (pendingResolve) {
+			await pendingResolve;
 
 			return this.canDispose(model);
 		}

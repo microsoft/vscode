@@ -257,17 +257,28 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return this;
 		}
 
-		// It is very important to not reload the model when the model is dirty.
-		// We also only want to reload the model from the disk if no save is pending
-		// to avoid data loss.
-		if (this.dirty || this.saveSequentializer.hasPending()) {
+		// Unless there are explicit contents provided, it is important that we do not
+		// load a model that is dirty or is in the process of saving to prevent data
+		// loss.
+		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
 			this.logService.trace('[text file model] load() - exit - without loading because model is dirty or being saved', this.resource.toString(true));
 
 			return this;
 		}
 
-		// Only for new models we support to load from backup
-		if (!this.isResolved()) {
+		return this.doLoad(options);
+	}
+
+	private async doLoad(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+
+		// First check if we have contents to use for the model
+		if (options?.contents) {
+			return this.loadFromBuffer(options.contents, options);
+		}
+
+		// Second, check if we have a backup for new models to load from
+		const isNewModel = !this.isResolved();
+		if (isNewModel) {
 			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
 
 			if (this.isResolved()) {
@@ -283,11 +294,57 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 		}
 
-		// Otherwise load from file resource
+		// Finally, load from file resource
 		return this.loadFromFile(options);
 	}
 
+	private async loadFromBuffer(buffer: ITextBufferFactory, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromBuffer()', this.resource.toString(true));
+
+		// Try to resolve metdata from disk
+		let mtime: number;
+		let ctime: number;
+		let size: number;
+		let etag: string;
+		try {
+			const metadata = await this.fileService.resolve(this.resource, { resolveMetadata: true });
+			mtime = metadata.mtime;
+			ctime = metadata.ctime;
+			size = metadata.size;
+			etag = metadata.etag;
+
+			// Clear orphaned state when resolving was successful
+			this.setOrphaned(false);
+		} catch (error) {
+
+			// Put some fallback values in error case
+			mtime = Date.now();
+			ctime = Date.now();
+			size = 0;
+			etag = ETAG_DISABLED;
+
+			// Apply orphaned state based on error code
+			this.setOrphaned(error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND);
+		}
+
+		// Load with buffer
+		this.loadFromContent({
+			resource: this.resource,
+			name: this.name,
+			mtime,
+			ctime,
+			size,
+			etag,
+			value: buffer,
+			encoding: (await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding)).encoding
+		}, options, true /* dirty because whe load from a buffer */);
+
+		return this;
+	}
+
 	private async loadFromBackup(backup: IResolvedBackup<IBackupMetaData>, options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromBackup()', this.resource.toString(true));
+
 		const preferredEncoding = await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding);
 
 		// Load with backup
@@ -300,7 +357,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
 			encoding: preferredEncoding.encoding
-		}, options, true /* from backup */);
+		}, options, true /* dirty because we load from backup */);
 
 		// Restore orphaned flag based on state
 		if (backup.meta && backup.meta.orphaned) {
@@ -311,6 +368,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private async loadFromFile(options?: ITextFileLoadOptions): Promise<TextFileEditorModel> {
+		this.logService.trace('[text file model] loadFromFile()', this.resource.toString(true));
+
 		const forceReadFromDisk = options?.forceReadFromDisk;
 		const allowBinary = this.isResolved() /* always allow if we resolved previously */ || options?.allowBinary;
 
@@ -322,12 +381,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
 		}
 
-		// Ensure to track the versionId before doing a long running operation
-		// to make sure the model was not changed in the meantime which would
-		// indicate that the user or program has made edits. If we would ignore
-		// this, we could potentially loose the changes that were made because
-		// after resolving the content we update the model and reset the dirty
-		// flag.
+		// Remember current version before doing any long running operation
+		// to ensure we are not changing a model that was changed meanwhile
 		const currentVersionId = this.versionId;
 
 		// Resolve Content
@@ -365,7 +420,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private loadFromContent(content: ITextFileStreamContent, options?: ITextFileLoadOptions, fromBackup?: boolean): TextFileEditorModel {
+	private loadFromContent(content: ITextFileStreamContent, options?: ITextFileLoadOptions, dirty?: boolean): TextFileEditorModel {
 		this.logService.trace('[text file model] loadFromContent() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
@@ -406,7 +461,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Create New Model
 		else {
-			this.doCreateTextModel(content.resource, content.value, !!fromBackup);
+			this.doCreateTextModel(content.resource, content.value);
+		}
+
+		// Conditionally set the model dirty as needed
+		if (dirty) {
+			this.setDirty(true);
 		}
 
 		// Ensure we track the latest saved version ID
@@ -418,16 +478,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		return this;
 	}
 
-	private doCreateTextModel(resource: URI, value: ITextBufferFactory, fromBackup: boolean): void {
+	private doCreateTextModel(resource: URI, value: ITextBufferFactory): void {
 		this.logService.trace('[text file model] doCreateTextModel()', this.resource.toString(true));
 
 		// Create model
 		const textModel = this.createTextEditorModel(value, resource, this.preferredMode);
-
-		// We restored a backup so we have to set the model as being dirty
-		if (fromBackup) {
-			this.setDirty(true);
-		}
 
 		// Model Listeners
 		this.installModelListeners(textModel);
