@@ -164,13 +164,13 @@ export class Throttler {
 
 		this.activePromise = promiseFactory();
 
-		return new Promise((c, e) => {
+		return new Promise((resolve, reject) => {
 			this.activePromise!.then((result: any) => {
 				this.activePromise = null;
-				c(result);
+				resolve(result);
 			}, (err: any) => {
 				this.activePromise = null;
-				e(err);
+				reject(err);
 			});
 		});
 	}

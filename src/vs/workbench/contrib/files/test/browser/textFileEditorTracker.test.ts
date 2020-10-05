@@ -185,11 +185,11 @@ suite('Files - TextFileEditorTracker', () => {
 	});
 
 	function awaitModelLoadEvent(textFileService: ITextFileService, resource: URI): Promise<void> {
-		return new Promise(c => {
+		return new Promise(resolve => {
 			const listener = textFileService.files.onDidLoad(e => {
 				if (isEqual(e.model.resource, resource)) {
 					listener.dispose();
-					c();
+					resolve();
 				}
 			});
 		});

@@ -577,9 +577,7 @@ export class FileChangesEvent {
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this.changes.some(change => {
-			return change.type === type;
-		});
+		return this.changes.some(change => change.type === type);
 	}
 
 	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
@@ -862,11 +860,11 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 		return Promise.resolve();
 	}
 
-	return new Promise((c, e) => {
+	return new Promise(resolve => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {
 				disposable.dispose();
-				c();
+				resolve();
 			}
 		});
 	});
