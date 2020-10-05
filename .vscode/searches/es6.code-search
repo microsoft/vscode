@@ -2,7 +2,7 @@
 # Flags: CaseSensitive WordMatch
 # ContextLines: 2
 
-10 results - 2 files
+7 results - 2 files
 
 src/vs/base/browser/dom.ts:
   74  };
@@ -22,26 +22,8 @@ src/vs/base/browser/dom.ts:
   88  
 
 src/vs/base/common/strings.ts:
-   15  
-   16  /**
-   17:  * @deprecated ES6: use `String.padStart`
-   18   */
-   19  export function pad(n: number, l: number, char: string = '0'): string {
-
-  146  
-  147  /**
-  148:  * @deprecated ES6: use `String.startsWith`
-  149   */
-  150  export function startsWith(haystack: string, needle: string): boolean {
-
-  167  
-  168  /**
-  169:  * @deprecated ES6: use `String.endsWith`
-  170   */
-  171  export function endsWith(haystack: string, needle: string): boolean {
-
-  857  
-  858  /**
-  859:  * @deprecated ES6
-  860   */
-  861  export function repeat(s: string, count: number): string {
+  15  
+  16  /**
+  17:  * @deprecated ES6: use `String.padStart`
+  18   */
+  19  export function pad(n: number, l: number, char: string = '0'): string {
