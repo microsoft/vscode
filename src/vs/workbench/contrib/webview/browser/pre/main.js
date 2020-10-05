@@ -495,11 +495,7 @@
 						// Workaround for https://github.com/Microsoft/vscode/issues/12865
 						// check new scrollY and reset if neccessary
 
-						// Delay this in the hope that all of the iframe content will have loaded by the time we set
-						// the desired initial scroll position. But how can we be sure how long is long enough?
-						setTimeout(() => {
-							setInitialScrollPosition(contentDocument.body, contentWindow);
-						}, 1000);
+						setInitialScrollPosition(contentDocument.body, contentWindow);
 					}
 
 					const newFrame = getPendingFrame();
