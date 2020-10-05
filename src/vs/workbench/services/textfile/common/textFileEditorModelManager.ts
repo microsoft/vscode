@@ -357,13 +357,13 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		}
 	}
 
-	private joinPendingResolve(resource: URI): false | Promise<boolean> {
+	private joinPendingResolve(resource: URI): Promise<void> | undefined {
 		const pendingModelLoad = this.mapResourceToPendingModelLoaders.get(resource);
 		if (pendingModelLoad) {
-			return pendingModelLoad.then(() => true, () => true); // ignore any error here, it will bubble to the original requestor
+			return pendingModelLoad.then(undefined, () => {/* ignore any error here, it will bubble to the original requestor*/ });
 		}
 
-		return false;
+		return undefined;
 	}
 
 	private registerModel(model: TextFileEditorModel): void {

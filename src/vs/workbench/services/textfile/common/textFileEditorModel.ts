@@ -327,6 +327,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND);
 		}
 
+		const preferredEncoding = await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding);
+
 		// Load with buffer
 		this.loadFromContent({
 			resource: this.resource,
@@ -336,7 +338,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			size,
 			etag,
 			value: buffer,
-			encoding: (await this.textFileService.encoding.getPreferredWriteEncoding(this.resource, this.preferredEncoding)).encoding
+			encoding: preferredEncoding.encoding
 		}, options, true /* dirty because whe load from a buffer */);
 
 		return this;
