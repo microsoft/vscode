@@ -213,7 +213,9 @@
 
 /** signature, qualifier, type/details opacity **/
 
-.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.signature-label, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.qualifier-label, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.signature-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.left>.qualifier-label,
+.monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.details-label {
 	opacity: 0.7;
 }
 
@@ -411,7 +413,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	opacity: 0.7;
-	word-break: break-all;
+	white-space: nowrap;
 	margin: 0 24px 0 0;
 	padding: 4px 0 12px 5px;
 }
