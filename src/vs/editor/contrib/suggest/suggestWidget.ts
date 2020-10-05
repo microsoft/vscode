@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/suggest';
-import 'vs/css!./media/suggestStatusBar';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // The codicon symbol styles are defined here and must be loaded
 import 'vs/editor/contrib/documentSymbols/outlineTree'; // The codicon symbol colors are defined here and must be loaded
 import * as nls from 'vs/nls';
-import { createMatches } from 'vs/base/common/filters';
 import * as strings from 'vs/base/common/strings';
 import { Event, Emitter } from 'vs/base/common/event';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { append, $, hide, show, getDomNodePagePosition, addDisposableListener, addStandardDisposableListener } from 'vs/base/browser/dom';
-import { IListVirtualDelegate, IListEvent, IListRenderer, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListEvent, IListMouseEvent, IListGestureEvent } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -31,47 +29,15 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
-import { CompletionItemKind, completionKindToCssClass, CompletionItemTag } from 'vs/editor/common/modes';
-import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { FileKind } from 'vs/platform/files/common/files';
-import { flatten } from 'vs/base/common/arrays';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { SuggestionDetails, canExpandCompletionItem } from './suggestWidgetDetails';
 import { SuggestWidgetStatus } from 'vs/editor/contrib/suggest/suggestWidgetStatus';
+import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
 
 const expandSuggestionDocsByDefault = false;
 
-const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight);
 
-interface ISuggestionTemplateData {
-	root: HTMLElement;
-
-	/**
-	 * Flexbox
-	 * < ------------- left ------------ >     < --- right -- >
-	 * <icon><label><signature><qualifier>     <type><readmore>
-	 */
-	left: HTMLElement;
-	right: HTMLElement;
-
-	icon: HTMLElement;
-	colorspan: HTMLElement;
-	iconLabel: IconLabel;
-	iconContainer: HTMLElement;
-	parametersLabel: HTMLElement;
-	qualifierLabel: HTMLElement;
-	/**
-	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
-	 */
-	detailsLabel: HTMLElement;
-	readMore: HTMLElement;
-	disposables: DisposableStore;
-}
 
 /**
  * Suggest widget colors
@@ -82,188 +48,8 @@ export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: listFocusBackground, light: listFocusBackground, hc: listFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hc: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
 
-const colorRegExp = /^(#([\da-f]{3}){1,2}|(rgb|hsl)a\(\s*(\d{1,3}%?\s*,\s*){3}(1|0?\.\d+)\)|(rgb|hsl)\(\s*\d{1,3}%?(\s*,\s*\d{1,3}%?){2}\s*\))$/i;
-function extractColor(item: CompletionItem, out: string[]): boolean {
-	const label = typeof item.completion.label === 'string'
-		? item.completion.label
-		: item.completion.label.name;
-
-	if (label.match(colorRegExp)) {
-		out[0] = label;
-		return true;
-	}
-	if (typeof item.completion.documentation === 'string' && item.completion.documentation.match(colorRegExp)) {
-		out[0] = item.completion.documentation;
-		return true;
-	}
-	return false;
-}
 
 
-
-function getAriaId(index: number): string {
-	return `suggest-aria-id:${index}`;
-}
-
-class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
-
-	readonly templateId = 'suggestion';
-
-	constructor(
-		private readonly _widget: SuggestWidget,
-		private readonly _editor: ICodeEditor,
-		private readonly _triggerKeybindingLabel: string,
-		@IModelService private readonly _modelService: IModelService,
-		@IModeService private readonly _modeService: IModeService,
-		@IThemeService private readonly _themeService: IThemeService,
-	) { }
-
-	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
-		const data = <ISuggestionTemplateData>Object.create(null);
-		data.disposables = new DisposableStore();
-
-		data.root = container;
-		data.root.classList.add('show-file-icons');
-
-		data.icon = append(container, $('.icon'));
-		data.colorspan = append(data.icon, $('span.colorspan'));
-
-		const text = append(container, $('.contents'));
-		const main = append(text, $('.main'));
-
-		data.iconContainer = append(main, $('.icon-label.codicon'));
-		data.left = append(main, $('span.left'));
-		data.right = append(main, $('span.right'));
-
-		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportCodicons: true });
-		data.disposables.add(data.iconLabel);
-
-		data.parametersLabel = append(data.left, $('span.signature-label'));
-		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
-		data.detailsLabel = append(data.right, $('span.details-label'));
-
-		data.readMore = append(data.right, $('span.readMore' + suggestMoreInfoIcon.cssSelector));
-		data.readMore.title = nls.localize('readMore', "Read More ({0})", this._triggerKeybindingLabel);
-
-		const configureFont = () => {
-			const options = this._editor.getOptions();
-			const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = fontInfo.fontFamily;
-			const fontFeatureSettings = fontInfo.fontFeatureSettings;
-			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
-			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
-			const fontWeight = fontInfo.fontWeight;
-			const fontSizePx = `${fontSize}px`;
-			const lineHeightPx = `${lineHeight}px`;
-
-			data.root.style.fontSize = fontSizePx;
-			data.root.style.fontWeight = fontWeight;
-			main.style.fontFamily = fontFamily;
-			main.style.fontFeatureSettings = fontFeatureSettings;
-			main.style.lineHeight = lineHeightPx;
-			data.icon.style.height = lineHeightPx;
-			data.icon.style.width = lineHeightPx;
-			data.readMore.style.height = lineHeightPx;
-			data.readMore.style.width = lineHeightPx;
-		};
-
-		configureFont();
-
-		data.disposables.add(this._editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
-				configureFont();
-			}
-		}));
-
-		return data;
-	}
-
-	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
-		const { completion } = element;
-		const textLabel = typeof completion.label === 'string' ? completion.label : completion.label.name;
-
-		data.root.id = getAriaId(index);
-		data.colorspan.style.backgroundColor = '';
-
-		const labelOptions: IIconLabelValueOptions = {
-			labelEscapeNewLines: true,
-			matches: createMatches(element.score)
-		};
-
-		let color: string[] = [];
-		if (completion.kind === CompletionItemKind.Color && extractColor(element, color)) {
-			// special logic for 'color' completion items
-			data.icon.className = 'icon customcolor';
-			data.iconContainer.className = 'icon hide';
-			data.colorspan.style.backgroundColor = color[0];
-
-		} else if (completion.kind === CompletionItemKind.File && this._themeService.getFileIconTheme().hasFileIcons) {
-			// special logic for 'file' completion items
-			data.icon.className = 'icon hide';
-			data.iconContainer.className = 'icon hide';
-			const labelClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FILE);
-			const detailClasses = getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FILE);
-			labelOptions.extraClasses = labelClasses.length > detailClasses.length ? labelClasses : detailClasses;
-
-		} else if (completion.kind === CompletionItemKind.Folder && this._themeService.getFileIconTheme().hasFolderIcons) {
-			// special logic for 'folder' completion items
-			data.icon.className = 'icon hide';
-			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: textLabel }), FileKind.FOLDER),
-				getIconClasses(this._modelService, this._modeService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
-			]);
-		} else {
-			// normal icon
-			data.icon.className = 'icon hide';
-			data.iconContainer.className = '';
-			data.iconContainer.classList.add('suggest-icon', ...completionKindToCssClass(completion.kind).split(' '));
-		}
-
-		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
-			labelOptions.extraClasses = (labelOptions.extraClasses || []).concat(['deprecated']);
-			labelOptions.matches = [];
-		}
-
-		data.iconLabel.setLabel(textLabel, undefined, labelOptions);
-		if (typeof completion.label === 'string') {
-			data.parametersLabel.textContent = '';
-			data.qualifierLabel.textContent = '';
-			data.detailsLabel.textContent = (completion.detail || '').replace(/\n.*$/m, '');
-			data.root.classList.add('string-label');
-			data.root.title = '';
-		} else {
-			data.parametersLabel.textContent = (completion.label.parameters || '').replace(/\n.*$/m, '');
-			data.qualifierLabel.textContent = (completion.label.qualifier || '').replace(/\n.*$/m, '');
-			data.detailsLabel.textContent = (completion.label.type || '').replace(/\n.*$/m, '');
-			data.root.classList.remove('string-label');
-			data.root.title = `${textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
-		}
-
-		if (canExpandCompletionItem(element)) {
-			data.right.classList.add('can-expand-details');
-			show(data.readMore);
-			data.readMore.onmousedown = e => {
-				e.stopPropagation();
-				e.preventDefault();
-			};
-			data.readMore.onclick = e => {
-				e.stopPropagation();
-				e.preventDefault();
-				this._widget.toggleDetails();
-			};
-		} else {
-			data.right.classList.remove('can-expand-details');
-			hide(data.readMore);
-			data.readMore.onmousedown = null;
-			data.readMore.onclick = null;
-		}
-	}
-
-	disposeTemplate(templateData: ISuggestionTemplateData): void {
-		templateData.disposables.dispose();
-	}
-}
 
 const enum State {
 	Hidden,
@@ -378,32 +164,33 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 
 		this.listContainer = append(this.mainElement, $('.list-container'));
 
-		this.list = new List('SuggestWidget', this.listContainer, this,
-			[instantiationService.createInstance(ItemRenderer, this, this.editor, kbToggleDetails)],
-			{
-				useShadows: false,
-				mouseSupport: false,
-				accessibilityProvider: {
-					getRole: () => 'option',
-					getAriaLabel: (item: CompletionItem) => {
-						const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
-						if (item.isResolved && this._isDetailsVisible()) {
-							const { documentation, detail } = item.completion;
-							const docs = strings.format(
-								'{0}{1}',
-								detail || '',
-								documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+		const renderer = instantiationService.createInstance(ItemRenderer, this.editor, kbToggleDetails);
+		this._disposables.add(renderer);
+		this._disposables.add(renderer.onDidToggleDetails(() => this.toggleDetails()));
 
-							return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
-						} else {
-							return textLabel;
-						}
-					},
-					getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
-					getWidgetRole: () => 'listbox'
-				}
+		this.list = new List('SuggestWidget', this.listContainer, this, [renderer], {
+			useShadows: false,
+			mouseSupport: false,
+			accessibilityProvider: {
+				getRole: () => 'option',
+				getAriaLabel: (item: CompletionItem) => {
+					const textLabel = typeof item.completion.label === 'string' ? item.completion.label : item.completion.label.name;
+					if (item.isResolved && this._isDetailsVisible()) {
+						const { documentation, detail } = item.completion;
+						const docs = strings.format(
+							'{0}{1}',
+							detail || '',
+							documentation ? (typeof documentation === 'string' ? documentation : documentation.value) : '');
+
+						return nls.localize('ariaCurrenttSuggestionReadDetails', "{0}, docs: {1}", textLabel, docs);
+					} else {
+						return textLabel;
+					}
+				},
+				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
+				getWidgetRole: () => 'listbox'
 			}
-		);
+		});
 
 		this.status = instantiationService.createInstance(SuggestWidgetStatus, this.mainElement);
 		const applyStatusBarStyle = () => this.element.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).statusBar.visible);

@@ -87,6 +87,55 @@
 	font-family: var(--monaco-monospace-font);
 }
 
+
+/* Styles for status bar part */
+
+
+.monaco-editor .suggest-widget .suggest-status-bar {
+	visibility: hidden;
+	box-sizing: border-box;
+	display: flex;
+	flex-flow: row nowrap;
+	justify-content: space-between;
+	width: 100%;
+	font-size: 80%;
+	padding: 0 8px 0 4px;
+	border-top: 1px solid transparent;
+}
+
+.monaco-editor .suggest-widget.list-right.docs-side .suggest-status-bar {
+	left: auto;
+	right: 0;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar {
+	visibility: visible;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-label {
+	min-height: 18px;
+	opacity: 0.5;
+	color: inherit;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label {
+	margin-right: 0;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .suggest-status-bar .action-item:not(:last-of-type) .action-label::after {
+	content: ', ';
+	margin-right: 0.3em;
+}
+
+.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row>.contents>.main>.right>.readMore,
+.monaco-editor .suggest-widget.with-status-bar .monaco-list .monaco-list-row.focused.string-label>.contents>.main>.right>.readMore {
+	display: none;
+}
+
+.monaco-editor .suggest-widget.with-status-bar:not(.docs-side) .monaco-list .monaco-list-row:hover>.contents>.main>.right.can-expand-details>.details-label {
+	width: 100%;
+}
+
 /* Styles for Message element for when widget is loading or is empty */
 
 .monaco-editor .suggest-widget>.message {
@@ -155,6 +204,7 @@
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close {
 	position: absolute;
 	top: 6px;
+	right: 2px;
 }
 
 .monaco-editor .suggest-widget .details>.monaco-scrollable-element>.body>.header>.codicon-close:hover, .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore:hover {
@@ -237,7 +287,7 @@
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right {
 	overflow: hidden;
 	flex-shrink: 2;
-	max-width: 82%;
+	max-width: 77%;
 }
 
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row>.contents>.main>.right>.readMore {
