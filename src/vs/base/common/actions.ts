@@ -234,15 +234,13 @@ export class Separator extends Action {
 	}
 }
 
-export type SubmenuActions = IAction[] | (() => IAction[]);
-
 export class SubmenuAction extends Action {
 
 	get actions(): IAction[] {
-		return Array.isArray(this._actions) ? this._actions : this._actions();
+		return this._actions;
 	}
 
-	constructor(id: string, label: string, private _actions: SubmenuActions, cssClass?: string) {
+	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
 		super(id, label, cssClass, true);
 	}
 }
