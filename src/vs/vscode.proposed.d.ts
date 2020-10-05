@@ -1486,16 +1486,6 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
-		 * Whether the panel is active (focused by the user).
-		 */
-		readonly active: boolean;
-
-		/**
-		 * Whether the panel is visible.
-		 */
-		readonly visible: boolean;
-
-		/**
 		 * Fired when the panel is disposed.
 		 */
 		readonly onDidDispose: Event<void>;
@@ -1840,13 +1830,7 @@ declare module 'vscode' {
 		 */
 		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
 
-		export const visibleNotebookEditors: NotebookEditor[];
-		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
-		export const activeNotebookEditor: NotebookEditor | undefined;
-		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
-		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
-		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 		export const onDidChangeNotebookDocumentMetadata: Event<NotebookDocumentMetadataChangeEvent>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
@@ -1873,6 +1857,15 @@ declare module 'vscode' {
 		 * @return A new status bar item.
 		 */
 		export function createCellStatusBarItem(cell: NotebookCell, alignment?: NotebookCellStatusBarAlignment, priority?: number): NotebookCellStatusBarItem;
+	}
+
+	export namespace window {
+		export const visibleNotebookEditors: NotebookEditor[];
+		export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+		export const activeNotebookEditor: NotebookEditor | undefined;
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
+		export const onDidChangeNotebookEditorSelection: Event<NotebookEditorSelectionChangeEvent>;
+		export const onDidChangeNotebookEditorVisibleRanges: Event<NotebookEditorVisibleRangesChangeEvent>;
 	}
 
 	//#endregion

@@ -630,7 +630,31 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 			}) {
 				return extHostWebviewViews.registerWebviewViewProvider(extension, viewId, provider, options?.webviewOptions);
-			}
+			},
+			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.activeNotebookEditor;
+			},
+			onDidChangeActiveNotebookEditor(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeActiveNotebookEditor(listener, thisArgs, disposables);
+			},
+			get visibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.visibleNotebookEditors;
+			},
+			get onDidChangeVisibleNotebookEditors() {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeVisibleNotebookEditors;
+			},
+			onDidChangeNotebookEditorSelection(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookEditorSelection(listener, thisArgs, disposables);
+			},
+			onDidChangeNotebookEditorVisibleRanges(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
+			},
 		};
 
 		// namespace: workspace
@@ -942,14 +966,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.notebookDocuments.map(d => d.notebookDocument);
 			},
-			get visibleNotebookEditors() {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.visibleNotebookEditors;
-			},
-			get onDidChangeVisibleNotebookEditors() {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeVisibleNotebookEditors;
-			},
 			get onDidChangeActiveNotebookKernel() {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeActiveNotebookKernel;
@@ -968,14 +984,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 				return extHostNotebook.createNotebookEditorDecorationType(options);
 			},
-			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.activeNotebookEditor;
-			},
-			onDidChangeActiveNotebookEditor(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeActiveNotebookEditor(listener, thisArgs, disposables);
-			},
 			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookDocumentMetadata(listener, thisArgs, disposables);
@@ -983,14 +991,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
-			},
-			onDidChangeNotebookEditorSelection(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookEditorSelection(listener, thisArgs, disposables);
-			},
-			onDidChangeNotebookEditorVisibleRanges(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
 			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
