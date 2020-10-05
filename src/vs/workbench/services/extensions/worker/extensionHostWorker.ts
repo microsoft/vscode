@@ -22,7 +22,7 @@ declare function postMessage(data: any, transferables?: Transferable[]): void;
 declare namespace self {
 	let close: any;
 	let postMessage: any;
-	let addEventLister: any;
+	let addEventListener: any;
 	let indexedDB: { open: any, [k: string]: any };
 	let caches: { open: any, [k: string]: any };
 }
@@ -33,8 +33,8 @@ self.close = () => console.trace(`'close' has been blocked`);
 const nativePostMessage = postMessage.bind(self);
 self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
-// const nativeAddEventLister = addEventListener.bind(self);
-self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
+// const nativeAddEventListener = addEventListener.bind(self);
+self.addEventListener = () => console.trace(`'addEventListener' has been blocked`);
 
 (<any>self)['AMDLoader'] = undefined;
 (<any>self)['NLSLoaderPlugin'] = undefined;
