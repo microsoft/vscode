@@ -16,7 +16,12 @@ import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
 
-suite('StorageService', () => {
+suite('StorageService', function () {
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/108113
+	// we see random test failures when accessing the native file system.
+	this.retries(3);
+	this.timeout(1000 * 10);
 
 	test('Remove Data (global, in-memory)', () => {
 		removeData(StorageScope.GLOBAL);
