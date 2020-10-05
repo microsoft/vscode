@@ -219,7 +219,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput implem
 		}
 
 		// If the target is a different resource, return with a new editor input
-		if (!isEqual(target, this.resource)) {
+		if (!isEqual(target, this.preferredResource)) {
 			return this.editorService.createEditorInput({ resource: target });
 		}
 

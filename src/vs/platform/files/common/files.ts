@@ -505,19 +505,20 @@ export class FileChangesEvent {
 	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: IExtUri) { }
 
 	/**
-	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
-	 * provided file path.
+	 * Returns true if this change event contains the provided file
+	 * with the given change type (if provided). In case of type
+	 * DELETED, this method will also return true if a folder got
+	 * deleted that is the parent of the provided file path.
 	 */
-	contains(resource: URI, type?: FileChangeType): boolean {
+	contains(resource: URI, ...types: FileChangeType[]): boolean {
 		if (!resource) {
 			return false;
 		}
 
-		const checkForChangeType = !isUndefinedOrNull(type);
+		const hasTypesFilter = types.length > 0;
 
 		return this.changes.some(change => {
-			if (checkForChangeType && change.type !== type) {
+			if (hasTypesFilter && !types.includes(change.type)) {
 				return false;
 			}
 
