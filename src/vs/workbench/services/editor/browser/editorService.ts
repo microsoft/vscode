@@ -17,7 +17,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo, NEW_GROUP_TYPE, NEW_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -616,7 +616,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Group: New group
 		else if (group === NEW_GROUP) {
-			targetGroup = this.newGroup();
+			targetGroup = this.newSideRightGroup();
 		}
 
 		// Group: Specific Group
@@ -686,11 +686,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return neighbourGroup;
 	}
 
-	private newGroup(): IEditorGroup {
-		const direction = preferredSideBySideGroupDirection(this.configurationService);
-
+	private newSideRightGroup(): IEditorGroup {
 		const lastGroupIndex = this.editorGroupService.groups.length - 1;
-		return this.editorGroupService.addGroup(this.editorGroupService.groups[lastGroupIndex], direction);
+		return this.editorGroupService.addGroup(this.editorGroupService.groups[lastGroupIndex], GroupDirection.RIGHT);
 	}
 
 	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {
