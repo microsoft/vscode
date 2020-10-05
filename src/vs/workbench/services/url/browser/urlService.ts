@@ -47,7 +47,7 @@ export class BrowserURLService extends AbstractURLService {
 	) {
 		super();
 
-		this.provider = environmentService.options!.urlCallbackProvider;
+		this.provider = environmentService.options?.urlCallbackProvider;
 
 		this.registerListeners();
 	}
