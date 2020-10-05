@@ -158,6 +158,7 @@
 	"config.untrackedChanges.hidden": "Untracked changes are hidden and excluded from several actions.",
 	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
 	"config.terminalAuthentication": "Controls whether to enable VS Code to be the authentication handler for git processes spawned in the integrated terminal. Note: terminals need to be restarted to pick up a change in this setting.",
+	"config.amendNoEdit" : "Controls whether amend will prompt to edit the commit message or use the existing message as in --amend --no-edit",
 	"submenu.commit": "Commit",
 	"submenu.commit.amend": "Amend",
 	"submenu.commit.signoff": "Sign Off",

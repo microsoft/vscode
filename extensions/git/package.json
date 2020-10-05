@@ -1900,6 +1900,11 @@
         },
         "git.githubAuthentication": {
           "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
+        },
+        "git.amendNoEdit" : {
+          "type" : "boolean",
+          "default" : false,
+          "description" : "%config.amendNoEdit"
         }
       }
     },
