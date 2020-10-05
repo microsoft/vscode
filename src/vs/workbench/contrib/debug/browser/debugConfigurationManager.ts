@@ -58,6 +58,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private selectedName: string | undefined;
 	private selectedLaunch: ILaunch | undefined;
 	private selectedConfig: IConfig | undefined;
+	private selectedType: string | undefined;
 	private toDispose: IDisposable[];
 	private readonly _onDidSelectConfigurationName = new Emitter<void>();
 	private configProviders: IDebugConfigurationProvider[];
@@ -493,11 +494,12 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.launches.find(l => l.workspace && l.workspace.uri.toString() === workspaceUri.toString());
 	}
 
-	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, config: IConfig | undefined } {
+	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined, config: IConfig | undefined, type: string | undefined } {
 		return {
 			launch: this.selectedLaunch,
 			name: this.selectedName,
-			config: this.selectedConfig
+			config: this.selectedConfig,
+			type: this.selectedType
 		};
 	}
 
@@ -555,7 +557,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 
 		this.selectedConfig = config;
-		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedConfig?.type, StorageScope.WORKSPACE);
+		this.selectedType = type || this.selectedConfig?.type;
+		this.storageService.store(DEBUG_SELECTED_TYPE, this.selectedType, StorageScope.WORKSPACE);
 		const configForType = this.selectedConfig || (this.selectedLaunch && this.selectedName ? this.selectedLaunch.getConfiguration(this.selectedName) : undefined);
 		if (configForType) {
 			this.debugConfigurationTypeContext.set(configForType.type);

@@ -505,19 +505,20 @@ export class FileChangesEvent {
 	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: IExtUri) { }
 
 	/**
-	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
-	 * type DELETED, this method will also return true if a folder got deleted that is the parent of the
-	 * provided file path.
+	 * Returns true if this change event contains the provided file
+	 * with the given change type (if provided). In case of type
+	 * DELETED, this method will also return true if a folder got
+	 * deleted that is the parent of the provided file path.
 	 */
-	contains(resource: URI, type?: FileChangeType): boolean {
+	contains(resource: URI, ...types: FileChangeType[]): boolean {
 		if (!resource) {
 			return false;
 		}
 
-		const checkForChangeType = !isUndefinedOrNull(type);
+		const hasTypesFilter = types.length > 0;
 
 		return this.changes.some(change => {
-			if (checkForChangeType && change.type !== type) {
+			if (hasTypesFilter && !types.includes(change.type)) {
 				return false;
 			}
 
@@ -577,9 +578,7 @@ export class FileChangesEvent {
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this.changes.some(change => {
-			return change.type === type;
-		});
+		return this.changes.some(change => change.type === type);
 	}
 
 	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
@@ -862,11 +861,11 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 		return Promise.resolve();
 	}
 
-	return new Promise((c, e) => {
+	return new Promise(resolve => {
 		const disposable = fileService.onDidChangeFileSystemProviderRegistrations(e => {
 			if (e.scheme === file.scheme && e.added) {
 				disposable.dispose();
-				c();
+				resolve();
 			}
 		});
 	});

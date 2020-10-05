@@ -35,7 +35,6 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { IStorageMainService } from 'vs/platform/storage/node/storageMainService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 
 export interface IWindowCreationOptions {
 	state: IWindowState;
@@ -787,7 +786,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		windowConfiguration.fullscreen = this.isFullScreen;
 
 		// Set Accessibility Config
-		windowConfiguration.colorScheme = (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) ? ColorScheme.HIGH_CONTRAST : nativeTheme.shouldUseDarkColors ? ColorScheme.DARK : ColorScheme.LIGHT;
+		windowConfiguration.colorScheme = {
+			dark: nativeTheme.shouldUseDarkColors,
+			highContrast: nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors
+		};
 		windowConfiguration.autoDetectHighContrast = windowConfig?.autoDetectHighContrast ?? true;
 		windowConfiguration.accessibilitySupport = app.accessibilitySupportEnabled;
 
