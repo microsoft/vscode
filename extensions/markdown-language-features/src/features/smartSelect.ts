@@ -3,18 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Token } from 'markdown-it';
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
 import { flatten } from '../util/arrays';
-
-
-const isStartRegion = (t: string) => /^\s*<!--\s*#?region\b.*-->/.test(t);
-const isEndRegion = (t: string) => /^\s*<!--\s*#?endregion\b.*-->/.test(t);
-
-const isRegionMarker = (token: Token) =>
-	token.type === 'html_block' && (isStartRegion(token.content) || isEndRegion(token.content));
 
 export default class MarkdownSmartSelect implements vscode.SelectionRangeProvider {
 
@@ -22,52 +13,48 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		private readonly engine: MarkdownEngine
 	) { }
 	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], token: vscode.CancellationToken): Promise<vscode.SelectionRange[]> {
-		console.log(positions);
-		let headerRegions = await Promise.all([
-			await this.getHeaderSelectionRanges(document)
+		let blockRegions = await Promise.all([
+			await this.getBlockSelectionRanges(document, positions)
 		]);
-		return flatten(headerRegions);
+		return flatten(blockRegions);
 	}
 
-	private async getBlockSelectionRanges(document: vscode.TextDocument): Promise<vscode.SelectionRange[]> {
-
-		const isBlockToken = (token: Token): boolean => {
-			switch (token.type) {
-				case 'fence':
-				case 'list_item_open':
-					return token.map[1] > token.map[0];
-
-				case 'html_block':
-					if (isRegionMarker(token)) {
-						return false;
-					}
-					return token.map[1] > token.map[0] + 1;
-
-				default:
-					return false;
-			}
-		};
-
+	private async getBlockSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[]): Promise<vscode.SelectionRange[]> {
+		let position = positions[0];
 		const tokens = await this.engine.parse(document);
-		const multiLineListItems = tokens.filter(isBlockToken);
-		return multiLineListItems.map(listItem => {
-			const start = listItem.map[0];
-			let end = listItem.map[1] - 1;
-			if (document.lineAt(end).isEmptyOrWhitespace && end >= start + 1) {
-				end = end - 1;
-			}
-			let beg = new vscode.Position(0, start);
-			let endi = new vscode.Position(0, end);
-			return new vscode.SelectionRange(new vscode.Range(beg, endi));
+		let tokes = tokens.filter(token => token.map && (token.meta || token.content));
+		let poss = tokes.map(token => {
+			const start = token.map[0];
+			let startPos = new vscode.Position(position.line, start);
+			let endPos = new vscode.Position(getEndLine(token.meta ? token.meta : token.content), getEndPos(token.meta ? token.meta : token.content));
+			return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 		});
-	}
-	private async getHeaderSelectionRanges(document: vscode.TextDocument) {
-		const tocProvider = new TableOfContentsProvider(this.engine, document);
-		const toc = await tocProvider.getToc();
-		return toc.map(entry => {
-			let start = entry.location.range.start;
-			let end = entry.location.range.end;
-			return new vscode.SelectionRange(new vscode.Range(new vscode.Position(start.line, start.character), new vscode.Position(end.line, end.character)));
-		});
+		return poss;
 	}
 }
+
+let getEndLine = (meta: string) => {
+	let numLines = 0;
+	for (let i = 0; i < meta.length; i++) {
+		if (meta[i] === '\n') {
+			numLines++;
+		}
+	}
+	return numLines;
+};
+
+let getEndPos = (meta: string) => {
+	let maxLineLength = 0;
+	let currMax = 0;
+	for (let i = 0; i < meta.length; i++) {
+		if (meta[i] === '\n') {
+			currMax = 0;
+		} else {
+			currMax++;
+			if (currMax > maxLineLength) {
+				maxLineLength = currMax;
+			}
+		}
+	}
+	return maxLineLength;
+};
