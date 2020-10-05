@@ -11,11 +11,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IExtUri } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { TernarySearchTree } from 'vs/base/common/map';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -502,7 +502,34 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: IExtUri) { }
+	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+
+	constructor(public readonly changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
+		for (const change of changes) {
+			switch (change.type) {
+				case FileChangeType.ADDED:
+					if (!this.added) {
+						this.added = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+					}
+					this.added.set(change.resource, change);
+					break;
+				case FileChangeType.UPDATED:
+					if (!this.updated) {
+						this.updated = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+					}
+					this.updated.set(change.resource, change);
+					break;
+				case FileChangeType.DELETED:
+					if (!this.deleted) {
+						this.deleted = TernarySearchTree.forUris<IFileChange>(this.ignorePathCasing);
+					}
+					this.deleted.set(change.resource, change);
+					break;
+			}
+		}
+	}
 
 	/**
 	 * Returns true if this change event contains the provided file
@@ -515,20 +542,28 @@ export class FileChangesEvent {
 			return false;
 		}
 
-		const hasTypesFilter = types.length > 0;
-
-		return this.changes.some(change => {
-			if (hasTypesFilter && !types.includes(change.type)) {
-				return false;
+		// Added
+		if (!types || types.includes(FileChangeType.ADDED)) {
+			if (this.added?.get(resource)) {
+				return true;
 			}
+		}
 
-			// For deleted also return true when deleted folder is parent of target path
-			if (change.type === FileChangeType.DELETED) {
-				return this.extUri.isEqualOrParent(resource, change.resource);
+		// Updated
+		if (!types || types.includes(FileChangeType.UPDATED)) {
+			if (this.updated?.get(resource)) {
+				return true;
 			}
+		}
 
-			return this.extUri.isEqual(resource, change.resource);
-		});
+		// Deleted
+		if (!types || types.includes(FileChangeType.DELETED)) {
+			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -542,7 +577,7 @@ export class FileChangesEvent {
 	 * Returns if this event contains added files.
 	 */
 	gotAdded(): boolean {
-		return this.hasType(FileChangeType.ADDED);
+		return !!this.added;
 	}
 
 	/**
@@ -556,7 +591,7 @@ export class FileChangesEvent {
 	 * Returns if this event contains deleted files.
 	 */
 	gotDeleted(): boolean {
-		return this.hasType(FileChangeType.DELETED);
+		return !!this.deleted;
 	}
 
 	/**
@@ -570,19 +605,22 @@ export class FileChangesEvent {
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
-		return this.hasType(FileChangeType.UPDATED);
+		return !!this.updated;
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this.changes.filter(change => change.type === type);
-	}
+		const changes: IFileChange[] = [];
 
-	private hasType(type: FileChangeType): boolean {
-		return this.changes.some(change => change.type === type);
+		const eventsForType = type === FileChangeType.ADDED ? this.added : type === FileChangeType.UPDATED ? this.updated : this.deleted;
+		if (eventsForType) {
+			eventsForType.forEach(change => changes.push(change));
+		}
+
+		return changes;
 	}
 
 	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
-		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.extUri);
+		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.ignorePathCasing);
 	}
 }
 
