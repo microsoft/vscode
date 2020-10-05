@@ -542,22 +542,24 @@ export class FileChangesEvent {
 			return false;
 		}
 
+		const hasTypesFilter = types.length > 0;
+
 		// Added
-		if (!types || types.includes(FileChangeType.ADDED)) {
+		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
 			if (this.added?.get(resource)) {
 				return true;
 			}
 		}
 
 		// Updated
-		if (!types || types.includes(FileChangeType.UPDATED)) {
+		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
 			if (this.updated?.get(resource)) {
 				return true;
 			}
 		}
 
 		// Deleted
-		if (!types || types.includes(FileChangeType.DELETED)) {
+		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
 			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
 				return true;
 			}
