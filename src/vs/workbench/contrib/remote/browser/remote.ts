@@ -574,6 +574,7 @@ Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).register
 		id: VIEWLET_ID,
 		name: nls.localize('remote.explorer', "Remote Explorer"),
 		ctorDescriptor: new SyncDescriptor(RemoteViewPaneContainer),
+		canMoveViews: false,
 		hideIfEmpty: true,
 		viewOrderDelegate: {
 			getOrder: (group?: string) => {
