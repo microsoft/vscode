@@ -144,41 +144,6 @@ export function stripWildcards(pattern: string): string {
 	return pattern.replace(/\*/g, '');
 }
 
-/**
- * @deprecated ES6: use `String.startsWith`
- */
-export function startsWith(haystack: string, needle: string): boolean {
-	if (haystack.length < needle.length) {
-		return false;
-	}
-
-	if (haystack === needle) {
-		return true;
-	}
-
-	for (let i = 0; i < needle.length; i++) {
-		if (haystack[i] !== needle[i]) {
-			return false;
-		}
-	}
-
-	return true;
-}
-
-/**
- * @deprecated ES6: use `String.endsWith`
- */
-export function endsWith(haystack: string, needle: string): boolean {
-	const diff = haystack.length - needle.length;
-	if (diff > 0) {
-		return haystack.indexOf(needle, diff) === diff;
-	} else if (diff === 0) {
-		return haystack === needle;
-	} else {
-		return false;
-	}
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;
@@ -295,47 +260,69 @@ export function compare(a: string, b: string): number {
 	}
 }
 
+export function compareSubstring(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
+	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
+		let codeA = a.charCodeAt(aStart);
+		let codeB = b.charCodeAt(bStart);
+		if (codeA < codeB) {
+			return -1;
+		} else if (codeA > codeB) {
+			return 1;
+		}
+	}
+	const aLen = aEnd - aStart;
+	const bLen = bEnd - bStart;
+	if (aLen < bLen) {
+		return -1;
+	} else if (aLen > bLen) {
+		return 1;
+	}
+	return 0;
+}
+
 export function compareIgnoreCase(a: string, b: string): number {
-	const len = Math.min(a.length, b.length);
-	for (let i = 0; i < len; i++) {
-		let codeA = a.charCodeAt(i);
-		let codeB = b.charCodeAt(i);
+	return compareSubstringIgnoreCase(a, b, 0, a.length, 0, b.length);
+}
+
+export function compareSubstringIgnoreCase(a: string, b: string, aStart: number = 0, aEnd: number = a.length, bStart: number = 0, bEnd: number = b.length): number {
+
+	for (; aStart < aEnd && bStart < bEnd; aStart++, bStart++) {
+
+		let codeA = a.charCodeAt(aStart);
+		let codeB = b.charCodeAt(bStart);
 
 		if (codeA === codeB) {
 			// equal
 			continue;
 		}
 
-		if (isUpperAsciiLetter(codeA)) {
-			codeA += 32;
-		}
-
-		if (isUpperAsciiLetter(codeB)) {
-			codeB += 32;
-		}
-
 		const diff = codeA - codeB;
-
-		if (diff === 0) {
-			// equal -> ignoreCase
+		if (diff === 32 && isUpperAsciiLetter(codeB)) { //codeB =[65-90] && codeA =[97-122]
 			continue;
 
-		} else if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
+		} else if (diff === -32 && isUpperAsciiLetter(codeA)) {  //codeB =[97-122] && codeA =[65-90]
+			continue;
+		}
+
+		if (isLowerAsciiLetter(codeA) && isLowerAsciiLetter(codeB)) {
 			//
 			return diff;
 
 		} else {
-			return compare(a.toLowerCase(), b.toLowerCase());
+			return compareSubstring(a.toLowerCase(), b.toLowerCase(), aStart, aEnd, bStart, bEnd);
 		}
 	}
 
-	if (a.length < b.length) {
+	const aLen = aEnd - aStart;
+	const bLen = bEnd - bStart;
+
+	if (aLen < bLen) {
 		return -1;
-	} else if (a.length > b.length) {
+	} else if (aLen > bLen) {
 		return 1;
-	} else {
-		return 0;
 	}
+
+	return 0;
 }
 
 export function isLowerAsciiLetter(code: number): boolean {
@@ -706,6 +693,14 @@ export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
 }
 
+export const UNUSUAL_LINE_TERMINATORS = /[\u2028\u2029]/; // LINE SEPARATOR (LS) or PARAGRAPH SEPARATOR (PS)
+/**
+ * Returns true if `str` contains unusual line terminators, like LS or PS
+ */
+export function containsUnusualLineTerminators(str: string): boolean {
+	return UNUSUAL_LINE_TERMINATORS.test(str);
+}
+
 export function containsFullWidthCharacter(str: string): boolean {
 	for (let i = 0, len = str.length; i < len; i++) {
 		if (isFullWidthCharacter(str.charCodeAt(i))) {
@@ -823,18 +818,6 @@ export function startsWithUTF8BOM(str: string): boolean {
 
 export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
-}
-
-export function safeBtoa(str: string): string {
-	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
-}
-
-export function repeat(s: string, count: number): string {
-	let result = '';
-	for (let i = 0; i < count; i++) {
-		result += s;
-	}
-	return result;
 }
 
 /**

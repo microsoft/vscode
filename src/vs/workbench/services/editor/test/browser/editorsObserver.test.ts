@@ -17,6 +17,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { isWeb } from 'vs/base/common/platform';
 
 const TEST_EDITOR_ID = 'MyTestEditorForEditorsObserver';
 const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorsObserver';
@@ -204,7 +205,10 @@ suite('EditorsObserver', function () {
 		part.dispose();
 	});
 
-	test('copy group', async () => {
+	test('copy group', async function () {
+		if (isWeb) {
+			this.skip();
+		}
 		const [part, observer] = await createEditorObserver();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_SERIALIZABLE_EDITOR_INPUT_ID);
@@ -527,6 +531,39 @@ suite('EditorsObserver', function () {
 		assert.equal(observer.hasEditor(input1.resource), false);
 		assert.equal(observer.hasEditor(input2.resource), false);
 		assert.equal(observer.hasEditor(input3.resource), false);
+		assert.equal(observer.hasEditor(input4.resource), true);
+
+		observer.dispose();
+		part.dispose();
+	});
+
+	test('observer does not close sticky', async () => {
+		const part = await createPart();
+		part.enforcePartOptions({ limit: { enabled: true, value: 3 } });
+
+		const storage = new TestStorageService();
+		const observer = new EditorsObserver(part, storage);
+
+		const rootGroup = part.activeGroup;
+
+		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
+
+		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true, sticky: true }));
+		await rootGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await rootGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+		await rootGroup.openEditor(input4, EditorOptions.create({ pinned: true }));
+
+		assert.equal(rootGroup.count, 3);
+		assert.equal(rootGroup.isOpened(input1), true);
+		assert.equal(rootGroup.isOpened(input2), false);
+		assert.equal(rootGroup.isOpened(input3), true);
+		assert.equal(rootGroup.isOpened(input4), true);
+		assert.equal(observer.hasEditor(input1.resource), true);
+		assert.equal(observer.hasEditor(input2.resource), false);
+		assert.equal(observer.hasEditor(input3.resource), true);
 		assert.equal(observer.hasEditor(input4.resource), true);
 
 		observer.dispose();

@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal as XTermTerminal } from 'xterm';
-import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
-import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
-import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
-import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
-import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
+import type { Terminal as XTermTerminal } from 'xterm';
+import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
+import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions, ITerminalLaunchError, ITerminalNativeWindowsDelegate, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
@@ -25,7 +24,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * dependency on ITerminalService.
  */
 export interface ITerminalInstanceService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
@@ -33,9 +32,8 @@ export interface ITerminalInstanceService {
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
 	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
-	getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon>;
 	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
-	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
+	createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
@@ -72,12 +70,13 @@ export interface ITerminalTab {
 }
 
 export interface ITerminalService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
+	isProcessSupportRegistered: boolean;
 
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
@@ -92,6 +91,7 @@ export interface ITerminalService {
 	onInstanceTitleChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onRequestAvailableShells: Event<IAvailableShellsRequest>;
+	onDidRegisterProcessSupport: Event<void>;
 
 	/**
 	 * Creates a terminal.
@@ -112,6 +112,13 @@ export interface ITerminalService {
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
 
+	/**
+	 * Perform an action with the active terminal instance, if the terminal does
+	 * not exist the callback will not be called.
+	 * @param callback The callback that fires with the active terminal
+	 */
+	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
+
 	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
@@ -131,18 +138,25 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
+	registerProcessSupport(isSupported: boolean): void;
 	/**
-	 * Link handlers can be registered here to allow intercepting links clicked in the terminal.
-	 * When a link is clicked, the link will be considered handled when the first interceptor
-	 * resolves with true. It will be considered not handled when _all_ link handlers resolve with
-	 * false, or 3 seconds have elapsed.
+	 * Registers a link provider that enables integrators to add links to the terminal.
+	 * @param linkProvider When registered, the link provider is asked whenever a cell is hovered
+	 * for links at that position. This lets the terminal know all links at a given area and also
+	 * labels for what these links are going to do.
 	 */
-	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
+	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	selectDefaultWindowsShell(): Promise<void>;
+	selectDefaultShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
+
+	/**
+	 * Injects native Windows functionality into the service.
+	 */
+	setNativeWindowsDelegate(delegate: ITerminalNativeWindowsDelegate): void;
+	setLinuxDistro(linuxDistro: LinuxDistro): void;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to the terminal.
@@ -156,38 +170,51 @@ export interface ITerminalService {
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
-	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
+	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): Promise<ITerminalLaunchError | undefined>;
+	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
+}
+
+/**
+ * Similar to xterm.js' ILinkProvider but using promises and hides xterm.js internals (like buffer
+ * positions, decorations, etc.) from the rest of vscode. This is the interface to use for
+ * workbench integrations.
+ */
+export interface ITerminalExternalLinkProvider {
+	provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined>;
+}
+
+export interface ITerminalLink {
+	/** The startIndex of the link in the line. */
+	startIndex: number;
+	/** The length of the link in the line. */
+	length: number;
+	/** The descriptive label for what the link does when activated. */
+	label?: string;
+	/**
+	 * Activates the link.
+	 * @param text The text of the link.
+	 */
+	activate(text: string): void;
 }
 
 export interface ISearchOptions {
-	/**
-	 * Whether the find should be done as a regex.
-	 */
+	/** Whether the find should be done as a regex. */
 	regex?: boolean;
-	/**
-	 * Whether only whole words should match.
-	 */
+	/** Whether only whole words should match. */
 	wholeWord?: boolean;
-	/**
-	 * Whether find should pay attention to case.
-	 */
+	/** Whether find should pay attention to case. */
 	caseSensitive?: boolean;
-	/**
-	 * Whether the search should start at the current search position (not the next row)
-	 */
+	/** Whether the search should start at the current search position (not the next row). */
 	incremental?: boolean;
 }
 
 export enum WindowsShellType {
-	CommandPrompt,
-	PowerShell,
-	Wsl,
-	GitBash
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
 }
 export type TerminalShellType = WindowsShellType | undefined;
-
-export const LINK_INTERCEPT_THRESHOLD = 3000;
 
 export interface ITerminalBeforeHandleLinkEvent {
 	terminal?: ITerminalInstance;
@@ -196,8 +223,6 @@ export interface ITerminalBeforeHandleLinkEvent {
 	/** Call with whether the link was handled by the interceptor */
 	resolve(wasHandled: boolean): void;
 }
-
-export type TerminalLinkHandlerCallback = (e: ITerminalBeforeHandleLinkEvent) => Promise<boolean>;
 
 export interface ITerminalInstance {
 	/**
@@ -229,6 +254,7 @@ export interface ITerminalInstance {
 
 	onFocused: Event<ITerminalInstance>;
 	onProcessIdReady: Event<ITerminalInstance>;
+	onLinksReady: Event<ITerminalInstance>;
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 	onDimensionsChanged: Event<void>;
 	onMaximumDimensionsChanged: Event<void>;
@@ -260,13 +286,19 @@ export interface ITerminalInstance {
 	 */
 	onExit: Event<number | undefined>;
 
-	/**
-	 * Attach a listener to intercept and handle link clicks in the terminal.
-	 */
-	onBeforeHandleLink: Event<ITerminalBeforeHandleLinkEvent>;
-
 	readonly exitCode: number | undefined;
 
+	readonly areLinksReady: boolean;
+
+	/**
+	 * Returns an array of data events that have fired within the first 10 seconds. If this is
+	 * called 10 seconds after the terminal has existed the result will be undefined. This is useful
+	 * when objects that depend on the data events have delayed initialization, like extension
+	 * hosts.
+	 */
+	readonly initialDataEvents: string[] | undefined;
+
+	/** A promise that resolves when the terminal's pty/process have been created. */
 	processReady: Promise<void>;
 
 	/**
@@ -312,6 +344,11 @@ export interface ITerminalInstance {
 	readonly navigationMode: INavigationMode | undefined;
 
 	/**
+	 * Shows the environment information hover if the widget exists.
+	 */
+	showEnvironmentInfoHover(): void;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
@@ -325,26 +362,6 @@ export interface ITerminalInstance {
 	 * Forces the terminal to redraw its viewport.
 	 */
 	forceRedraw(): void;
-
-	/**
-	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
-	 * @param regex The regular expression the search for, specifically this searches the
-	 * textContent of the rows. You will want to use \s to match a space ' ' character for example.
-	 * @param handler The callback when the link is called.
-	 * @param matchIndex The index of the link from the regex.match(html) call. This defaults to 0
-	 * (for regular expressions without capture groups).
-	 * @param validationCallback A callback which can be used to validate the link after it has been
-	 * added to the DOM.
-	 * @return The ID of the new matcher, this can be used to deregister.
-	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
-
-	/**
-	 * Deregisters a link matcher if it has been registered.
-	 * @param matcherId The link matcher's ID (returned after register)
-	 * @return Whether a link matcher was found and deregistered.
-	 */
-	deregisterLinkMatcher(matcherId: number): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -465,6 +482,12 @@ export interface ITerminalInstance {
 	reuseTerminal(shell: IShellLaunchConfig): void;
 
 	/**
+	 * Relaunches the terminal, killing it and reusing the launch config used initially. Any
+	 * environment variable changes will be recalculated when this happens.
+	 */
+	relaunch(): void;
+
+	/**
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventSource: TitleEventSource): void;
@@ -484,4 +507,9 @@ export interface ITerminalInstance {
 
 	getInitialCwd(): Promise<string>;
 	getCwd(): Promise<string>;
+
+	/**
+	 * @throws when called before xterm.js is ready.
+	 */
+	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 }

@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -86,23 +86,6 @@ steps:
     exec { yarn postinstall }
   displayName: Run postinstall scripts
   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-  env:
-    OSS_GITHUB_ID: "a5d3c261b032765a78de"
-    OSS_GITHUB_SECRET: $(oss-github-client-secret)
-    INSIDERS_GITHUB_ID: "31f02627809389d9f111"
-    INSIDERS_GITHUB_SECRET: $(insiders-github-client-secret)
-    STABLE_GITHUB_ID: "baa8a44b5e861d918709"
-    STABLE_GITHUB_SECRET: $(stable-github-client-secret)
-    EXPLORATION_GITHUB_ID: "94e8376d3a90429aeaea"
-    EXPLORATION_GITHUB_SECRET: $(exploration-github-client-secret)
-    VSO_GITHUB_ID: "3d4be8f37a0325b5817d"
-    VSO_GITHUB_SECRET: $(vso-github-client-secret)
-    VSO_PPE_GITHUB_ID: "eabf35024dc2e891a492"
-    VSO_PPE_GITHUB_SECRET: $(vso-ppe-github-client-secret)
-    VSO_DEV_GITHUB_ID: "84383ebd8a7c5f5efc5c"
-    VSO_DEV_GITHUB_SECRET: $(vso-dev-github-client-secret)
-    GITHUB_APP_ID: "Iv1.ae51e546bef24ff1"
-    GITHUB_APP_SECRET: $(github-app-client-secret)
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
@@ -132,7 +115,7 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
-    exec { yarn test-browser --build --browser chromium }
+    exec { yarn test-browser --build --browser chromium --browser firefox --tfs "Browser Unit Tests" }
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -152,6 +135,13 @@ steps:
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
     $ErrorActionPreference = "Stop"
+    exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
+  displayName: Run integration tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
     $AppRoot = "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
     $AppProductJson = Get-Content -Raw -Path "$AppRoot\resources\app\product.json" | ConvertFrom-Json
     $AppNameShort = $AppProductJson.nameShort
@@ -159,12 +149,20 @@ steps:
   displayName: Run remote integration tests (Electron)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
-- powershell: |
-    . build/azure-pipelines/win32/exec.ps1
-    $ErrorActionPreference = "Stop"
-    exec { $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\vscode-reh-web-win32-$(VSCODE_ARCH)"; .\resources\server\test\test-web-integration.bat --browser firefox }
-  displayName: Run integration tests (Browser)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: crash-dump-windows-$(VSCODE_ARCH)
+    targetPath: .build\crashes
+  displayName: 'Publish Crash Reports'
+  continueOnError: true
+  condition: failed()
+
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
@@ -227,7 +225,7 @@ steps:
     restoreSolution: 'build\azure-pipelines\win32\ESRPClient\packages.config'
     feedsToUse: config
     nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
-    externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
+    externalFeedCredentials: 'ESRP Nuget'
     restoreDirectory: packages
 
 - task: ESRPImportCertTask@1
@@ -245,7 +243,6 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
     $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-    $env:VSCODE_HOCKEYAPP_TOKEN = "$(vscode-hockeyapp-token)"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     .\build\azure-pipelines\win32\publish.ps1
   displayName: Publish

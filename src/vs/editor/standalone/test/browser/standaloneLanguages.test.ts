@@ -12,7 +12,8 @@ import { TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { ILineTokens, IToken, TokenizationSupport2Adapter, TokensProvider } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { IFileIconTheme, IColorTheme, LIGHT, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IFileIconTheme, IColorTheme, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 suite('TokenizationSupport2Adapter', () => {
 
@@ -33,7 +34,7 @@ suite('TokenizationSupport2Adapter', () => {
 	}
 
 	class MockThemeService implements IStandaloneThemeService {
-		_serviceBrand: undefined;
+		declare readonly _serviceBrand: undefined;
 		public setTheme(themeName: string): string {
 			throw new Error('Not implemented');
 		}
@@ -42,11 +43,13 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 		public getColorTheme(): IStandaloneTheme {
 			return {
+				label: 'mock',
+
 				tokenTheme: new MockTokenTheme(),
 
-				themeName: LIGHT,
+				themeName: ColorScheme.LIGHT,
 
-				type: LIGHT,
+				type: ColorScheme.LIGHT,
 
 				getColor: (color: ColorIdentifier, useDefault?: boolean): Color => {
 					throw new Error('Not implemented');

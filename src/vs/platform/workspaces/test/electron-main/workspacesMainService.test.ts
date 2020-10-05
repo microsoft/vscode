@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { WorkspacesMainService, IStoredWorkspace } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { WORKSPACE_EXTENSION, IRawFileWorkspaceFolder, IWorkspaceFolderCreationData, IRawUriWorkspaceFolder, rewriteWorkspaceFileForNewLocation, IWorkspaceIdentifier, IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
@@ -19,12 +19,12 @@ import { isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IBackupMainService, IWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 
 export class TestDialogMainService implements IDialogMainService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	pickFileFolder(options: INativeOpenDialogOptions, window?: Electron.BrowserWindow | undefined): Promise<string[] | undefined> {
 		throw new Error('Method not implemented.');
@@ -57,7 +57,7 @@ export class TestDialogMainService implements IDialogMainService {
 
 export class TestBackupMainService implements IBackupMainService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	isHotExitEnabled(): boolean {
 		throw new Error('Method not implemented.');
@@ -108,7 +108,7 @@ suite('WorkspacesMainService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'workspacesservice');
 	const untitledWorkspacesHomePath = path.join(parentDir, 'Workspaces');
 
-	class TestEnvironmentService extends EnvironmentService {
+	class TestEnvironmentService extends NativeEnvironmentService {
 		get untitledWorkspacesHome(): URI {
 			return URI.file(untitledWorkspacesHomePath);
 		}
@@ -138,7 +138,7 @@ suite('WorkspacesMainService', () => {
 		return service.createUntitledWorkspaceSync(folders.map((folder, index) => ({ uri: URI.file(folder), name: names ? names[index] : undefined } as IWorkspaceFolderCreationData)));
 	}
 
-	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS), process.execPath);
+	const environmentService = new TestEnvironmentService(parseArgs(process.argv, OPTIONS));
 	const logService = new NullLogService();
 
 	let service: WorkspacesMainService;

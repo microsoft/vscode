@@ -22,13 +22,14 @@
         "extensions": [
           ".json",
           ".bowerrc",
-          ".jshintrc",
           ".jscsrc",
-          ".swcrc",
           ".webmanifest",
           ".js.map",
           ".css.map",
-          ".har"
+          ".ts.map",
+          ".har",
+          ".jslintrc",
+          ".jsonld"
         ],
         "filenames": [
           "composer.lock",
@@ -47,11 +48,14 @@
           "JSON with Comments"
         ],
         "extensions": [
-          ".hintrc",
-          ".babelrc",
           ".jsonc",
           ".eslintrc",
-          ".eslintrc.json"
+          ".eslintrc.json",
+          ".jsfmtrc",
+          ".jshintrc",
+          ".swcrc",
+          ".hintrc",
+          ".babelrc"
         ],
         "configuration": "./language-configuration.json"
       }

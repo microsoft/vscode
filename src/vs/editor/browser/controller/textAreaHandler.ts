@@ -30,6 +30,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalPosition | null;
@@ -117,14 +118,16 @@ export class TextAreaHandler extends ViewPart {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName('inputarea');
+		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
 		this.textArea.setAttribute('autocomplete', 'off');
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 		this.textArea.setAttribute('role', 'textbox');
+		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
@@ -176,14 +179,7 @@ export class TextAreaHandler extends ViewPart {
 					mode
 				};
 			},
-
 			getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
-
-				if (browser.isIPad) {
-					// Do not place anything in the textarea for the iPad
-					return TextAreaState.EMPTY;
-				}
-
 				if (this._accessibilitySupport === AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
 					// On OSX, we write the character before the cursor to allow for "long-press" composition
@@ -233,37 +229,36 @@ export class TextAreaHandler extends ViewPart {
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
-			this._viewController.cut('keyboard');
+			this._viewController.cut();
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
 			if (e.replaceCharCnt) {
-				this._viewController.replacePreviousChar('keyboard', e.text, e.replaceCharCnt);
+				this._viewController.replacePreviousChar(e.text, e.replaceCharCnt);
 			} else {
-				this._viewController.type('keyboard', e.text);
+				this._viewController.type(e.text);
 			}
 		}));
 
 		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
-			this._viewController.setSelection('keyboard', modelSelection);
+			this._viewController.setSelection(modelSelection);
 		}));
 
 		this._register(this._textAreaInput.onCompositionStart((e) => {
 			const lineNumber = this._selections[0].startLineNumber;
 			const column = this._selections[0].startColumn - (e.moveOneCharacterLeft ? 1 : 0);
 
-			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
+			this._context.model.revealRange(
 				'keyboard',
-				new Range(lineNumber, column, lineNumber, column),
-				null,
-				viewEvents.VerticalRevealType.Simple,
 				true,
+				new Range(lineNumber, column, lineNumber, column),
+				viewEvents.VerticalRevealType.Simple,
 				ScrollType.Immediate
-			));
+			);
 
 			// Find range pixel position
 			const visibleRange = this._viewHelper.visibleRangeForPositionRelativeToEditor(lineNumber, column);
@@ -278,9 +273,9 @@ export class TextAreaHandler extends ViewPart {
 			}
 
 			// Show the textarea
-			this.textArea.setClassName('inputarea ime-input');
+			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
-			this._viewController.compositionStart('keyboard');
+			this._viewController.compositionStart();
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
@@ -300,16 +295,16 @@ export class TextAreaHandler extends ViewPart {
 			this._visibleTextArea = null;
 			this._render();
 
-			this.textArea.setClassName('inputarea');
-			this._viewController.compositionEnd('keyboard');
+			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
+			this._viewController.compositionEnd();
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(true));
+			this._context.model.setHasFocus(true);
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
-			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(false));
+			this._context.model.setHasFocus(false);
 		}));
 	}
 
@@ -381,6 +376,7 @@ export class TextAreaHandler extends ViewPart {
 		this._emptySelectionClipboard = options.get(EditorOption.emptySelectionClipboard);
 		this._copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
+		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
 		if (platform.isWeb && e.hasChanged(EditorOption.readOnly)) {
 			if (options.get(EditorOption.readOnly)) {

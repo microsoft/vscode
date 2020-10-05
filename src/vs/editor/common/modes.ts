@@ -8,7 +8,6 @@ import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isObject } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -19,6 +18,7 @@ import { LanguageFeatureRegistry } from 'vs/editor/common/modes/languageFeatureR
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { iconRegistry, Codicon } from 'vs/base/common/codicons';
 
 /**
  * Open ended enum at runtime
@@ -268,6 +268,7 @@ export interface HoverProvider {
 /**
  * An evaluatable expression represents additional information for an expression in a document. Evaluatable expression are
  * evaluated by a debugger or runtime and their result is rendered in a tooltip-like widget.
+ * @internal
  */
 export interface EvaluatableExpression {
 	/**
@@ -283,6 +284,7 @@ export interface EvaluatableExpression {
 /**
  * The hover provider interface defines the contract between extensions and
  * the [hover](https://code.visualstudio.com/docs/editor/intellisense)-feature.
+ * @internal
  */
 export interface EvaluatableExpressionProvider {
 	/**
@@ -358,8 +360,14 @@ export const completionKindToCssClass = (function () {
 	data[CompletionItemKind.User] = 'account';
 	data[CompletionItemKind.Issue] = 'issues';
 
-	return function (kind: CompletionItemKind) {
-		return data[kind] || 'property';
+	return function (kind: CompletionItemKind): string {
+		const name = data[kind];
+		let codicon = name && iconRegistry.get(name);
+		if (!codicon) {
+			console.info('No codicon found for CompletionItemKind ' + kind);
+			codicon = Codicon.symbolProperty;
+		}
+		return codicon.classNames;
 	};
 })();
 
@@ -601,7 +609,7 @@ export interface CompletionItemProvider {
 	 *
 	 * The editor will only resolve a completion item once.
 	 */
-	resolveCompletionItem?(model: model.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 
 export interface CodeAction {
@@ -647,6 +655,11 @@ export interface CodeActionProvider {
 	 * Provide commands for the given document and range.
 	 */
 	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<CodeActionList>;
+
+	/**
+	 * Given a code action fill in the edit. Will only invoked when missing.
+	 */
+	resolveCodeAction?(codeAction: CodeAction, token: CancellationToken): ProviderResult<CodeAction>;
 
 	/**
 	 * Optional list of CodeActionKinds that this provider returns.
@@ -697,6 +710,12 @@ export interface SignatureInformation {
 	 * The parameters of this signature.
 	 */
 	parameters: ParameterInformation[];
+	/**
+	 * Index of the active parameter.
+	 *
+	 * If provided, this is used in place of `SignatureHelp.activeSignature`.
+	 */
+	activeParameter?: number;
 }
 /**
  * Signature help represents the signature of something
@@ -800,12 +819,12 @@ export interface DocumentHighlightProvider {
  */
 export interface OnTypeRenameProvider {
 
-	stopPattern?: RegExp;
+	wordPattern?: RegExp;
 
 	/**
 	 * Provide a list of ranges that can be live-renamed together.
 	 */
-	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<IRange[]>;
+	provideOnTypeRenameRanges(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<{ ranges: IRange[]; wordPattern?: RegExp; }>;
 }
 
 /**
@@ -1037,7 +1056,13 @@ export namespace SymbolKinds {
 	 * @internal
 	 */
 	export function toCssClassName(kind: SymbolKind, inline?: boolean): string {
-		return `codicon ${inline ? 'inline' : 'block'} codicon-symbol-${byKind.get(kind) || 'property'}`;
+		const symbolName = byKind.get(kind);
+		let codicon = symbolName && iconRegistry.get('symbol-' + symbolName);
+		if (!codicon) {
+			console.info('No codicon found for SymbolKind ' + kind);
+			codicon = Codicon.symbolProperty;
+		}
+		return `${inline ? 'inline' : 'block'} ${codicon.classNames}`;
 	}
 }
 
@@ -1318,29 +1343,6 @@ export class FoldingRangeKind {
 	}
 }
 
-/**
- * @internal
- */
-export namespace WorkspaceFileEdit {
-	/**
-	 * @internal
-	 */
-	export function is(thing: any): thing is WorkspaceFileEdit {
-		return isObject(thing) && (Boolean((<WorkspaceFileEdit>thing).newUri) || Boolean((<WorkspaceFileEdit>thing).oldUri));
-	}
-}
-
-/**
- * @internal
- */
-export namespace WorkspaceTextEdit {
-	/**
-	 * @internal
-	 */
-	export function is(thing: any): thing is WorkspaceTextEdit {
-		return isObject(thing) && URI.isUri((<WorkspaceTextEdit>thing).resource) && isObject((<WorkspaceTextEdit>thing).edit);
-	}
-}
 
 export interface WorkspaceEditMetadata {
 	needsConfirmation: boolean;
@@ -1392,17 +1394,29 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	getAccessToken(): Thenable<string>;
-	accountName: string;
+	accessToken: string;
+	account: {
+		label: string;
+		id: string;
+	}
+	scopes: ReadonlyArray<string>;
 }
 
 /**
  * @internal
  */
 export interface AuthenticationSessionsChangeEvent {
-	added: string[];
-	removed: string[];
-	changed: string[];
+	added: ReadonlyArray<string>;
+	removed: ReadonlyArray<string>;
+	changed: ReadonlyArray<string>;
+}
+
+/**
+ * @internal
+ */
+export interface AuthenticationProviderInformation {
+	id: string;
+	label: string;
 }
 
 export interface Command {
@@ -1481,11 +1495,13 @@ export interface CommentThread {
 	comments: Comment[] | undefined;
 	onDidChangeComments: Event<Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
+	readOnly: boolean;
 	input?: CommentInput;
 	onDidChangeInput: Event<CommentInput | undefined>;
 	onDidChangeRange: Event<IRange>;
 	onDidChangeLabel: Event<string | undefined>;
 	onDidChangeCollasibleState: Event<CommentThreadCollapsibleState | undefined>;
+	onDidChangeReadOnly: Event<boolean>;
 	isDisposed: boolean;
 }
 
@@ -1507,6 +1523,21 @@ export interface CommentReaction {
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface CommentOptions {
+	/**
+	 * An optional string to show on the comment input box when it's collapsed.
+	 */
+	prompt?: string;
+
+	/**
+	 * An optional string to show as placeholder in the comment input box when it's focused.
+	 */
+	placeHolder?: string;
 }
 
 /**
@@ -1565,7 +1596,7 @@ export interface IWebviewPortMapping {
 export interface IWebviewOptions {
 	readonly enableScripts?: boolean;
 	readonly enableCommandUris?: boolean;
-	readonly localResourceRoots?: ReadonlyArray<URI>;
+	readonly localResourceRoots?: ReadonlyArray<UriComponents>;
 	readonly portMapping?: ReadonlyArray<IWebviewPortMapping>;
 }
 

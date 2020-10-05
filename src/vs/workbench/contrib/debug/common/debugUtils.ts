@@ -8,6 +8,7 @@ import { IDebuggerContribution, IDebugSession, IConfigPresentation } from 'vs/wo
 import { URI as uri } from 'vs/base/common/uri';
 import { isAbsolute } from 'vs/base/common/path';
 import { deepClone } from 'vs/base/common/objects';
+import { Schemas } from 'vs/base/common/network';
 
 const _formatPIIRegexp = /{([^}]+)}/g;
 
@@ -23,8 +24,24 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 	});
 }
 
+/**
+ * Filters exceptions (keys marked with "!") from the given object. Used to
+ * ensure exception data is not sent on web remotes, see #97628.
+ */
+export function filterExceptionsFromTelemetry<T extends { [key: string]: unknown }>(data: T): Partial<T> {
+	const output: Partial<T> = {};
+	for (const key of Object.keys(data) as (keyof T & string)[]) {
+		if (!key.startsWith('!')) {
+			output[key] = data[key];
+		}
+	}
+
+	return output;
+}
+
+
 export function isSessionAttach(session: IDebugSession): boolean {
-	return !session.parentSession && session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
+	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
 }
 
 /**
@@ -129,7 +146,7 @@ function uriToString(source: PathContainer): string | undefined {
 	if (typeof source.path === 'object') {
 		const u = uri.revive(source.path);
 		if (u) {
-			if (u.scheme === 'file') {
+			if (u.scheme === Schemas.file) {
 				return u.fsPath;
 			} else {
 				return u.toString();
@@ -219,7 +236,7 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			break;
 		case 'response':
 			const response = <DebugProtocol.Response>msg;
-			if (response.success) {
+			if (response.success && response.body) {
 				switch (response.command) {
 					case 'stackTrace':
 						(<DebugProtocol.StackTraceResponse>response).body.stackFrames.forEach(frame => fixSourcePath(false, frame.source));

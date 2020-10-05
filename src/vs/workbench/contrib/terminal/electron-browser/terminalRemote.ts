@@ -15,7 +15,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 
 export function registerRemoteContributions() {
 	const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CreateNewLocalTerminalAction, CreateNewLocalTerminalAction.ID, CreateNewLocalTerminalAction.LABEL), 'Terminal: Create New Integrated Terminal (Local)', TERMINAL_ACTION_CATEGORY);
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(CreateNewLocalTerminalAction), 'Terminal: Create New Integrated Terminal (Local)', TERMINAL_ACTION_CATEGORY);
 }
 
 export class CreateNewLocalTerminalAction extends Action {
@@ -29,7 +29,7 @@ export class CreateNewLocalTerminalAction extends Action {
 		super(id, label);
 	}
 
-	public run(event?: any): Promise<any> {
+	public run(): Promise<any> {
 		const instance = this.terminalService.createTerminal({ cwd: URI.file(homedir()) });
 		if (!instance) {
 			return Promise.resolve(undefined);

@@ -61,11 +61,12 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 		const name = manager.selectedConfiguration.name || '';
 		const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
 		if (nameAndLaunchPresent) {
-			text = '$(play) ' + (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
+			text = (manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch!.name})` : name);
 		}
 
 		return {
-			text: text,
+			text: '$(debug-alt-small) ' + text,
+			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
 			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),
 			command: 'workbench.action.debug.selectandstart'
 		};

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action } from 'vs/base/common/actions';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS } from 'vs/base/common/platform';
@@ -27,15 +26,17 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
-import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
+import { Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { isFullscreen } from 'vs/base/browser/browser';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 export abstract class MenubarControl extends Disposable {
 
@@ -231,7 +232,7 @@ export abstract class MenubarControl extends Disposable {
 			});
 		});
 
-		return assign(ret, { uri: uri });
+		return Object.assign(ret, { uri });
 	}
 
 	private notifyUserOfCustomMenubarAccessibility(): void {
@@ -312,6 +313,8 @@ export class CustomMenubarControl extends MenubarControl {
 		});
 
 		this.registerListeners();
+
+		this.registerActions();
 
 		registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 			const menubarActiveWindowFgColor = theme.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
@@ -410,6 +413,33 @@ export class CustomMenubarControl extends MenubarControl {
 
 	protected doUpdateMenubar(firstTime: boolean): void {
 		this.setupCustomMenubar(firstTime);
+	}
+
+	private registerActions(): void {
+		const that = this;
+
+		if (isWeb) {
+			this._register(registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.actions.menubar.focus`,
+						title: { value: nls.localize('focusMenu', "Focus Application Menu"), original: 'Focus Application Menu' },
+						keybinding: {
+							primary: KeyCode.F10,
+							weight: KeybindingWeight.WorkbenchContrib,
+							when: IsWebContext
+						},
+						f1: true
+					});
+				}
+
+				async run(): Promise<void> {
+					if (that.menubar) {
+						that.menubar.toggleFocus();
+					}
+				}
+			}));
+		}
 	}
 
 	private getUpdateAction(): IAction | null {
@@ -568,7 +598,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 						const submenuActions: SubmenuAction[] = [];
 						updateActions(submenu, submenuActions, topLevelTitle);
-						target.push(new SubmenuAction(mnemonicMenuLabel(action.label), submenuActions));
+						target.push(new SubmenuAction(action.id, mnemonicMenuLabel(action.label), submenuActions));
 					} else {
 						action.label = mnemonicMenuLabel(this.calculateActionLabel(action));
 						target.push(action);
@@ -644,9 +674,9 @@ export class CustomMenubarControl extends MenubarControl {
 
 		if (this.container) {
 			if (hasFocus) {
-				DOM.removeClass(this.container, 'inactive');
+				this.container.classList.remove('inactive');
 			} else {
-				DOM.addClass(this.container, 'inactive');
+				this.container.classList.add('inactive');
 				if (this.menubar) {
 					this.menubar.blur();
 				}
@@ -702,5 +732,11 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		this.menubar?.update(this.getMenuBarOptions());
+	}
+
+	toggleFocus() {
+		if (this.menubar) {
+			this.menubar.toggleFocus();
+		}
 	}
 }

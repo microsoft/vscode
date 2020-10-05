@@ -109,8 +109,8 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 
 	const expectedLocations: { [key: string]: string[] } = {
 		'Command Prompt': [`${system32Path}\\cmd.exe`],
-		PowerShell: [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
-		'PowerShell Core': [await getShellPathFromRegistry('pwsh')],
+		'Windows PowerShell': [`${system32Path}\\WindowsPowerShell\\v1.0\\powershell.exe`],
+		'PowerShell': [await getShellPathFromRegistry('pwsh')],
 		'WSL Bash': [`${system32Path}\\${useWSLexe ? 'wsl.exe' : 'bash.exe'}`],
 		'Git Bash': [
 			`${process.env['ProgramW6432']}\\Git\\bin\\bash.exe`,
@@ -125,7 +125,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 		// 	`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 		// ]
 	};
-	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
+	const promises: Promise<IShellDefinition | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
 	const shells = await Promise.all(promises);
 	return coalesce(shells);

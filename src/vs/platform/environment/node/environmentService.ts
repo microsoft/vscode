@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEnvironmentService, ParsedArgs, IDebugParams, IExtensionHostDebugParams, BACKUPS } from 'vs/platform/environment/common/environment';
+import { IDebugParams, IExtensionHostDebugParams, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
+import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
@@ -12,85 +13,23 @@ import * as resources from 'vs/base/common/resources';
 import { memoize } from 'vs/base/common/decorators';
 import product from 'vs/platform/product/common/product';
 import { toLocalISOString } from 'vs/base/common/date';
-import { isWindows, isLinux } from 'vs/base/common/platform';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { isWindows, Platform, platform } from 'vs/base/common/platform';
+import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
-// Read this before there's any chance it is overwritten
-// Related to https://github.com/Microsoft/vscode/issues/30624
-export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+export class NativeEnvironmentService implements INativeEnvironmentService {
 
-function getNixIPCHandle(userDataPath: string, type: string): string {
-	const vscodePortable = process.env['VSCODE_PORTABLE'];
+	declare readonly _serviceBrand: undefined;
 
-	if (xdgRuntimeDir && !vscodePortable) {
-		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
-		return path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
-	}
-
-	return path.join(userDataPath, `${product.version}-${type}.sock`);
-}
-
-function getWin32IPCHandle(userDataPath: string, type: string): string {
-	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
-
-	return `\\\\.\\pipe\\${scope}-${product.version}-${type}-sock`;
-}
-
-function getIPCHandle(userDataPath: string, type: string): string {
-	if (isWindows) {
-		return getWin32IPCHandle(userDataPath, type);
-	}
-
-	return getNixIPCHandle(userDataPath, type);
-}
-
-function getCLIPath(execPath: string, appRoot: string, isBuilt: boolean): string {
-
-	// Windows
-	if (isWindows) {
-		if (isBuilt) {
-			return path.join(path.dirname(execPath), 'bin', `${product.applicationName}.cmd`);
-		}
-
-		return path.join(appRoot, 'scripts', 'code-cli.bat');
-	}
-
-	// Linux
-	if (isLinux) {
-		if (isBuilt) {
-			return path.join(path.dirname(execPath), 'bin', `${product.applicationName}`);
-		}
-
-		return path.join(appRoot, 'scripts', 'code-cli.sh');
-	}
-
-	// macOS
-	if (isBuilt) {
-		return path.join(appRoot, 'bin', 'code');
-	}
-
-	return path.join(appRoot, 'scripts', 'code-cli.sh');
-}
-
-export class EnvironmentService implements IEnvironmentService {
-
-	_serviceBrand: undefined;
-
-	get args(): ParsedArgs { return this._args; }
+	get args(): NativeParsedArgs { return this._args; }
 
 	@memoize
-	get appRoot(): string { return path.dirname(getPathFromAmdModule(require, '')); }
-
-	get execPath(): string { return this._execPath; }
-
-	@memoize
-	get cliPath(): string { return getCLIPath(this.execPath, this.appRoot, this.isBuilt); }
+	get appRoot(): string { return path.dirname(FileAccess.asFileUri('', require).fsPath); }
 
 	readonly logsPath: string;
 
 	@memoize
-	get userHome(): string { return os.homedir(); }
+	get userHome(): URI { return URI.file(os.homedir()); }
 
 	@memoize
 	get userDataPath(): string {
@@ -106,6 +45,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsHome(): URI { return URI.file(path.join(this.userDataPath, 'User')); }
 
 	@memoize
+	get tmpDir(): URI { return URI.file(os.tmpdir()); }
+
+	@memoize
 	get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	@memoize
@@ -118,13 +60,16 @@ export class EnvironmentService implements IEnvironmentService {
 	get userDataSyncLogResource(): URI { return URI.file(path.join(this.logsPath, 'userDataSync.log')); }
 
 	@memoize
+	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
+
+	@memoize
 	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }
 
 	@memoize
-	get globalStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'globalStorage'); }
+	get globalStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'globalStorage'); }
 
 	@memoize
-	get workspaceStorageHome(): string { return path.join(this.appSettingsHome.fsPath, 'workspaceStorage'); }
+	get workspaceStorageHome(): URI { return URI.joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
 	get keybindingsResource(): URI { return resources.joinPath(this.userRoamingDataHome, 'keybindings.json'); }
@@ -139,7 +84,7 @@ export class EnvironmentService implements IEnvironmentService {
 			return URI.file(path.join(vscodePortable, 'argv.json'));
 		}
 
-		return URI.file(path.join(this.userHome, product.dataFolderName, 'argv.json'));
+		return resources.joinPath(this.userHome, product.dataFolderName, 'argv.json');
 	}
 
 	@memoize
@@ -149,10 +94,10 @@ export class EnvironmentService implements IEnvironmentService {
 	get isExtensionDevelopment(): boolean { return !!this._args.extensionDevelopmentPath; }
 
 	@memoize
-	get backupHome(): URI { return URI.file(path.join(this.userDataPath, BACKUPS)); }
+	get backupHome(): string { return path.join(this.userDataPath, 'Backups'); }
 
 	@memoize
-	get backupWorkspacesPath(): string { return path.join(this.backupHome.fsPath, 'workspaces.json'); }
+	get backupWorkspacesPath(): string { return path.join(this.backupHome, 'workspaces.json'); }
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return URI.file(path.join(this.userDataPath, 'Workspaces')); }
@@ -166,7 +111,16 @@ export class EnvironmentService implements IEnvironmentService {
 		if (fromArgs) {
 			return fromArgs;
 		} else {
-			return path.normalize(path.join(getPathFromAmdModule(require, ''), '..', 'extensions'));
+			return path.normalize(path.join(FileAccess.asFileUri('', require).fsPath, '..', 'extensions'));
+		}
+	}
+
+	get extensionsDownloadPath(): string {
+		const fromArgs = parsePathArg(this._args['extensions-download-dir'], process);
+		if (fromArgs) {
+			return fromArgs;
+		} else {
+			return path.join(this.userDataPath, 'CachedExtensionVSIXs');
 		}
 	}
 
@@ -188,7 +142,7 @@ export class EnvironmentService implements IEnvironmentService {
 			return path.join(vscodePortable, 'extensions');
 		}
 
-		return path.join(this.userHome, product.dataFolderName, 'extensions');
+		return resources.joinPath(this.userHome, product.dataFolderName, 'extensions').fsPath;
 	}
 
 	@memoize
@@ -233,26 +187,12 @@ export class EnvironmentService implements IEnvironmentService {
 		return false;
 	}
 
-	get extensionEnabledProposedApi(): string[] | undefined {
-		if (Array.isArray(this.args['enable-proposed-api'])) {
-			return this.args['enable-proposed-api'];
-		}
-
-		if ('enable-proposed-api' in this.args) {
-			return [];
-		}
-
-		return undefined;
-	}
-
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
-	@memoize
-	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }
-	get log(): string | undefined { return this._args.log; }
+	get logLevel(): string | undefined { return this._args.log; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
@@ -267,12 +207,17 @@ export class EnvironmentService implements IEnvironmentService {
 	get serviceMachineIdResource(): URI { return resources.joinPath(URI.file(this.userDataPath), 'machineid'); }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
-	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
+	get crashReporterId(): string | undefined { return this._args['crash-reporter-id']; }
+	get crashReporterDirectory(): string | undefined { return this._args['crash-reporter-directory']; }
 
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) {
+	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
+
+	get sandbox(): boolean { return !!this._args['__sandbox']; }
+
+	constructor(private _args: NativeParsedArgs) {
 		if (!process.env['VSCODE_LOGS']) {
 			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
 			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
@@ -282,11 +227,56 @@ export class EnvironmentService implements IEnvironmentService {
 	}
 }
 
-export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/microsoft/vscode/issues/30624
+export const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+
+const safeIpcPathLengths: { [platform: number]: number } = {
+	[Platform.Linux]: 107,
+	[Platform.Mac]: 103
+};
+
+function getNixIPCHandle(userDataPath: string, type: string): string {
+	const vscodePortable = process.env['VSCODE_PORTABLE'];
+
+	let result: string;
+	if (xdgRuntimeDir && !vscodePortable) {
+		const scope = crypto.createHash('md5').update(userDataPath).digest('hex').substr(0, 8);
+		result = path.join(xdgRuntimeDir, `vscode-${scope}-${product.version}-${type}.sock`);
+	} else {
+		result = path.join(userDataPath, `${product.version}-${type}.sock`);
+	}
+
+	const limit = safeIpcPathLengths[platform];
+	if (typeof limit === 'number') {
+		if (result.length >= limit) {
+			// https://nodejs.org/api/net.html#net_identifying_paths_for_ipc_connections
+			console.warn(`WARNING: IPC handle "${result}" is longer than ${limit} chars, try a shorter --user-data-dir`);
+		}
+	}
+
+	return result;
+}
+
+function getWin32IPCHandle(userDataPath: string, type: string): string {
+	const scope = crypto.createHash('md5').update(userDataPath).digest('hex');
+
+	return `\\\\.\\pipe\\${scope}-${product.version}-${type}-sock`;
+}
+
+function getIPCHandle(userDataPath: string, type: string): string {
+	if (isWindows) {
+		return getWin32IPCHandle(userDataPath, type);
+	}
+
+	return getNixIPCHandle(userDataPath, type);
+}
+
+export function parseExtensionHostPort(args: NativeParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
 	return parseDebugPort(args['inspect-extensions'], args['inspect-brk-extensions'], 5870, isBuild, args.debugId);
 }
 
-export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParams {
+export function parseSearchPort(args: NativeParsedArgs, isBuild: boolean): IDebugParams {
 	return parseDebugPort(args['inspect-search'], args['inspect-brk-search'], 5876, isBuild);
 }
 
@@ -314,6 +304,6 @@ export function parsePathArg(arg: string | undefined, process: NodeJS.Process): 
 	return path.resolve(process.env['VSCODE_CWD'] || process.cwd(), arg);
 }
 
-export function parseUserDataDir(args: ParsedArgs, process: NodeJS.Process): string {
+export function parseUserDataDir(args: NativeParsedArgs, process: NodeJS.Process): string {
 	return parsePathArg(args['user-data-dir'], process) || path.resolve(paths.getDefaultUserDataPath(process.platform));
 }

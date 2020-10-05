@@ -8,19 +8,22 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IDebugService, VIEWLET_ID, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class DebugProgressContribution implements IWorkbenchContribution {
 
 	private toDispose: IDisposable[] = [];
 
 	constructor(
-		@IDebugService private readonly debugService: IDebugService,
-		@IProgressService private readonly progressService: IProgressService
+		@IDebugService debugService: IDebugService,
+		@IProgressService progressService: IProgressService,
+		@IViewsService viewsService: IViewsService
 	) {
-		let progressListener: IDisposable;
-		const onFocusSession = (session: IDebugSession | undefined) => {
+		let progressListener: IDisposable | undefined;
+		const listenOnProgress = (session: IDebugSession | undefined) => {
 			if (progressListener) {
 				progressListener.dispose();
+				progressListener = undefined;
 			}
 			if (session) {
 				progressListener = session.onDidProgressStart(async progressStartEvent => {
@@ -33,9 +36,11 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 							});
 					});
 
-					this.progressService.withProgress({ location: VIEWLET_ID }, () => promise);
-					const source = this.debugService.getConfigurationManager().getDebuggerLabel(session);
-					this.progressService.withProgress({
+					if (viewsService.isViewContainerVisible(VIEWLET_ID)) {
+						progressService.withProgress({ location: VIEWLET_ID }, () => promise);
+					}
+					const source = debugService.getConfigurationManager().getDebuggerLabel(session.configuration.type);
+					progressService.withProgress({
 						location: ProgressLocation.Notification,
 						title: progressStartEvent.body.title,
 						cancellable: progressStartEvent.body.cancellable,
@@ -71,8 +76,13 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 				});
 			}
 		};
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(onFocusSession));
-		onFocusSession(this.debugService.getViewModel().focusedSession);
+		this.toDispose.push(debugService.getViewModel().onDidFocusSession(listenOnProgress));
+		listenOnProgress(debugService.getViewModel().focusedSession);
+		this.toDispose.push(debugService.onWillNewSession(session => {
+			if (!progressListener) {
+				listenOnProgress(session);
+			}
+		}));
 	}
 
 	dispose(): void {

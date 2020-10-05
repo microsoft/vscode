@@ -290,7 +290,7 @@ suite('ParameterHintsModel', () => {
 		hintsModel.trigger({ triggerKind: modes.SignatureHelpTriggerKind.Invoke }, 0);
 		assert.strictEqual(-1, didRequestCancellationOf);
 
-		return new Promise((resolve, reject) =>
+		return new Promise<void>((resolve, reject) =>
 			hintsModel.onChangedHints(newParamterHints => {
 				try {
 					assert.strictEqual(0, didRequestCancellationOf);

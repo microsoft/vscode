@@ -9,10 +9,11 @@ import { DiagnosticCollection, ExtHostDiagnostics } from 'vs/workbench/api/commo
 import { Diagnostic, DiagnosticSeverity, Range, DiagnosticRelatedInformation, Location } from 'vs/workbench/api/common/extHostTypes';
 import { MainThreadDiagnosticsShape, IMainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 import { Emitter, Event } from 'vs/base/common/event';
 import { NullLogService } from 'vs/platform/log/common/log';
 import type * as vscode from 'vscode';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtHostDiagnostics', () => {
 
@@ -286,7 +287,7 @@ suite('ExtHostDiagnostics', () => {
 	});
 
 	test('diagnostic eventing', async function () {
-		let emitter = new Emitter<Array<string | URI>>();
+		let emitter = new Emitter<Array<URI>>();
 		let collection = new DiagnosticCollection('ddd', 'test', 100, new DiagnosticsShape(), emitter);
 
 		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
@@ -316,15 +317,15 @@ suite('ExtHostDiagnostics', () => {
 
 		p = Event.toPromise(emitter.event).then(e => {
 			assert.equal(e.length, 2);
-			assert.ok(typeof e[0] === 'string');
-			assert.ok(typeof e[1] === 'string');
+			assert.ok(URI.isUri(e[0]));
+			assert.ok(URI.isUri(e[1]));
 		});
 		collection.clear();
 		await p;
 	});
 
 	test('vscode.languages.onDidChangeDiagnostics Does Not Provide Document URI #49582', async function () {
-		let emitter = new Emitter<Array<string | URI>>();
+		let emitter = new Emitter<Array<URI>>();
 		let collection = new DiagnosticCollection('ddd', 'test', 100, new DiagnosticsShape(), emitter);
 
 		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
@@ -388,10 +389,13 @@ suite('ExtHostDiagnostics', () => {
 			assertRegistered(): void {
 
 			}
+			drain() {
+				return undefined!;
+			}
 		}, new NullLogService());
 
-		let collection1 = diags.createDiagnosticCollection('foo');
-		let collection2 = diags.createDiagnosticCollection('foo'); // warns, uses a different owner
+		let collection1 = diags.createDiagnosticCollection(nullExtensionDescription.identifier, 'foo');
+		let collection2 = diags.createDiagnosticCollection(nullExtensionDescription.identifier, 'foo'); // warns, uses a different owner
 
 		collection1.clear();
 		collection2.clear();
@@ -436,6 +440,9 @@ suite('ExtHostDiagnostics', () => {
 			}
 			assertRegistered(): void {
 
+			}
+			drain() {
+				return undefined!;
 			}
 		}, new NullLogService());
 

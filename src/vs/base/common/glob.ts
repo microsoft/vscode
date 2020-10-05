@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
@@ -382,7 +381,7 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 		}
 		return null;
 	};
-	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		parsedPattern.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}
@@ -552,7 +551,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 			return null;
 		};
 
-		const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+		const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 		if (withBasenames) {
 			resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 		}
@@ -588,7 +587,7 @@ function parsedExpression(expression: IExpression, options: IGlobOptions): Parse
 		return null;
 	};
 
-	const withBasenames = arrays.first(parsedPatterns, pattern => !!(<ParsedStringPattern>pattern).allBasenames);
+	const withBasenames = parsedPatterns.find(pattern => !!(<ParsedStringPattern>pattern).allBasenames);
 	if (withBasenames) {
 		resultExpression.allBasenames = (<ParsedStringPattern>withBasenames).allBasenames;
 	}

@@ -41,12 +41,16 @@ declare const define: {
 };
 
 interface NodeRequire {
+	/**
+	 * @deprecated use `FileAccess.asFileUri()` for node.js contexts or `FileAccess.asBrowserUri` for browser contexts.
+	 */
 	toUrl(path: string): string;
 	(dependencies: string[], callback: (...args: any[]) => any, errorback?: (err: any) => void): any;
 	config(data: any): any;
 	onError: Function;
 	__$__nodeRequire<T>(moduleName: string): T;
 	getStats(): ReadonlyArray<LoaderEvent>;
+	define(amdModuleId: string, dependencies: string[], callback: (...args: any[]) => any): any;
 }
 
 declare var require: NodeRequire;

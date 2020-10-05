@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-action-bar .action-item .action-label.extension-action {
-	padding: 0 5px;
-	outline-offset: 2px;
 	line-height: initial;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	padding: 0 5px;
+	outline-offset: 2px;
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.text,
@@ -19,8 +22,8 @@
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.icon {
-	height: 18px;
-	width: 10px;
+	padding: 0 2px;
+	width: 16px;
 }
 
 .monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
@@ -55,7 +58,6 @@
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action {
 	opacity: 1;
-	pointer-events: none;
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.text {

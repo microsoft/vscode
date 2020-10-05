@@ -3,21 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, equals } from 'vs/base/common/arrays';
+import { coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { escapeCodicons } from 'vs/base/common/codicons';
 import { illegalArgument } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
-import { startsWith } from 'vs/base/common/strings';
+import { ResourceMap } from 'vs/base/common/map';
+import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { addIdToOutput, CellEditType, ICellEditOperation, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
-import { Cache } from './cache';
-import { assertIsDefined, isStringArray } from 'vs/base/common/types';
-import { Schemas } from 'vs/base/common/network';
 
 function es5ClassCompat(target: Function): any {
 	///@ts-expect-error
@@ -470,7 +468,7 @@ export class RemoteAuthorityResolverError extends Error {
 		this._detail = detail;
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 		}
@@ -578,8 +576,14 @@ export interface IFileOperationOptions {
 	recursive?: boolean;
 }
 
+export const enum FileEditType {
+	File = 1,
+	Text = 2,
+	Cell = 3
+}
+
 export interface IFileOperation {
-	_type: 1;
+	_type: FileEditType.File;
 	from?: URI;
 	to?: URI;
 	options?: IFileOperationOptions;
@@ -587,31 +591,78 @@ export interface IFileOperation {
 }
 
 export interface IFileTextEdit {
-	_type: 2;
+	_type: FileEditType.Text;
 	uri: URI;
 	edit: TextEdit;
+	metadata?: vscode.WorkspaceEditEntryMetadata;
+}
+
+export interface IFileCellEdit {
+	_type: FileEditType.Cell;
+	uri: URI;
+	edit?: ICellEditOperation;
+	notebookMetadata?: vscode.NotebookDocumentMetadata;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _edits = new Array<IFileOperation | IFileTextEdit>();
+	private readonly _edits = new Array<IFileOperation | IFileTextEdit | IFileCellEdit>();
+
+
+	_allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation | IFileCellEdit> {
+		return this._edits;
+	}
+
+	// --- file
 
 	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from, to, options, metadata });
+		this._edits.push({ _type: FileEditType.File, from, to, options, metadata });
 	}
 
 	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
+		this._edits.push({ _type: FileEditType.File, from: undefined, to: uri, options, metadata });
 	}
 
 	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
+		this._edits.push({ _type: FileEditType.File, from: uri, to: undefined, options, metadata });
 	}
 
+	// --- notebook
+
+	replaceNotebookMetadata(uri: URI, value: vscode.NotebookDocumentMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, notebookMetadata: value });
+	}
+
+	replaceNotebookCells(uri: URI, start: number, end: number, cells: vscode.NotebookCellData[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		if (start !== end || cells.length > 0) {
+			this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Replace, index: start, count: end - start, cells: cells.map(cell => ({ ...cell, outputs: cell.outputs.map(output => addIdToOutput(output)) })) } });
+		}
+	}
+
+	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({
+			_type: FileEditType.Cell, metadata, uri, edit: {
+				editType: CellEditType.Output, index, outputs: outputs.map(output => {
+					if (NotebookCellOutput.isNotebookCellOutput(output)) {
+						return addIdToOutput(output.toJSON());
+					} else {
+						return addIdToOutput(output);
+					}
+				})
+			}
+		});
+	}
+
+	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Metadata, index, metadata: cellMetadata } });
+	}
+
+	// --- text
+
 	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText), metadata });
+		this._edits.push({ _type: FileEditType.Text, uri, edit: new TextEdit(range, newText), metadata });
 	}
 
 	insert(resource: URI, position: Position, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -622,8 +673,10 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this.replace(resource, range, '', metadata);
 	}
 
+	// --- text (Maplike)
+
 	has(uri: URI): boolean {
-		return this._edits.some(edit => edit._type === 2 && edit.uri.toString() === uri.toString());
+		return this._edits.some(edit => edit._type === FileEditType.Text && edit.uri.toString() === uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
@@ -631,16 +684,16 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
-				if (element._type === 2 && element.uri.toString() === uri.toString()) {
+				if (element._type === FileEditType.Text && element.uri.toString() === uri.toString()) {
 					this._edits[i] = undefined!; // will be coalesced down below
 				}
 			}
-			this._edits = coalesce(this._edits);
+			coalesceInPlace(this._edits);
 		} else {
 			// append edit to the end
 			for (const edit of edits) {
 				if (edit) {
-					this._edits.push({ _type: 2, uri, edit });
+					this._edits.push({ _type: FileEditType.Text, uri, edit });
 				}
 			}
 		}
@@ -649,7 +702,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
 		for (let candidate of this._edits) {
-			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
+			if (candidate._type === FileEditType.Text && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
 		}
@@ -657,35 +710,19 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		const textEdits = new Map<string, [URI, TextEdit[]]>();
+		const textEdits = new ResourceMap<[URI, TextEdit[]]>();
 		for (let candidate of this._edits) {
-			if (candidate._type === 2) {
-				let textEdit = textEdits.get(candidate.uri.toString());
+			if (candidate._type === FileEditType.Text) {
+				let textEdit = textEdits.get(candidate.uri);
 				if (!textEdit) {
 					textEdit = [candidate.uri, []];
-					textEdits.set(candidate.uri.toString(), textEdit);
+					textEdits.set(candidate.uri, textEdit);
 				}
 				textEdit[1].push(candidate.edit);
 			}
 		}
 		return [...textEdits.values()];
 	}
-
-	allEntries(): ReadonlyArray<IFileTextEdit | IFileOperation> {
-		return this._edits;
-	}
-
-	// _allEntries(): ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] {
-	// 	const res: ([URI, TextEdit] | [URI?, URI?, IFileOperationOptions?])[] = [];
-	// 	for (let edit of this._edits) {
-	// 		if (edit._type === 1) {
-	// 			res.push([edit.from, edit.to, edit.options]);
-	// 		} else {
-	// 			res.push([edit.uri, edit.edit]);
-	// 		}
-	// 	}
-	// 	return res;
-	// }
 
 	get size(): number {
 		return this.entries().length;
@@ -754,7 +791,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = SnippetString._escape(values.toString());
+		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -888,6 +925,12 @@ export class Diagnostic {
 	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+		if (!Range.isRange(range)) {
+			throw new TypeError('range must be set');
+		}
+		if (!message) {
+			throw new TypeError('message must be set');
+		}
 		this.range = range;
 		this.message = message;
 		this.severity = severity;
@@ -1137,7 +1180,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
 	}
 }
 CodeActionKind.Empty = new CodeActionKind('');
@@ -1255,7 +1298,7 @@ export class MarkdownString {
 		// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 		this.value += (this.supportThemeIcons ? escapeCodicons(value) : value)
 			.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&')
-			.replace('\n', '\n\n');
+			.replace(/\n/, '\n\n');
 
 		return this;
 	}
@@ -1273,6 +1316,13 @@ export class MarkdownString {
 		this.value += code;
 		this.value += '\n```\n';
 		return this;
+	}
+
+	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
+		if (thing instanceof MarkdownString) {
+			return true;
+		}
+		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
 	}
 }
 
@@ -1294,6 +1344,7 @@ export class SignatureInformation {
 	label: string;
 	documentation?: string | MarkdownString;
 	parameters: ParameterInformation[];
+	activeParameter?: number;
 
 	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;
@@ -1820,26 +1871,26 @@ export enum TaskScope {
 	Workspace = 2
 }
 
-export class CustomExecution implements vscode.CustomExecution2 {
-	private _callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
-	constructor(callback: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+export class CustomExecution implements vscode.CustomExecution {
+	private _callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>;
+	constructor(callback: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = callback;
 	}
 	public computeId(): string {
 		return 'customExecution' + generateUuid();
 	}
 
-	public set callback(value: (resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public set callback(value: (resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		this._callback = value;
 	}
 
-	public get callback(): ((resolvedDefintion?: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
+	public get callback(): ((resolvedDefintion: vscode.TaskDefinition) => Thenable<vscode.Pseudoterminal>) {
 		return this._callback;
 	}
 }
 
 @es5ClassCompat
-export class Task implements vscode.Task2 {
+export class Task implements vscode.Task {
 
 	private static ExtensionCallbackType: string = 'customExecution';
 	private static ProcessType: string = 'process';
@@ -2103,7 +2154,7 @@ export class TreeItem {
 	iconPath?: string | URI | { light: string | URI; dark: string | URI; };
 	command?: vscode.Command;
 	contextValue?: string;
-	tooltip?: string;
+	tooltip?: string | vscode.MarkdownString;
 
 	constructor(label: string | vscode.TreeItemLabel, collapsibleState?: vscode.TreeItemCollapsibleState);
 	constructor(resourceUri: URI, collapsibleState?: vscode.TreeItemCollapsibleState);
@@ -2130,9 +2181,11 @@ export class ThemeIcon {
 	static Folder: ThemeIcon;
 
 	readonly id: string;
+	readonly themeColor?: ThemeColor;
 
-	constructor(id: string) {
+	constructor(id: string, color?: ThemeColor) {
 		this.id = id;
+		this.themeColor = color;
 	}
 }
 ThemeIcon.File = new ThemeIcon('file');
@@ -2284,6 +2337,12 @@ export class DebugAdapterServer implements vscode.DebugAdapterServer {
 }
 
 @es5ClassCompat
+export class DebugAdapterNamedPipeServer implements vscode.DebugAdapterNamedPipeServer {
+	constructor(public readonly path: string) {
+	}
+}
+
+@es5ClassCompat
 export class DebugAdapterInlineImplementation implements vscode.DebugAdapterInlineImplementation {
 	readonly implementation: vscode.DebugAdapter;
 
@@ -2355,7 +2414,7 @@ export class FileSystemError extends Error {
 		markAsFileSystemProviderError(this, code);
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
 		}
@@ -2654,6 +2713,17 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+export enum DebugConfigurationProviderTriggerKind {
+	/**
+	 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+	 */
+	Initial = 1,
+	/**
+	 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+	 */
+	Dynamic = 2
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -2669,22 +2739,29 @@ export enum ExtensionKind {
 	Workspace = 2
 }
 
-export class Decoration {
+export class FileDecoration {
 
-	static validate(d: Decoration): void {
-		if (d.letter && d.letter.length !== 1) {
+	static validate(d: FileDecoration): void {
+		if (d.badge && d.badge.length !== 1) {
 			throw new Error(`The 'letter'-property must be undefined or a single character`);
 		}
-		if (!d.bubble && !d.color && !d.letter && !d.priority && !d.title) {
+		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
 		}
 	}
 
-	letter?: string;
-	title?: string;
+	badge?: string;
+	tooltip?: string;
 	color?: vscode.ThemeColor;
 	priority?: number;
-	bubble?: boolean;
+	propagate?: boolean;
+
+
+	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+		this.badge = badge;
+		this.tooltip = tooltip;
+		this.color = color;
+	}
 }
 
 //#region Theming
@@ -2705,6 +2782,50 @@ export enum ColorThemeKind {
 
 //#region Notebook
 
+export class NotebookCellOutputItem {
+
+	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
+		return obj instanceof NotebookCellOutputItem;
+	}
+
+	constructor(
+		readonly mime: string,
+		readonly value: unknown, // JSON'able
+		readonly metadata?: Record<string, string | number | boolean>
+	) { }
+}
+
+export class NotebookCellOutput {
+
+	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
+		return obj instanceof NotebookCellOutput;
+	}
+
+	constructor(
+		readonly outputs: NotebookCellOutputItem[],
+		readonly metadata?: Record<string, string | number | boolean>
+	) { }
+
+	toJSON(): IDisplayOutput {
+		let data: { [key: string]: unknown; } = {};
+		let custom: { [key: string]: unknown; } = {};
+		let hasMetadata = false;
+
+		for (let item of this.outputs) {
+			data[item.mime] = item.value;
+			if (item.metadata) {
+				custom[item.mime] = item.metadata;
+				hasMetadata = true;
+			}
+		}
+		return {
+			outputKind: CellOutputKind.Rich,
+			data,
+			metadata: hasMetadata ? { custom } : undefined
+		};
+	}
+}
+
 export enum CellKind {
 	Markdown = 1,
 	Code = 2
@@ -2715,6 +2836,30 @@ export enum CellOutputKind {
 	Error = 2,
 	Rich = 3
 }
+
+export enum NotebookCellRunState {
+	Running = 1,
+	Idle = 2,
+	Success = 3,
+	Error = 4
+}
+
+export enum NotebookRunState {
+	Running = 1,
+	Idle = 2
+}
+
+export enum NotebookCellStatusBarAlignment {
+	Left = 1,
+	Right = 2
+}
+
+export enum NotebookEditorRevealType {
+	Default = 0,
+	InCenter = 1,
+	InCenterIfOutsideViewport = 2
+}
+
 
 //#endregion
 
@@ -2727,93 +2872,44 @@ export class TimelineItem implements vscode.TimelineItem {
 
 //#endregion Timeline
 
-//#region Custom Editors
+//#region ExtensionContext
 
-interface EditState {
-	readonly allEdits: readonly number[];
-	readonly currentIndex: number;
-	readonly saveIndex: number;
+export enum ExtensionMode {
+	/**
+	 * The extension is installed normally (for example, from the marketplace
+	 * or VSIX) in VS Code.
+	 */
+	Production = 1,
+
+	/**
+	 * The extension is running from an `--extensionDevelopmentPath` provided
+	 * when launching VS Code.
+	 */
+	Development = 2,
+
+	/**
+	 * The extension is running from an `--extensionDevelopmentPath` and
+	 * the extension host is running unit tests.
+	 */
+	Test = 3,
 }
 
-export class CustomDocument<EditType = unknown> implements vscode.CustomDocument<EditType> {
-
-	readonly #edits = new Cache<EditType>('edits');
-
-	readonly #uri: vscode.Uri;
-
-	#editState: EditState = {
-		allEdits: [],
-		currentIndex: -1,
-		saveIndex: -1,
-	};
-	#isDisposed = false;
-	#version = 1;
-
-	constructor(uri: vscode.Uri) {
-		this.#uri = uri;
-	}
-
-	//#region Public API
-
-	public get uri(): vscode.Uri { return this.#uri; }
-
-	public get fileName(): string { return this.uri.fsPath; }
-
-	public get isUntitled() { return this.uri.scheme === Schemas.untitled; }
-
-	#onDidDispose = new Emitter<void>();
-	public readonly onDidDispose = this.#onDidDispose.event;
-
-	public get isClosed() { return this.#isDisposed; }
-
-	public get version() { return this.#version; }
-
-	public get isDirty() {
-		return this.#editState.currentIndex !== this.#editState.saveIndex;
-	}
-
-	public get appliedEdits() {
-		return this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1)
-			.map(id => this._getEdit(id));
-	}
-
-	public get savedEdits() {
-		return this.#editState.allEdits.slice(0, this.#editState.saveIndex + 1)
-			.map(id => this._getEdit(id));
-	}
-
-	//#endregion
-
-	/** @internal */ _dispose(): void {
-		this.#isDisposed = true;
-		this.#onDidDispose.fire();
-		this.#onDidDispose.dispose();
-	}
-
-	/** @internal */ _updateEditState(state: EditState) {
-		++this.#version;
-		this.#editState = state;
-	}
-
-	/** @internal*/ _getEdit(editId: number): EditType {
-		return assertIsDefined(this.#edits.get(editId, 0));
-	}
-
-	/** @internal*/ _disposeEdits(editIds: number[]) {
-		for (const editId of editIds) {
-			this.#edits.delete(editId);
-		}
-	}
-
-	/** @internal*/ _addEdit(edit: EditType): number {
-		const id = this.#edits.add([edit]);
-		this._updateEditState({
-			allEdits: [...this.#editState.allEdits.slice(0, this.#editState.currentIndex + 1), id],
-			currentIndex: this.#editState.currentIndex + 1,
-			saveIndex: this.#editState.saveIndex,
-		});
-		return id;
-	}
+export enum ExtensionRuntime {
+	/**
+	 * The extension is running in a NodeJS extension host. Runtime access to NodeJS APIs is available.
+	 */
+	Node = 1,
+	/**
+	 * The extension is running in a Webworker extension host. Runtime access is limited to Webworker APIs.
+	 */
+	Webworker = 2
 }
 
-// #endregion
+//#endregion ExtensionContext
+
+export enum StandardTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 4
+}

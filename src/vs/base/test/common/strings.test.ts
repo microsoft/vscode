@@ -81,6 +81,27 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('O', '/');
 	});
 
+	test('compareIgnoreCase (substring)', () => {
+
+		function assertCompareIgnoreCase(a: string, b: string, aStart: number, aEnd: number, bStart: number, bEnd: number, recurse = true): void {
+			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
+			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+
+			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
+			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
+			assert.equal(actual, expected, `${a} <> ${b}`);
+
+			if (recurse) {
+				assertCompareIgnoreCase(b, a, bStart, bEnd, aStart, aEnd, false);
+			}
+		}
+
+		assertCompareIgnoreCase('', '', 0, 0, 0, 0);
+		assertCompareIgnoreCase('abc', 'ABC', 0, 1, 0, 1);
+		assertCompareIgnoreCase('abc', 'Aabc', 0, 3, 1, 4);
+		assertCompareIgnoreCase('abcABc', 'ABcd', 3, 6, 0, 4);
+	});
+
 	test('format', () => {
 		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
 		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
@@ -117,28 +138,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.escape('foo bar'), 'foo bar');
 		assert.strictEqual(strings.escape('<foo bar>'), '&lt;foo bar&gt;');
 		assert.strictEqual(strings.escape('<foo>Hello</foo>'), '&lt;foo&gt;Hello&lt;/foo&gt;');
-	});
-
-	test('startsWith', () => {
-		assert(strings.startsWith('foo', 'f'));
-		assert(strings.startsWith('foo', 'fo'));
-		assert(strings.startsWith('foo', 'foo'));
-		assert(!strings.startsWith('foo', 'o'));
-		assert(!strings.startsWith('', 'f'));
-		assert(strings.startsWith('foo', ''));
-		assert(strings.startsWith('', ''));
-	});
-
-	test('endsWith', () => {
-		assert(strings.endsWith('foo', 'o'));
-		assert(strings.endsWith('foo', 'oo'));
-		assert(strings.endsWith('foo', 'foo'));
-		assert(strings.endsWith('foo bar foo', 'foo'));
-		assert(!strings.endsWith('foo', 'f'));
-		assert(!strings.endsWith('', 'f'));
-		assert(strings.endsWith('foo', ''));
-		assert(strings.endsWith('', ''));
-		assert(strings.endsWith('/', '/'));
 	});
 
 	test('ltrim', () => {
@@ -182,13 +181,6 @@ suite('Strings', () => {
 		assert.strictEqual('bar  '.trim(), 'bar');
 		assert.strictEqual('   '.trim(), '');
 		assert.strictEqual(' 	  '.trim(), '');
-	});
-
-	test('repeat', () => {
-		assert.strictEqual(strings.repeat(' ', 4), '    ');
-		assert.strictEqual(strings.repeat(' ', 1), ' ');
-		assert.strictEqual(strings.repeat(' ', 0), '');
-		assert.strictEqual(strings.repeat('abc', 2), 'abcabc');
 	});
 
 	test('lastNonWhitespaceIndex', () => {

@@ -27,6 +27,7 @@ import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/comm
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -135,7 +136,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 	}
 
 	public renderTemplate(container: HTMLElement): IExtensionTemplateData {
-		dom.addClass(container, 'extension');
+		container.classList.add('extension');
 
 		const icon = dom.append(container, dom.$<HTMLImageElement>('img.icon'));
 		const details = dom.append(container, dom.$('.details'));
@@ -267,7 +268,16 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				indent: 40,
 				identityProvider,
 				multipleSelectionSupport: false,
-				overrideStyles
+				overrideStyles,
+				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
+					getAriaLabel(extensionData: IExtensionData): string {
+						const extension = extensionData.extension;
+						return localize('extension-arialabel', "{0}, {1}, {2}, press enter for extension details.", extension.displayName, extension.version, extension.publisherDisplayName);
+					},
+					getWidgetAriaLabel(): string {
+						return localize('extensions', "Extensions");
+					}
+				}
 			},
 			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
 		);

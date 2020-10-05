@@ -11,6 +11,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import 'vs/css!./breadcrumbsWidget';
 
 export abstract class BreadcrumbsItem {
@@ -54,6 +55,8 @@ export interface IBreadcrumbsItemEvent {
 	node: HTMLElement;
 	payload: any;
 }
+
+const breadcrumbSeparatorIcon = registerIcon('breadcrumb-separator', Codicon.chevronRight);
 
 export class BreadcrumbsWidget {
 
@@ -115,7 +118,7 @@ export class BreadcrumbsWidget {
 
 	dispose(): void {
 		this._disposables.dispose();
-		dispose(this._pendingLayout);
+		this._pendingLayout?.dispose();
 		this._onDidSelectItem.dispose();
 		this._onDidFocusItem.dispose();
 		this._onDidChangeFocus.dispose();
@@ -128,9 +131,7 @@ export class BreadcrumbsWidget {
 		if (dim && dom.Dimension.equals(dim, this._dimension)) {
 			return;
 		}
-		if (this._pendingLayout) {
-			this._pendingLayout.dispose();
-		}
+		this._pendingLayout?.dispose();
 		if (dim) {
 			// only measure
 			this._pendingLayout = this._updateDimensions(dim);
@@ -177,8 +178,8 @@ export class BreadcrumbsWidget {
 		if (style.breadcrumbsHoverForeground) {
 			content += `.monaco-breadcrumbs .monaco-breadcrumb-item:hover:not(.focused):not(.selected) { color: ${style.breadcrumbsHoverForeground}}\n`;
 		}
-		if (this._styleElement.innerHTML !== content) {
-			this._styleElement.innerHTML = content;
+		if (this._styleElement.innerText !== content) {
+			this._styleElement.innerText = content;
 		}
 	}
 
@@ -227,10 +228,10 @@ export class BreadcrumbsWidget {
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
 			if (i !== nth) {
-				dom.removeClass(node, 'focused');
+				node.classList.remove('focused');
 			} else {
 				this._focusedItemIdx = i;
-				dom.addClass(node, 'focused');
+				node.classList.add('focused');
 				node.focus();
 			}
 		}
@@ -271,10 +272,10 @@ export class BreadcrumbsWidget {
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
 			if (i !== nth) {
-				dom.removeClass(node, 'selected');
+				node.classList.remove('selected');
 			} else {
 				this._selectedItemIdx = i;
-				dom.addClass(node, 'selected');
+				node.classList.add('selected');
 			}
 		}
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
@@ -335,8 +336,8 @@ export class BreadcrumbsWidget {
 		item.render(container);
 		container.tabIndex = -1;
 		container.setAttribute('role', 'listitem');
-		dom.addClasses(container, 'monaco-breadcrumb-item');
-		const iconContainer = dom.$('.codicon.codicon-chevron-right');
+		container.classList.add('monaco-breadcrumb-item');
+		const iconContainer = dom.$(breadcrumbSeparatorIcon.cssSelector);
 		container.appendChild(iconContainer);
 	}
 

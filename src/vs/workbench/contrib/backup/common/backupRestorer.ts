@@ -15,6 +15,7 @@ import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -26,6 +27,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		this.restoreBackups();
 	}
@@ -71,7 +73,10 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private findEditorByResource(resource: URI): IEditorInput | undefined {
 		for (const editor of this.editorService.editors) {
-			if (isEqual(editor.resource, resource)) {
+			const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
+			if (customFactory && customFactory.canResolveBackup(editor, resource)) {
+				return editor;
+			} else if (isEqual(editor.resource, resource)) {
 				return editor;
 			}
 		}
@@ -94,12 +99,15 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// an associated file path or not by just looking at the path. and
 		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
-			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
+			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme), options, forceUntitled: true };
 		}
 
-		if (resource.scheme === Schemas.vscodeCustomEditor) {
-			const editor = await Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory()
-				.createCustomEditorInput(resource, this.instantiationService);
+		// handle custom editors by asking the custom editor input factory
+		// to create the input.
+		const customFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory(resource.scheme);
+
+		if (customFactory) {
+			const editor = await customFactory.createCustomEditorInput(resource, this.instantiationService);
 			return { editor, options };
 		}
 

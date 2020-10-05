@@ -17,7 +17,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, IListService, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
@@ -120,7 +120,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 
 	renderElement(node: ITreeNode<CommentNode>, index: number, templateData: ICommentThreadTemplateData, height: number | undefined): void {
 		templateData.userName.textContent = node.element.comment.userName;
-		templateData.commentText.innerHTML = '';
+		templateData.commentText.innerText = '';
 		const disposables = new DisposableStore();
 		templateData.disposables.push(disposables);
 		const renderedComment = renderMarkdown(node.element.comment.body, {
@@ -149,7 +149,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 }
 
-export interface ICommentsListOptions {
+export interface ICommentsListOptions extends IWorkbenchAsyncDataTreeOptions<any, any> {
 	overrideStyles?: IColorMapping;
 }
 
@@ -181,8 +181,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			renderers,
 			dataSource,
 			{
-				ariaLabel: COMMENTS_VIEW_TITLE,
-				keyboardSupport: true,
+				accessibilityProvider: options.accessibilityProvider,
 				identityProvider: {
 					getId: (element: any) => {
 						if (element instanceof CommentsModel) {

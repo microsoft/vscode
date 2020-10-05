@@ -12,10 +12,10 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
-import { SimpleButton } from 'vs/editor/contrib/find/findWidget';
+import { SimpleButton, findCloseIcon, findNextMatchIcon, findPreviousMatchIcon, findReplaceIcon, findReplaceAllIcon } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { ReplaceInput, IReplaceInputStyles } from 'vs/base/browser/ui/findinput/replaceInput';
@@ -43,7 +43,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
-	private readonly _replaceInput!: ReplaceInput;
+	protected readonly _replaceInput!: ReplaceInput;
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
@@ -62,7 +62,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		private readonly _state: FindReplaceState = new FindReplaceState(),
+		protected readonly _state: FindReplaceState = new FindReplaceState(),
 		showOptionButtons?: boolean
 	) {
 		super();
@@ -90,8 +90,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				}
 			}
 		}));
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);
 
@@ -147,7 +145,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL,
-			className: 'codicon codicon-arrow-up',
+			className: findPreviousMatchIcon.classNames,
 			onTrigger: () => {
 				this.find(true);
 			}
@@ -155,7 +153,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL,
-			className: 'codicon codicon-arrow-down',
+			className: findNextMatchIcon.classNames,
 			onTrigger: () => {
 				this.find(false);
 			}
@@ -163,7 +161,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
-			className: 'codicon codicon-close',
+			className: findCloseIcon.classNames,
 			onTrigger: () => {
 				this.hide();
 			}
@@ -221,7 +219,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL,
-			className: 'codicon codicon-replace',
+			className: findReplaceIcon.classNames,
 			onTrigger: () => {
 				this.replaceOne();
 			}
@@ -230,7 +228,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL,
-			className: 'codicon codicon-replace-all',
+			className: findReplaceAllIcon.classNames,
 			onTrigger: () => {
 				this.replaceAll();
 			}
@@ -269,6 +267,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	public updateTheme(theme: IColorTheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -281,11 +280,12 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._findInput.style(inputStyles);
 		const replaceStyles: IReplaceInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -298,7 +298,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputValidationWarningBorder: theme.getColor(inputValidationWarningBorder),
 			inputValidationErrorBackground: theme.getColor(inputValidationErrorBackground),
 			inputValidationErrorForeground: theme.getColor(inputValidationErrorForeground),
-			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder)
+			inputValidationErrorBorder: theme.getColor(inputValidationErrorBorder),
 		};
 		this._replaceInput.style(replaceStyles);
 	}
@@ -314,9 +314,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
+		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 	}
 
@@ -347,11 +345,14 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
+	}
+
+	public focus(): void {
+		this._findInput.focus();
 	}
 
 	public show(initialInput?: string): void {
@@ -362,21 +363,49 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
+
+			this.focus();
+		}, 0);
+	}
+
+	public showWithReplace(initialInput?: string, replaceInput?: string): void {
+		if (initialInput && !this._isVisible) {
+			this._findInput.setValue(initialInput);
+		}
+
+		if (replaceInput && !this._isVisible) {
+			this._replaceInput.setValue(replaceInput);
+		}
+
+		this._isVisible = true;
+		this._isReplaceVisible = true;
+		this._state.change({ isReplaceRevealed: this._isReplaceVisible }, false);
+		if (this._isReplaceVisible) {
+			this._innerReplaceDomNode.style.display = 'flex';
+		} else {
+			this._innerReplaceDomNode.style.display = 'none';
+		}
+
+		setTimeout(() => {
+			this._domNode.classList.add('visible', 'visible-transition');
+			this._domNode.setAttribute('aria-hidden', 'false');
+			this._updateButtons();
+
+			this._replaceInput.focus();
 		}, 0);
 	}
 
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._domNode, 'visible-transition');
+			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._domNode, 'visible');
+				this._domNode.classList.remove('visible');
 			}, 200);
 		}
 	}

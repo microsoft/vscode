@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -77,23 +77,6 @@ steps:
     yarn postinstall
   displayName: Run postinstall scripts
   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-  env:
-    OSS_GITHUB_ID: "a5d3c261b032765a78de"
-    OSS_GITHUB_SECRET: $(oss-github-client-secret)
-    INSIDERS_GITHUB_ID: "31f02627809389d9f111"
-    INSIDERS_GITHUB_SECRET: $(insiders-github-client-secret)
-    STABLE_GITHUB_ID: "baa8a44b5e861d918709"
-    STABLE_GITHUB_SECRET: $(stable-github-client-secret)
-    EXPLORATION_GITHUB_ID: "94e8376d3a90429aeaea"
-    EXPLORATION_GITHUB_SECRET: $(exploration-github-client-secret)
-    VSO_GITHUB_ID: "3d4be8f37a0325b5817d"
-    VSO_GITHUB_SECRET: $(vso-github-client-secret)
-    VSO_PPE_GITHUB_ID: "eabf35024dc2e891a492"
-    VSO_PPE_GITHUB_SECRET: $(vso-ppe-github-client-secret)
-    VSO_DEV_GITHUB_ID: "84383ebd8a7c5f5efc5c"
-    VSO_DEV_GITHUB_SECRET: $(vso-dev-github-client-secret)
-    GITHUB_APP_ID: "Iv1.ae51e546bef24ff1"
-    GITHUB_APP_SECRET: $(github-app-client-secret)
 
 - script: |
     set -e
@@ -118,7 +101,7 @@ steps:
 
 - script: |
     set -e
-    yarn test-browser --build --browser chromium --browser webkit
+    yarn test-browser --build --browser chromium --browser webkit --browser firefox --tfs "Browser Unit Tests"
   displayName: Run unit tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
@@ -137,19 +120,19 @@ steps:
 
 - script: |
     set -e
+    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
+    ./resources/server/test/test-web-integration.sh --browser webkit
+  displayName: Run integration tests (Browser)
+  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+- script: |
+    set -e
     APP_ROOT=$(agent.builddirectory)/VSCode-darwin
     APP_NAME="`ls $APP_ROOT | head -n 1`"
     INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/Electron" \
     VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
     ./resources/server/test/test-remote-integration.sh
   displayName: Run remote integration tests (Electron)
-  condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-- script: |
-    set -e
-    VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-darwin" \
-    ./resources/server/test/test-web-integration.sh --browser webkit
-  displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
 - script: |
@@ -169,6 +152,21 @@ steps:
   displayName: Run smoke tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: crash-dump-macos
+    targetPath: .build/crashes
+  displayName: 'Publish Crash Reports'
+  continueOnError: true
+  condition: failed()
+
+- task: PublishTestResults@2
+  displayName: Publish Tests Results
+  inputs:
+    testResultsFiles: '*-results.xml'
+    searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+  condition: succeededOrFailed()
+
 - script: |
     set -e
     security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
@@ -177,7 +175,7 @@ steps:
     echo "$(macos-developer-certificate)" | base64 -D > $(agent.tempdirectory)/cert.p12
     security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-    codesign -s 99FM488X57 --deep --force --options runtime --entitlements build/azure-pipelines/darwin/entitlements.plist $(agent.builddirectory)/VSCode-darwin/*.app
+    DEBUG=electron-osx-sign* node build/darwin/sign.js
   displayName: Set Hardened Entitlements
 
 - script: |
@@ -246,13 +244,25 @@ steps:
 
 - script: |
     set -e
+    APP_ROOT=$(agent.builddirectory)/VSCode-darwin
+    APP_NAME="`ls $APP_ROOT | head -n 1`"
+    "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
+  displayName: Verify start after signing (export configuration)
+
+- script: |
+    set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
     ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
+
+- script: |
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
+    yarn gulp upload-vscode-configuration
+  displayName: Upload configuration (for Bing settings search)
+  continueOnError: true
 
 - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
   displayName: 'Component Detection'

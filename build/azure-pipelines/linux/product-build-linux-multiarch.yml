@@ -21,7 +21,7 @@ steps:
 
 - task: NodeTool@0
   inputs:
-    versionSpec: "12.13.0"
+    versionSpec: "12.14.1"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -86,23 +86,6 @@ steps:
     yarn postinstall
   displayName: Run postinstall scripts
   condition: and(succeeded(), eq(variables['CacheRestored'], 'true'))
-  env:
-    OSS_GITHUB_ID: "a5d3c261b032765a78de"
-    OSS_GITHUB_SECRET: $(oss-github-client-secret)
-    INSIDERS_GITHUB_ID: "31f02627809389d9f111"
-    INSIDERS_GITHUB_SECRET: $(insiders-github-client-secret)
-    STABLE_GITHUB_ID: "baa8a44b5e861d918709"
-    STABLE_GITHUB_SECRET: $(stable-github-client-secret)
-    EXPLORATION_GITHUB_ID: "94e8376d3a90429aeaea"
-    EXPLORATION_GITHUB_SECRET: $(exploration-github-client-secret)
-    VSO_GITHUB_ID: "3d4be8f37a0325b5817d"
-    VSO_GITHUB_SECRET: $(vso-github-client-secret)
-    VSO_PPE_GITHUB_ID: "eabf35024dc2e891a492"
-    VSO_PPE_GITHUB_SECRET: $(vso-ppe-github-client-secret)
-    VSO_DEV_GITHUB_ID: "84383ebd8a7c5f5efc5c"
-    VSO_DEV_GITHUB_SECRET: $(vso-dev-github-client-secret)
-    GITHUB_APP_ID: "Iv1.ae51e546bef24ff1"
-    GITHUB_APP_SECRET: $(github-app-client-secret)
 
 - script: |
     set -e
@@ -124,7 +107,6 @@ steps:
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
     ./build/azure-pipelines/linux/multiarch/$(VSCODE_ARCH)/publish.sh
   displayName: Publish
 

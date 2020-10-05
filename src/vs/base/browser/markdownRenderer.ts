@@ -14,18 +14,26 @@ import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
-import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { FileAccess, Schemas } from 'vs/base/common/network';
+import { markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { resolvePath } from 'vs/base/common/resources';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { renderCodicons } from 'vs/base/browser/codicons';
+
+export interface MarkedOptions extends marked.MarkedOptions {
+	baseUrl?: never;
+}
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
+	baseUrl?: URI;
 }
 
 /**
  * Create html nodes for the given content element.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: marked.MarkedOptions = {}): HTMLElement {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
 	const element = createElement(options);
 
 	const _uriMassage = function (part: string): string {
@@ -62,7 +70,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// and because of that special rewriting needs to be done
 			// so that the URI uses a protocol that's understood by
 			// browsers (like http or https)
-			return DOM.asDomUri(uri).toString(true);
+			return FileAccess.asBrowserUri(uri).toString(true);
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
@@ -82,6 +90,13 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
 			href = _href(href, true);
+			try {
+				const hrefAsUri = URI.parse(href);
+				if (options.baseUrl && hrefAsUri.scheme === Schemas.file) { // absolute or relative local path, or file: uri
+					href = resolvePath(options.baseUrl, href).toString();
+				}
+			} catch (err) { }
+
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -101,6 +116,12 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			text = removeMarkdownEscapes(text);
 		}
 		href = _href(href, false);
+		if (options.baseUrl) {
+			const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+			if (!hasScheme) {
+				href = resolvePath(options.baseUrl, href).toString();
+			}
+		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (
@@ -123,7 +144,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 	};
 	renderer.paragraph = (text): string => {
-		return `<p>${markdown.supportThemeIcons ? renderCodicons(text) : text}</p>`;
+		if (markdown.supportThemeIcons) {
+			const elements = renderCodicons(text);
+			text = elements.map(e => typeof e === 'string' ? e : e.outerHTML).join('');
+		}
+		return `<p>${text}</p>`;
 	};
 
 	if (options.codeBlockRenderer) {
@@ -152,27 +177,41 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const actionHandler = options.actionHandler;
 	if (actionHandler) {
-		actionHandler.disposeables.add(DOM.addStandardDisposableListener(element, 'click', event => {
-			let target: HTMLElement | null = event.target;
-			if (target.tagName !== 'A') {
-				target = target.parentElement;
-				if (!target || target.tagName !== 'A') {
+		[DOM.EventType.CLICK, DOM.EventType.AUXCLICK].forEach(event => {
+			actionHandler.disposeables.add(DOM.addDisposableListener(element, event, (e: MouseEvent) => {
+				const mouseEvent = new StandardMouseEvent(e);
+				if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 					return;
 				}
-			}
-			try {
-				const href = target.dataset['href'];
-				if (href) {
-					actionHandler.callback(href, event);
+
+				let target: HTMLElement | null = mouseEvent.target;
+				if (target.tagName !== 'A') {
+					target = target.parentElement;
+					if (!target || target.tagName !== 'A') {
+						return;
+					}
 				}
-			} catch (err) {
-				onUnexpectedError(err);
-			} finally {
-				event.preventDefault();
-			}
-		}));
+				try {
+					const href = target.dataset['href'];
+					if (href) {
+						actionHandler.callback(href, mouseEvent);
+					}
+				} catch (err) {
+					onUnexpectedError(err);
+				} finally {
+					mouseEvent.preventDefault();
+				}
+			}));
+		});
 	}
 
+	// Use our own sanitizer so that we can let through only spans.
+	// Otherwise, we'd be letting all html be rendered.
+	// If we want to allow markdown permitted tags, then we can delete sanitizer and sanitize.
+	markedOptions.sanitizer = (html: string): string => {
+		const match = markdown.isTrusted ? html.match(/^(<span[^<]+>)|(<\/\s*span>)$/) : undefined;
+		return match ? html : '';
+	};
 	markedOptions.sanitize = true;
 	markedOptions.renderer = renderer;
 
@@ -181,22 +220,46 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		allowedSchemes.push(Schemas.command);
 	}
 
+	// values that are too long will freeze the UI
+	let value = markdown.value ?? '';
+	if (value.length > 100_000) {
+		value = `${value.substr(0, 100_000)}…`;
+	}
 	const renderedMarkdown = marked.parse(
-		markdown.supportThemeIcons
-			? markdownEscapeEscapedCodicons(markdown.value)
-			: markdown.value,
+		markdown.supportThemeIcons ? markdownEscapeEscapedCodicons(value) : value,
 		markedOptions
 	);
 
+	function filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
+		if (token.tag === 'span' && markdown.isTrusted && (Object.keys(token.attrs).length === 1)) {
+			if (token.attrs['style']) {
+				return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
+			} else if (token.attrs['class']) {
+				// The class should match codicon rendering in src\vs\base\common\codicons.ts
+				return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
+			}
+			return false;
+		}
+		return true;
+	}
+
 	element.innerHTML = insane(renderedMarkdown, {
 		allowedSchemes,
+		// allowedTags should included everything that markdown renders to.
+		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
+		// HTML tags that can result from markdown are from reading https://spec.commonmark.org/0.29/
+		// HTML table tags that can result from markdown are from https://github.github.com/gfm/#tables-extension-
+		allowedTags: ['ul', 'li', 'p', 'code', 'blockquote', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'em', 'pre', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'div', 'del', 'a', 'strong', 'br', 'img', 'span'],
 		allowedAttributes: {
 			'a': ['href', 'name', 'target', 'data-href'],
-			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
 			'div': ['class', 'data-code'],
-			'span': ['class']
-		}
+			'span': ['class', 'style'],
+			// https://github.com/microsoft/vscode/issues/95937
+			'th': ['align'],
+			'td': ['align']
+		},
+		filter
 	});
 
 	signalInnerHTML!();

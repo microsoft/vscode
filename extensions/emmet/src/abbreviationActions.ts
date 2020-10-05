@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
-import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument } from './util';
 
 const trimRegex = /[\u00a0]*[\d#\-\*\u2022]+\.?/;
 const hexColorRegex = /^#[\da-fA-F]{0,6}$/;
@@ -276,6 +276,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	const helper = getEmmetHelper();
 
 	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
+		position = document.validatePosition(position);
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
@@ -299,7 +300,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 				return [rangeToReplace, abbr, ''];
 			}
 		}
-		let extractedResults = helper.extractAbbreviation(editor.document, position, false);
+		let extractedResults = helper.extractAbbreviation(toLSTextDocument(editor.document), position, false);
 		if (!extractedResults) {
 			return [null, '', ''];
 		}
@@ -402,7 +403,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
-		// Fix for https://github.com/Microsoft/vscode/issues/34162
+		// Fix for https://github.com/microsoft/vscode/issues/34162
 		// Other than sass, stylus, we can make use of the terminator tokens to validate position
 		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
 
@@ -446,7 +447,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
-		// Workaround for https://github.com/Microsoft/vscode/30188
+		// Workaround for https://github.com/microsoft/vscode/30188
 		// The line above the rule selector is considered as part of the selector by the css-parser
 		// But we should assume it is a valid location for css properties under the parent rule
 		if (currentCssNode.parent
@@ -487,12 +488,12 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 
 		const innerRange = getInnerRange(currentHtmlNode);
 
-		// Fix for https://github.com/Microsoft/vscode/issues/28829
+		// Fix for https://github.com/microsoft/vscode/issues/28829
 		if (!innerRange || !innerRange.contains(position)) {
 			return false;
 		}
 
-		// Fix for https://github.com/Microsoft/vscode/issues/35128
+		// Fix for https://github.com/microsoft/vscode/issues/35128
 		// Find the position up till where we will backtrack looking for unescaped < or >
 		// to decide if current position is valid for emmet expansion
 		start = innerRange.start;
@@ -535,7 +536,7 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			i--;
 			continue;
 		}
-		// Fix for https://github.com/Microsoft/vscode/issues/55411
+		// Fix for https://github.com/microsoft/vscode/issues/55411
 		// A space is not a valid character right after < in a tag name.
 		if (/\s/.test(char) && textToBackTrack[i] === startAngle) {
 			i--;
@@ -605,10 +606,29 @@ function expandAbbreviationInRange(editor: vscode.TextEditor, expandAbbrList: Ex
 	return Promise.resolve(false);
 }
 
+/*
+* Walks the tree rooted at root and apply function fn on each node.
+* if fn return false at any node, the further processing of tree is stopped.
+*/
+function walk(root: any, fn: ((node: any) => boolean)): boolean {
+	let ctx = root;
+	while (ctx) {
+
+		let next = ctx.next;
+		if (fn(ctx) === false || walk(ctx.firstChild, fn) === false) {
+			return false;
+		}
+
+		ctx = next;
+	}
+
+	return true;
+}
+
 /**
  * Expands abbreviation as detailed in given input.
  */
-function expandAbbr(input: ExpandAbbreviationInput): string {
+function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	const helper = getEmmetHelper();
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
@@ -620,7 +640,7 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 		}
 		expandOptions['text'] = input.textToWrap;
 
-		// Below fixes https://github.com/Microsoft/vscode/issues/29898
+		// Below fixes https://github.com/microsoft/vscode/issues/29898
 		// With this, Emmet formats inline elements as block elements
 		// ensuring the wrapped multi line text does not get merged to a single line
 		if (!input.rangeToReplace.isSingleLine) {
@@ -647,6 +667,18 @@ function expandAbbr(input: ExpandAbbreviationInput): string {
 					wrappingNode.value = '\n\t' + wrappingNode.value + '\n';
 				}
 			}
+
+			// Below fixes https://github.com/microsoft/vscode/issues/78219
+			// walk the tree and remove tags for empty values
+			walk(parsedAbbr, node => {
+				if (node.name !== null && node.value === '' && !node.isSelfClosing && node.children.length === 0) {
+					node.name = '';
+					node.value = '\n';
+				}
+
+				return true;
+			});
+
 			expandedText = helper.expandAbbreviation(parsedAbbr, expandOptions);
 			// All $anyword would have been escaped by the emmet helper.
 			// Remove the escaping backslash from $TM_SELECTED_TEXT so that VS Code Snippet controller can treat it as a variable

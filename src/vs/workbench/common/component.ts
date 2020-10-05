@@ -8,6 +8,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 export class Component extends Themable {
+
 	private readonly memento: Memento;
 
 	constructor(

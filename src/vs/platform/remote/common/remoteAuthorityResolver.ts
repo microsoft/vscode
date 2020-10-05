@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -29,6 +30,12 @@ export interface ResolverResult {
 	authority: ResolvedAuthority;
 	options?: ResolvedOptions;
 	tunnelInformation?: TunnelInformation;
+}
+
+export interface IRemoteConnectionData {
+	host: string;
+	port: number;
+	connectionToken: string | undefined;
 }
 
 export enum RemoteAuthorityResolverErrorCode {
@@ -68,7 +75,7 @@ export class RemoteAuthorityResolverError extends Error {
 		this.isHandled = (code === RemoteAuthorityResolverErrorCode.NotAvailable) && detail === true;
 
 		// workaround when extending builtin objects and when compiling to ES5, see:
-		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		if (typeof (<any>Object).setPrototypeOf === 'function') {
 			(<any>Object).setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 		}
@@ -77,11 +84,15 @@ export class RemoteAuthorityResolverError extends Error {
 
 export interface IRemoteAuthorityResolverService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
+
+	readonly onDidChangeConnectionData: Event<void>;
 
 	resolveAuthority(authority: string): Promise<ResolverResult>;
+	getConnectionData(authority: string): IRemoteConnectionData | null;
 
-	clearResolvedAuthority(authority: string): void;
-	setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
-	setResolvedAuthorityError(authority: string, err: any): void;
+	_clearResolvedAuthority(authority: string): void;
+	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
+	_setResolvedAuthorityError(authority: string, err: any): void;
+	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 }

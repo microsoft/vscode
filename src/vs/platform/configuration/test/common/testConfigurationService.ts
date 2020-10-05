@@ -18,7 +18,7 @@ export class TestConfigurationService implements IConfigurationService {
 		this.configuration = configuration || Object.create(null);
 	}
 
-	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
+	private configurationByRoot: TernarySearchTree<string, any> = TernarySearchTree.forPaths<any>();
 
 	public reloadConfiguration<T>(): Promise<T> {
 		return Promise.resolve(this.getValue());

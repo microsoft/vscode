@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
@@ -58,19 +57,21 @@ export class Debugger implements IDebugger {
 
 			if (isObject(source)) {
 				Object.keys(source).forEach(key => {
-					if (isObject(destination[key]) && isObject(source[key])) {
-						mixin(destination[key], source[key], overwrite, level + 1);
-					} else {
-						if (key in destination) {
-							if (overwrite) {
-								if (level === 0 && key === 'type') {
-									// don't merge the 'type' property
-								} else {
-									destination[key] = source[key];
-								}
-							}
+					if (key !== '__proto__') {
+						if (isObject(destination[key]) && isObject(source[key])) {
+							mixin(destination[key], source[key], overwrite, level + 1);
 						} else {
-							destination[key] = source[key];
+							if (key in destination) {
+								if (overwrite) {
+									if (level === 0 && key === 'type') {
+										// don't merge the 'type' property
+									} else {
+										destination[key] = source[key];
+									}
+								}
+							} else {
+								destination[key] = source[key];
+							}
 						}
 					}
 				});
@@ -169,7 +170,7 @@ export class Debugger implements IDebugger {
 		// fix formatting
 		const editorConfig = this.configurationService.getValue<any>();
 		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
-			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
+			content = content.replace(new RegExp('\t', 'g'), ' '.repeat(editorConfig.editor.tabSize));
 		}
 
 		return Promise.resolve(content);

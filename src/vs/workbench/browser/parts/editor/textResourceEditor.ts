@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { TextEditorOptions, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -25,7 +25,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { basenameOrAuthority } from 'vs/base/common/resources';
 import { ModelConstants } from 'vs/editor/common/model';
 
 /**
@@ -55,13 +54,13 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return nls.localize('textEditor', "Text Editor");
 	}
 
-	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
 
 		// Set input and resolve
-		await super.setInput(input, options, token);
+		await super.setInput(input, options, context, token);
 		const resolvedModel = await input.resolve();
 
 		// Check for cancellation
@@ -86,8 +85,8 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
 		}
 
-		// Otherwise restore View State
-		if (!optionsGotApplied) {
+		// Otherwise restore View State unless disabled via settings
+		if (!optionsGotApplied && this.shouldRestoreTextEditorViewState(input, context)) {
 			this.restoreTextResourceEditorViewState(input, textEditor);
 		}
 
@@ -106,19 +105,6 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 				control.restoreViewState(viewState);
 			}
 		}
-	}
-
-	protected getAriaLabel(): string {
-		let ariaLabel: string;
-
-		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.resource) : this.input?.getName();
-		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
-		} else {
-			ariaLabel = inputName ? nls.localize('writeableEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('writeableEditorAriaLabel', "Editor");
-		}
-
-		return ariaLabel;
 	}
 
 	/**

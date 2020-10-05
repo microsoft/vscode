@@ -344,9 +344,9 @@ suite('keyboardMapper - MAC de_ch', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -368,9 +368,9 @@ suite('keyboardMapper - MAC de_ch', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -425,9 +425,9 @@ suite('keyboardMapper - MAC en_us', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -449,9 +449,9 @@ suite('keyboardMapper - MAC en_us', () => {
 			},
 			{
 				label: '⌘',
-				ariaLabel: 'Command+',
+				ariaLabel: 'Command',
 				electronAccelerator: null,
-				userSettingsLabel: 'cmd+',
+				userSettingsLabel: 'cmd',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -780,10 +780,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				code: 'ControlLeft'
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -804,10 +804,10 @@ suite('keyboardMapper - LINUX de_ch', () => {
 				code: 'ControlRight'
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -1180,10 +1180,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 				code: 'ControlLeft'
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -1204,10 +1204,10 @@ suite('keyboardMapper - LINUX en_us', () => {
 				code: 'ControlRight'
 			},
 			{
-				label: 'Ctrl+',
-				ariaLabel: 'Control+',
+				label: 'Ctrl',
+				ariaLabel: 'Control',
 				electronAccelerator: null,
-				userSettingsLabel: 'ctrl+',
+				userSettingsLabel: 'ctrl',
 				isWYSIWYG: true,
 				isChord: false,
 				dispatchParts: [null],
@@ -1318,7 +1318,7 @@ suite('keyboardMapper', () => {
 			);
 		}
 
-		// https://github.com/Microsoft/vscode/issues/24107#issuecomment-292318497
+		// https://github.com/microsoft/vscode/issues/24107#issuecomment-292318497
 		assertKeyboardEvent(KeyCode.UpArrow, 'Lang3', 'UpArrow', 'Up', 'up', '[ArrowUp]');
 		assertKeyboardEvent(KeyCode.DownArrow, 'NumpadEnter', 'DownArrow', 'Down', 'down', '[ArrowDown]');
 		assertKeyboardEvent(KeyCode.LeftArrow, 'Convert', 'LeftArrow', 'Left', 'left', '[ArrowLeft]');
@@ -1330,7 +1330,7 @@ suite('keyboardMapper', () => {
 		assertKeyboardEvent(KeyCode.PageDown, 'ControlRight', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
 		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
 
-		// https://github.com/Microsoft/vscode/issues/24107#issuecomment-292323924
+		// https://github.com/microsoft/vscode/issues/24107#issuecomment-292323924
 		assertKeyboardEvent(KeyCode.PageDown, 'ControlRight', 'PageDown', 'PageDown', 'pagedown', '[PageDown]');
 		assertKeyboardEvent(KeyCode.PageUp, 'Lang4', 'PageUp', 'PageUp', 'pageup', '[PageUp]');
 		assertKeyboardEvent(KeyCode.End, '', 'End', 'End', 'end', '[End]');

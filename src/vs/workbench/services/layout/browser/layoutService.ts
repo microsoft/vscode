@@ -28,14 +28,19 @@ export const enum Position {
 	BOTTOM
 }
 
+export const enum PanelOpensMaximizedOptions {
+	ALWAYS,
+	NEVER,
+	REMEMBER_LAST
+}
+
 export function positionToString(position: Position): string {
 	switch (position) {
 		case Position.LEFT: return 'left';
 		case Position.RIGHT: return 'right';
 		case Position.BOTTOM: return 'bottom';
+		default: return 'bottom';
 	}
-
-	return 'bottom';
 }
 
 const positionsByString: { [key: string]: Position } = {
@@ -48,9 +53,28 @@ export function positionFromString(str: string): Position {
 	return positionsByString[str];
 }
 
+export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+	switch (setting) {
+		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
+		case PanelOpensMaximizedOptions.NEVER: return 'never';
+		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
+		default: return 'preserve';
+	}
+}
+
+const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions } = {
+	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
+	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
+	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
+};
+
+export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedOptions {
+	return panelOpensMaximizedByString[str];
+}
+
 export interface IWorkbenchLayoutService extends ILayoutService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Emits when the zen mode is enabled or disabled.
@@ -92,6 +116,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
+
+	/**
+	 * Focuses the part. If the part is not visible this is a noop.
+	 */
+	focusPart(part: Parts): void;
 
 	/**
 	 * Returns the parts HTML element, if there is one.
@@ -139,6 +168,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns true if the window has a border.
 	 */
 	hasWindowBorder(): boolean;
+
+	/**
+	 * Returns the window border width.
+	 */
+	getWindowBorderWidth(): number;
 
 	/**
 	 * Returns the window border radius if any.
@@ -219,4 +253,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+
+	/**
+	 * True if a default layout with default editors was applied at startup
+	 */
+	readonly openedDefaultEditors: boolean;
 }
