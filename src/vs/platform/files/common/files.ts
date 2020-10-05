@@ -613,7 +613,9 @@ export class FileChangesEvent {
 
 		const eventsForType = type === FileChangeType.ADDED ? this.added : type === FileChangeType.UPDATED ? this.updated : this.deleted;
 		if (eventsForType) {
-			eventsForType.forEach(change => changes.push(change));
+			for (const [, change] of eventsForType) {
+				changes.push(change);
+			}
 		}
 
 		return changes;
