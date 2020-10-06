@@ -1006,13 +1006,13 @@ suite('vscode API - workspace', () => {
 			assert.equal(document.getText(), 'hello');
 		}
 
-		// // redo and show the new document
-		// {
-		// 	await vscode.commands.executeCommand('redo');
-		// 	const document = await vscode.workspace.openTextDocument(newFile);
-		// 	await vscode.window.showTextDocument(document);
-		// 	assert.equal(document.getText(), 'hello2');
-		// }
+		// redo and show the new document
+		{
+			await vscode.commands.executeCommand('redo');
+			const document = await vscode.workspace.openTextDocument(newFile);
+			await vscode.window.showTextDocument(document);
+			assert.equal(document.getText(), 'hello2');
+		}
 
 	});
 });
