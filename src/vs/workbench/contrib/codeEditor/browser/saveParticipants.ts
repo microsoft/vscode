@@ -287,8 +287,25 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			? setting
 			: Object.keys(setting).filter(x => setting[x]);
 
-		const codeActionsOnSave = settingItems
+		if (!settingItems.length) {
+			return undefined;
+		}
+
+		const excludedActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === false)
+				.map(x => new CodeActionKind(x));
+
+		let codeActionsOnSave = settingItems
 			.map(x => new CodeActionKind(x));
+
+		if (!excludedActions.some(a => a.equals(CodeActionKind.SourceFixAll))) {
+			codeActionsOnSave = [
+				CodeActionKind.SourceFixAll,
+				...codeActionsOnSave.filter(a => !CodeActionKind.SourceFixAll.contains(a))
+			];
+		}
 
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -304,16 +321,6 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 				return 0;
 			});
 		}
-
-		if (!codeActionsOnSave.length) {
-			return undefined;
-		}
-
-		const excludedActions = Array.isArray(setting)
-			? []
-			: Object.keys(setting)
-				.filter(x => setting[x] === false)
-				.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
