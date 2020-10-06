@@ -225,6 +225,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
 				return extHostAuthentication.onDidChangeSessions;
 			},
+			getPassword(key: string): Thenable<string | undefined> {
+				return extHostAuthentication.getPassword(extension, key);
+			},
+			setPassword(key: string, value: string): Thenable<void> {
+				return extHostAuthentication.setPassword(extension, key, value);
+			},
+			deletePassword(key: string): Thenable<void> {
+				return extHostAuthentication.deletePassword(extension, key);
+			}
 		};
 
 		// namespace: commands

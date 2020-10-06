@@ -143,6 +143,26 @@ declare module 'vscode' {
 		* provider
 		*/
 		export function logout(providerId: string, sessionId: string): Thenable<void>;
+
+		/**
+		 * Retrieve a password that was stored with key. Returns undefined if there
+		 * is no password matching that key.
+		 * @param key The key the password was stored under.
+		 */
+		export function getPassword(key: string): Thenable<string | undefined>;
+
+		/**
+		 * Store a password under a given key.
+		 * @param key The key to store the password under
+		 * @param value The password
+		 */
+		export function setPassword(key: string, value: string): Thenable<void>;
+
+		/**
+		 * Remove a password from storage.
+		 * @param key The key the password was stored under.
+		 */
+		export function deletePassword(key: string): Thenable<void>;
 	}
 
 	//#endregion
