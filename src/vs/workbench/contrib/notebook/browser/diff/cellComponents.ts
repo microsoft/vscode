@@ -769,28 +769,30 @@ export class DeletedCell extends AbstractCellRenderer {
 		}
 	}
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editor.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.editorHeight
-			});
-		}
+		DOM.scheduleAtNextAnimationFrame(() => {
+			if (state.editorHeight || state.outerWidth) {
+				this._editor.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.editorHeight
+				});
+			}
 
-		if (state.metadataEditor || state.outerWidth) {
-			this._metadataEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.metadataHeight
-			});
-		}
+			if (state.metadataEditor || state.outerWidth) {
+				this._metadataEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.metadataHeight
+				});
+			}
 
-		if (state.outputEditor || state.outerWidth) {
-			this._outputEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.outputHeight
-			});
-		}
+			if (state.outputEditor || state.outerWidth) {
+				this._outputEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.outputHeight
+				});
+			}
 
-		this.layoutNotebookCell();
+			this.layoutNotebookCell();
+		});
 	}
 }
 
@@ -857,28 +859,30 @@ export class InsertCell extends AbstractCellRenderer {
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editor.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.editorHeight
-			});
-		}
+		DOM.scheduleAtNextAnimationFrame(() => {
+			if (state.editorHeight || state.outerWidth) {
+				this._editor.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.editorHeight
+				});
+			}
 
-		if (state.metadataEditor || state.outerWidth) {
-			this._metadataEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-				height: this._layoutInfo.metadataHeight
-			});
-		}
+			if (state.metadataEditor || state.outerWidth) {
+				this._metadataEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+					height: this._layoutInfo.metadataHeight
+				});
+			}
 
-		if (state.outputEditor || state.outerWidth) {
-			this._outputEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-				height: this._layoutInfo.outputHeight
-			});
-		}
+			if (state.outputEditor || state.outerWidth) {
+				this._outputEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+					height: this._layoutInfo.outputHeight
+				});
+			}
 
-		this.layoutNotebookCell();
+			this.layoutNotebookCell();
+		});
 	}
 }
 
@@ -963,25 +967,27 @@ export class ModifiedCell extends AbstractCellRenderer {
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
-			this._editor!.layout();
-		}
-
-		if (state.metadataEditor || state.outerWidth) {
-			if (this._metadataEditorContainer) {
-				this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
-				this._metadataEditor?.layout();
+		DOM.scheduleAtNextAnimationFrame(() => {
+			if (state.editorHeight || state.outerWidth) {
+				this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
+				this._editor!.layout();
 			}
-		}
 
-		if (state.outputEditor || state.outerWidth) {
-			if (this._outputEditorContainer) {
-				this._outputEditorContainer.style.height = `${this._layoutInfo.outputHeight}px`;
-				this._outputEditor?.layout();
+			if (state.metadataEditor || state.outerWidth) {
+				if (this._metadataEditorContainer) {
+					this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
+					this._metadataEditor?.layout();
+				}
 			}
-		}
 
-		this.layoutNotebookCell();
+			if (state.outputEditor || state.outerWidth) {
+				if (this._outputEditorContainer) {
+					this._outputEditorContainer.style.height = `${this._layoutInfo.outputHeight}px`;
+					this._outputEditor?.layout();
+				}
+			}
+
+			this.layoutNotebookCell();
+		});
 	}
 }
