@@ -281,15 +281,19 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if (isNewModel) {
 			const backup = await this.backupFileService.resolve<IBackupMetaData>(this.resource);
 
-			if (this.isResolved()) {
-				return this; // Make sure meanwhile someone else did not succeed in loading
+			// Return early if someone else managed to resolve the model by now
+			const isNewModel = !this.isResolved();
+			if (!isNewModel) {
+				this.logService.trace('[text file model] load() - exit - without loading because previously new model got created meanwhile', this.resource.toString(true));
+
+				return this;
 			}
 
 			if (backup) {
 				try {
 					return await this.loadFromBackup(backup, options);
 				} catch (error) {
-					this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
+					this.logService.error('[text file model] load() from backup', error, this.resource.toString(true)); // ignore error and continue to load as file below
 				}
 			}
 		}
