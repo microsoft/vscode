@@ -2,24 +2,20 @@
 # Flags: CaseSensitive WordMatch
 # ContextLines: 2
 
-7 results - 2 files
+5 results - 2 files
 
 src/vs/base/browser/dom.ts:
-  74  };
-  75  
-  76: /** @deprecated ES6 - use classList*/
-  77  export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
+  76  };
+  77  
   78: /** @deprecated ES6 - use classList*/
   79  export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
   80: /** @deprecated ES6 - use classList*/
   81  export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
   82: /** @deprecated ES6 - use classList*/
-  83  export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
+  83  export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
   84: /** @deprecated ES6 - use classList*/
-  85  export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
-  86: /** @deprecated ES6 - use classList*/
-  87  export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
-  88  
+  85  export function toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void { return _classList.toggleClass(node, className, shouldHaveIt); }
+  86  
 
 src/vs/base/common/strings.ts:
   15  
