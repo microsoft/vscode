@@ -799,16 +799,16 @@ class ProposedApiController {
 	private readonly productAllowProposedApi: Set<string>;
 
 	constructor(
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService
 	) {
 		// Make enabled proposed API be lowercase for case insensitive comparison
-		this.enableProposedApiFor = (environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
+		this.enableProposedApiFor = (_environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
 
 		this.enableProposedApiForAll =
-			!environmentService.isBuilt || // always allow proposed API when running out of sources
-			(!!environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
-			(this.enableProposedApiFor.length === 0 && Array.isArray(environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
+			!_environmentService.isBuilt || // always allow proposed API when running out of sources
+			(!!_environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
+			(this.enableProposedApiFor.length === 0 && Array.isArray(_environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {
@@ -830,7 +830,7 @@ class ProposedApiController {
 				extension.enableProposedApi = false;
 				console.error(`Extension '${extension.identifier.value} cannot use PROPOSED API (must started out of dev or enabled via --enable-proposed-api)`);
 
-			} else {
+			} else if (this._environmentService.isBuilt) {
 				// proposed api is available when developing or when an extension was explicitly
 				// spelled out via a command line argument
 				console.warn(`Extension '${extension.identifier.value}' uses PROPOSED API which is subject to change and removal without notice.`);

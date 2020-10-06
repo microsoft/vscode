@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
+import * as UUID from 'vs/base/common/uuid';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import * as nls from 'vs/nls';
@@ -437,7 +438,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							source: cell.getValue(),
 							language: cell.language,
 							cellKind: cell.cellKind,
-							outputs: cell.outputs,
+							outputs: cell.outputs.map(output => {
+								if (output.outputKind === CellOutputKind.Rich) {
+									return {
+										...output,
+										outputId: UUID.generateUuid()
+									};
+								}
+
+								return output;
+							}),
 							metadata: {
 								editable: cell.metadata?.editable,
 								runnable: cell.metadata?.runnable,
@@ -467,7 +477,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							source: cell.getValue(),
 							language: cell.language,
 							cellKind: cell.cellKind,
-							outputs: cell.outputs,
+							outputs: cell.outputs.map(output => {
+								if (output.outputKind === CellOutputKind.Rich) {
+									return {
+										...output,
+										outputId: UUID.generateUuid()
+									};
+								}
+
+								return output;
+							}),
 							metadata: {
 								editable: cell.metadata?.editable,
 								runnable: cell.metadata?.runnable,
