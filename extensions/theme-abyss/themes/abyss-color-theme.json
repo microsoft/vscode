@@ -390,13 +390,13 @@
 		"tab.inactiveBackground": "#10192c",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
+		"tab.lastPinnedBorder": "#596F99",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#051336",
 		// "activityBar.foreground": "",
 		// "activityBarBadge.background": "",
 		// "activityBarBadge.foreground": "",
-		// "activityBar.dropBackground": "",
 
 		// Workbench: Panel
 		// "panel.background": "",
