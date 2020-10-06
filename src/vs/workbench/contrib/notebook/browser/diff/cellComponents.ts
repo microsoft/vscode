@@ -746,7 +746,7 @@ export class DeletedCell extends AbstractCellRenderer {
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && this._layoutInfo.editorHeight !== e.contentHeight) {
 				this._layoutInfo.editorHeight = e.contentHeight;
 				this.layout({ editorHeight: true });
 			}
@@ -836,7 +836,7 @@ export class InsertCell extends AbstractCellRenderer {
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && this._layoutInfo.editorHeight !== e.contentHeight) {
 				this._layoutInfo.editorHeight = e.contentHeight;
 				this.layout({ editorHeight: true });
 			}
@@ -929,7 +929,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._editorContainer.style.height = `${editorHeight}px`;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && this._layoutInfo.editorHeight !== e.contentHeight) {
 				this._layoutInfo.editorHeight = e.contentHeight;
 				this.layout({ editorHeight: true });
 			}
