@@ -1846,20 +1846,20 @@ export class ToggleEditorTypeAction extends Action {
 			return;
 		}
 
-		const input = activeEditorPane.input;
-		if (!input.resource) {
+		const activeEditorResource = activeEditorPane.input.resource;
+		if (!activeEditorResource) {
 			return;
 		}
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(input.resource, undefined, options, group, this.editorService);
+		const overrides = getAllAvailableEditors(activeEditorResource, undefined, options, group, this.editorService);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
+		await firstNonActiveOverride[0].open(activeEditorPane.input, { ...options, override: firstNonActiveOverride[1].id }, group, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 }

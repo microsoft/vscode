@@ -10,7 +10,6 @@ import {
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { dirname, joinPath, basename, isEqual } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
@@ -49,7 +48,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 
 	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/globalState.json` });
 	protected readonly version: number = 1;
-	private readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'globalState.json');
+	private readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'globalState.json');
 	private readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	private readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	private readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -67,7 +66,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, configurationService);
-		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
+		this._register(this.fileService.watch(this.extUri.dirname(this.environmentService.argvResource)));
 		this._register(
 			Event.any(
 				/* Locale change */
@@ -123,17 +122,17 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	protected async getAcceptResult(resourcePreview: IGlobalStateResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IGlobalStateResourceMergeResult> {
 
 		/* Accept local resource */
-		if (isEqual(resource, this.localResource)) {
+		if (this.extUri.isEqual(resource, this.localResource)) {
 			return this.acceptLocal(resourcePreview);
 		}
 
 		/* Accept remote resource */
-		if (isEqual(resource, this.remoteResource)) {
+		if (this.extUri.isEqual(resource, this.remoteResource)) {
 			return this.acceptRemote(resourcePreview);
 		}
 
 		/* Accept preview resource */
-		if (isEqual(resource, this.previewResource)) {
+		if (this.extUri.isEqual(resource, this.previewResource)) {
 			return resourcePreview.previewResult;
 		}
 
@@ -205,16 +204,16 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
-		return [{ resource: joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
+		return [{ resource: this.extUri.joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
+		if (this.extUri.isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
 			const localGlobalState = await this.getLocalGlobalState();
 			return this.format(localGlobalState);
 		}
 
-		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 
@@ -223,11 +222,11 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 			return content;
 		}
 
-		content = await super.resolveContent(dirname(uri));
+		content = await super.resolveContent(this.extUri.dirname(uri));
 		if (content) {
 			const syncData = this.parseSyncData(content);
 			if (syncData) {
-				switch (basename(uri)) {
+				switch (this.extUri.basename(uri)) {
 					case 'globalState.json':
 						return this.format(JSON.parse(syncData.content));
 				}
@@ -238,7 +237,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	}
 
 	private format(globalState: IGlobalState): string {
-		const storageKeys = Object.keys(globalState.storage).sort();
+		const storageKeys = globalState.storage ? Object.keys(globalState.storage).sort() : [];
 		const storage: IStringDictionary<IStorageValue> = {};
 		storageKeys.forEach(key => storage[key] = globalState.storage[key]);
 		globalState.storage = storage;

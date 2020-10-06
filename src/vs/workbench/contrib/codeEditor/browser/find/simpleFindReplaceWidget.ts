@@ -140,6 +140,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
 			this.findFirst();
 		}));
 
@@ -314,7 +315,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
-		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
+		this._domNode.classList.toggle('replaceToggled', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 	}
 
@@ -345,8 +346,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._findInput.select();
 		}, 0);
@@ -364,8 +364,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._isVisible = true;
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 
 			this.focus();
@@ -391,8 +390,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}
 
 		setTimeout(() => {
-			dom.addClass(this._domNode, 'visible');
-			dom.addClass(this._domNode, 'visible-transition');
+			this._domNode.classList.add('visible', 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
 			this._updateButtons();
 
@@ -402,13 +400,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public hide(): void {
 		if (this._isVisible) {
-			dom.removeClass(this._domNode, 'visible-transition');
+			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list
 			setTimeout(() => {
 				this._isVisible = false;
 				this.updateButtons(this.foundMatch);
-				dom.removeClass(this._domNode, 'visible');
+				this._domNode.classList.remove('visible');
 			}, 200);
 		}
 	}

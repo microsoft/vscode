@@ -155,7 +155,7 @@ export class OutputLinkComputer {
 				const fullMatch = strings.rtrim(match[0], '.'); // remove trailing "." that likely indicate end of sentence
 
 				const index = line.indexOf(fullMatch, offset);
-				offset += index + fullMatch.length;
+				offset = index + fullMatch.length;
 
 				const linkRange = {
 					startColumn: index + 1,

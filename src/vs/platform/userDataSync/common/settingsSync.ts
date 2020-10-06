@@ -21,7 +21,6 @@ import { AbstractInitializer, AbstractJsonFileSynchroniser, IAcceptResult, IFile
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Edit } from 'vs/base/common/jsonFormatter';
 import { setProperty, applyEdits } from 'vs/base/common/jsonEdit';
@@ -49,7 +48,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	/* Version 2: Change settings from `sync.${setting}` to `settingsSync.{setting}` */
 	protected readonly version: number = 2;
-	readonly previewResource: URI = joinPath(this.syncPreviewFolder, 'settings.json');
+	readonly previewResource: URI = this.extUri.joinPath(this.syncPreviewFolder, 'settings.json');
 	readonly localResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local' });
 	readonly remoteResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'remote' });
 	readonly acceptedResource: URI = this.previewResource.with({ scheme: USER_DATA_SYNC_SCHEME, authority: 'accepted' });
@@ -141,7 +140,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		const ignoredSettings = await this.getIgnoredSettings();
 
 		/* Accept local resource */
-		if (isEqual(resource, this.localResource)) {
+		if (this.extUri.isEqual(resource, this.localResource)) {
 			return {
 				/* Remove ignored settings */
 				content: resourcePreview.fileContent ? updateIgnoredSettings(resourcePreview.fileContent.value.toString(), '{}', ignoredSettings, formattingOptions) : null,
@@ -151,7 +150,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		}
 
 		/* Accept remote resource */
-		if (isEqual(resource, this.remoteResource)) {
+		if (this.extUri.isEqual(resource, this.remoteResource)) {
 			return {
 				/* Update ignored settings from local file content */
 				content: resourcePreview.remoteContent !== null ? updateIgnoredSettings(resourcePreview.remoteContent, resourcePreview.fileContent ? resourcePreview.fileContent.value.toString() : '{}', ignoredSettings, formattingOptions) : null,
@@ -161,7 +160,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		}
 
 		/* Accept preview resource */
-		if (isEqual(resource, this.previewResource)) {
+		if (this.extUri.isEqual(resource, this.previewResource)) {
 			if (content === undefined) {
 				return {
 					content: resourcePreview.previewResult.content,
@@ -244,24 +243,24 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource: URI }[]> {
 		const comparableResource = (await this.fileService.exists(this.file)) ? this.file : this.localResource;
-		return [{ resource: joinPath(uri, 'settings.json'), comparableResource }];
+		return [{ resource: this.extUri.joinPath(uri, 'settings.json'), comparableResource }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
-		if (isEqual(this.remoteResource, uri) || isEqual(this.localResource, uri) || isEqual(this.acceptedResource, uri)) {
+		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
 		let content = await super.resolveContent(uri);
 		if (content) {
 			return content;
 		}
-		content = await super.resolveContent(dirname(uri));
+		content = await super.resolveContent(this.extUri.dirname(uri));
 		if (content) {
 			const syncData = this.parseSyncData(content);
 			if (syncData) {
 				const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
 				if (settingsSyncContent) {
-					switch (basename(uri)) {
+					switch (this.extUri.basename(uri)) {
 						case 'settings.json':
 							return settingsSyncContent.settings;
 					}

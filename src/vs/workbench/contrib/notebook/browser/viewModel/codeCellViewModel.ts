@@ -74,7 +74,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	) {
 		super(viewType, model, UUID.generateUuid(), configurationService);
 		this._register(this.model.onDidChangeOutputs((splices) => {
-			this._outputCollection = new Array(this.model.outputs.length);
+			splices.reverse().forEach(splice => {
+				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
+			});
 			this._outputsTop = null;
 			this._onDidChangeOutputs.fire(splices);
 		}));

@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileStreamContent, ITextFileContent, IResourceEncodings, IReadTextFileOptions, IWriteTextFileOptions, toBufferOrReadable, TextFileOperationError, TextFileOperationResult, ITextFileSaveOptions, ITextFileEditorModelManager, IResourceEncoding, stringToSnapshot, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { IRevertOptions, IEncodingSupport } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService, FileOperationError, FileOperationResult, IFileStatWithMetadata, ICreateFileOptions, IFileStreamContent } from 'vs/platform/files/common/files';
@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactoryFromSnapshot, createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { joinPath, dirname, basename, toLocalResource, extUri, extname } from 'vs/base/common/resources';
+import { joinPath, dirname, basename, toLocalResource, extname, isEqual } from 'vs/base/common/resources';
 import { IDialogService, IFileDialogService, IConfirmation } from 'vs/platform/dialogs/common/dialogs';
 import { VSBuffer, VSBufferReadable, bufferToStream } from 'vs/base/common/buffer';
 import { ITextSnapshot, ITextModel } from 'vs/editor/common/model';
@@ -219,11 +219,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return undefined;
 	}
 
-	async saveAs(source: URI, target?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined> {
+	async saveAs(source: URI, target?: URI, options?: ITextFileSaveAsOptions): Promise<URI | undefined> {
 
 		// Get to target resource
 		if (!target) {
-			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(source), options?.availableFileSystems);
+			target = await this.fileDialogService.pickFileToSave(await this.suggestSavePath(options?.suggestedTarget ?? source), options?.availableFileSystems);
 		}
 
 		if (!target) {
@@ -231,7 +231,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Just save if target is same as models own resource
-		if (extUri.isEqual(source, target)) {
+		if (isEqual(source, target)) {
 			return this.save(source, { ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
 		}
 

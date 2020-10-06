@@ -8,7 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
+import { CATEGORIES, Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -104,4 +104,4 @@ class StartDebugTextMate extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(StartDebugTextMate), 'Start Text Mate Syntax Grammar Logging', nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(StartDebugTextMate), 'Start Text Mate Syntax Grammar Logging', CATEGORIES.Developer.value);

@@ -797,6 +797,7 @@ export class SimpleFileDialog {
 				}
 
 				this.filePickBox.items = items;
+				this.filePickBox.activeItems = [<FileQuickPickItem>this.filePickBox.items[0]];
 				if (this.allowFolderSelection) {
 					this.filePickBox.activeItems = [];
 				}

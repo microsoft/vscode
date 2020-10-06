@@ -309,21 +309,15 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private async handleFileEvents(event: FileChangesEvent): Promise<void> {
-		const events = event.changes;
-
-		let affectedByChanges = false;
 
 		// Find changes that affect the resource
-		for (const event of events) {
-			affectedByChanges = resources.isEqual(this.configurationResource, event.resource);
-			if (affectedByChanges) {
-				if (event.type === FileChangeType.ADDED) {
-					this.onResourceExists(true);
-				} else if (event.type === FileChangeType.DELETED) {
-					this.onResourceExists(false);
-				}
-				break;
-			}
+		let affectedByChanges = event.contains(this.configurationResource, FileChangeType.UPDATED);
+		if (event.contains(this.configurationResource, FileChangeType.ADDED)) {
+			affectedByChanges = true;
+			this.onResourceExists(true);
+		} else if (event.contains(this.configurationResource, FileChangeType.DELETED)) {
+			affectedByChanges = true;
+			this.onResourceExists(false);
 		}
 
 		if (affectedByChanges) {
@@ -574,15 +568,9 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable implements IWork
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
 		if (this._workspaceIdentifier) {
-			const events = event.changes;
 
-			let affectedByChanges = false;
 			// Find changes that affect workspace file
-			for (let i = 0, len = events.length; i < len && !affectedByChanges; i++) {
-				affectedByChanges = resources.isEqual(this._workspaceIdentifier.configPath, events[i].resource);
-			}
-
-			if (affectedByChanges) {
+			if (event.contains(this._workspaceIdentifier.configPath)) {
 				this.reloadConfigurationScheduler.schedule();
 			}
 		}

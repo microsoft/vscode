@@ -5,10 +5,10 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, Deprecated_EditorPinnedContext, Deprecated_EditorDirtyContext } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, Deprecated_EditorPinnedContext, Deprecated_EditorDirtyContext, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, getActiveTextEditorOptions, IEditorOpeningEvent, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
@@ -46,7 +46,7 @@ import { withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { hash } from 'vs/base/common/hash';
 import { guessMimeTypes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/resources';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -575,7 +575,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private toEditorTelemetryDescriptor(editor: EditorInput): object {
 		const descriptor = editor.getTelemetryDescriptor();
 
-		const resource = editor.resource;
+		const resource = EditorResourceAccessor.getOriginalUri(editor);
 		const path = resource ? resource.scheme === Schemas.file ? resource.fsPath : resource.path : undefined;
 		if (resource && path) {
 			descriptor['resource'] = { mimeType: guessMimeTypes(resource).join(', '), scheme: resource.scheme, ext: extname(resource), path: hash(path) };
@@ -717,8 +717,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return this._group.count === 0;
 	}
 
-	get preferredTitleHeight(): number {
-		return this.titleAreaControl.getPreferredHeight();
+	get titleDimensions(): IEditorGroupTitleDimensions {
+		return this.titleAreaControl.getDimensions();
 	}
 
 	get isMinimized(): boolean {
@@ -1699,7 +1699,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.dimension = new Dimension(width, height);
 
 		// Ensure editor container gets height as CSS depending on the preferred height of the title control
-		const titleHeight = this.preferredTitleHeight;
+		const titleHeight = this.titleDimensions.height;
 		const editorHeight = Math.max(0, height - titleHeight);
 		this.editorContainer.style.height = `${editorHeight}px`;
 
@@ -1780,7 +1780,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	const letterpress = `./media/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
 		.monaco-workbench .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
-			background-image: url('${require.toUrl(letterpress)}')
+			background-image: ${asCSSUrl(FileAccess.asBrowserUri(letterpress, require))}
 		}
 	`);
 

@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { INotebookEditor, INotebookEditorMouseEvent, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import * as DOM from 'vs/base/browser/dom';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellKind, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
@@ -117,10 +116,10 @@ export class FoldingController extends Disposable implements INotebookEditorCont
 
 		const target = e.event.target as HTMLElement;
 
-		if (DOM.hasClass(target, 'codicon-chevron-down') || DOM.hasClass(target, 'codicon-chevron-right')) {
+		if (target.classList.contains('codicon-chevron-down') || target.classList.contains('codicon-chevron-right')) {
 			const parent = target.parentElement as HTMLElement;
 
-			if (!DOM.hasClass(parent, 'notebook-folding-indicator')) {
+			if (!parent.classList.contains('notebook-folding-indicator')) {
 				return;
 			}
 
@@ -224,6 +223,9 @@ registerAction2(class extends Action2 {
 			} else {
 				controller.setFoldingStateDown(index, CellFoldingState.Collapsed, levels);
 			}
+
+			const viewIndex = editor.viewModel!.getNearestVisibleCellIndexUpwards(index);
+			editor.selectElement(editor.viewModel!.viewCells[viewIndex]);
 		}
 	}
 });

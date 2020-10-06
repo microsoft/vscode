@@ -749,10 +749,10 @@ class UserDataSyncPreview extends Disposable implements IUserDataSyncPreview {
 		const newResources = this.toUserDataSyncResourceGroups(
 			(this.manualSync?.preview || [])
 				.map(([syncResource, syncResourcePreview]) =>
-					([
-						syncResource,
-						syncResourcePreview.resourcePreviews
-					]))
+				([
+					syncResource,
+					syncResourcePreview.resourcePreviews
+				]))
 		);
 		if (!equals(newResources, this._resources, (a, b) => isEqual(a.local, b.local) && a.mergeState === b.mergeState)) {
 			this._resources = newResources;

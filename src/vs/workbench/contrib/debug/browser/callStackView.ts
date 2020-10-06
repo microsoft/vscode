@@ -157,7 +157,7 @@ export class CallStackView extends ViewPane {
 			const thread = sessions.length === 1 && sessions[0].getAllThreads().length === 1 ? sessions[0].getAllThreads()[0] : undefined;
 			if (thread && thread.stoppedDetails) {
 				this.pauseMessageLabel.textContent = thread.stateLabel;
-				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
+				this.pauseMessageLabel.title = thread.stateLabel;
 				this.pauseMessageLabel.classList.toggle('exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
 				this.updateActions();
@@ -930,13 +930,15 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
-			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
+			return nls.localize('threadAriaLabel', "Thread {0} {1}", element.name, element.stateLabel);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}, callstack, debug", element.name, element.range.startLineNumber, getSpecificSourceName(element));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}", element.name, element.range.startLineNumber, getSpecificSourceName(element));
 		}
 		if (isDebugSession(element)) {
-			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());
+			const thread = element.getAllThreads().find(t => t.stopped);
+			const state = thread ? thread.stateLabel : nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+			return nls.localize('sessionLabel', "Session {0} {1}", element.getLabel(), state);
 		}
 		if (typeof element === 'string') {
 			return element;

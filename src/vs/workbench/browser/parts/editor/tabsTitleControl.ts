@@ -6,7 +6,7 @@
 import 'vs/css!./media/tabstitlecontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, computeEditorAriaLabel } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner, IEditorPartOptions, SideBySideEditor, computeEditorAriaLabel } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -442,7 +442,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	pinEditor(editor: IEditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel));
 	}
 
 	stickEditor(editor: IEditorInput): void {
@@ -458,15 +458,21 @@ export class TabsTitleControl extends TitleControl {
 		// Update tab
 		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel, tabActionBar));
 
+		// Sticky change has an impact on each tab's border because
+		// it potentially moves the border to the last pinned tab
+		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
+			this.redrawTabBorders(index, tabContainer);
+		});
+
 		// A change to the sticky state requires a layout to keep the active editor visible
 		this.layout(this.dimension);
 	}
 
 	setActive(isGroupActive: boolean): void {
 
-		// Activity has an impact on each tab
+		// Activity has an impact on each tab's active indication
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawEditorActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
+			this.redrawTabActiveAndDirty(isGroupActive, editor, tabContainer, tabLabelWidget);
 		});
 
 		// Activity has an impact on the toolbar, so we need to update and layout
@@ -493,7 +499,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// As such we need to redraw each label
 		this.forEachTab((editor, index, tabContainer, tabLabelWidget, tabLabel) => {
-			this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+			this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
 		});
 
 		// A change to a label requires a layout to keep the active editor visible
@@ -501,7 +507,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	updateEditorDirty(editor: IEditorInput): void {
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
+		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget) => this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget));
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
@@ -1020,11 +1026,10 @@ export class TabsTitleControl extends TitleControl {
 
 	private redrawTab(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel, tabActionBar: ActionBar): void {
 		const isTabSticky = this.group.isSticky(index);
-		const isTabLastSticky = isTabSticky && this.group.stickyCount === index + 1;
 		const options = this.accessor.partOptions;
 
 		// Label
-		this.redrawLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
+		this.redrawTabLabel(editor, index, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
 		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
@@ -1034,11 +1039,6 @@ export class TabsTitleControl extends TitleControl {
 			}
 			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
 		}
-
-		// Borders / Outline
-		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
-		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
-		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
 		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
@@ -1079,11 +1079,14 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.style.left = 'auto';
 		}
 
+		// Borders / outline
+		this.redrawTabBorders(index, tabContainer);
+
 		// Active / dirty state
-		this.redrawEditorActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
+		this.redrawTabActiveAndDirty(this.accessor.activeGroup === this.group, editor, tabContainer, tabLabelWidget);
 	}
 
-	private redrawLabel(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
+	private redrawTabLabel(editor: IEditorInput, index: number, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel, tabLabel: IEditorInputLabel): void {
 		const options = this.accessor.partOptions;
 
 		// Unless tabs are sticky compact, show the full label and description
@@ -1114,12 +1117,12 @@ export class TabsTitleControl extends TitleControl {
 
 		// Label
 		tabLabelWidget.setResource(
-			{ name, description, resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
+			{ name, description, resource: EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH }) },
 			{ title, extraClasses: ['tab-label'], italic: !this.group.isPinned(editor), forceLabel }
 		);
 
 		// Tests helper
-		const resource = toResource(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		if (resource) {
 			tabContainer.setAttribute('data-resource-name', basenameOrAuthority(resource));
 		} else {
@@ -1127,15 +1130,15 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private redrawEditorActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
+	private redrawTabActiveAndDirty(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 		const isTabActive = this.group.isActive(editor);
 
-		const hasModifiedBorderTop = this.doRedrawEditorDirty(isGroupActive, isTabActive, editor, tabContainer);
+		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
 
-		this.doRedrawEditorActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
+		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabLabelWidget);
 	}
 
-	private doRedrawEditorActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
+	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: IResourceLabel): void {
 
 		// Tab is active
 		if (this.group.isActive(editor)) {
@@ -1181,7 +1184,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 	}
 
-	private doRedrawEditorDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
+	private doRedrawTabDirty(isGroupActive: boolean, isTabActive: boolean, editor: IEditorInput, tabContainer: HTMLElement): boolean {
 		let hasModifiedBorderColor = false;
 
 		// Tab: dirty (unless saving)
@@ -1222,13 +1225,26 @@ export class TabsTitleControl extends TitleControl {
 		return hasModifiedBorderColor;
 	}
 
-	getPreferredHeight(): number {
+	private redrawTabBorders(index: number, tabContainer: HTMLElement): void {
+		const isTabSticky = this.group.isSticky(index);
+		const isTabLastSticky = isTabSticky && this.group.stickyCount === index + 1;
+
+		// Borders / Outline
+		const borderRightColor = ((isTabLastSticky ? this.getColor(TAB_LAST_PINNED_BORDER) : undefined) || this.getColor(TAB_BORDER) || this.getColor(contrastBorder));
+		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : '';
+		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
+	}
+
+	getDimensions(): IEditorGroupTitleDimensions {
 		let height = TabsTitleControl.TAB_HEIGHT;
 		if (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden()) {
 			height += BreadcrumbsControl.HEIGHT;
 		}
 
-		return height;
+		return {
+			height,
+			offset: TabsTitleControl.TAB_HEIGHT
+		};
 	}
 
 	layout(dimension: Dimension | undefined): void {

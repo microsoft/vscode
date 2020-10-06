@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
@@ -29,11 +29,9 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 	// Actions: Zoom
 	(function registerZoomActions(): void {
-		const viewCategory = nls.localize('view', "View");
-
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(ZoomInAction, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', viewCategory);
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(ZoomOutAction, { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT], linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT] } }), 'View: Zoom Out', viewCategory);
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(ZoomResetAction, { primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0 }), 'View: Reset Zoom', viewCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.from(ZoomInAction, { primary: KeyMod.CtrlCmd | KeyCode.US_EQUAL, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_EQUAL, KeyMod.CtrlCmd | KeyCode.NUMPAD_ADD] }), 'View: Zoom In', CATEGORIES.View.value);
+		registry.registerWorkbenchAction(SyncActionDescriptor.from(ZoomOutAction, { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS, KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT], linux: { primary: KeyMod.CtrlCmd | KeyCode.US_MINUS, secondary: [KeyMod.CtrlCmd | KeyCode.NUMPAD_SUBTRACT] } }), 'View: Zoom Out', CATEGORIES.View.value);
+		registry.registerWorkbenchAction(SyncActionDescriptor.from(ZoomResetAction, { primary: KeyMod.CtrlCmd | KeyCode.NUMPAD_0 }), 'View: Reset Zoom', CATEGORIES.View.value);
 	})();
 
 	// Actions: Window
@@ -89,9 +87,8 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 	// Actions: Developer
 	(function registerDeveloperActions(): void {
-		const developerCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowWithExtensionsDisabledAction), 'Developer: Reload With Extensions Disabled', developerCategory);
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleDevToolsAction), 'Developer: Toggle Developer Tools', developerCategory);
+		registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowWithExtensionsDisabledAction), 'Developer: Reload With Extensions Disabled', CATEGORIES.Developer.value);
+		registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleDevToolsAction), 'Developer: Toggle Developer Tools', CATEGORIES.Developer.value);
 
 		KeybindingsRegistry.registerKeybindingRule({
 			id: ToggleDevToolsAction.ID,

@@ -13,7 +13,8 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason, IExtensionRecommendation } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
@@ -44,8 +45,6 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 suite('ExtensionsListView Tests', () => {
 
@@ -105,7 +104,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
 			#localExtensionManagementServer: IExtensionManagementServer = { extensionManagementService: instantiationService.get(IExtensionManagementService), label: 'local', id: 'vscode-local' };
 			constructor() {
-				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService.get(IExtensionGalleryService), instantiationService.get(IProductService), instantiationService.get(IConfigurationService), instantiationService.get(ILogService), instantiationService.get(INativeWorkbenchEnvironmentService));
+				super(instantiationService.get(ISharedProcessService), instantiationService.get(IRemoteAgentService), instantiationService.get(ILabelService), instantiationService);
 			}
 			get localExtensionManagementServer(): IExtensionManagementServer { return this.#localExtensionManagementServer; }
 			set localExtensionManagementServer(server: IExtensionManagementServer) { }
@@ -123,28 +122,28 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
 			getWorkspaceRecommendations() {
 				return Promise.resolve([
-					{ extensionId: workspaceRecommendationA.identifier.id },
-					{ extensionId: workspaceRecommendationB.identifier.id }]);
+					workspaceRecommendationA.identifier.id,
+					workspaceRecommendationB.identifier.id]);
 			},
 			getConfigBasedRecommendations() {
 				return Promise.resolve({
-					important: [{ extensionId: configBasedRecommendationA.identifier.id }],
-					others: [{ extensionId: configBasedRecommendationB.identifier.id }],
+					important: [configBasedRecommendationA.identifier.id],
+					others: [configBasedRecommendationB.identifier.id],
 				});
 			},
-			getImportantRecommendations(): Promise<IExtensionRecommendation[]> {
+			getImportantRecommendations(): Promise<string[]> {
 				return Promise.resolve([]);
 			},
 			getFileBasedRecommendations() {
 				return [
-					{ extensionId: fileBasedRecommendationA.identifier.id },
-					{ extensionId: fileBasedRecommendationB.identifier.id }
+					fileBasedRecommendationA.identifier.id,
+					fileBasedRecommendationB.identifier.id
 				];
 			},
 			getOtherRecommendations() {
 				return Promise.resolve([
-					{ extensionId: configBasedRecommendationB.identifier.id },
-					{ extensionId: otherRecommendationA.identifier.id }
+					configBasedRecommendationB.identifier.id,
+					otherRecommendationA.identifier.id
 				]);
 			},
 			getAllRecommendationsWithReason() {

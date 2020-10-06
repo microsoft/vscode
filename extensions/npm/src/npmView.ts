@@ -137,7 +137,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 	}
 
 	private async debugScript(script: NpmScript) {
-		startDebugging(script.task.name, script.getFolder());
+		startDebugging(script.task.definition.script, path.dirname(script.package.resourceUri!.fsPath), script.getFolder());
 	}
 
 	private findScript(document: TextDocument, script?: NpmScript): number {

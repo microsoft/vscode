@@ -55,8 +55,6 @@ import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncCha
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/electron-sandbox/userDataAutoSyncService';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
@@ -68,6 +66,9 @@ import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-sandbox/extensionTipsService';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
+import { ActiveWindowManager } from 'vs/platform/windows/electron-sandbox/windowTracker';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -158,8 +159,11 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const nativeHostService = createChannelSender<INativeHostService>(mainProcessService.getChannel('nativeHost'), { context: configuration.windowId });
 	services.set(INativeHostService, nativeHostService);
+	const activeWindowManager = new ActiveWindowManager(nativeHostService);
+	const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));
 
 	services.set(IDownloadService, new SyncDescriptor(DownloadService));
+	services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(server.getChannel('IExtensionRecommendationNotificationService', activeWindowRouter)));
 
 	const instantiationService = new InstantiationService(services);
 
@@ -198,7 +202,6 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IDiagnosticsService, new SyncDescriptor(DiagnosticsService));
 		services.set(IExtensionTipsService, new SyncDescriptor(ExtensionTipsService));
 
-		services.set(ICredentialsService, new SyncDescriptor(KeytarCredentialsService));
 		services.set(IUserDataSyncAccountService, new SyncDescriptor(UserDataSyncAccountService));
 		services.set(IUserDataSyncLogService, new SyncDescriptor(UserDataSyncLogService));
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));

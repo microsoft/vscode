@@ -85,7 +85,7 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		@IDebugService private readonly debugService: IDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this.toDispose = [];
 
@@ -285,8 +285,6 @@ export class DebugHoverWidget implements IContentWidget {
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
 		this.layoutTreeAndContainer(true);
-		this.editor.layoutContentWidget(this);
-		this.scrollbar.scanDomNode();
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
@@ -298,10 +296,12 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private layoutTreeAndContainer(initialLayout: boolean): void {
-		const scrollBarHeight = 8;
-		const treeHeight = Math.min(this.editor.getScrollHeight() / 2, this.tree.contentHeight + scrollBarHeight);
+		const scrollBarHeight = 10;
+		const treeHeight = Math.min(this.editor.getLayoutInfo().height * 0.7, this.tree.contentHeight + scrollBarHeight);
 		this.treeContainer.style.height = `${treeHeight}px`;
 		this.tree.layout(treeHeight, initialLayout ? 400 : undefined);
+		this.editor.layoutContentWidget(this);
+		this.scrollbar.scanDomNode();
 	}
 
 	hide(): void {

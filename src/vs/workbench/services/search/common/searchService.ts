@@ -282,9 +282,9 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private sendTelemetry(query: ISearchQuery, endToEndTime: number, complete?: ISearchComplete, err?: SearchError): void {
-		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === 'file');
-		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== 'file');
-		const scheme = fileSchemeOnly ? 'file' :
+		const fileSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme === Schemas.file);
+		const otherSchemeOnly = query.folderQueries.every(fq => fq.folder.scheme !== Schemas.file);
+		const scheme = fileSchemeOnly ? Schemas.file :
 			otherSchemeOnly ? 'other' :
 				'mixed';
 

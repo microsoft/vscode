@@ -9,13 +9,12 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
-import { startsWith } from 'vs/base/common/strings';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { addIdToOutput, CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { addIdToOutput, CellEditType, ICellEditOperation, IDisplayOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -642,8 +641,18 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		}
 	}
 
-	replaceNotebookCellOutput(uri: URI, index: number, outputs: vscode.CellOutput[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.Output, index, outputs: outputs.map(output => addIdToOutput(output)) } });
+	replaceNotebookCellOutput(uri: URI, index: number, outputs: (vscode.NotebookCellOutput | vscode.CellOutput)[], metadata?: vscode.WorkspaceEditEntryMetadata): void {
+		this._edits.push({
+			_type: FileEditType.Cell, metadata, uri, edit: {
+				editType: CellEditType.Output, index, outputs: outputs.map(output => {
+					if (NotebookCellOutput.isNotebookCellOutput(output)) {
+						return addIdToOutput(output.toJSON());
+					} else {
+						return addIdToOutput(output);
+					}
+				})
+			}
+		});
 	}
 
 	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -782,7 +791,7 @@ export class SnippetString {
 	}
 
 	appendChoice(values: string[], number: number = this._tabstop++): SnippetString {
-		const value = SnippetString._escape(values.toString());
+		const value = values.map(s => s.replace(/\$|}|\\|,/g, '\\$&')).join(',');
 
 		this.value += '${';
 		this.value += number;
@@ -1171,7 +1180,7 @@ export class CodeActionKind {
 	}
 
 	public contains(other: CodeActionKind): boolean {
-		return this.value === other.value || startsWith(other.value, this.value + CodeActionKind.sep);
+		return this.value === other.value || other.value.startsWith(this.value + CodeActionKind.sep);
 	}
 }
 CodeActionKind.Empty = new CodeActionKind('');
@@ -2178,10 +2187,6 @@ export class ThemeIcon {
 		this.id = id;
 		this.themeColor = color;
 	}
-
-	with(color: ThemeColor): ThemeIcon {
-		return new ThemeIcon(this.id, color);
-	}
 }
 ThemeIcon.File = new ThemeIcon('file');
 ThemeIcon.Folder = new ThemeIcon('folder');
@@ -2734,22 +2739,29 @@ export enum ExtensionKind {
 	Workspace = 2
 }
 
-export class Decoration {
+export class FileDecoration {
 
-	static validate(d: Decoration): void {
-		if (d.letter && d.letter.length !== 1) {
+	static validate(d: FileDecoration): void {
+		if (d.badge && d.badge.length !== 1) {
 			throw new Error(`The 'letter'-property must be undefined or a single character`);
 		}
-		if (!d.bubble && !d.color && !d.letter && !d.priority && !d.title) {
+		if (!d.color && !d.badge && !d.tooltip) {
 			throw new Error(`The decoration is empty`);
 		}
 	}
 
-	letter?: string;
-	title?: string;
+	badge?: string;
+	tooltip?: string;
 	color?: vscode.ThemeColor;
 	priority?: number;
-	bubble?: boolean;
+	propagate?: boolean;
+
+
+	constructor(badge?: string, tooltip?: string, color?: ThemeColor) {
+		this.badge = badge;
+		this.tooltip = tooltip;
+		this.color = color;
+	}
 }
 
 //#region Theming
@@ -2769,6 +2781,50 @@ export enum ColorThemeKind {
 //#endregion Theming
 
 //#region Notebook
+
+export class NotebookCellOutputItem {
+
+	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
+		return obj instanceof NotebookCellOutputItem;
+	}
+
+	constructor(
+		readonly mime: string,
+		readonly value: unknown, // JSON'able
+		readonly metadata?: Record<string, string | number | boolean>
+	) { }
+}
+
+export class NotebookCellOutput {
+
+	static isNotebookCellOutput(obj: unknown): obj is vscode.NotebookCellOutput {
+		return obj instanceof NotebookCellOutput;
+	}
+
+	constructor(
+		readonly outputs: NotebookCellOutputItem[],
+		readonly metadata?: Record<string, string | number | boolean>
+	) { }
+
+	toJSON(): IDisplayOutput {
+		let data: { [key: string]: unknown; } = {};
+		let custom: { [key: string]: unknown; } = {};
+		let hasMetadata = false;
+
+		for (let item of this.outputs) {
+			data[item.mime] = item.value;
+			if (item.metadata) {
+				custom[item.mime] = item.metadata;
+				hasMetadata = true;
+			}
+		}
+		return {
+			outputKind: CellOutputKind.Rich,
+			data,
+			metadata: hasMetadata ? { custom } : undefined
+		};
+	}
+}
 
 export enum CellKind {
 	Markdown = 1,

@@ -92,11 +92,11 @@ suite('Untitled text editors', () => {
 	});
 
 	function awaitDidChangeDirty(service: IUntitledTextEditorService): Promise<URI> {
-		return new Promise(c => {
+		return new Promise(resolve => {
 			const listener = service.onDidChangeDirty(async model => {
 				listener.dispose();
 
-				c(model.resource);
+				resolve(model.resource);
 			});
 		});
 	}

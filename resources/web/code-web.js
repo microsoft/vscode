@@ -276,12 +276,13 @@ async function handleStatic(req, res, parsedUrl) {
 	if (/^\/static\/extensions\//.test(parsedUrl.pathname)) {
 		const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/static/extensions/'.length));
 		const filePath = getExtensionFilePath(relativePath, (await builtInExtensionsPromise).locations);
-		if (!filePath) {
-			return serveError(req, res, 400, `Bad request.`);
-		}
-		return serveFile(req, res, filePath, {
+		const responseHeaders = {
 			'Access-Control-Allow-Origin': '*'
-		});
+		};
+		if (!filePath) {
+			return serveError(req, res, 400, `Bad request.`, responseHeaders);
+		}
+		return serveFile(req, res, filePath, responseHeaders);
 	}
 
 	// Strip `/static/` from the path
@@ -299,12 +300,13 @@ async function handleExtension(req, res, parsedUrl) {
 	// Strip `/extension/` from the path
 	const relativePath = decodeURIComponent(parsedUrl.pathname.substr('/extension/'.length));
 	const filePath = getExtensionFilePath(relativePath, (await commandlineProvidedExtensionsPromise).locations);
-	if (!filePath) {
-		return serveError(req, res, 400, `Bad request.`);
-	}
-	return serveFile(req, res, filePath, {
+	const responseHeaders = {
 		'Access-Control-Allow-Origin': '*'
-	});
+	};
+	if (!filePath) {
+		return serveError(req, res, 400, `Bad request.`, responseHeaders);
+	}
+	return serveFile(req, res, filePath, responseHeaders);
 }
 
 /**
@@ -517,8 +519,9 @@ function getExtensionFilePath(relativePath, locations) {
  * @param {import('http').ServerResponse} res
  * @param {string} errorMessage
  */
-function serveError(req, res, errorCode, errorMessage) {
-	res.writeHead(errorCode, { 'Content-Type': 'text/plain' });
+function serveError(req, res, errorCode, errorMessage, responseHeaders = Object.create(null)) {
+	responseHeaders['Content-Type'] = 'text/plain';
+	res.writeHead(errorCode, responseHeaders);
 	res.end(errorMessage);
 }
 
@@ -583,7 +586,8 @@ async function serveFile(req, res, filePath, responseHeaders = Object.create(nul
 		fs.createReadStream(filePath).pipe(res);
 	} catch (error) {
 		console.error(error.toString());
-		res.writeHead(404, { 'Content-Type': 'text/plain' });
+		responseHeaders['Content-Type'] = 'text/plain';
+		res.writeHead(404, responseHeaders);
 		return res.end('Not found');
 	}
 }

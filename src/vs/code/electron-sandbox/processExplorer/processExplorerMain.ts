@@ -14,7 +14,7 @@ import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
 import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
-import { addDisposableListener, addClass, $ } from 'vs/base/browser/dom';
+import { addDisposableListener, $ } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isRemoteDiagnosticError, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
@@ -417,13 +417,22 @@ class ProcessExplorer {
 
 export function startup(windowId: number, data: ProcessExplorerData): void {
 	const platformClass = data.platform === 'win32' ? 'windows' : data.platform === 'linux' ? 'linux' : 'mac';
-	addClass(document.body, platformClass); // used by our fonts
+	document.body.classList.add(platformClass); // used by our fonts
 	applyZoom(data.zoomLevel);
 
 	const processExplorer = new ProcessExplorer(windowId, data);
 
 	document.onkeydown = (e: KeyboardEvent) => {
 		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
+
+		// Cmd/Ctrl + w closes issue window
+		if (cmdOrCtrlKey && e.keyCode === 87) {
+			e.stopPropagation();
+			e.preventDefault();
+
+			processExplorer.dispose();
+			ipcRenderer.send('vscode:closeProcessExplorer');
+		}
 
 		// Cmd/Ctrl + zooms in
 		if (cmdOrCtrlKey && e.keyCode === 187) {
@@ -435,13 +444,4 @@ export function startup(windowId: number, data: ProcessExplorerData): void {
 			zoomOut();
 		}
 	};
-
-	// Cmd/Ctrl + w closes process explorer
-	window.addEventListener('keydown', e => {
-		const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
-		if (cmdOrCtrlKey && e.keyCode === 87) {
-			processExplorer.dispose();
-			ipcRenderer.send('vscode:closeProcessExplorer');
-		}
-	});
 }

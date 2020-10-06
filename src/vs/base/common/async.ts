@@ -56,6 +56,21 @@ export function raceCancellation<T>(promise: Promise<T>, token: CancellationToke
 	return Promise.race([promise, new Promise<T | undefined>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
 }
 
+/**
+ * Returns as soon as one of the promises is resolved and cancels remaining promises
+ */
+export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
+	let resolvedPromiseIndex = -1;
+	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
+	const result = await Promise.race(promises);
+	cancellablePromises.forEach((cancellablePromise, index) => {
+		if (index !== resolvedPromiseIndex) {
+			cancellablePromise.cancel();
+		}
+	});
+	return result;
+}
+
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
 	let promiseResolve: ((value: T | undefined) => void) | undefined = undefined;
 
@@ -149,13 +164,13 @@ export class Throttler {
 
 		this.activePromise = promiseFactory();
 
-		return new Promise((c, e) => {
+		return new Promise((resolve, reject) => {
 			this.activePromise!.then((result: any) => {
 				this.activePromise = null;
-				c(result);
+				resolve(result);
 			}, (err: any) => {
 				this.activePromise = null;
-				e(err);
+				reject(err);
 			});
 		});
 	}
@@ -920,6 +935,41 @@ export class TaskSequentializer {
 		}
 
 		return this._next.promise;
+	}
+}
+
+//#endregion
+
+//#region
+
+/**
+ * The `IntervalCounter` allows to count the number
+ * of calls to `increment()` over a duration of
+ * `interval`. This utility can be used to conditionally
+ * throttle a frequent task when a certain threshold
+ * is reached.
+ */
+export class IntervalCounter {
+
+	private lastIncrementTime = 0;
+
+	private value = 0;
+
+	constructor(private readonly interval: number) { }
+
+	increment(): number {
+		const now = Date.now();
+
+		// We are outside of the range of `interval` and as such
+		// start counting from 0 and remember the time
+		if (now - this.lastIncrementTime > this.interval) {
+			this.lastIncrementTime = now;
+			this.value = 0;
+		}
+
+		this.value++;
+
+		return this.value;
 	}
 }
 

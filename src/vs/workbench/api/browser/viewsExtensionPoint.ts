@@ -26,7 +26,7 @@ import { ViewletRegistry, Extensions as ViewletExtensions, ShowViewletAction } f
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -408,7 +408,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			registry.registerWorkbenchAction(
 				SyncActionDescriptor.create(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
 				`View: Show ${title}`,
-				localize('view', "View")
+				CATEGORIES.View.value
 			);
 		}
 
@@ -479,11 +479,6 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						return null;
 					}
 
-					if (type === ViewType.Webview && !extension.description.enableProposedApi) {
-						collector.error(localize('webviewViewsRequireProposed', "Webview views are proposed api and are only supported when running out of dev or with the following command line switch: --enable-proposed-api"));
-						return null;
-					}
-
 					const viewDescriptor = <ICustomTreeViewDescriptor>{
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
@@ -493,7 +488,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
-						canMoveView: true,
+						canMoveView: viewContainer?.id !== REMOTE,
 						treeView: type === ViewType.Tree ? this.instantiationService.createInstance(CustomTreeView, item.id, item.name) : undefined,
 						collapsed: this.showCollapsed(container) || initialVisibility === InitialVisibility.Collapsed,
 						order: order,

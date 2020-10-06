@@ -144,6 +144,7 @@ export type CommentThreadChanges = Partial<{
 	contextValue: string,
 	comments: modes.Comment[],
 	collapseState: modes.CommentThreadCollapsibleState;
+	readOnly: boolean;
 }>;
 
 export interface MainThreadCommentsShape extends IDisposable {
@@ -834,7 +835,7 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$activateExtension(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
-	$onWillActivateExtension(extensionId: ExtensionIdentifier): void;
+	$onWillActivateExtension(extensionId: ExtensionIdentifier): Promise<void>;
 	$onDidActivateExtension(extensionId: ExtensionIdentifier, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationReason: ExtensionActivationReason): void;
 	$onExtensionActivationError(extensionId: ExtensionIdentifier, error: ExtensionActivationError): Promise<void>;
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, error: SerializedError): void;
@@ -1609,7 +1610,7 @@ export interface DecorationRequest {
 	readonly uri: UriComponents;
 }
 
-export type DecorationData = [number, boolean, string, string, ThemeColor];
+export type DecorationData = [boolean, string, string, ThemeColor];
 export type DecorationReply = { [id: number]: DecorationData; };
 
 export interface ExtHostDecorationsShape {

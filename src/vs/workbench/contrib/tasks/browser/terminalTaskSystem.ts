@@ -635,7 +635,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			const folders = this.contextService.getWorkspace().folders;
 			workspaceFolder = folders.length > 0 ? folders[0] : undefined;
 		}
-		const systemInfo: TaskSystemInfo | undefined = this.currentTask.systemInfo = workspaceFolder ? this.taskSystemInfoResolver(workspaceFolder) : undefined;
+		const systemInfo: TaskSystemInfo | undefined = this.currentTask.systemInfo = this.taskSystemInfoResolver(workspaceFolder);
 
 		let variables = new Set<string>();
 		this.collectTaskVariables(variables, task);
@@ -1075,7 +1075,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (options.cwd) {
 			let cwd = options.cwd;
 			if (!path.isAbsolute(cwd)) {
-				if (workspaceFolder && (workspaceFolder.uri.scheme === 'file')) {
+				if (workspaceFolder && (workspaceFolder.uri.scheme === Schemas.file)) {
 					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}

@@ -18,7 +18,7 @@ import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/brows
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IProductConfiguration } from 'vs/platform/product/common/productService';
 import { mark } from 'vs/base/common/performance';
-import { ICredentialsProvider } from 'vs/platform/credentials/common/credentials';
+import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -235,12 +235,19 @@ interface IProductQualityChangeHandler {
 	(newQuality: 'insider' | 'stable'): void;
 }
 
-interface ISettingsSyncEnablementHandler {
+/**
+ * Settings sync options
+ */
+interface ISettingsSyncOptions {
+	/**
+	 * Is settings sync enabled
+	 */
+	readonly enabled: boolean;
 
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
 	 */
-	(enablement: boolean): void;
+	enablementHandler?(enablement: boolean): void;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -318,19 +325,14 @@ interface IWorkbenchConstructionOptions {
 	 *
 	 * Syncs with the current authenticated user account (provided in [credentialsProvider](#credentialsProvider)) by default.
 	 *
-	 * @deprecated Instead use [enableSettingsSync](#enableSettingsSync) to enable/disable settings sync in the workbench.
+	 * @deprecated Instead use [settingsSyncOptions](#settingsSyncOptions) to enable/disable settings sync in the workbench.
 	 */
 	readonly enableSyncByDefault?: boolean;
 
 	/**
-	 * Enable or disable the Settings Sync
+	 * Settings sync options
 	 */
-	readonly enableSettingsSync?: boolean;
-
-	/**
-	 * Support for Settings Sync enablement change
-	 */
-	readonly settingsSyncEnablementHandler?: ISettingsSyncEnablementHandler;
+	readonly settingsSyncOptions?: ISettingsSyncOptions;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -554,6 +556,9 @@ export {
 
 	// LogLevel
 	LogLevel,
+
+	// SettingsSync
+	ISettingsSyncOptions,
 
 	// Updates/Quality
 	IUpdateProvider,

@@ -17,8 +17,6 @@ import { IViewPaneContainer } from 'vs/workbench/common/views';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
-export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
-
 export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	search(text: string, refresh?: boolean): void;
 }

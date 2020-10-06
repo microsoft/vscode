@@ -23,7 +23,6 @@ import { IRevertOptions } from 'vs/workbench/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
-import { IRange } from 'vs/editor/common/core/range';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export enum CellKind {
@@ -482,18 +481,11 @@ export interface ICellMoveEdit {
 	newIdx: number;
 }
 
-export interface ICellContentEdit {
-	editType: CellEditType.CellContent;
-	index: number;
-	range: IRange | undefined;
-	text: string;
-}
-
 export interface IDocumentUnknownEdit {
 	editType: CellEditType.Unknown;
 }
 
-export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | ICellContentEdit | IDocumentUnknownEdit;
+export type ICellEditOperation = ICellReplaceEdit | ICellOutputEdit | ICellMetadataEdit | ICellLanguageEdit | IDocumentMetadataEdit | ICellOutputsSpliceEdit | ICellMoveEdit | IDocumentUnknownEdit;
 
 export interface INotebookEditData {
 	documentVersionId: number;

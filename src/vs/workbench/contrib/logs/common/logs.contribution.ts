@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import { join } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } from 'vs/workbench/common/actions';
+import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { SetLogLevelAction, OpenWindowSessionLogFileAction } from 'vs/workbench/contrib/logs/common/logsActions';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
@@ -24,8 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { LogsDataCleaner } from 'vs/workbench/contrib/logs/common/logsDataCleaner';
 
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-const devCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', devCategory);
+workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SetLogLevelAction), 'Developer: Set Log Level...', CATEGORIES.Developer.value);
 
 class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 
@@ -53,8 +52,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		this.instantiationService.createInstance(LogsDataCleaner);
 
 		const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-		const devCategory = nls.localize({ key: 'developer', comment: ['A developer on Code itself or someone diagnosing issues in Code'] }, "Developer");
-		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWindowSessionLogFileAction), 'Developer: Open Window Log File (Session)...', devCategory);
+		workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenWindowSessionLogFileAction), 'Developer: Open Window Log File (Session)...', CATEGORIES.Developer.value);
 	}
 
 	private registerNativeContributions(): void {
@@ -84,7 +82,7 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 		}
 
 		const disposable = this.fileService.onDidFilesChange(e => {
-			if (e.contains(file, FileChangeType.ADDED) || e.contains(file, FileChangeType.UPDATED)) {
+			if (e.contains(file, FileChangeType.ADDED, FileChangeType.UPDATED)) {
 				watcher.dispose();
 				disposable.dispose();
 				outputChannelRegistry.registerChannel({ id, label, file, log: true });

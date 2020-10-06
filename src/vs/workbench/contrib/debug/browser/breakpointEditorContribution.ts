@@ -240,7 +240,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						breakpoints.forEach(bp => this.debugService.removeBreakpoints(bp.getId()));
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }], `debugEditorGutter`);
+					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
 				}
 			}
 		}));
@@ -349,7 +349,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 				nls.localize('addBreakpoint', "Add Breakpoint"),
 				undefined,
 				true,
-				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }], `debugEditorContextMenu`)
+				() => this.debugService.addBreakpoints(uri, [{ lineNumber, column }])
 			));
 			actions.push(new Action(
 				'addConditionalBreakpoint',
@@ -583,7 +583,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			if (this.breakpoint) {
 				await this.debugService.removeBreakpoints(this.breakpoint.getId());
 			} else {
-				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }], 'debugEditorInlineWidget');
+				await this.debugService.addBreakpoints(this.editor.getModel().uri, [{ lineNumber: this.range!.startLineNumber, column: this.range!.startColumn }]);
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {

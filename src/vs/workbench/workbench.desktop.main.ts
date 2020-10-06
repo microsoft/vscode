@@ -98,12 +98,9 @@ import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/platform/remote/node/tunnelService';
 
-registerSingleton(ICredentialsService, KeytarCredentialsService, true);
 registerSingleton(ITunnelService, TunnelService);
 
 //#endregion

@@ -353,6 +353,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (e.matchCase) {
 			this._findInput.setCaseSensitive(this._state.matchCase);
 		}
+		if (e.preserveCase) {
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
+		}
 		if (e.searchScope) {
 			if (this._state.searchScope) {
 				this._toggleSelectionFind.checked = true;
@@ -1087,6 +1090,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
+			appendPreserveCaseLabel: this._keybindingLabelFor(FIND_IDS.TogglePreserveCaseCommand),
 			history: [],
 			flexibleHeight,
 			flexibleWidth,
@@ -1314,11 +1318,11 @@ export class SimpleButton extends Widget {
 	public setExpanded(expanded: boolean): void {
 		this._domNode.setAttribute('aria-expanded', String(!!expanded));
 		if (expanded) {
-			dom.removeClasses(this._domNode, findCollapsedIcon.classNames);
-			dom.addClasses(this._domNode, findExpandedIcon.classNames);
+			this._domNode.classList.remove(...findCollapsedIcon.classNames.split(' '));
+			this._domNode.classList.add(...findExpandedIcon.classNames.split(' '));
 		} else {
-			dom.removeClasses(this._domNode, findExpandedIcon.classNames);
-			dom.addClasses(this._domNode, findCollapsedIcon.classNames);
+			this._domNode.classList.remove(...findExpandedIcon.classNames.split(' '));
+			this._domNode.classList.add(...findCollapsedIcon.classNames.split(' '));
 		}
 	}
 }

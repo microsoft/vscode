@@ -6,7 +6,6 @@
 import 'vs/css!./welcomePage';
 import 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page';
 import { URI } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
@@ -20,11 +19,12 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { splitName } from 'vs/base/common/labels';
@@ -76,9 +76,10 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							const folderUri = folder.uri;
 							return fileService.resolve(folderUri)
 								.then(folder => {
-									const files = folder.children ? folder.children.map(child => child.name) : [];
+									const files = folder.children ? folder.children.map(child => child.name).sort() : [];
 
-									const file = files.sort().find(file => strings.startsWith(file.toLowerCase(), 'readme'));
+									const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+
 									if (file) {
 										return joinPath(folderUri, file);
 									}
@@ -88,7 +89,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							.then<any>(readmes => {
 								if (!editorService.activeEditor) {
 									if (readmes.length) {
-										const isMarkDown = (readme: URI) => strings.endsWith(readme.path.toLowerCase(), '.md');
+										const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
 										return Promise.all([
 											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
 											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
@@ -298,7 +299,7 @@ class WelcomePage extends Disposable {
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
-		const resource = URI.parse(require.toUrl('./vs_code_welcome_page'))
+		const resource = FileAccess.asBrowserUri('./vs_code_welcome_page', require)
 			.with({
 				scheme: Schemas.walkThrough,
 				query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/page/browser/vs_code_welcome_page' })

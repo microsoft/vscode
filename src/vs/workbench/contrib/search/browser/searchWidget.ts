@@ -207,7 +207,7 @@ export class SearchWidget extends Widget {
 	}
 
 	isReplaceShown(): boolean {
-		return !dom.hasClass(this.replaceContainer, 'disabled');
+		return !this.replaceContainer.classList.contains('disabled');
 	}
 
 	isReplaceActive(): boolean {
@@ -393,6 +393,7 @@ export class SearchWidget extends Widget {
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
 			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
+			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keyBindingService),
 			history: options.replaceHistory,
 			flexibleHeight: true,
 			flexibleMaxHeight: SearchWidget.INPUT_MAX_HEIGHT
