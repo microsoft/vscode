@@ -339,7 +339,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag,
 			value: buffer,
 			encoding: preferredEncoding.encoding
-		}, options, true /* dirty because whe load from a buffer */);
+		}, true /* dirty (loaded from buffer) */, options);
 
 		return this;
 	}
@@ -359,7 +359,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: backup.meta ? backup.meta.etag : ETAG_DISABLED, // etag disabled if unknown!
 			value: backup.value,
 			encoding: preferredEncoding.encoding
-		}, options, true /* dirty because we load from backup */);
+		}, true /* dirty (loaded from backup) */, options);
 
 		// Restore orphaned flag based on state
 		if (backup.meta && backup.meta.orphaned) {
@@ -394,11 +394,15 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// Clear orphaned state when loading was successful
 			this.setOrphaned(false);
 
+			// Return early if the model content has changed
+			// meanwhile to prevent loosing any changes
 			if (currentVersionId !== this.versionId) {
-				return this; // Make sure meanwhile someone else did not succeed loading
+				this.logService.trace('[text file model] loadFromFile() - exit - without loading because model content changed', this.resource.toString(true));
+
+				return this;
 			}
 
-			return this.loadFromContent(content, options);
+			return this.loadFromContent(content, false /* not dirty (loaded from file) */, options);
 		} catch (error) {
 			const result = error.fileOperationResult;
 
@@ -422,7 +426,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private loadFromContent(content: ITextFileStreamContent, options?: ITextFileLoadOptions, dirty?: boolean): TextFileEditorModel {
+	private loadFromContent(content: ITextFileStreamContent, dirty: boolean, options?: ITextFileLoadOptions): TextFileEditorModel {
 		this.logService.trace('[text file model] loadFromContent() - enter', this.resource.toString(true));
 
 		// Return early if we are disposed
@@ -466,13 +470,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.doCreateTextModel(content.resource, content.value);
 		}
 
-		// Conditionally set the model dirty as needed
-		if (dirty) {
-			this.setDirty(true);
-		}
-
-		// Ensure we track the latest saved version ID
-		this.updateSavedVersionId();
+		// Update model dirty flag. This is very important to call
+		// in both cases of dirty or not because it conditionally
+		// updates the `bufferSavedVersionId` to determine the
+		// version when to consider the model as saved again (e.g.
+		// when undoing back to the saved state)
+		this.setDirty(!!dirty);
 
 		// Emit as event
 		this._onDidLoad.fire(options?.reason ?? TextFileLoadReason.OTHER);
