@@ -19,20 +19,11 @@ suite('markdown.SmartSelect', () => {
 		assert.deepStrictEqual(selections[0].range, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 5)));
 	});
 
-	test('Smart select fenced code blocks', async () => {
-		const selections = await getSelectionRangesForDocument(`---
-		title: bla
-		---
-
-		~~~ts
-		a
-		~~~
-
-		a
-		a
-		b
-		a`);
-		assert.deepStrictEqual(selections[0].range, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(10, 12)));
+	test('Smart select html blocks', async () => {
+		const selections = await getSelectionRangesForDocument(`<p align="center">
+		<img alt="VS Code in action" src="https://user-images.githubusercontent.com/1487073/58344409-70473b80-7e0a-11e9-8570-b2efc6f8fa44.png">
+	  </p>`);
+		assert.deepStrictEqual(selections[0].range, new vscode.Range(new vscode.Position(0, 0), new vscode.Position(3, 4)));
 	});
 });
 

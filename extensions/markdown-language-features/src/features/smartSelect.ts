@@ -12,7 +12,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	constructor(
 		private readonly engine: MarkdownEngine
 	) { }
-	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], token: vscode.CancellationToken): Promise<vscode.SelectionRange[]> {
+	public async provideSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[], _token: vscode.CancellationToken): Promise<vscode.SelectionRange[]> {
 		let blockRegions = await Promise.all([
 			await this.getBlockSelectionRanges(document, positions)
 		]);
@@ -22,12 +22,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	private async getBlockSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[]): Promise<vscode.SelectionRange[]> {
 		let position = positions[0];
 		const tokens = await this.engine.parse(document);
-
-		let tokes = tokens.filter(token => token.map && (token.meta || token.content) && (token.map[0] <= position.line && token.map[1] >= position.line));
-
-		let poss = tokes.map(token => {
-			const start = token.map[0];
-			const end = token.map[1];
+		let nearbyTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
+		let poss = nearbyTokens.map(token => {
+			let start = token.map[0];
+			let end = token.map[1];
 			let startPos = new vscode.Position(start, 0);
 			let endPos = new vscode.Position(end, 0);
 			return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
