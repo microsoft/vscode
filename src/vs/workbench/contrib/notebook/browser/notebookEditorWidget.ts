@@ -703,6 +703,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							lineNumber: selection.startLineNumber,
 							column: selection.startColumn
 						});
+						await this.revealLineInCenterIfOutsideViewportAsync(cell, selection.startLineNumber);
 					}
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
@@ -727,7 +728,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async _setKernels(textModel: NotebookTextModel, tokenSource: CancellationTokenSource) {
-		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+		const provider = this.notebookService.getContributedNotebookProvider(textModel.viewType) || this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 		const availableKernels2 = await this.notebookService.getContributedNotebookKernels2(textModel.viewType, textModel.uri, tokenSource.token);
 
 		if (tokenSource.token.isCancellationRequested) {

@@ -318,16 +318,16 @@ export abstract class AbstractProcess<TProgressData> {
 	}
 
 	private useExec(): Promise<boolean> {
-		return new Promise<boolean>((c, e) => {
+		return new Promise<boolean>(resolve => {
 			if (!this.shell || !Platform.isWindows) {
-				return c(false);
+				return resolve(false);
 			}
 			const cmdShell = cp.spawn(getWindowsShell(), ['/s', '/c']);
 			cmdShell.on('error', (error: Error) => {
-				return c(true);
+				return resolve(true);
 			});
 			cmdShell.on('exit', (data: any) => {
-				return c(false);
+				return resolve(false);
 			});
 		});
 	}

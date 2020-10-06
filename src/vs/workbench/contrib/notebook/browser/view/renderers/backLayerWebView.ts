@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as path from 'vs/base/common/path';
@@ -23,7 +22,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
-import { Schemas } from 'vs/base/common/network';
+import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -356,9 +355,6 @@ export class BackLayerWebView extends Disposable {
 	}
 
 	async createWebview(): Promise<void> {
-		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = asWebviewUri(this.environmentService, this.id, URI.file(pathsPath));
-
 		let coreDependencies = '';
 		let resolveFunc: () => void;
 
@@ -369,6 +365,9 @@ export class BackLayerWebView extends Disposable {
 		const baseUrl = asWebviewUri(this.environmentService, this.id, dirname(this.documentUri));
 
 		if (!isWeb) {
+			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
+			const loader = asWebviewUri(this.environmentService, this.id, loaderUri);
+
 			coreDependencies = `<script src="${loader}"></script><script>
 			var requirejs = (function() {
 				return require;
@@ -378,7 +377,9 @@ export class BackLayerWebView extends Disposable {
 			this.initialize(htmlContent);
 			resolveFunc!();
 		} else {
-			fetch(pathsPath).then(async response => {
+			const loaderUri = FileAccess.asBrowserUri('vs/loader.js', require);
+
+			fetch(loaderUri.toString(true)).then(async response => {
 				if (response.status !== 200) {
 					throw new Error(response.statusText);
 				}
@@ -555,7 +556,9 @@ var requirejs = (function() {
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
-		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
+		const rootPathStr = path.dirname(FileAccess.asFileUri('', require).fsPath);
+
+		const rootPath = isWeb ? FileAccess.asBrowserUri(rootPathStr, require) : FileAccess.asFileUri(rootPathStr, require);
 		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
 
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];

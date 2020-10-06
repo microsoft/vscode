@@ -40,7 +40,7 @@ const colorThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize('preferredDarkColorTheme', 'Specifies the preferred color theme for dark OS appearance when \'{0}\' is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
+	markdownDescription: nls.localize('preferredDarkColorTheme', 'Specifies the preferred color theme for dark OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
 	default: DEFAULT_THEME_DARK_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
@@ -48,7 +48,7 @@ const preferredDarkThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize('preferredLightColorTheme', 'Specifies the preferred color theme for light OS appearance when \'{0}\' is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
+	markdownDescription: nls.localize('preferredLightColorTheme', 'Specifies the preferred color theme for light OS appearance when `#{0}#` is enabled.', ThemeSettings.DETECT_COLOR_SCHEME),
 	default: DEFAULT_THEME_LIGHT_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
@@ -56,7 +56,7 @@ const preferredLightThemeSettingSchema: IConfigurationPropertySchema = {
 };
 const preferredHCThemeSettingSchema: IConfigurationPropertySchema = {
 	type: 'string',
-	description: nls.localize('preferredHCColorTheme', 'Specifies the preferred color theme used in high contrast mode when \'{0}\' is enabled.', ThemeSettings.DETECT_HC),
+	markdownDescription: nls.localize('preferredHCColorTheme', 'Specifies the preferred color theme used in high contrast mode when `#{0}#` is enabled.', ThemeSettings.DETECT_HC),
 	default: DEFAULT_THEME_HC_SETTING_VALUE,
 	enum: colorThemeSettingEnum,
 	enumDescriptions: colorThemeSettingEnumDescriptions,
@@ -153,6 +153,7 @@ const tokenColorSchema: IJSONSchema = {
 		semanticHighlighting: {
 			description: nls.localize('editorColors.semanticHighlighting', 'Whether semantic highlighting should be enabled for this theme.'),
 			deprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessage', 'Use `enabled` in `editor.semanticTokenColorCustomizations` setting instead.'),
+			markdownDeprecationMessage: nls.localize('editorColors.semanticHighlighting.deprecationMessageMarkdown', 'Use `enabled` in `#editor.semanticTokenColorCustomizations#` setting instead.'),
 			type: 'boolean'
 		}
 	}
@@ -189,6 +190,7 @@ const semanticTokenColorCustomizationSchema: IConfigurationPropertySchema = {
 
 const experimentalTokenStylingCustomizationSchema: IConfigurationPropertySchema = {
 	deprecationMessage: nls.localize('editorColors.experimentalTokenStyling.deprecationMessage', 'Use `editor.semanticTokenColorCustomizations` instead.'),
+	markdownDeprecationMessage: nls.localize('editorColors.experimentalTokenStyling.deprecationMessageMarkdown', 'Use `#editor.semanticTokenColorCustomizations#` instead.'),
 	default: {},
 	allOf: [{ $ref: tokenStylingSchemaId }],
 };
@@ -296,6 +298,18 @@ export class ThemeConfiguration {
 		return theme;
 	}
 
+	public findAutoConfigurationTarget(key: string) {
+		let settings = this.configurationService.inspect(key);
+		if (!types.isUndefined(settings.workspaceFolderValue)) {
+			return ConfigurationTarget.WORKSPACE_FOLDER;
+		} else if (!types.isUndefined(settings.workspaceValue)) {
+			return ConfigurationTarget.WORKSPACE;
+		} else if (!types.isUndefined(settings.userRemote)) {
+			return ConfigurationTarget.USER_REMOTE;
+		}
+		return ConfigurationTarget.USER;
+	}
+
 	private async writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget | 'auto' | undefined): Promise<void> {
 		if (settingsTarget === undefined) {
 			return;
@@ -303,15 +317,7 @@ export class ThemeConfiguration {
 
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
-			if (!types.isUndefined(settings.workspaceFolderValue)) {
-				settingsTarget = ConfigurationTarget.WORKSPACE_FOLDER;
-			} else if (!types.isUndefined(settings.workspaceValue)) {
-				settingsTarget = ConfigurationTarget.WORKSPACE;
-			} else if (!types.isUndefined(settings.userRemote)) {
-				settingsTarget = ConfigurationTarget.USER_REMOTE;
-			} else {
-				settingsTarget = ConfigurationTarget.USER;
-			}
+			settingsTarget = this.findAutoConfigurationTarget(key);
 		}
 
 		if (settingsTarget === ConfigurationTarget.USER) {

@@ -342,11 +342,11 @@ abstract class AbstractCellRenderer {
 			if (templateData.currentRenderedCell.metadata?.inputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, inputCollapsed: false } }
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 			} else if (templateData.currentRenderedCell.metadata?.outputCollapsed) {
 				textModel.applyEdits(textModel.versionId, [
 					{ editType: CellEditType.Metadata, index, metadata: { ...templateData.currentRenderedCell.metadata, outputCollapsed: false } }
-				], true, undefined, () => undefined);
+				], true, undefined, () => undefined, undefined);
 			}
 		}));
 	}
@@ -553,7 +553,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	getRichText(editor: ICodeEditor, modelRange: Range): string | null {
+	private _ttPolicy = window.trustedTypes!.createPolicy('cellRendererEditorText', {
+		createHTML(input) { return input; }
+	});
+
+	getRichText(editor: ICodeEditor, modelRange: Range): TrustedHTML | null {
 		const model = editor.getModel();
 		if (!model) {
 			return null;
@@ -563,7 +567,7 @@ class EditorTextRenderer {
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		return `<div style="`
+		const value = `<div style="`
 			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
 			+ `font-family: ${fontFamily};`
@@ -574,6 +578,8 @@ class EditorTextRenderer {
 			+ `">`
 			+ this.getRichTextLines(model, modelRange, colorMap)
 			+ '</div>';
+
+		return this._ttPolicy.createHTML(value);
 	}
 
 	private getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
@@ -641,7 +647,7 @@ class CodeCellDragImageRenderer {
 			return null;
 		}
 
-		editorContainer.innerHTML = richEditorText;
+		DOM.trustedInnerHTML(editorContainer, richEditorText);
 
 		return dragImageContainer;
 	}

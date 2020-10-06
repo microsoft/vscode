@@ -10,6 +10,7 @@ import { ClientCapabilities, ClientCapability, ServerType } from '../typescriptS
 import API from '../utils/api';
 import { SeparateSyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration } from '../utils/configuration';
 import { Logger } from '../utils/logger';
+import { isWeb } from '../utils/platform';
 import { TypeScriptPluginPathsProvider } from '../utils/pluginPathsProvider';
 import { PluginManager } from '../utils/plugins';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -203,29 +204,35 @@ export class TypeScriptServerSpawner {
 		}
 
 		if (TypeScriptServerSpawner.isLoggingEnabled(configuration)) {
-			const logDir = this._logDirectoryProvider.getNewLogDirectory();
-			if (logDir) {
-				tsServerLogFile = path.join(logDir, `tsserver.log`);
+			if (isWeb()) {
 				args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-				args.push('--logFile', tsServerLogFile);
-			}
-		}
-
-		const pluginPaths = this._pluginPathsProvider.getPluginPaths();
-
-		if (pluginManager.plugins.length) {
-			args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
-
-			const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
-			for (const plugin of pluginManager.plugins) {
-				if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
-					pluginPaths.push(plugin.path);
+			} else {
+				const logDir = this._logDirectoryProvider.getNewLogDirectory();
+				if (logDir) {
+					tsServerLogFile = path.join(logDir, `tsserver.log`);
+					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
+					args.push('--logFile', tsServerLogFile);
 				}
 			}
 		}
 
-		if (pluginPaths.length !== 0) {
-			args.push('--pluginProbeLocations', pluginPaths.join(','));
+		if (!isWeb()) {
+			const pluginPaths = this._pluginPathsProvider.getPluginPaths();
+
+			if (pluginManager.plugins.length) {
+				args.push('--globalPlugins', pluginManager.plugins.map(x => x.name).join(','));
+
+				const isUsingBundledTypeScriptVersion = currentVersion.path === this._versionProvider.defaultVersion.path;
+				for (const plugin of pluginManager.plugins) {
+					if (isUsingBundledTypeScriptVersion || plugin.enableForWorkspaceTypeScriptVersions) {
+						pluginPaths.push(plugin.path);
+					}
+				}
+			}
+
+			if (pluginPaths.length !== 0) {
+				args.push('--pluginProbeLocations', pluginPaths.join(','));
+			}
 		}
 
 		if (configuration.npmLocation) {

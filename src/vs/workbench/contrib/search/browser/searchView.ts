@@ -1194,6 +1194,12 @@ export class SearchView extends ViewPane {
 		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
 			this.triggerQueryChange();
 		}
+		if (typeof args.preserveCase === 'boolean') {
+			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
+		}
+		if (typeof args.excludeSettingAndIgnoreFiles === 'boolean') {
+			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.excludeSettingAndIgnoreFiles);
+		}
 	}
 
 	toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {

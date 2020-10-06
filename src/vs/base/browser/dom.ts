@@ -22,6 +22,13 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
+export function trustedInnerHTML(node: Element, value: TrustedHTML): void {
+	// this is a workaround for innerHTML not allowing for "asymetric" accessors
+	// see https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393
+	// and https://github.com/microsoft/TypeScript/issues/30024
+	node.innerHTML = value as unknown as string;
+}
+
 export function isInDOM(node: Node | null): boolean {
 	while (node) {
 		if (node === document.body) {
@@ -1228,7 +1235,6 @@ export function asCSSUrl(uri: URI): string {
 	}
 	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
-
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 

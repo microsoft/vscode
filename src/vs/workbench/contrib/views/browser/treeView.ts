@@ -1027,6 +1027,7 @@ class TreeMenus extends Disposable implements IDisposable {
 		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
+		contextKeyService.dispose();
 
 		return result;
 	}

@@ -422,9 +422,11 @@ function webviewPreloads() {
 
 					for (let i = 0; i < event.data.widgets.length; i++) {
 						const widget = document.getElementById(event.data.widgets[i].id)!;
-						widget.style.top = event.data.widgets[i].top + 'px';
-						if (event.data.forceDisplay) {
-							widget.parentElement!.style.display = 'block';
+						if (widget) {
+							widget.style.top = event.data.widgets[i].top + 'px';
+							if (event.data.forceDisplay) {
+								widget.parentElement!.style.display = 'block';
+							}
 						}
 					}
 					break;

@@ -13,8 +13,7 @@ import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModel
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
-import { IFileService, FileChangesEvent, FileOperation } from 'vs/platform/files/common/files';
-import { distinct, coalesce } from 'vs/base/common/arrays';
+import { IFileService, FileChangesEvent, FileOperation, FileChangeType } from 'vs/platform/files/common/files';
 import { ResourceQueue } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
@@ -100,17 +99,18 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
+		for (const model of this.models) {
+			if (model.isDirty() || !model.isResolved()) {
+				continue; // require a resolved, saved model to continue
+			}
 
-		// Collect distinct (saved) models to update.
-		//
-		// Note: we also consider the added event because it could be that a file was added
-		// and updated right after.
-		distinct(
-			coalesce(
-				[...e.getUpdated(), ...e.getAdded()].map(({ resource }) => this.get(resource))
-			).filter(model => model && model.isResolved() && !model.isDirty()),
-			model => model.resource.toString()
-		).forEach(model => this.queueModelLoad(model));
+			// Trigger a model load for any update or add event that impacts
+			// the model. We also consider the added event because it could
+			// be that a file was added and updated right after.
+			if (e.contains(model.resource, FileChangeType.UPDATED, FileChangeType.ADDED)) {
+				this.queueModelLoad(model);
+			}
+		}
 	}
 
 	private queueModelLoad(model: TextFileEditorModel): void {
@@ -185,7 +185,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							snapshot: sourceModel.isDirty() ? sourceModel.createSnapshot() : undefined
 						});
 					}
-
 				}
 			}
 

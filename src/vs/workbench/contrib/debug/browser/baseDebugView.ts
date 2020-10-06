@@ -159,6 +159,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		data.toDispose.dispose();
 		data.toDispose = Disposable.None;
 		const { element } = node;
+		this.renderExpression(element, data, createMatches(node.filterData));
 		if (element === this.debugService.getViewModel().getSelectedExpression() || (element instanceof Variable && element.errorMessage)) {
 			const options = this.getInputBoxOptions(element);
 			if (options) {
@@ -166,7 +167,6 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 				return;
 			}
 		}
-		this.renderExpression(element, data, createMatches(node.filterData));
 	}
 
 	renderInputBox(nameElement: HTMLElement, valueElement: HTMLElement, inputBoxContainer: HTMLElement, options: IInputBoxOptions): IDisposable {

@@ -11,7 +11,8 @@
 			"mocha",
 			"semver",
 			"sinon",
-			"winreg"
+			"winreg",
+			"trusted-types"
 		]
 	},
 	"include": [

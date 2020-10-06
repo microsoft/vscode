@@ -671,9 +671,11 @@ export interface IConfigurationManager {
 		launch: ILaunch | undefined;
 		config: IConfig | undefined;
 		name: string | undefined;
+		// Type is used when matching dynamic configurations to their corresponding provider
+		type: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): Promise<void>;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, type?: string): Promise<void>;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
@@ -694,7 +696,7 @@ export interface IConfigurationManager {
 
 	isDebuggerInterestedInLanguage(language: string): boolean;
 	hasDebugConfigurationProvider(debugType: string): boolean;
-	getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
+	getDynamicProviders(): Promise<{ label: string, provider: IDebugConfigurationProvider | undefined, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]>;
 
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
