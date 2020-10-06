@@ -357,13 +357,13 @@ suite('Notebook API tests', () => {
 		const secondEditor = vscode.window.activeNotebookEditor;
 		assert.strictEqual(secondEditor && vscode.window.visibleNotebookEditors.indexOf(secondEditor) >= 0, true);
 		assert.notStrictEqual(firstEditor, secondEditor);
-		assert.strictEqual(firstEditor && vscode.window.visibleNotebookEditors.indexOf(firstEditor) < 0, true);
+		assert.strictEqual(firstEditor && vscode.window.visibleNotebookEditors.indexOf(firstEditor) >= 0, true);
 		assert.equal(vscode.window.visibleNotebookEditors.length, 2);
 
 		const untitledEditorChange = getEventOncePromise(vscode.window.onDidChangeActiveNotebookEditor);
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
 		await untitledEditorChange;
-		assert.strictEqual(firstEditor && vscode.window.visibleNotebookEditors.indexOf(firstEditor) < 0, true);
+		assert.strictEqual(firstEditor && vscode.window.visibleNotebookEditors.indexOf(firstEditor) >= 0, true);
 		assert.notStrictEqual(firstEditor, vscode.window.activeNotebookEditor);
 		assert.strictEqual(secondEditor && vscode.window.visibleNotebookEditors.indexOf(secondEditor) < 0, true);
 		assert.notStrictEqual(secondEditor, vscode.window.activeNotebookEditor);
