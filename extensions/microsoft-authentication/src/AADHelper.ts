@@ -100,7 +100,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	public async initialize(): Promise<void> {
-		const storedData = await keychain.getToken();
+		const storedData = await keychain.getToken() || await keychain.tryMigrate();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
