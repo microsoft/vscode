@@ -356,10 +356,11 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 		// - cannot be only whitespace (so we trim())
 		// - cannot be only non-alphanumeric characters (so we run word definition regex over it)
 		// - cannot be longer than FIRST_LINE_MAX_TITLE_LENGTH
+		// - normalize multiple whitespaces to a single whitespace
 
 		let modelFirstWordsCandidate: string | undefined = undefined;
 
-		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim();
+		const firstLineText = this.textEditorModel?.getValueInRange({ startLineNumber: 1, endLineNumber: 1, startColumn: 1, endColumn: UntitledTextEditorModel.FIRST_LINE_NAME_MAX_LENGTH + 1 }).trim().replace(/\s+/g, ' ');
 		if (firstLineText && ensureValidWordDefinition().exec(firstLineText)) {
 			modelFirstWordsCandidate = firstLineText;
 		}
