@@ -19,17 +19,18 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		return flatten(blockRegions);
 	}
 
+	// and header method
 	private async getBlockSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[]): Promise<vscode.SelectionRange[]> {
 		let position = positions[0];
 		const tokens = await this.engine.parse(document);
 		let nearbyTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
-		let poss = nearbyTokens.map(token => {
+		let ranges = nearbyTokens.map(token => {
 			let start = token.map[0];
-			let end = token.map[1];
+			let end = token.type === 'bullet_list_open' ? token.map[1] - 1 : token.map[1];
 			let startPos = new vscode.Position(start, 0);
 			let endPos = new vscode.Position(end, 0);
 			return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 		});
-		return poss;
+		return ranges.length > 1 ? [ranges[0]] : ranges;
 	}
 }
