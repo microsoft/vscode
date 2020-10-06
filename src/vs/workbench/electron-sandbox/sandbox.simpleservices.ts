@@ -99,6 +99,7 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	keyboardLayoutResource: URI = undefined!;
 	sync: 'on' | 'off' | undefined;
 	debugExtensionHost: IExtensionHostDebugParams = undefined!;
+	debugRenderer = false;
 	isExtensionDevelopment: boolean = false;
 	disableExtensions: boolean | string[] = [];
 	extensionDevelopmentLocationURI?: URI[] | undefined;

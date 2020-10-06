@@ -40,6 +40,8 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly skipReleaseNotes: boolean;
 
+	readonly debugRenderer: boolean;
+
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE. AS SUCH:
 	//       - PUT NON-WEB PROPERTIES INTO NATIVE WB ENV SERVICE
