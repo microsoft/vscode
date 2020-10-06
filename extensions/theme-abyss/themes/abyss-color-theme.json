@@ -390,7 +390,7 @@
 		"tab.inactiveBackground": "#10192c",
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
-		"tab.lastPinnedBorder": "#596F99",
+		"tab.lastPinnedBorder": "#2b3c5d",
 
 		// Workbench: Activity Bar
 		"activityBar.background": "#051336",
