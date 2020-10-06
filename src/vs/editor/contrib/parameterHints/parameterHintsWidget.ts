@@ -22,7 +22,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, textLinkForeground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
-import { pad, escapeRegExpCharacters } from 'vs/base/common/strings';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -247,7 +247,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		dom.toggleClass(this.domNodes.docs, 'empty', !hasDocs);
 
 		this.domNodes.overloads.textContent =
-			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
+			String(hints.activeSignature + 1).padStart(hints.signatures.length.toString().length, '0') + '/' + hints.signatures.length;
 
 		if (activeParameter) {
 			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);
