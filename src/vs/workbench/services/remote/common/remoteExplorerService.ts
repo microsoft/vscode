@@ -74,6 +74,7 @@ export function mapHasTunnelLocalhostOrAllInterfaces(map: Map<string, Tunnel>, h
 		if (otherHost) {
 			return mapHasTunnel(map, otherHost, port);
 		}
+		return false;
 	}
 	return true;
 }
