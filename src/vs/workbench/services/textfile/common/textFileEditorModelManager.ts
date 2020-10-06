@@ -360,7 +360,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	private joinPendingResolve(resource: URI): Promise<void> | undefined {
 		const pendingModelLoad = this.mapResourceToPendingModelLoaders.get(resource);
 		if (pendingModelLoad) {
-			return pendingModelLoad.then(undefined, () => {/* ignore any error here, it will bubble to the original requestor*/ });
+			return pendingModelLoad.then(undefined, error => {/* ignore any error here, it will bubble to the original requestor*/ });
 		}
 
 		return undefined;
