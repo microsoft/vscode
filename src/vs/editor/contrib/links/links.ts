@@ -364,7 +364,8 @@ export class LinkDetector implements IEditorContribution {
 	private stop(): void {
 		this.timeout.cancel();
 		if (this.activeLinksList) {
-			this.activeLinksList.dispose();
+			this.activeLinksList?.dispose();
+			this.activeLinksList = null;
 		}
 		if (this.computePromise) {
 			this.computePromise.cancel();
