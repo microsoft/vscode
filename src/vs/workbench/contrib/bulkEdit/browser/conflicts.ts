@@ -55,18 +55,15 @@ export class ConflictDetector {
 
 		// listen to file changes
 		this._disposables.add(fileService.onDidFilesChange(e => {
-			for (let change of e.changes) {
 
-				if (modelService.getModel(change.resource)) {
-					// ignore changes for which a model exists
-					// because we have a better check for models
-					continue;
-				}
-
-				// conflict
-				if (_workspaceEditResources.has(change.resource)) {
-					this._conflicts.set(change.resource, true);
+			for (const uri of _workspaceEditResources.keys()) {
+				// conflict happens when a file that we are working
+				// on changes on disk. ignore changes for which a model
+				// exists because we have a better check for models
+				if (!modelService.getModel(uri) && e.contains(uri)) {
+					this._conflicts.set(uri, true);
 					this._onDidConflict.fire(this);
+					break;
 				}
 			}
 		}));
