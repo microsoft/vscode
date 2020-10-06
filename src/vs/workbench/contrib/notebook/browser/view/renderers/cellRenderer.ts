@@ -455,7 +455,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-		dragImageContainer.innerHTML = templateData.container.outerHTML;
+		DOM.reset(dragImageContainer, templateData.container.cloneNode(true));
 
 		// Remove all rendered content nodes after the
 		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
