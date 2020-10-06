@@ -407,7 +407,7 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateStyles(): void;
 
-	abstract layout(dimension: Dimension): number | undefined;
+	abstract layout(dimension: Dimension): Dimension | undefined;
 
 	abstract getDimensions(): IEditorGroupTitleDimensions;
 

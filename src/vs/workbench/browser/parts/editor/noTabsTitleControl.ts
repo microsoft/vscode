@@ -323,11 +323,11 @@ export class NoTabsTitleControl extends TitleControl {
 		};
 	}
 
-	layout(dimension: Dimension): number {
+	layout(dimension: Dimension): Dimension {
 		if (this.breadcrumbsControl) {
 			this.breadcrumbsControl.layout(undefined);
 		}
 
-		return this.getDimensions().height;
+		return new Dimension(dimension.width, this.getDimensions().height);
 	}
 }

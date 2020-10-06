@@ -1253,7 +1253,7 @@ export class TabsTitleControl extends TitleControl {
 		return { height, offset };
 	}
 
-	layout(dimension: Dimension | undefined): number | undefined {
+	layout(dimension: Dimension | undefined): Dimension | undefined {
 		this.dimension = dimension;
 
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
@@ -1273,7 +1273,7 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		return this.getDimensions().height;
+		return new Dimension(this.dimension.width, this.getDimensions().height);
 	}
 
 	private doLayout(dimension: Dimension): void {
