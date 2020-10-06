@@ -75,7 +75,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FocusSessionAction.ID) {
-					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
+					return this.instantiationService.createInstance(FocusSessionActionViewItem, action);
 				} else if (action instanceof MenuItemAction) {
 					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
 				} else if (action instanceof SubmenuItemAction) {
