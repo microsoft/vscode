@@ -284,8 +284,7 @@ abstract class EditorOrNativeTextInputCommand {
 			// Only if editor text focus (i.e. not if editor has widget focus).
 			const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 			if (focusedEditor && focusedEditor.hasTextFocus()) {
-				this.runEditorCommand(accessor, focusedEditor, args);
-				return true;
+				return this._runEditorCommand(accessor, focusedEditor, args);
 			}
 			return false;
 		});
@@ -307,15 +306,22 @@ abstract class EditorOrNativeTextInputCommand {
 			const activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 			if (activeEditor) {
 				activeEditor.focus();
-				this.runEditorCommand(accessor, activeEditor, args);
-				return true;
+				return this._runEditorCommand(accessor, activeEditor, args);
 			}
 			return false;
 		});
 	}
 
+	public _runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): boolean | Promise<void> {
+		const result = this.runEditorCommand(accessor, editor, args);
+		if (result) {
+			return result;
+		}
+		return true;
+	}
+
 	public abstract runDOMCommand(): void;
-	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void;
+	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 export namespace CoreNavigationCommands {
@@ -1851,11 +1857,11 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(): void {
 			document.execCommand('undo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
-			editor.getModel().undo();
+			return editor.getModel().undo();
 		}
 	}();
 
@@ -1866,11 +1872,11 @@ export namespace CoreEditingCommands {
 		public runDOMCommand(): void {
 			document.execCommand('redo');
 		}
-		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
 			if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 				return;
 			}
-			editor.getModel().redo();
+			return editor.getModel().redo();
 		}
 	}();
 }

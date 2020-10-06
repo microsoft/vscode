@@ -131,6 +131,15 @@ class DisposedModelInfo {
 	) { }
 }
 
+function schemaShouldMaintainUndoRedoElements(resource: URI) {
+	return (
+		resource.scheme === Schemas.file
+		|| resource.scheme === Schemas.vscodeRemote
+		|| resource.scheme === Schemas.userData
+		|| resource.scheme === 'fake-fs' // for tests
+	);
+}
+
 export class ModelServiceImpl extends Disposable implements IModelService {
 
 	public static MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
@@ -508,7 +517,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData))) {
+		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && schemaShouldMaintainUndoRedoElements(resource))) {
 			const elements = this._undoRedoService.getElements(resource);
 			if (elements.past.length > 0 || elements.future.length > 0) {
 				for (const element of elements.past) {
