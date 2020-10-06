@@ -13,20 +13,6 @@ export function isFalsyOrWhitespace(str: string | undefined): boolean {
 	return str.trim().length === 0;
 }
 
-/**
- * @deprecated ES6: use `String.padStart`
- */
-export function pad(n: number, l: number, char: string = '0'): string {
-	const str = '' + n;
-	const r = [str];
-
-	for (let i = str.length; i < l; i++) {
-		r.push(char);
-	}
-
-	return r.reverse().join('');
-}
-
 const _formatRegexp = /{(\d+)}/g;
 
 /**
