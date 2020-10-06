@@ -841,7 +841,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 }
 
 class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
-	private contextServiceListener: IDisposable;
+	private contextServiceListener?: IDisposable;
 
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
@@ -855,12 +855,13 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		super();
 		if (this.environmentService.configuration.remoteAuthority) {
 			this.startUrlFinder();
+		} else {
+			this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
+					this.startUrlFinder();
+				}
+			}));
 		}
-		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-				this.startUrlFinder();
-			}
-		}));
 	}
 
 	private isStarted = false;
@@ -868,7 +869,9 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		if (!this.isStarted && !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
 			return;
 		}
-		this.contextServiceListener.dispose();
+		if (this.contextServiceListener) {
+			this.contextServiceListener.dispose();
+		}
 		this.isStarted = true;
 		const urlFinder = this._register(new UrlFinder(this.terminalService));
 		this._register(urlFinder.onDidMatchLocalUrl(async (localUrl) => {
