@@ -379,7 +379,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Always allow to unload a window that is not yet ready
 		if (!window.isReady) {
-			return Promise.resolve(false);
+			return false;
 		}
 
 		this.logService.trace(`Lifecycle#unload() - window ID ${window.id}`);
@@ -432,17 +432,17 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	private onBeforeUnloadWindowInRenderer(window: ICodeWindow, reason: UnloadReason): Promise<boolean /* veto */> {
-		return new Promise<boolean>(c => {
+		return new Promise<boolean>(resolve => {
 			const oneTimeEventToken = this.oneTimeListenerTokenGenerator++;
 			const okChannel = `vscode:ok${oneTimeEventToken}`;
 			const cancelChannel = `vscode:cancel${oneTimeEventToken}`;
 
 			ipc.once(okChannel, () => {
-				c(false); // no veto
+				resolve(false); // no veto
 			});
 
 			ipc.once(cancelChannel, () => {
-				c(true); // veto
+				resolve(true); // veto
 			});
 
 			window.send('vscode:onBeforeUnload', { okChannel, cancelChannel, reason });

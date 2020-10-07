@@ -140,6 +140,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setRegex(this._state.isRegex);
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
+			this._replaceInput.setPreserveCase(this._state.preserveCase);
 			this.findFirst();
 		}));
 

@@ -189,6 +189,7 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
+	get debugRenderer(): boolean { return !!this._args.debugRenderer; }
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return !!this._args.verbose; }

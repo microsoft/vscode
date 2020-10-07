@@ -39,7 +39,6 @@ import { Dimension, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
-import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -279,7 +278,7 @@ export class WalkThroughPart extends EditorPane {
 					return;
 				}
 
-				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
+				const content = model.main;
 				if (!input.resource.path.endsWith('.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();

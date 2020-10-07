@@ -35,6 +35,7 @@
 		"tab.inactiveBackground": "#34352f",
 		"tab.border": "#1e1f1c",
 		"tab.inactiveForeground": "#ccccc7", // needs to be bright so it's readable when another editor group is focused
+		"tab.lastPinnedBorder": "#414339",
 		"widget.shadow": "#000000",
 		"progressBar.background": "#75715E",
 		"badge.background": "#75715E",
@@ -52,7 +53,6 @@
 		"statusBarItem.remoteBackground": "#AC6218",
 		"activityBar.background": "#272822",
 		"activityBar.foreground": "#f8f8f2",
-		"activityBar.dropBackground": "#414339",
 		"sideBar.background": "#1e1f1c",
 		"sideBarSectionHeader.background": "#272822",
 		"menu.background": "#1e1f1c",

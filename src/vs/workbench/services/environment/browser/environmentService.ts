@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
 import { IColorScheme, IPath, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions as IWorkbenchOptions } from 'vs/workbench/workbench.web.api';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { memoize } from 'vs/base/common/decorators';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -82,6 +82,7 @@ interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
 
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
+	debugRenderer: boolean;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -100,6 +101,12 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		return this._configuration;
 	}
+
+	@memoize
+	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+
+	@memoize
+	get sessionId(): string { return this.configuration.sessionId; }
 
 	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
@@ -200,6 +207,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
 	}
 
+	get debugRenderer(): boolean {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.debugRenderer;
+	}
+
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	private get webviewEndpoint(): string {
@@ -228,6 +243,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
+	get skipReleaseNotes(): boolean { return false; }
+
 	private payload: Map<string, string> | undefined;
 
 	constructor(
@@ -249,6 +266,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				port: null,
 				break: false
 			},
+			debugRenderer: false,
 			isExtensionDevelopment: false,
 			extensionDevelopmentLocationURI: undefined
 		};
@@ -263,6 +281,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'extensionTestsPath':
 						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
+						break;
+					case 'debugRenderer':
+						extensionHostDebugEnvironment.debugRenderer = value === 'true';
 						break;
 					case 'debugId':
 						extensionHostDebugEnvironment.params.debugId = value;
@@ -283,6 +304,4 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		return extensionHostDebugEnvironment;
 	}
-
-	get skipReleaseNotes(): boolean { return false; }
 }

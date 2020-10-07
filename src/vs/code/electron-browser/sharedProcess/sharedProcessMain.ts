@@ -68,7 +68,7 @@ import { ExtensionTipsService } from 'vs/platform/extensionManagement/electron-s
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
-import { ActiveWindowManager } from 'vs/platform/windows/electron-sandbox/windowTracker';
+import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;

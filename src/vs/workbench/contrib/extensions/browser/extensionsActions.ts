@@ -731,6 +731,7 @@ export function getContextMenuActions(menuService: IMenuService, contextKeyServi
 		return instantiationService.createInstance(MenuItemExtensionAction, action);
 	})));
 	menu.dispose();
+	scopedContextKeyService.dispose();
 
 	return groups;
 }

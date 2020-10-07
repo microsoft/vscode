@@ -444,7 +444,7 @@ export class NativeWindow extends Disposable {
 				if (options?.allowTunneling) {
 					const portMappingRequest = extractLocalHostUriMetaDataForPortMapping(uri);
 					if (portMappingRequest) {
-						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const remoteAuthority = this.environmentService.remoteAuthority;
 						const addressProvider: IAddressProvider | undefined = remoteAuthority ? {
 							getAddress: async (): Promise<IAddress> => {
 								return (await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority)).authority;
