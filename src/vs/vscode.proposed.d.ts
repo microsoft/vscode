@@ -2174,9 +2174,9 @@ declare module 'vscode' {
 	export interface CommentThread {
 		/**
 		 * Whether the thread supports reply.
-		 * Defaults to false.
+		 * Defaults to true.
 		 */
-		readOnly: boolean;
+		canReply: boolean;
 	}
 	//#endregion
 }
