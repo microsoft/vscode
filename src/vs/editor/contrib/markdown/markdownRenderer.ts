@@ -73,12 +73,8 @@ export class MarkdownRenderer {
 					modeId = 'plaintext';
 				}
 				this._modeService.triggerMode(modeId);
-				await Promise.resolve(true);
-				const promise = TokenizationRegistry.getPromise(modeId);
-				if (promise) {
-					return promise.then(support => tokenizeToString(value, support));
-				}
-				const code = tokenizeToString(value, undefined);
+				const tokenization = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+				const code = tokenizeToString(value, tokenization);
 				return this._options.editor
 					? `<span style="font-family: ${this._options.editor.getOption(EditorOption.fontInfo).fontFamily}">${code}</span>`
 					: `<span>${code}</span>`;
