@@ -553,7 +553,7 @@ export class FileChangesEvent {
 
 	/**
 	 * Find out if the file change events either match the provided
-	 * resource, or contain a parent of this resource.
+	 * resource, or contain a child of this resource.
 	 */
 	affects(resource: URI, ...types: FileChangeType[]): boolean {
 		return this.doContains(resource, { includeChildren: true }, ...types);
