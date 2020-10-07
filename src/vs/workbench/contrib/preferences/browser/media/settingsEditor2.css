@@ -43,7 +43,7 @@
 	position: absolute;
 	right: 35px;
 	top: 0px;
-	margin: 6px 0px;
+	margin: 4px 0px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
@@ -51,7 +51,7 @@
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget {
-	margin: 6px 0px;
+	margin: 4px 0px;
 	padding: 0px 8px;
 	border-radius: 2px;
 	position: absolute;
