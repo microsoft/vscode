@@ -302,7 +302,7 @@ export class SearchWidget extends Widget {
 
 	private renderSearchInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		const inputOptions: IFindInputOptions = {
-			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
+			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
 			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService),
@@ -391,7 +391,7 @@ export class SearchWidget extends Widget {
 		const replaceBox = dom.append(this.replaceContainer, dom.$('.replace-input'));
 
 		this.replaceInput = this._register(new ContextScopedReplaceInput(replaceBox, this.contextViewService, {
-			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
+			label: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			appendPreserveCaseLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.TogglePreserveCaseId), this.keyBindingService),
 			history: options.replaceHistory,
