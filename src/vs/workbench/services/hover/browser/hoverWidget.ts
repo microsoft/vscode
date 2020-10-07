@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { MarkdownRenderOptions } from 'vs/base/browser/markdownRenderer';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -85,7 +84,12 @@ export class HoverWidget extends Widget {
 		const contentsElement = $('div.hover-contents');
 		const markdown = typeof options.text === 'string' ? new MarkdownString().appendText(options.text) : options.text;
 
-		const myRenderOptions: MarkdownRenderOptions = {
+		const mdRenderer = this._instantiationService.createInstance(
+			MarkdownRenderer,
+			{ codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily }
+		);
+
+		const { element } = mdRenderer.render(markdown, {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
@@ -95,18 +99,7 @@ export class HoverWidget extends Widget {
 				// This changes the dimensions of the hover so trigger a layout
 				this._onRequestLayout.fire();
 			}
-		};
-
-		const mdRenderer = this._instantiationService.createInstance(class extends MarkdownRenderer {
-			_getRenderOptions(dispoables: DisposableStore) {
-				const value = super._getRenderOptions(dispoables);
-				return { ...value, ...myRenderOptions };
-			}
-		}, {
-			codeBlockFontFamily: this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily
 		});
-
-		const { element } = mdRenderer.render(markdown);
 		contentsElement.appendChild(element);
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);
