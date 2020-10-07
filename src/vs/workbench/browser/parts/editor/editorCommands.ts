@@ -661,6 +661,7 @@ function registerCloseEditorCommands() {
 }
 
 function registerFocusEditorGroupWihoutWrapCommands(): void {
+
 	const commands = [
 		{
 			id: FOCUS_LEFT_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID,
