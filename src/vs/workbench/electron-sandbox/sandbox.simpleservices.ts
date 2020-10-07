@@ -86,11 +86,14 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get userDataSyncLogResource(): URI { return joinPath(this.userRoamingDataHome, 'syncLog'); }
 	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'syncHome'); }
 	get tmpDir(): URI { return joinPath(this.userRoamingDataHome, 'tmp'); }
-	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
+
+	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
+	updateBackupPath(newPath: string | undefined): void { }
 
 	sessionId = this.configuration.sessionId;
 	machineId = this.configuration.machineId;
+	remoteAuthority = this.configuration.remoteAuthority;
 
 	filesToDiff = this.configuration.filesToDiff;
 	filesToOpenOrCreate = this.configuration.filesToOpenOrCreate;
