@@ -138,7 +138,7 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 		@IOpenerService openerService: IOpenerService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		const markdownRenderer = this._disposables.add(new MarkdownRenderer(editor, modeService, openerService));
+		const markdownRenderer = this._disposables.add(new MarkdownRenderer({ editor }, modeService, openerService));
 		const kbToggleDetails = keybindingService.lookupKeybinding('toggleSuggestionDetails')?.getLabel() ?? '';
 
 		this.element = $('.editor-widget.suggest-widget');

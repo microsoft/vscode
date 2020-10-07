@@ -104,7 +104,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 		this._messages = [];
 		this._lastLineNumber = -1;
 
-		this._markdownRenderer = this._register(new MarkdownRenderer(this._editor, modeService, openerService));
+		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, modeService, openerService));
 		this._computer = new MarginComputer(this._editor);
 
 		this._hoverOperation = new HoverOperation(
