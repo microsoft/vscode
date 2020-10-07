@@ -186,6 +186,7 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	static readonly ITEM_HEIGHT = 22;
 	static readonly TREE_TEMPLATE_ID = 'tunnelItemTemplate';
 
+	private inputDone?: (success: boolean, finishEditing: boolean) => void;
 	private _actionRunner: ActionRunner | undefined;
 
 	constructor(
@@ -279,6 +280,11 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 	}
 
 	private renderInputBox(container: HTMLElement, editableData: IEditableData): IDisposable {
+		// Required for FireFox. The blur event doesn't fire on FireFox when you just mash the "+" button to forward a port.
+		if (this.inputDone) {
+			this.inputDone(false, false);
+			this.inputDone = undefined;
+		}
 		const value = editableData.startingValue || '';
 		const inputBox = new InputBox(container, this.contextViewService, {
 			ariaLabel: nls.localize('remote.tunnelsView.input', "Press Enter to confirm or Escape to cancel."),
@@ -305,13 +311,17 @@ class TunnelTreeRenderer extends Disposable implements ITreeRenderer<ITunnelGrou
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
 		const done = once((success: boolean, finishEditing: boolean) => {
+			if (this.inputDone) {
+				this.inputDone = undefined;
+			}
 			inputBox.element.style.display = 'none';
-			const value = inputBox.value;
+			const inputValue = inputBox.value;
 			dispose(toDispose);
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editableData.onFinish(inputValue, success);
 			}
 		});
+		this.inputDone = done;
 
 		const toDispose = [
 			inputBox,
