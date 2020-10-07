@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +23,8 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly machineId: string;
 
+	readonly filesToWait?: IPathsToWaitFor;
+
 	readonly crashReporterDirectory?: string;
 	readonly crashReporterId?: string;
 
@@ -30,4 +32,7 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 
 	readonly log?: string;
 	readonly extHostLogsPath: URI;
+
+	// TODO@sbatten this should be retrieved somehow differently
+	readonly windowMaximizedInitially?: boolean;
 }
