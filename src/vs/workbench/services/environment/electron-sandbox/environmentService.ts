@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWindowConfiguration, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -19,11 +19,7 @@ export interface INativeWorkbenchConfiguration extends IWorkbenchConfiguration, 
  */
 export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
 
-	readonly configuration: INativeWorkbenchConfiguration;
-
 	readonly machineId: string;
-
-	readonly filesToWait?: IPathsToWaitFor;
 
 	readonly crashReporterDirectory?: string;
 	readonly crashReporterId?: string;
@@ -33,9 +29,15 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 	readonly log?: string;
 	readonly extHostLogsPath: URI;
 
-	// TODO@sbatten TODO@ben this should be retrieved somehow differently
-	readonly windowMaximizedInitially?: boolean;
-
 	// TODO@ben this is a bit ugly
 	updateBackupPath(newPath: string | undefined): void;
+
+	/**
+	 * @deprecated this property will go away eventually as it
+	 * duplicates many properties of the environment service
+	 *
+	 * Please consider using the environment service directly
+	 * if you can.
+	 */
+	readonly configuration: INativeWorkbenchConfiguration;
 }

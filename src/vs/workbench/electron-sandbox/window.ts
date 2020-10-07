@@ -218,7 +218,7 @@ export class NativeWindow extends Disposable {
 		this._register(this.editorService.onDidVisibleEditorsChange(() => this.onDidVisibleEditorsChange()));
 
 		// Listen to editor closing (if we run with --wait)
-		const filesToWait = this.environmentService.filesToWait;
+		const filesToWait = this.environmentService.configuration.filesToWait;
 		if (filesToWait) {
 			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
@@ -265,7 +265,7 @@ export class NativeWindow extends Disposable {
 			Event.map(Event.filter(this.nativeHostService.onWindowUnmaximize, id => id === this.nativeHostService.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
-		this.onDidChangeMaximized(this.environmentService.windowMaximizedInitially ?? false);
+		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
 
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onPanelPositionChange(pos => {

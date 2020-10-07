@@ -95,11 +95,6 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	machineId = this.configuration.machineId;
 	remoteAuthority = this.configuration.remoteAuthority;
 
-	filesToDiff = this.configuration.filesToDiff;
-	filesToOpenOrCreate = this.configuration.filesToOpenOrCreate;
-	filesToWait = this.configuration.filesToWait;
-
-	windowMaximizedInitially = this.configuration.maximized;
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
 	extensionEnabledProposedApi?: string[] | undefined;
