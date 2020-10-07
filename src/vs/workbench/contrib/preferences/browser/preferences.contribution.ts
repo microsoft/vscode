@@ -480,7 +480,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 
 		this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
-				const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+				const remoteAuthority = this.environmentService.remoteAuthority;
 				const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority) || remoteAuthority;
 				const label = nls.localize('openRemoteSettings', "Open Remote Settings ({0})", hostLabel);
 				registerAction2(class extends Action2 {

@@ -35,7 +35,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	private remoteMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService));
 	private hasRemoteActions = false;
 
-	private remoteAuthority = this.environmentService.configuration.remoteAuthority;
+	private remoteAuthority = this.environmentService.remoteAuthority;
 	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
 	private connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
 

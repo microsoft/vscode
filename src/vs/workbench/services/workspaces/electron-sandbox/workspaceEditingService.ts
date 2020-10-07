@@ -177,7 +177,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		// TODO@aeschli: workaround until restarting works
-		if (this.environmentService.configuration.remoteAuthority) {
+		if (this.environmentService.remoteAuthority) {
 			this.hostService.reload();
 		}
 

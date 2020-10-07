@@ -663,7 +663,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		if (isAbsolutePathQuery) {
 			const resource = toLocalResource(
 				await this.pathService.fileURI(detildifiedQuery),
-				this.environmentService.configuration.remoteAuthority,
+				this.environmentService.remoteAuthority,
 				this.pathService.defaultUriScheme
 			);
 
@@ -700,7 +700,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				const resource = toLocalResource(
 					folder.toResource(query.original),
-					this.environmentService.configuration.remoteAuthority,
+					this.environmentService.remoteAuthority,
 					this.pathService.defaultUriScheme
 				);
 
