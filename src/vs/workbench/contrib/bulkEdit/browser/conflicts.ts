@@ -11,6 +11,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ConflictDetector {
 
@@ -24,6 +26,7 @@ export class ConflictDetector {
 		edits: ResourceEdit[],
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
+		@ILogService logService: ILogService,
 	) {
 
 		const _workspaceEditResources = new ResourceMap<boolean>();
@@ -46,10 +49,11 @@ export class ConflictDetector {
 				} else if (edit.oldResource) {
 					_workspaceEditResources.set(edit.oldResource, true);
 				}
+			} else if (edit instanceof ResourceNotebookCellEdit) {
+				_workspaceEditResources.set(edit.resource, true);
 
 			} else {
-				//todo@jrieken
-				console.log('UNKNOWN EDIT TYPE');
+				logService.warn('UNKNOWN edit type', edit);
 			}
 		}
 
