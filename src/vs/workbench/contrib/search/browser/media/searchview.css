@@ -58,10 +58,11 @@
 	display: none;
 }
 
-.search-view .search-widget .monaco-findInput {
+.search-view .search-widget .monaco-findInput,
+.search-view .monaco-findInput {
 	display: inline-block;
 	vertical-align: middle;
-	width: 100%;
+	width: 100% !important;
 }
 
 .search-view .search-widget .replace-container {
@@ -109,7 +110,7 @@
 .search-view .query-details {
 	min-height: 1em;
 	position: relative;
-	margin: 0 0 0 17px;
+	margin: 0 0 0 18px;
 }
 
 .search-view .query-details .more {
