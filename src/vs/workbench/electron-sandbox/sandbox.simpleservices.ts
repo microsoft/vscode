@@ -89,6 +89,9 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	get backupWorkspaceHome(): URI { return joinPath(this.userRoamingDataHome, 'Backups', 'workspace'); }
 	get logsPath(): string { return joinPath(this.userRoamingDataHome, 'logs').path; }
 
+	sessionId = this.configuration.sessionId;
+	machineId = this.configuration.machineId;
+
 	options?: IWorkbenchConstructionOptions | undefined;
 	logExtensionHostCommunication?: boolean | undefined;
 	extensionEnabledProposedApi?: string[] | undefined;

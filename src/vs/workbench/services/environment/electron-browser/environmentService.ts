@@ -16,6 +16,36 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 	declare readonly _serviceBrand: undefined;
 
 	@memoize
+	get machineId() { return this.configuration.machineId; }
+
+	@memoize
+	get sessionId() { return this.configuration.sessionId; }
+
+	@memoize
+	get remoteAuthority() { return this.configuration.remoteAuthority; }
+
+	@memoize
+	get execPath() { return this.configuration.execPath; }
+
+	@memoize
+	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
+
+	// Do NOT! memoize as `backupPath` can change in configuration
+	get backupWorkspaceHome(): URI | undefined {
+		if (this.configuration.backupPath) {
+			return URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme });
+		}
+
+		return undefined;
+	}
+
+	@memoize
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+
+	@memoize
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
+
+	@memoize
 	get webviewExternalEndpoint(): string {
 		const baseEndpoint = 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
 
@@ -27,18 +57,6 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 
 	@memoize
 	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
-
-	@memoize
-	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
-
-	// Do not memoize as `backupPath` can change in configuration
-	get backupWorkspaceHome(): URI | undefined { return this.configuration.backupPath ? URI.file(this.configuration.backupPath).with({ scheme: this.userRoamingDataHome.scheme }) : undefined; }
-
-	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
-
-	@memoize
-	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
@@ -58,10 +76,6 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 
 		return undefined;
 	}
-
-	readonly execPath = this.configuration.execPath;
-
-	readonly remoteAuthority = this.configuration.remoteAuthority;
 
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,
