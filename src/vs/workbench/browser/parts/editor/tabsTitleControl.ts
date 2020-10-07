@@ -34,7 +34,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -87,6 +87,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabDisposables: IDisposable[] = [];
 
 	private dimension: Dimension | undefined;
+	private disableMultiLineTabs: boolean | undefined;
 	private readonly layoutScheduled = this._register(new MutableDisposable());
 	private blockRevealActiveTab: boolean | undefined;
 
@@ -1253,13 +1254,15 @@ export class TabsTitleControl extends TitleControl {
 		return { height, offset };
 	}
 
-	layout(dimension: Dimension | undefined): Dimension | undefined {
+	layout(dimension: Dimension | undefined, maxDimension?: Dimension): Dimension | undefined {
 		this.dimension = dimension;
 
 		const activeTabAndIndex = this.group.activeEditor ? this.getTabAndIndex(this.group.activeEditor) : undefined;
 		if (!activeTabAndIndex || !this.dimension) {
 			return;
 		}
+
+		this.disableMultiLineTabs = maxDimension && maxDimension.height > this.getDimensions().height ? true : false;
 
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
@@ -1359,8 +1362,8 @@ export class TabsTitleControl extends TitleControl {
 		// - enabled: only add class if tabs wrap
 		// - disabled: remove class
 		if (this.accessor.partOptions.multiLineTabs) {
-
-			if (this.group.editorHeight < DEFAULT_EDITOR_MIN_DIMENSIONS.height) {
+			const visibleTabsContainerHeight = tabsContainer.offsetHeight;
+			if (this.disableMultiLineTabs && tabsAndActionsContainer.classList.contains('multi-line')) {
 				tabsAndActionsContainer.classList.remove('multi-line');
 			}
 
@@ -1375,7 +1378,6 @@ export class TabsTitleControl extends TitleControl {
 			// we need to check if the height of the tabs container is back to normal
 			// and then remove the multi-line class.
 			else if (allTabsWidth === visibleTabsContainerWidth && tabsAndActionsContainer.classList.contains('multi-line')) {
-				const visibleTabsContainerHeight = tabsContainer.offsetHeight;
 				if (visibleTabsContainerHeight === TabsTitleControl.TAB_HEIGHT) {
 					tabsAndActionsContainer.classList.remove('multi-line');
 				}
