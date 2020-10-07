@@ -33,6 +33,9 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 	readonly log?: string;
 	readonly extHostLogsPath: URI;
 
-	// TODO@sbatten this should be retrieved somehow differently
+	// TODO@sbatten TODO@ben this should be retrieved somehow differently
 	readonly windowMaximizedInitially?: boolean;
+
+	// TODO@ben this is a bit ugly
+	updateBackupPath(newPath: string | undefined): void;
 }
