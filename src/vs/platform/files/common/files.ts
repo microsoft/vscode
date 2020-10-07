@@ -542,12 +542,24 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * Returns true if this change event contains the provided file
+	 * Returns true if this change event contains the provided resource
 	 * with the given change type (if provided). In case of type
 	 * DELETED, this method will also return true if a folder got
-	 * deleted that is the parent of the provided file path.
+	 * deleted that is the parent of the provided resource path.
 	 */
 	contains(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { children: false }, ...types);
+	}
+
+	/**
+	 * Returns true if this change event contains changes for any children
+	 * of the provided resource.
+	 */
+	containsChildren(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { children: true }, ...types);
+	}
+
+	private doContains(resource: URI, options: { children: boolean }, ...types: FileChangeType[]): boolean {
 		if (!resource) {
 			return false;
 		}
@@ -556,21 +568,21 @@ export class FileChangesEvent {
 
 		// Added
 		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
-			if (this.added?.get(resource)) {
+			if (options.children ? this.added?.findSuperstr(resource) : this.added?.get(resource)) {
 				return true;
 			}
 		}
 
 		// Updated
 		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
-			if (this.updated?.get(resource)) {
+			if (options.children ? this.updated?.findSuperstr(resource) : this.updated?.get(resource)) {
 				return true;
 			}
 		}
 
 		// Deleted
 		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
-			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+			if (options.children ? this.deleted?.findSuperstr(resource) : this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
 				return true;
 			}
 		}
