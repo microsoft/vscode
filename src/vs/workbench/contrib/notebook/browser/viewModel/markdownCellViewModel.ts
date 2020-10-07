@@ -167,7 +167,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				el.innerText = nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.");
 				this._html = el;
 			} else {
-				this._html = renderer.render({ value: this.getText(), isTrusted: true }, { gfm: true }).element;
+				this._html = renderer.render({ value: this.getText(), isTrusted: true }, undefined, { gfm: true }).element;
 			}
 
 			return this._html;

@@ -51,14 +51,14 @@ export class MarkdownRenderer {
 		this._onDidRenderCodeBlock.dispose();
 	}
 
-	render(markdown: IMarkdownString | undefined, markedOptions?: MarkedOptions): IMarkdownRenderResult {
+	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
 		const disposeables = new DisposableStore();
 
 		let element: HTMLElement;
 		if (!markdown) {
 			element = document.createElement('span');
 		} else {
-			element = renderMarkdown(markdown, this._getRenderOptions(disposeables), markedOptions);
+			element = renderMarkdown(markdown, { ...this._getRenderOptions(disposeables), ...options }, markedOptions);
 		}
 
 		return {
