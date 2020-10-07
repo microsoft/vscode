@@ -542,24 +542,24 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * Returns true if this change event contains the provided resource
-	 * with the given change type (if provided). In case of type
-	 * DELETED, this method will also return true if a folder got
-	 * deleted that is the parent of the provided resource path.
+	 * Find out if the file change events match the provided resource.
+	 *
+	 * Note: when passing `FileChangeType.DELETED`, we consider a match
+	 * also when the parent of the resource got deleted.
 	 */
 	contains(resource: URI, ...types: FileChangeType[]): boolean {
-		return this.doContains(resource, { children: false }, ...types);
+		return this.doContains(resource, { includeChildren: false }, ...types);
 	}
 
 	/**
-	 * Returns true if this change event contains changes for any children
-	 * of the provided resource.
+	 * Find out if the file change events either match the provided
+	 * resource, or contain a parent of this resource.
 	 */
-	containsChildren(resource: URI, ...types: FileChangeType[]): boolean {
-		return this.doContains(resource, { children: true }, ...types);
+	affects(resource: URI, ...types: FileChangeType[]): boolean {
+		return this.doContains(resource, { includeChildren: true }, ...types);
 	}
 
-	private doContains(resource: URI, options: { children: boolean }, ...types: FileChangeType[]): boolean {
+	private doContains(resource: URI, options: { includeChildren: boolean }, ...types: FileChangeType[]): boolean {
 		if (!resource) {
 			return false;
 		}
@@ -568,21 +568,33 @@ export class FileChangesEvent {
 
 		// Added
 		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
-			if (options.children ? this.added?.findSuperstr(resource) : this.added?.get(resource)) {
+			if (this.added?.get(resource)) {
+				return true;
+			}
+
+			if (options.includeChildren && this.added?.findSuperstr(resource)) {
 				return true;
 			}
 		}
 
 		// Updated
 		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
-			if (options.children ? this.updated?.findSuperstr(resource) : this.updated?.get(resource)) {
+			if (this.updated?.get(resource)) {
+				return true;
+			}
+
+			if (options.includeChildren && this.updated?.findSuperstr(resource)) {
 				return true;
 			}
 		}
 
 		// Deleted
 		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
-			if (options.children ? this.deleted?.findSuperstr(resource) : this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+				return true;
+			}
+
+			if (options.includeChildren && this.deleted?.findSuperstr(resource)) {
 				return true;
 			}
 		}
