@@ -22,7 +22,7 @@ import { ConfigurationService } from 'vs/platform/configuration/common/configura
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender, LogAppender } from 'vs/platform/telemetry/common/telemetryUtils';
+import { combinedAppender, NullTelemetryService, ITelemetryAppender, NullAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
@@ -69,6 +69,7 @@ import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/pl
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { ExtensionRecommendationNotificationServiceChannelClient } from 'vs/platform/extensionRecommendations/electron-sandbox/extensionRecommendationsIpc';
 import { ActiveWindowManager } from 'vs/platform/windows/common/windowTracker';
+import { TelemetryLogAppender } from 'vs/platform/telemetry/common/telemetryLogAppender';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -171,18 +172,17 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	instantiationService.invokeFunction(accessor => {
 		const services = new ServiceCollection();
 		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-		const telemetryLogService = new FollowerLogService(loggerClient, new SpdLogService('telemetry', environmentService.logsPath, initData.logLevel));
-		telemetryLogService.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
-		telemetryLogService.info('===========================================================');
 
-		let appInsightsAppender: ITelemetryAppender | null = NullAppender;
+		let telemetryAppender: ITelemetryAppender = NullAppender;
 		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
+			telemetryAppender = new TelemetryLogAppender(accessor.get(ILoggerService), environmentService);
 			if (product.aiConfig && product.aiConfig.asimovKey && isBuilt) {
-				appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, telemetryLogService);
+				const appInsightsAppender = new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey);
 				disposables.add(toDisposable(() => appInsightsAppender!.flush())); // Ensure the AI appender is disposed so that it flushes remaining data
+				telemetryAppender = combinedAppender(appInsightsAppender, telemetryAppender);
 			}
 			const config: ITelemetryServiceConfig = {
-				appender: combinedAppender(appInsightsAppender, new LogAppender(logService)),
+				appender: telemetryAppender,
 				commonProperties: resolveCommonProperties(product.commit, product.version, configuration.machineId, product.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
@@ -194,7 +194,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			telemetryService = NullTelemetryService;
 			services.set(ITelemetryService, NullTelemetryService);
 		}
-		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appInsightsAppender));
+		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(telemetryAppender));
 
 		services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
