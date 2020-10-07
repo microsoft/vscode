@@ -25,13 +25,16 @@ export interface MarkedOptions extends marked.MarkedOptions {
 }
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
-	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => Promise<HTMLElement>;
 	codeBlockRenderCallback?: () => void;
 	baseUrl?: URI;
 }
 
 /**
- * Create html nodes for the given content element.
+ * Low-level way create a html element from a markdown string.
+ *
+ * **Note** that for most cases you should be using [`MarkdownRenderer`](./src/vs/editor/browser/core/markdownRenderer.ts)
+ * which comes with support for pretty code block rendering and which uses the default way of handling links.
  */
 export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
 	const element = createElement(options);
@@ -158,12 +161,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			// but update the node with the real result later.
 			const id = defaultGenerator.nextId();
 			const promise = Promise.all([value, withInnerHTML]).then(values => {
-				const strValue = values[0];
-				const span = element.querySelector(`div[data-code="${id}"]`);
+				const span = <HTMLDivElement>element.querySelector(`div[data-code="${id}"]`);
 				if (span) {
-					span.innerHTML = strValue;
+					DOM.reset(span, values[0]);
 				}
-			}).catch(err => {
+			}).catch(_err => {
 				// ignore
 			});
 
