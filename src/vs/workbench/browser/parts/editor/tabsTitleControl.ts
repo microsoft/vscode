@@ -1262,8 +1262,26 @@ export class TabsTitleControl extends TitleControl {
 			return;
 		}
 
-		this.disableMultiLineTabs = maxDimension && maxDimension.height > this.getDimensions().height ? true : false;
+		const maxHeight = maxDimension?.height ?? this.getDimensions().height;
+		this.disableMultiLineTabs = this.getDimensions().height > maxHeight ? true : false;
 
+		// Layout tabs synchronously if multi-line tabs are enabled so that
+		// the correct height of the title area can be returned to the title control
+		if (this.accessor.partOptions.multiLineTabs) {
+			this.layoutSync();
+		} else {
+			this.layoutAsync();
+		}
+
+		return new Dimension(this.dimension.width, this.getDimensions().height);
+	}
+
+	private layoutSync() {
+		const dimension = assertIsDefined(this.dimension);
+		this.doLayout(dimension);
+	}
+
+	private layoutAsync() {
 		// The layout of tabs can be an expensive operation because we access DOM properties
 		// that can result in the browser doing a full page layout to validate them. To buffer
 		// this a little bit we try at least to schedule this work on the next animation frame.
@@ -1275,8 +1293,6 @@ export class TabsTitleControl extends TitleControl {
 				this.layoutScheduled.clear();
 			});
 		}
-
-		return new Dimension(this.dimension.width, this.getDimensions().height);
 	}
 
 	private doLayout(dimension: Dimension): void {

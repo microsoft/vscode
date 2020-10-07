@@ -1703,7 +1703,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.dimension = new Dimension(width, height);
 
 		// Use the initial height of the title area to layout
-		const titleMaxDimensions = new Dimension(this.dimension.width, this.dimension.height - this.minimumHeight);
+		const titleMaxDimensions = new Dimension(this.dimension.width, this.dimension.height - this.editorControl.minimumHeight);
 		const titleDimensions = this.titleAreaControl.layout(this.dimension, titleMaxDimensions) as Dimension;
 
 		// Use the new height of the title area to layout the editor
