@@ -450,8 +450,8 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		// create comment thread only when not readonly
-		if (!this._commentThread.readOnly) {
+		// create comment thread only when it supports reply
+		if (this._commentThread.canReply) {
 			this.createCommentForm();
 		}
 
@@ -470,7 +470,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		// if this._commentThread.comments is undefined, it doesn't finish initialization yet, so we don't focus the editor immediately.
-		if (!this._commentThread.readOnly && this._commentReplyComponent) {
+		if (this._commentThread.canReply && this._commentReplyComponent) {
 			if (!this._commentThread.comments || !this._commentThread.comments.length) {
 				this._commentReplyComponent.editor.focus();
 			} else if (this._commentReplyComponent.editor.getModel()!.getValueLength() > 0) {
@@ -478,15 +478,15 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		this._commentThreadDisposables.push(this._commentThread.onDidChangeReadOnly(() => {
+		this._commentThreadDisposables.push(this._commentThread.onDidChangeCanReply(() => {
 			if (this._commentReplyComponent) {
-				if (this._commentThread.readOnly) {
+				if (!this._commentThread.canReply) {
 					this._commentReplyComponent.form.style.display = 'none';
 				} else {
 					this._commentReplyComponent.form.style.display = 'block';
 				}
 			} else {
-				if (!this._commentThread.readOnly) {
+				if (this._commentThread.canReply) {
 					this.createCommentForm();
 				}
 			}
