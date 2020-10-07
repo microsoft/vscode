@@ -59,7 +59,7 @@ import { IIntegrityService, IntegrityTestResult } from 'vs/workbench/services/in
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
-import { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions } from 'vs/workbench/workbench.web.api';
 import { Schemas } from 'vs/base/common/network';
 
 
