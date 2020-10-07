@@ -502,17 +502,17 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-
 	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
+	 * @deprecated use the `contains()` or `affects` method to efficiently find
+	 * out if the event relates to a given resource. these methods ensure:
+	 * - that there is no expensive lookup needed (by using a `TernarySearchTree`)
 	 * - correctly handles `FileChangeType.DELETED` events
 	 */
 	readonly changes: readonly IFileChange[];
+
+	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
 
 	constructor(changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
 		this.changes = changes;
