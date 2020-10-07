@@ -66,8 +66,10 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- misc
+	// --- telemetry
 	disableTelemetry: boolean;
+	telemetryLogResource: URI;
+
 	serviceMachineIdResource: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

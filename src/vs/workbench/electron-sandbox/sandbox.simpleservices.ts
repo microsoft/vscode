@@ -147,6 +147,8 @@ export class SimpleNativeWorkbenchEnvironmentService implements INativeWorkbench
 	sandbox = true;
 	verbose = false;
 	isBuilt = false;
+
+	get telemetryLogResource(): URI { return joinPath(this.userRoamingDataHome, 'telemetry.log'); }
 	disableTelemetry = false;
 }
 

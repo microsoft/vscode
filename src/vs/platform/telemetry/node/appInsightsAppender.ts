@@ -6,7 +6,6 @@
 import * as appInsights from 'applicationinsights';
 import { mixin } from 'vs/base/common/objects';
 import { ITelemetryAppender, validateTelemetryData } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ILogService } from 'vs/platform/log/common/log';
 
 function getClient(aiKey: string): appInsights.TelemetryClient {
 
@@ -43,7 +42,6 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		private _eventPrefix: string,
 		private _defaultData: { [key: string]: any } | null,
 		aiKeyOrClientFactory: string | (() => appInsights.TelemetryClient), // allow factory function for testing
-		@ILogService private _logService?: ILogService
 	) {
 		if (!this._defaultData) {
 			this._defaultData = Object.create(null);
@@ -63,9 +61,6 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		data = mixin(data, this._defaultData);
 		data = validateTelemetryData(data);
 
-		if (this._logService) {
-			this._logService.trace(`telemetry/${eventName}`, data);
-		}
 		this._aiClient.trackEvent({
 			name: this._eventPrefix + '/' + eventName,
 			properties: data.properties,
