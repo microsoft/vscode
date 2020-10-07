@@ -1160,6 +1160,11 @@ export class SearchView extends ViewPane {
 		this.triggerQueryChange();
 	}
 
+	togglePreserveCase(): void {
+		this.searchWidget.replaceInput.setPreserveCase(!this.searchWidget.replaceInput.getPreserveCase());
+		this.triggerQueryChange();
+	}
+
 	setSearchParameters(args: IFindInFilesArgs = {}): void {
 		if (typeof args.isCaseSensitive === 'boolean') {
 			this.searchWidget.searchInput.setCaseSensitive(args.isCaseSensitive);
@@ -1188,6 +1193,12 @@ export class SearchView extends ViewPane {
 		}
 		if (typeof args.triggerSearch === 'boolean' && args.triggerSearch) {
 			this.triggerQueryChange();
+		}
+		if (typeof args.preserveCase === 'boolean') {
+			this.searchWidget.replaceInput.setPreserveCase(args.preserveCase);
+		}
+		if (typeof args.excludeSettingAndIgnoreFiles === 'boolean') {
+			this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(args.excludeSettingAndIgnoreFiles);
 		}
 	}
 

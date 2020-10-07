@@ -343,7 +343,7 @@ export async function main(argv: NativeParsedArgs): Promise<void> {
 		const appenders: AppInsightsAppender[] = [];
 		if (isBuilt && !extensionDevelopmentLocationURI && !environmentService.disableTelemetry && product.enableTelemetry) {
 			if (product.aiConfig && product.aiConfig.asimovKey) {
-				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey, logService));
+				appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 			}
 
 			const config: ITelemetryServiceConfig = {

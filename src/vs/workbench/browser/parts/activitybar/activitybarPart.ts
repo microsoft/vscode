@@ -134,7 +134,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.migrateFromOldCachedViewContainersValue();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
-			if (environmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
+			if (environmentService.remoteAuthority // In remote window, hide activity bar entries until registered.
 				|| this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
 			) {
 				cachedViewContainer.visible = false;

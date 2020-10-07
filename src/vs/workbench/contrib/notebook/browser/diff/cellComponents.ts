@@ -493,7 +493,8 @@ abstract class AbstractCellRenderer extends Disposable {
 					[{ editType: CellEditType.CellLanguage, index, language: newLangauge }],
 					true,
 					undefined,
-					() => undefined
+					() => undefined,
+					undefined
 				);
 			}
 
@@ -505,7 +506,7 @@ abstract class AbstractCellRenderer extends Disposable {
 
 			this.notebookEditor.textModel!.applyEdits(this.notebookEditor.textModel!.versionId, [
 				{ editType: CellEditType.Metadata, index, metadata: result }
-			], true, undefined, () => undefined);
+			], true, undefined, () => undefined, undefined);
 		} catch {
 		}
 	}
@@ -745,7 +746,7 @@ export class DeletedCell extends AbstractCellRenderer {
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && this._layoutInfo.editorHeight !== e.contentHeight) {
 				this._layoutInfo.editorHeight = e.contentHeight;
 				this.layout({ editorHeight: true });
 			}
@@ -768,28 +769,30 @@ export class DeletedCell extends AbstractCellRenderer {
 		}
 	}
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editor.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.editorHeight
-			});
-		}
+		DOM.scheduleAtNextAnimationFrame(() => {
+			if (state.editorHeight || state.outerWidth) {
+				this._editor.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.editorHeight
+				});
+			}
 
-		if (state.metadataEditor || state.outerWidth) {
-			this._metadataEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.metadataHeight
-			});
-		}
+			if (state.metadataEditor || state.outerWidth) {
+				this._metadataEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.metadataHeight
+				});
+			}
 
-		if (state.outputEditor || state.outerWidth) {
-			this._outputEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.outputHeight
-			});
-		}
+			if (state.outputEditor || state.outerWidth) {
+				this._outputEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.outputHeight
+				});
+			}
 
-		this.layoutNotebookCell();
+			this.layoutNotebookCell();
+		});
 	}
 }
 
@@ -833,7 +836,7 @@ export class InsertCell extends AbstractCellRenderer {
 		this._layoutInfo.editorHeight = editorHeight;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && this._layoutInfo.editorHeight !== e.contentHeight) {
 				this._layoutInfo.editorHeight = e.contentHeight;
 				this.layout({ editorHeight: true });
 			}
@@ -856,28 +859,30 @@ export class InsertCell extends AbstractCellRenderer {
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editor.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
-				height: this._layoutInfo.editorHeight
-			});
-		}
+		DOM.scheduleAtNextAnimationFrame(() => {
+			if (state.editorHeight || state.outerWidth) {
+				this._editor.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, false),
+					height: this._layoutInfo.editorHeight
+				});
+			}
 
-		if (state.metadataEditor || state.outerWidth) {
-			this._metadataEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-				height: this._layoutInfo.metadataHeight
-			});
-		}
+			if (state.metadataEditor || state.outerWidth) {
+				this._metadataEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+					height: this._layoutInfo.metadataHeight
+				});
+			}
 
-		if (state.outputEditor || state.outerWidth) {
-			this._outputEditor?.layout({
-				width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
-				height: this._layoutInfo.outputHeight
-			});
-		}
+			if (state.outputEditor || state.outerWidth) {
+				this._outputEditor?.layout({
+					width: this.cell.getComputedCellContainerWidth(this.notebookEditor.getLayoutInfo(), false, true),
+					height: this._layoutInfo.outputHeight
+				});
+			}
 
-		this.layoutNotebookCell();
+			this.layoutNotebookCell();
+		});
 	}
 }
 
@@ -924,7 +929,7 @@ export class ModifiedCell extends AbstractCellRenderer {
 		this._editorContainer.style.height = `${editorHeight}px`;
 
 		this._register(this._editor.onDidContentSizeChange((e) => {
-			if (e.contentHeightChanged) {
+			if (e.contentHeightChanged && this._layoutInfo.editorHeight !== e.contentHeight) {
 				this._layoutInfo.editorHeight = e.contentHeight;
 				this.layout({ editorHeight: true });
 			}
@@ -962,25 +967,27 @@ export class ModifiedCell extends AbstractCellRenderer {
 	}
 
 	layout(state: { outerWidth?: boolean, editorHeight?: boolean, metadataEditor?: boolean, outputEditor?: boolean }) {
-		if (state.editorHeight || state.outerWidth) {
-			this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
-			this._editor!.layout();
-		}
-
-		if (state.metadataEditor || state.outerWidth) {
-			if (this._metadataEditorContainer) {
-				this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
-				this._metadataEditor?.layout();
+		DOM.scheduleAtNextAnimationFrame(() => {
+			if (state.editorHeight || state.outerWidth) {
+				this._editorContainer.style.height = `${this._layoutInfo.editorHeight}px`;
+				this._editor!.layout();
 			}
-		}
 
-		if (state.outputEditor || state.outerWidth) {
-			if (this._outputEditorContainer) {
-				this._outputEditorContainer.style.height = `${this._layoutInfo.outputHeight}px`;
-				this._outputEditor?.layout();
+			if (state.metadataEditor || state.outerWidth) {
+				if (this._metadataEditorContainer) {
+					this._metadataEditorContainer.style.height = `${this._layoutInfo.metadataHeight}px`;
+					this._metadataEditor?.layout();
+				}
 			}
-		}
 
-		this.layoutNotebookCell();
+			if (state.outputEditor || state.outerWidth) {
+				if (this._outputEditorContainer) {
+					this._outputEditorContainer.style.height = `${this._layoutInfo.outputHeight}px`;
+					this._outputEditor?.layout();
+				}
+			}
+
+			this.layoutNotebookCell();
+		});
 	}
 }

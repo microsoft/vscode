@@ -33,22 +33,22 @@ src/vs/base/browser/ui/contextview/contextview.ts:
   163  					</style>
 
 src/vs/code/electron-sandbox/issue/issueReporterMain.ts:
-  57  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
-  58  	addClass(document.body, platformClass); // used by our fonts
-  59  
-  60: 	document.body.innerHTML = BaseHtml();
-  61  	const issueReporter = new IssueReporter(configuration);
-  62  	issueReporter.render();
-  63  	document.body.style.display = 'block';
+  58  	const platformClass = platform.isWindows ? 'windows' : platform.isLinux ? 'linux' : 'mac';
+  59  	document.body.classList.add(platformClass); // used by our fonts
+  60  
+  61: 	document.body.innerHTML = BaseHtml();
+  62  	const issueReporter = new IssueReporter(configuration);
+  63  	issueReporter.render();
+  64  	document.body.style.display = 'block';
 
 src/vs/code/electron-sandbox/processExplorer/processExplorerMain.ts:
-  320  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
-  321  		}
-  322  
-  323: 		styleTag.innerHTML = content.join('\n');
-  324  		if (document.head) {
-  325  			document.head.appendChild(styleTag);
-  326  		}
+  321  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
+  322  		}
+  323  
+  324: 		styleTag.innerHTML = content.join('\n');
+  325  		if (document.head) {
+  326  			document.head.appendChild(styleTag);
+  327  		}
 
 src/vs/editor/browser/view/domLineBreaksComputer.ts:
   107  		allCharOffsets[i] = tmp[0];
@@ -100,29 +100,29 @@ src/vs/editor/standalone/browser/colorizer.ts:
   46  	}
 
 src/vs/editor/standalone/browser/standaloneThemeServiceImpl.ts:
-  212  		if (!this._globalStyleElement) {
-  213  			this._globalStyleElement = dom.createStyleSheet();
-  214  			this._globalStyleElement.className = 'monaco-colors';
-  215: 			this._globalStyleElement.innerHTML = this._css;
-  216  			this._styleElements.push(this._globalStyleElement);
-  217  		}
-  218  		return Disposable.None;
+  232  		if (!this._globalStyleElement) {
+  233  			this._globalStyleElement = dom.createStyleSheet();
+  234  			this._globalStyleElement.className = 'monaco-colors';
+  235: 			this._globalStyleElement.innerHTML = this._allCSS;
+  236  			this._styleElements.push(this._globalStyleElement);
+  237  		}
+  238  		return Disposable.None;
 
-  221  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-  222  		const styleElement = dom.createStyleSheet(domNode);
-  223  		styleElement.className = 'monaco-colors';
-  224: 		styleElement.innerHTML = this._css;
-  225  		this._styleElements.push(styleElement);
-  226  		return {
-  227  			dispose: () => {
+  241  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
+  242  		const styleElement = dom.createStyleSheet(domNode);
+  243  		styleElement.className = 'monaco-colors';
+  244: 		styleElement.innerHTML = this._allCSS;
+  245  		this._styleElements.push(styleElement);
+  246  		return {
+  247  			dispose: () => {
 
-  291  		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
-  292  
-  293  		this._css = cssRules.join('\n');
-  294: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
-  295  
-  296  		TokenizationRegistry.setColorMap(colorMap);
-  297  		this._onColorThemeChange.fire(theme);
+  321  
+  322  	private _updateCSS(): void {
+  323  		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
+  324: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._allCSS);
+  325  	}
+  326  
+  327  	public getFileIconTheme(): IFileIconTheme {
 
 src/vs/editor/test/browser/controller/imeTester.ts:
   55  			let content = this._model.getModelLineContent(i);
@@ -142,21 +142,21 @@ src/vs/editor/test/browser/controller/imeTester.ts:
   75  	let startBtn = document.createElement('button');
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
-  454  
-  455  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-  456  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-  457: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
-  458  
-  459  		// Remove all rendered content nodes after the
-  460  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
+  455  
+  456  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+  457  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
+  458: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
+  459  
+  460  		// Remove all rendered content nodes after the
+  461  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
 
-  611  			return null;
-  612  		}
-  613  
-  614: 		editorContainer.innerHTML = richEditorText;
-  615  
-  616  		return dragImageContainer;
-  617  	}
+  641  			return null;
+  642  		}
+  643  
+  644: 		editorContainer.innerHTML = richEditorText;
+  645  
+  646  		return dragImageContainer;
+  647  	}
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
@@ -165,21 +165,21 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   378: 						outputNode.innerHTML = content.htmlContent;
   379  						cellOutputContainer.appendChild(outputNode);
   380  						domEval(outputNode);
-  381  					} else {
+  381  					} else if (preloadErrs.some(e => !!e)) {
 
 src/vs/workbench/contrib/webview/browser/pre/main.js:
-  386  			// apply default styles
-  387  			const defaultStyles = newDocument.createElement('style');
-  388  			defaultStyles.id = '_defaultStyles';
-  389: 			defaultStyles.innerHTML = defaultCssRules;
-  390  			newDocument.head.prepend(defaultStyles);
-  391  
-  392  			applyStyles(newDocument, newDocument.body);
+  393  			// apply default styles
+  394  			const defaultStyles = newDocument.createElement('style');
+  395  			defaultStyles.id = '_defaultStyles';
+  396: 			defaultStyles.innerHTML = defaultCssRules;
+  397  			newDocument.head.prepend(defaultStyles);
+  398  
+  399  			applyStyles(newDocument, newDocument.body);
 
 src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
   281  
   282  				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-  283  				if (!strings.endsWith(input.resource.path, '.md')) {
+  283  				if (!input.resource.path.endsWith('.md')) {
   284: 					this.content.innerHTML = content;
   285  					this.updateSizeClasses();
   286  					this.decorateContent();

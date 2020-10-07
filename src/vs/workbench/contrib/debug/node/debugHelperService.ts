@@ -42,7 +42,7 @@ export class NodeDebugHelperService implements IDebugHelperService {
 
 		return new TelemetryService({
 			appender,
-			sendErrorTelemetry: cleanRemoteAuthority(this.environmentService.configuration.remoteAuthority) !== 'other'
+			sendErrorTelemetry: cleanRemoteAuthority(this.environmentService.remoteAuthority) !== 'other'
 		}, configurationService);
 	}
 }

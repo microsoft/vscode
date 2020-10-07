@@ -170,14 +170,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			await this.migrateStorage(result.workspace);
 
 			// Reinitialize backup service
-			this.environmentService.configuration.backupPath = result.backupPath;
+			this.environmentService.updateBackupPath(result.backupPath);
 			if (this.backupFileService instanceof BackupFileService) {
 				this.backupFileService.reinitialize();
 			}
 		}
 
 		// TODO@aeschli: workaround until restarting works
-		if (this.environmentService.configuration.remoteAuthority) {
+		if (this.environmentService.remoteAuthority) {
 			this.hostService.reload();
 		}
 

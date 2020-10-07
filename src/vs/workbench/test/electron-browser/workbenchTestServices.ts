@@ -40,7 +40,6 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { homedir } from 'os';
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
@@ -54,7 +53,7 @@ export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	userEnv: {},
 	execPath: process.execPath,
 	perfEntries: [],
-	colorScheme: ColorScheme.DARK,
+	colorScheme: { dark: true, highContrast: false },
 	...parseArgs(process.argv, OPTIONS)
 };
 

@@ -329,6 +329,23 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
+	test('Load with contents', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.load({ contents: createTextBufferFactory('Hello World') });
+
+		assert.equal(model.textEditorModel?.getValue(), 'Hello World');
+		assert.equal(model.isDirty(), true);
+
+		await model.load({ contents: createTextBufferFactory('Hello Changes') });
+
+		assert.equal(model.textEditorModel?.getValue(), 'Hello Changes');
+		assert.equal(model.isDirty(), true);
+
+		model.dispose();
+		assert.ok(!accessor.modelService.getModel(model.resource));
+	});
+
 	test('Revert', async function () {
 		let eventCounter = 0;
 

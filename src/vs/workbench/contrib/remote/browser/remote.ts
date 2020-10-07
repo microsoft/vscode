@@ -313,7 +313,7 @@ abstract class HelpItemBase implements IHelpItem {
 	}
 
 	async handleClick() {
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			for (let i = 0; i < this.remoteExplorerService.targetType.length; i++) {
 				if (remoteAuthority.startsWith(this.remoteExplorerService.targetType[i])) {
@@ -407,7 +407,7 @@ class HelpPanel extends ViewPane {
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@ICommandService protected commandService: ICommandService,
 		@IRemoteExplorerService protected readonly remoteExplorerService: IRemoteExplorerService,
-		@IWorkbenchEnvironmentService protected readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
@@ -438,7 +438,7 @@ class HelpPanel extends ViewPane {
 			}
 		);
 
-		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.workbenchEnvironmentService);
+		const model = new HelpModel(this.viewModel, this.openerService, this.quickInputService, this.commandService, this.remoteExplorerService, this.environmentService);
 
 		this.tree.setInput(model);
 
@@ -560,7 +560,7 @@ export class RemoteViewPaneContainer extends FilterViewPaneContainer implements 
 		const panels: ViewPane[] = super.onDidAddViewDescriptors(added);
 		// This context key is set to false in the constructor, but is expected to be changed by resolver extensions to enable the forwarded ports view.
 		const viewEnabled: boolean = !!forwardedPortsViewEnabled.getValue(this.contextKeyService);
-		if (this.environmentService.configuration.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
+		if (this.environmentService.remoteAuthority && !this.tunnelPanelDescriptor && viewEnabled) {
 			this.tunnelPanelDescriptor = new TunnelPanelDescriptor(new TunnelViewModel(this.remoteExplorerService), this.environmentService);
 			const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 			viewsRegistry.registerViews([this.tunnelPanelDescriptor!], this.viewContainer);
@@ -841,7 +841,7 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 }
 
 class AutomaticPortForwarding extends Disposable implements IWorkbenchContribution {
-	private contextServiceListener: IDisposable;
+	private contextServiceListener?: IDisposable;
 
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
@@ -853,14 +853,15 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
-		if (this.environmentService.configuration.remoteAuthority) {
+		if (this.environmentService.remoteAuthority) {
 			this.startUrlFinder();
+		} else {
+			this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
+				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
+					this.startUrlFinder();
+				}
+			}));
 		}
-		this.contextServiceListener = this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-				this.startUrlFinder();
-			}
-		}));
 	}
 
 	private isStarted = false;
@@ -868,7 +869,9 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 		if (!this.isStarted && !forwardedPortsViewEnabled.getValue(this.contextKeyService)) {
 			return;
 		}
-		this.contextServiceListener.dispose();
+		if (this.contextServiceListener) {
+			this.contextServiceListener.dispose();
+		}
 		this.isStarted = true;
 		const urlFinder = this._register(new UrlFinder(this.terminalService));
 		this._register(urlFinder.onDidMatchLocalUrl(async (localUrl) => {
@@ -887,7 +890,7 @@ class AutomaticPortForwarding extends Disposable implements IWorkbenchContributi
 				const showChoice: IPromptChoice = {
 					label: nls.localize('remote.tunnelsView.showView', "Show Forwarded Ports"),
 					run: () => {
-						const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+						const remoteAuthority = this.environmentService.remoteAuthority;
 						const explorerType: string[] | undefined = remoteAuthority ? [remoteAuthority.split('+')[0]] : undefined;
 						if (explorerType) {
 							this.remoteExplorerService.targetType = explorerType;

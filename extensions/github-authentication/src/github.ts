@@ -82,7 +82,7 @@ export class GitHubAuthenticationProvider {
 	}
 
 	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
-		const storedSessions = await keychain.getToken();
+		const storedSessions = await keychain.getToken() || await keychain.tryMigrate();
 		if (storedSessions) {
 			try {
 				const sessionData: SessionData[] = JSON.parse(storedSessions);

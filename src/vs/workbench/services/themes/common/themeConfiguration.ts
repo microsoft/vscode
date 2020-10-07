@@ -298,6 +298,18 @@ export class ThemeConfiguration {
 		return theme;
 	}
 
+	public findAutoConfigurationTarget(key: string) {
+		let settings = this.configurationService.inspect(key);
+		if (!types.isUndefined(settings.workspaceFolderValue)) {
+			return ConfigurationTarget.WORKSPACE_FOLDER;
+		} else if (!types.isUndefined(settings.workspaceValue)) {
+			return ConfigurationTarget.WORKSPACE;
+		} else if (!types.isUndefined(settings.userRemote)) {
+			return ConfigurationTarget.USER_REMOTE;
+		}
+		return ConfigurationTarget.USER;
+	}
+
 	private async writeConfiguration(key: string, value: any, settingsTarget: ConfigurationTarget | 'auto' | undefined): Promise<void> {
 		if (settingsTarget === undefined) {
 			return;
@@ -305,15 +317,7 @@ export class ThemeConfiguration {
 
 		let settings = this.configurationService.inspect(key);
 		if (settingsTarget === 'auto') {
-			if (!types.isUndefined(settings.workspaceFolderValue)) {
-				settingsTarget = ConfigurationTarget.WORKSPACE_FOLDER;
-			} else if (!types.isUndefined(settings.workspaceValue)) {
-				settingsTarget = ConfigurationTarget.WORKSPACE;
-			} else if (!types.isUndefined(settings.userRemote)) {
-				settingsTarget = ConfigurationTarget.USER_REMOTE;
-			} else {
-				settingsTarget = ConfigurationTarget.USER;
-			}
+			settingsTarget = this.findAutoConfigurationTarget(key);
 		}
 
 		if (settingsTarget === ConfigurationTarget.USER) {

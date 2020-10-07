@@ -1139,7 +1139,7 @@ export interface IContextKeyService {
 	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
 
-	updateParent(parentContextKeyService?: IContextKeyService): void;
+	updateParent(parentContextKeyService: IContextKeyService): void;
 }
 
 export const SET_CONTEXT_COMMAND_ID = 'setContext';

@@ -22,6 +22,13 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
+export function trustedInnerHTML(node: Element, value: TrustedHTML): void {
+	// this is a workaround for innerHTML not allowing for "asymetric" accessors
+	// see https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393
+	// and https://github.com/microsoft/TypeScript/issues/30024
+	node.innerHTML = value as unknown as string;
+}
+
 export function isInDOM(node: Node | null): boolean {
 	while (node) {
 		if (node === document.body) {
@@ -33,18 +40,13 @@ export function isInDOM(node: Node | null): boolean {
 }
 
 interface IDomClassList {
-	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
 	addClass(node: HTMLElement | SVGElement, className: string): void;
 	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
-	removeClass(node: HTMLElement | SVGElement, className: string): void;
 	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
 	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
 const _classList: IDomClassList = new class implements IDomClassList {
-	hasClass(node: HTMLElement, className: string): boolean {
-		return Boolean(className) && node.classList && node.classList.contains(className);
-	}
 
 	addClasses(node: HTMLElement, ...classNames: string[]): void {
 		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
@@ -74,13 +76,9 @@ const _classList: IDomClassList = new class implements IDomClassList {
 };
 
 /** @deprecated ES6 - use classList*/
-export function hasClass(node: HTMLElement | SVGElement, className: string): boolean { return _classList.hasClass(node, className); }
-/** @deprecated ES6 - use classList*/
 export function addClass(node: HTMLElement | SVGElement, className: string): void { return _classList.addClass(node, className); }
 /** @deprecated ES6 - use classList*/
 export function addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.addClasses(node, ...classNames); }
-/** @deprecated ES6 - use classList*/
-export function removeClass(node: HTMLElement | SVGElement, className: string): void { return _classList.removeClass(node, className); }
 /** @deprecated ES6 - use classList*/
 export function removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void { return _classList.removeClasses(node, ...classNames); }
 /** @deprecated ES6 - use classList*/
@@ -1228,7 +1226,6 @@ export function asCSSUrl(uri: URI): string {
 	}
 	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
 }
-
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
 

@@ -95,12 +95,8 @@ export function prepareCommand(shell: string, args: string[], cwd?: string, env?
 	}
 
 	let quote: (s: string) => string;
-
-	// cancel the current input (to avoid executing the command accidentally)
-	let command = '\u0003'; // Control-C
-
 	// begin command with a space to avoid polluting shell history
-	command += ' ';
+	let command = ' ';
 
 	switch (shellType) {
 

@@ -357,11 +357,12 @@ export function runScript(script: string, document: TextDocument) {
 	}
 }
 
-export function startDebugging(scriptName: string, folder: WorkspaceFolder) {
+export function startDebugging(scriptName: string, cwd: string, folder: WorkspaceFolder) {
 	const config: DebugConfiguration = {
 		type: 'pwa-node',
 		request: 'launch',
 		name: `Debug ${scriptName}`,
+		cwd,
 		runtimeExecutable: getPackageManager(folder),
 		runtimeArgs: [
 			'run',

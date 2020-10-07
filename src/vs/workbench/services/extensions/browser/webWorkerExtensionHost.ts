@@ -286,7 +286,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			version: this._productService.version,
 			parentPid: -1,
 			environment: {
-				isExtensionDevelopmentDebug: false, //todo@jrieken web
+				isExtensionDevelopmentDebug: this._environmentService.debugRenderer,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,
@@ -311,7 +311,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logFile: this._extensionHostLogFile,
 			autoStart: initData.autoStart,
 			remote: {
-				authority: this._environmentService.configuration.remoteAuthority,
+				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
 			},

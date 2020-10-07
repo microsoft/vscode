@@ -135,6 +135,8 @@ class FileAccessImpl {
 	/**
 	 * Returns a URI to use in contexts where the browser is responsible
 	 * for loading (e.g. fetch()) or when used within the DOM.
+	 *
+	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(uri: URI): URI;
 	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
