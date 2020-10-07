@@ -152,7 +152,7 @@ export class GitTimelineProvider implements TimelineProvider {
 			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
 			item.description = c.authorName;
-			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${c.message}`;
+			item.detail = `${c.authorName} (${c.authorEmail}) — ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${c.message}`;
 			item.command = {
 				title: 'Open Comparison',
 				command: 'git.timeline.openDiff',
@@ -173,7 +173,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
 				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
+				item.detail = localize('git.timeline.detail', '{0}  — {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
 				item.command = {
 					title: 'Open Comparison',
 					command: 'git.timeline.openDiff',
@@ -191,7 +191,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
 				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
+				item.detail = localize('git.timeline.detail', '{0}  — {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
 				item.command = {
 					title: 'Open Comparison',
 					command: 'git.timeline.openDiff',
