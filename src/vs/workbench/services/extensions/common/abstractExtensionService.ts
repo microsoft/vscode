@@ -384,7 +384,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			).then(() => { });
 		} else if (hasWorkspaceContains) {
 			const workspace = await this._contextService.getCompleteWorkspace();
-			const forceUsingSearch = !!this._environmentService.configuration.remoteAuthority;
+			const forceUsingSearch = !!this._environmentService.remoteAuthority;
 			const host: IWorkspaceContainsActivationHost = {
 				folders: workspace.folders.map(folder => folder.uri),
 				forceUsingSearch: forceUsingSearch,

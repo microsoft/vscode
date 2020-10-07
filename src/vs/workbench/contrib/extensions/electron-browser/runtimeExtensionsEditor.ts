@@ -428,7 +428,7 @@ export class RuntimeExtensionsEditor extends EditorPane {
 					const el = $('span', undefined, ...renderCodicons(`$(remote) ${element.description.extensionLocation.authority}`));
 					data.msgContainer.appendChild(el);
 
-					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.configuration.remoteAuthority);
+					const hostLabel = this._labelService.getHostLabel(Schemas.vscodeRemote, this._environmentService.remoteAuthority);
 					if (hostLabel) {
 						reset(el, ...renderCodicons(`$(remote) ${hostLabel}`));
 					}

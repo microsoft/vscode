@@ -607,7 +607,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		});
 
 		// Save time, filter children in the search model instead of relying on the tree filter, which still requires heights to be calculated.
-		const isRemote = !!this.environmentService.configuration.remoteAuthority;
+		const isRemote = !!this.environmentService.remoteAuthority;
 		this.root.children = this.root.children
 			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters));
 

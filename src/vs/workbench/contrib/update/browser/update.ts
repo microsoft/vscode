@@ -536,14 +536,14 @@ export class CheckForVSCodeUpdateAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUpdateService private readonly updateService: IUpdateService,
 	) {
 		super(id, label, undefined, true);
 	}
 
 	run(): Promise<void> {
-		return this.updateService.checkForUpdates(this.workbenchEnvironmentService.configuration.sessionId);
+		return this.updateService.checkForUpdates(this.environmentService.configuration.sessionId);
 	}
 }
 

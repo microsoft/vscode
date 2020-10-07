@@ -102,6 +102,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	}
 
 	@memoize
+	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+
+	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize

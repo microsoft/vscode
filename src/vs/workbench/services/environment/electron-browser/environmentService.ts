@@ -46,6 +46,7 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 	@memoize
 	get logExtensionHostCommunication(): boolean { return !!this.args.logExtensionHostCommunication; }
 
+	@memoize
 	get extensionEnabledProposedApi(): string[] | undefined {
 		if (Array.isArray(this.args['enable-proposed-api'])) {
 			return this.args['enable-proposed-api'];
@@ -59,6 +60,8 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 	}
 
 	readonly execPath = this.configuration.execPath;
+
+	readonly remoteAuthority = this.configuration.remoteAuthority;
 
 	constructor(
 		readonly configuration: INativeWorkbenchConfiguration,

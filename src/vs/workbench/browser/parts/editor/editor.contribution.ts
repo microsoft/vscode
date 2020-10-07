@@ -132,7 +132,7 @@ class UntitledTextEditorInputFactory implements IEditorInputFactory {
 
 		let resource = untitledTextEditorInput.resource;
 		if (untitledTextEditorInput.model.hasAssociatedFilePath) {
-			resource = toLocalResource(resource, this.environmentService.configuration.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
+			resource = toLocalResource(resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme); // untitled with associated file path use the local schema
 		}
 
 		// Mode: only remember mode if it is either specific (not text)

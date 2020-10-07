@@ -41,7 +41,7 @@ export class TextResourcePropertiesService implements ITextResourcePropertiesSer
 	private getOS(resource?: URI): OperatingSystem {
 		let os = OS;
 
-		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			if (resource && resource.scheme !== Schemas.file) {
 				const osCacheKey = `resource.authority.os.${remoteAuthority}`;

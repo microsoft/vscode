@@ -139,7 +139,7 @@ export class SimpleFileDialog {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		this.remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		this.remoteAuthority = this.environmentService.remoteAuthority;
 		this.contextKey = RemoteFileDialogContext.bindTo(contextKeyService);
 		this.scheme = this.pathService.defaultUriScheme;
 	}

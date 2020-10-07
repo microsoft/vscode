@@ -11,6 +11,8 @@ import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('environmentService');
 
+export interface IWorkbenchConfiguration extends IWindowConfiguration { }
+
 /**
  * A workbench specific environment service that is only present in workbench
  * layer.
@@ -24,9 +26,11 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly _serviceBrand: undefined;
 
-	readonly configuration: IWindowConfiguration;
+	readonly configuration: IWorkbenchConfiguration;
 
 	readonly options?: IWorkbenchOptions;
+
+	readonly remoteAuthority?: string;
 
 	readonly logFile: URI;
 	readonly backupWorkspaceHome?: URI;
