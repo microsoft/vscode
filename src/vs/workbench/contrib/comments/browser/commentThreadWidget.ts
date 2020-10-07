@@ -153,7 +153,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}));
 		this._applyTheme(this.themeService.getColorTheme());
 
-		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer(editor, this.modeService, this.openerService));
+		this._markdownRenderer = this._globalToDispose.add(new MarkdownRenderer({ editor }, this.modeService, this.openerService));
 		this._parentEditor = editor;
 	}
 
