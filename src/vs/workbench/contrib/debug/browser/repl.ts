@@ -459,7 +459,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === SelectReplAction.ID) {
-			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction, this.tree.getInput());
+			return this.instantiationService.createInstance(SelectReplActionViewItem, this.selectReplAction);
 		} else if (action.id === FILTER_ACTION_ID) {
 			this.filterActionViewItem = this.instantiationService.createInstance(ReplFilterActionViewItem, action, localize('workbench.debug.filter.placeholder', "Filter (e.g. text, !exclude)"), this.filterState);
 			return this.filterActionViewItem;
