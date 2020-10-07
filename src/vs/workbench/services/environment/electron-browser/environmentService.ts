@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IPath, IPathsToWaitFor } from 'vs/platform/windows/common/windows';
 
 export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService implements INativeWorkbenchEnvironmentService {
 
@@ -57,6 +58,18 @@ export class NativeWorkbenchEnvironmentService extends NativeEnvironmentService 
 
 	@memoize
 	get webviewCspSource(): string { return `${Schemas.vscodeWebviewResource}:`; }
+
+	@memoize
+	get filesToDiff(): IPath[] | undefined { return this.configuration.filesToDiff; }
+
+	@memoize
+	get filesToOpenOrCreate(): IPath[] | undefined { return this.configuration.filesToOpenOrCreate; }
+
+	@memoize
+	get filesToWait(): IPathsToWaitFor | undefined { return this.configuration.filesToWait; }
+
+	@memoize
+	get windowMaximizedInitially(): boolean | undefined { return this.configuration.maximized; }
 
 	@memoize
 	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
