@@ -264,13 +264,12 @@ export abstract class BaseFocusGroupAction extends Action {
 		label: string,
 		private scope: IFindGroupScope,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
-		private readonly wrap?: boolean
 	) {
 		super(id, label);
 	}
 
 	async run(): Promise<void> {
-		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, this.wrap);
+		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup);
 		if (group) {
 			group.focus();
 		}
@@ -287,7 +286,7 @@ export class FocusFirstGroupAction extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { location: GroupLocation.FIRST }, editorGroupService, true);
+		super(id, label, { location: GroupLocation.FIRST }, editorGroupService);
 	}
 }
 
@@ -301,7 +300,7 @@ export class FocusLastGroupAction extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { location: GroupLocation.LAST }, editorGroupService, true);
+		super(id, label, { location: GroupLocation.LAST }, editorGroupService);
 	}
 }
 
@@ -315,7 +314,7 @@ export class FocusNextGroup extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { location: GroupLocation.NEXT }, editorGroupService, true);
+		super(id, label, { location: GroupLocation.NEXT }, editorGroupService);
 	}
 }
 
@@ -329,7 +328,7 @@ export class FocusPreviousGroup extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { location: GroupLocation.PREVIOUS }, editorGroupService, true);
+		super(id, label, { location: GroupLocation.PREVIOUS }, editorGroupService);
 	}
 }
 
@@ -343,7 +342,7 @@ export class FocusLeftGroup extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { direction: GroupDirection.LEFT }, editorGroupService, true);
+		super(id, label, { direction: GroupDirection.LEFT }, editorGroupService);
 	}
 }
 
@@ -357,7 +356,7 @@ export class FocusRightGroup extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { direction: GroupDirection.RIGHT }, editorGroupService, true);
+		super(id, label, { direction: GroupDirection.RIGHT }, editorGroupService);
 	}
 }
 
@@ -371,7 +370,7 @@ export class FocusAboveGroup extends BaseFocusGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, { direction: GroupDirection.UP }, editorGroupService, true);
+		super(id, label, { direction: GroupDirection.UP }, editorGroupService);
 	}
 }
 
@@ -379,58 +378,6 @@ export class FocusBelowGroup extends BaseFocusGroupAction {
 
 	static readonly ID = 'workbench.action.focusBelowGroup';
 	static readonly LABEL = nls.localize('focusBelowGroup', "Focus Below Editor Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.DOWN }, editorGroupService, true);
-	}
-}
-
-export class FocusLeftGroupWithoutWrap extends BaseFocusGroupAction {
-
-	static readonly ID = 'workbench.action.focusLeftGroupWithoutWrap';
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.LEFT }, editorGroupService);
-	}
-}
-
-export class FocusRightGroupWithoutWrap extends BaseFocusGroupAction {
-
-	static readonly ID = 'workbench.action.focusRightGroupWithoutWrap';
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.RIGHT }, editorGroupService);
-	}
-}
-
-export class FocusAboveGroupWithoutWrap extends BaseFocusGroupAction {
-
-	static readonly ID = 'workbench.action.focusAboveGroupWithoutWrap';
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, { direction: GroupDirection.UP }, editorGroupService);
-	}
-}
-
-export class FocusBelowGroupWithoutWrap extends BaseFocusGroupAction {
-
-	static readonly ID = 'workbench.action.focusBelowGroupWithoutWrap';
 
 	constructor(
 		id: string,
