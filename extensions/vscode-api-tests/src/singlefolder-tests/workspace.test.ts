@@ -993,6 +993,7 @@ suite('vscode API - workspace', () => {
 			const document = await vscode.workspace.openTextDocument(newFile);
 			await vscode.window.showTextDocument(document);
 			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
 		}
 
 		// undo and show the old document
@@ -1009,6 +1010,7 @@ suite('vscode API - workspace', () => {
 			const document = await vscode.workspace.openTextDocument(newFile);
 			await vscode.window.showTextDocument(document);
 			assert.equal(document.getText(), 'hello2');
+			assert.equal(document.isDirty, true);
 		}
 
 	});
