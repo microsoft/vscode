@@ -105,6 +105,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
 
 	@memoize
+	get sessionId(): string { return this.configuration.sessionId; }
+
+	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }
 
 	@memoize
@@ -231,6 +234,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get verbose(): boolean { return this.payload?.get('verbose') === 'true'; }
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
+	get skipReleaseNotes(): boolean { return false; }
+
 	private payload: Map<string, string> | undefined;
 
 	constructor(
@@ -286,6 +291,4 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		return extensionHostDebugEnvironment;
 	}
-
-	get skipReleaseNotes(): boolean { return false; }
 }

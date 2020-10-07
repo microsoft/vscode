@@ -71,27 +71,27 @@ class DesktopMain extends Disposable {
 		this.reviveUris();
 
 		// Setup perf
-		importEntries(this.environmentService.configuration.perfEntries);
+		importEntries(this.configuration.perfEntries);
 
 		// Browser config
 		const zoomLevel = this.configuration.zoomLevel || 0;
 		setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
 		setZoomLevel(zoomLevel, true /* isTrusted */);
-		setFullscreen(!!this.environmentService.configuration.fullscreen);
+		setFullscreen(!!this.configuration.fullscreen);
 	}
 
 	private reviveUris() {
-		if (this.environmentService.configuration.folderUri) {
-			this.environmentService.configuration.folderUri = URI.revive(this.environmentService.configuration.folderUri);
+		if (this.configuration.folderUri) {
+			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
 		}
 
-		if (this.environmentService.configuration.workspace) {
-			this.environmentService.configuration.workspace = reviveWorkspaceIdentifier(this.environmentService.configuration.workspace);
+		if (this.configuration.workspace) {
+			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
 		}
 
-		const filesToWait = this.environmentService.configuration.filesToWait;
+		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
-		[filesToWaitPaths, this.environmentService.configuration.filesToOpenOrCreate, this.environmentService.configuration.filesToDiff].forEach(paths => {
+		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
 			if (Array.isArray(paths)) {
 				paths.forEach(path => {
 					if (path.fileUri) {
@@ -125,12 +125,12 @@ class DesktopMain extends Disposable {
 		this._register(instantiationService.createInstance(NativeWindow));
 
 		// Driver
-		if (this.environmentService.configuration.driver) {
+		if (this.configuration.driver) {
 			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
 		}
 
 		// Logging
-		services.logService.trace('workbench configuration', JSON.stringify(this.environmentService.configuration));
+		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
@@ -231,7 +231,7 @@ class DesktopMain extends Disposable {
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.environmentService.configuration.backupPath ? URI.file(this.environmentService.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(this.environmentService.appSettingsHome, this.configuration.backupPath ? URI.file(this.configuration.backupPath) : undefined, diskFileSystemProvider, this.environmentService, logService));
 
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -299,14 +299,14 @@ class DesktopMain extends Disposable {
 	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
 
 		// Multi-root workspace
-		if (this.environmentService.configuration.workspace) {
-			return this.environmentService.configuration.workspace;
+		if (this.configuration.workspace) {
+			return this.configuration.workspace;
 		}
 
 		// Single-folder workspace
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
-		if (this.environmentService.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.environmentService.configuration.folderUri, resourceIdentityService);
+		if (this.configuration.folderUri) {
+			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri, resourceIdentityService);
 		}
 
 		// Fallback to empty workspace if we have no payload yet.
