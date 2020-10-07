@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import { Range } from 'vs/editor/common/core/range';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
-function requireToContent(resource: URI): Promise<string> {
+export function requireToContent(resource: URI): Promise<string> {
 	if (!resource.query) {
 		throw new Error('Welcome: invalid resource');
 	}
@@ -35,30 +35,6 @@ function requireToContent(resource: URI): Promise<string> {
 	});
 
 	return content;
-}
-
-export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
-
-	constructor(
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-	) {
-		this.textModelResolverService.registerTextModelContentProvider(Schemas.walkThrough, this);
-	}
-
-	public async provideTextContent(resource: URI): Promise<ITextModel> {
-		const content = await requireToContent(resource);
-
-		let codeEditorModel = this.modelService.getModel(resource);
-		if (!codeEditorModel) {
-			codeEditorModel = this.modelService.createModel(content, this.modeService.createByFilepathOrFirstLine(resource), resource);
-		} else {
-			this.modelService.updateModel(codeEditorModel, content);
-		}
-
-		return codeEditorModel;
-	}
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {

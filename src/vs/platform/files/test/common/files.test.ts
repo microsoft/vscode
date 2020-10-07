@@ -26,19 +26,26 @@ suite('Files', () => {
 			const event = new FileChangesEvent(changes, ignorePathCasing);
 
 			assert(!event.contains(toResource.call(this, '/foo'), FileChangeType.UPDATED));
+			assert(event.affects(toResource.call(this, '/foo'), FileChangeType.UPDATED));
 			assert(event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
+			assert(event.affects(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED));
 			assert(event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED));
+			assert(event.affects(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED));
 			assert(event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED));
 			assert(!event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED, FileChangeType.DELETED));
 			assert(!event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.ADDED));
 			assert(!event.contains(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
+			assert(!event.affects(toResource.call(this, '/foo/updated.txt'), FileChangeType.DELETED));
 
 			assert(event.contains(toResource.call(this, '/bar/folder'), FileChangeType.DELETED));
 			assert(event.contains(toResource.call(this, '/BAR/FOLDER'), FileChangeType.DELETED));
+			assert(event.affects(toResource.call(this, '/BAR'), FileChangeType.DELETED));
 			if (ignorePathCasing) {
 				assert(event.contains(toResource.call(this, '/BAR/folder'), FileChangeType.DELETED));
+				assert(event.affects(toResource.call(this, '/bar'), FileChangeType.DELETED));
 			} else {
 				assert(!event.contains(toResource.call(this, '/BAR/folder'), FileChangeType.DELETED));
+				assert(event.affects(toResource.call(this, '/bar'), FileChangeType.DELETED));
 			}
 			assert(event.contains(toResource.call(this, '/bar/folder/somefile'), FileChangeType.DELETED));
 			assert(event.contains(toResource.call(this, '/bar/folder/somefile/test.txt'), FileChangeType.DELETED));
@@ -78,10 +85,18 @@ suite('Files', () => {
 
 				for (const change of changes) {
 					assert(event.contains(change.resource, type));
+					assert(event.affects(change.resource, type));
 				}
 
+				assert(event.affects(toResource.call(this, '/foo'), type));
+				assert(event.affects(toResource.call(this, '/bar'), type));
+				assert(event.affects(toResource.call(this, '/'), type));
+				assert(!event.affects(toResource.call(this, '/foobar'), type));
+
 				assert(!event.contains(toResource.call(this, '/some/foo/bar'), type));
+				assert(!event.affects(toResource.call(this, '/some/foo/bar'), type));
 				assert(!event.contains(toResource.call(this, '/some/bar'), type));
+				assert(!event.affects(toResource.call(this, '/some/bar'), type));
 
 				switch (type) {
 					case FileChangeType.ADDED:

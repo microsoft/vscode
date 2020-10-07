@@ -283,7 +283,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: any;
-				if (!this._environmentService.isBuilt && !this._environmentService.configuration.remoteAuthority || this._isExtensionDevHost) {
+				if (!this._environmentService.isBuilt && !this._environmentService.remoteAuthority || this._isExtensionDevHost) {
 					startupTimeoutHandle = setTimeout(() => {
 						const msg = this._isExtensionDevDebugBrk
 							? nls.localize('extensionHost.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
@@ -471,7 +471,7 @@ export class LocalProcessExtensionHost implements IExtensionHost {
 				isUntitled: workspace.configuration ? isUntitledWorkspace(workspace.configuration, this._environmentService) : false
 			},
 			remote: {
-				authority: this._environmentService.configuration.remoteAuthority,
+				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
 			},

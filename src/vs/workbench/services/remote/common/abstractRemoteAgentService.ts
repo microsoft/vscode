@@ -44,8 +44,8 @@ export abstract class AbstractRemoteAgentService extends Disposable implements I
 	) {
 		super();
 		this.socketFactory = socketFactory;
-		if (this._environmentService.configuration.remoteAuthority) {
-			this._connection = this._register(new RemoteAgentConnection(this._environmentService.configuration.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
+		if (this._environmentService.remoteAuthority) {
+			this._connection = this._register(new RemoteAgentConnection(this._environmentService.remoteAuthority, productService.commit, this.socketFactory, this._remoteAuthorityResolverService, signService, logService));
 		} else {
 			this._connection = null;
 		}

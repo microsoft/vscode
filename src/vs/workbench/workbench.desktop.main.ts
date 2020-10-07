@@ -82,6 +82,7 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncStoreMan
 import 'vs/workbench/services/userDataSync/electron-browser/userDataAutoSyncService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
+import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
 import 'vs/workbench/services/diagnostics/electron-browser/diagnosticsService';
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

@@ -83,7 +83,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsWebContext.bindTo(this.contextKeyService);
 		IsMacNativeContext.bindTo(this.contextKeyService);
 
-		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.configuration.remoteAuthority) || '');
+		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.remoteAuthority) || '');
 
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
@@ -119,7 +119,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// system to operate with. We always have one when running natively or when
 		// we have a remote connection.
 		this.emptyWorkspaceSupportContext = EmptyWorkspaceSupportContext.bindTo(this.contextKeyService);
-		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.configuration.remoteAuthority === 'string');
+		this.emptyWorkspaceSupportContext.set(isNative || typeof this.environmentService.remoteAuthority === 'string');
 
 		// Editor Layout
 		this.splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);

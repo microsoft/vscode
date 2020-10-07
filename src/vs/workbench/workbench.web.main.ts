@@ -51,6 +51,7 @@ import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/browser/pathService';
 import 'vs/workbench/services/themes/browser/browserHostColorSchemeService';
+import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/userDataSync/browser/userDataSyncResourceEnablementService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

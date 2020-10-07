@@ -311,7 +311,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			logFile: this._extensionHostLogFile,
 			autoStart: initData.autoStart,
 			remote: {
-				authority: this._environmentService.configuration.remoteAuthority,
+				authority: this._environmentService.remoteAuthority,
 				connectionData: null,
 				isRemote: false
 			},

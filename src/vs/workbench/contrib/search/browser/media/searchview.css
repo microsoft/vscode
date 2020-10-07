@@ -15,6 +15,7 @@
 	left: 0;
 	width: 16px;
 	height: 100%;
+	color: inherit;
 	box-sizing: border-box;
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -102,6 +103,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	color: inherit;
 }
 
 .search-view .query-details {
@@ -116,6 +118,7 @@
 	cursor: pointer;
 	width: 25px;
 	height: 16px;
+	color: inherit;
 	z-index: 2; /* Force it above the search results message, which has a negative top margin */
 }
 

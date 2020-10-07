@@ -33,7 +33,7 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
+import type { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';

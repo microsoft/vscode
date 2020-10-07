@@ -161,7 +161,7 @@ export class TunnelModel extends Disposable {
 	async forward(remote: { host: string, port: number }, local?: number, name?: string): Promise<RemoteTunnel | void> {
 		const key = MakeAddress(remote.host, remote.port);
 		if (!this.forwarded.has(key)) {
-			const authority = this.environmentService.configuration.remoteAuthority;
+			const authority = this.environmentService.remoteAuthority;
 			const addressProvider: IAddressProvider | undefined = authority ? {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
