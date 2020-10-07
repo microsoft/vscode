@@ -10,7 +10,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CompletionItem } from './suggest';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';

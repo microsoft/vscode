@@ -21,7 +21,7 @@ import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidg
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';

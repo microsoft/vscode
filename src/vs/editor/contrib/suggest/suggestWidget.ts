@@ -25,7 +25,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, editorWidgetBackground, listFocusBackground, activeContrastBorder, listHighlightForeground, editorForeground, editorWidgetBorder, focusBorder, textLinkForeground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TimeoutTimer, CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';

@@ -14,7 +14,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import { dirname } from 'vs/base/common/resources';

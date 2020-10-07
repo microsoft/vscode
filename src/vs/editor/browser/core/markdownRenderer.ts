@@ -12,7 +12,7 @@ import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { TokenizationRegistry } from 'vs/editor/common/modes';
+import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 
@@ -22,10 +22,21 @@ export interface IMarkdownRenderResult extends IDisposable {
 
 export interface IMarkdownRendererOptions {
 	editor?: ICodeEditor;
-	baseUrl?: URI
+	baseUrl?: URI;
+	codeBlockFontFamily?: string;
 }
 
+/**
+ * Markdown renderer that can render codeblocks with the editor mechanics. This
+ * renderer should always be preferred.
+ */
 export class MarkdownRenderer {
+
+	private static _ttpTokenizer = window.trustedTypes?.createPolicy('tokenizeToString', {
+		createHTML(value: string, tokenizer: ITokenizationSupport | undefined) {
+			return tokenizeToString(value, tokenizer);
+		}
+	});
 
 	private readonly _onDidRenderCodeBlock = new Emitter<void>();
 	readonly onDidRenderCodeBlock = this._onDidRenderCodeBlock.event;
@@ -47,7 +58,7 @@ export class MarkdownRenderer {
 		if (!markdown) {
 			element = document.createElement('span');
 		} else {
-			element = renderMarkdown(markdown, this._getOptions(disposeables), markedOptions);
+			element = renderMarkdown(markdown, this._getRenderOptions(disposeables), markedOptions);
 		}
 
 		return {
@@ -56,7 +67,7 @@ export class MarkdownRenderer {
 		};
 	}
 
-	protected _getOptions(disposeables: DisposableStore): MarkdownRenderOptions {
+	protected _getRenderOptions(disposeables: DisposableStore): MarkdownRenderOptions {
 		return {
 			baseUrl: this._options.baseUrl,
 			codeBlockRenderer: async (languageAlias, value) => {
@@ -74,16 +85,27 @@ export class MarkdownRenderer {
 				}
 				this._modeService.triggerMode(modeId);
 				const tokenization = await TokenizationRegistry.getPromise(modeId) ?? undefined;
-				const code = tokenizeToString(value, tokenization);
-				return this._options.editor
-					? `<span style="font-family: ${this._options.editor.getOption(EditorOption.fontInfo).fontFamily}">${code}</span>`
-					: `<span>${code}</span>`;
+
+				const element = document.createElement('span');
+
+				element.innerHTML = MarkdownRenderer._ttpTokenizer
+					? MarkdownRenderer._ttpTokenizer.createHTML(value, tokenization) as unknown as string
+					: tokenizeToString(value, tokenization);
+
+				// use "good" font
+				let fontFamily = this._options.codeBlockFontFamily;
+				if (this._options.editor) {
+					fontFamily = this._options.editor.getOption(EditorOption.fontInfo).fontFamily;
+				}
+				if (fontFamily) {
+					element.style.fontFamily = fontFamily;
+				}
+
+				return element;
 			},
 			codeBlockRenderCallback: () => this._onDidRenderCodeBlock.fire(),
 			actionHandler: {
-				callback: (content) => {
-					this._openerService.open(content, { fromUserGesture: true }).catch(onUnexpectedError);
-				},
+				callback: (content) => this._openerService.open(content, { fromUserGesture: true }).catch(onUnexpectedError),
 				disposeables
 			}
 		};
