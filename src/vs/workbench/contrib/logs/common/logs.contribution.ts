@@ -46,6 +46,14 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	private registerCommonContributions(): void {
 		this.registerLogChannel(Constants.userDataSyncLogChannelId, nls.localize('userDataSyncLog', "Settings Sync"), this.environmentService.userDataSyncLogResource);
 		this.registerLogChannel(Constants.rendererLogChannelId, nls.localize('rendererLog', "Window"), this.environmentService.logFile);
+
+		const registerTelemetryChannel = (level: LogLevel) => {
+			if (level === LogLevel.Trace && !Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels).getChannel(Constants.telemetryLogChannelId)) {
+				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), this.environmentService.telemetryLogResource);
+			}
+		};
+		registerTelemetryChannel(this.logService.getLevel());
+		this.logService.onDidChangeLogLevel(registerTelemetryChannel);
 	}
 
 	private registerWebContributions(): void {
@@ -58,14 +66,6 @@ class LogOutputChannels extends Disposable implements IWorkbenchContribution {
 	private registerNativeContributions(): void {
 		this.registerLogChannel(Constants.mainLogChannelId, nls.localize('mainLog', "Main"), URI.file(join(this.environmentService.logsPath, `main.log`)));
 		this.registerLogChannel(Constants.sharedLogChannelId, nls.localize('sharedLog', "Shared"), URI.file(join(this.environmentService.logsPath, `sharedprocess.log`)));
-
-		const registerTelemetryChannel = (level: LogLevel) => {
-			if (level === LogLevel.Trace && !Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels).getChannel(Constants.telemetryLogChannelId)) {
-				this.registerLogChannel(Constants.telemetryLogChannelId, nls.localize('telemetryLog', "Telemetry"), URI.file(join(this.environmentService.logsPath, `telemetry.log`)));
-			}
-		};
-		registerTelemetryChannel(this.logService.getLevel());
-		this.logService.onDidChangeLogLevel(registerTelemetryChannel);
 	}
 
 	private async registerLogChannel(id: string, label: string, file: URI): Promise<void> {

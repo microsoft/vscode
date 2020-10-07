@@ -214,6 +214,8 @@ export class NativeEnvironmentService implements INativeEnvironmentService {
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }
 
+	@memoize
+	get telemetryLogResource(): URI { return URI.file(path.join(this.logsPath, 'telemetry.log')); }
 	get disableTelemetry(): boolean { return !!this._args['disable-telemetry']; }
 
 	get sandbox(): boolean { return !!this._args['__sandbox']; }
