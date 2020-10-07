@@ -45,6 +45,8 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	readonly skipReleaseNotes: boolean;
 
+	readonly debugRenderer: boolean;
+
 	/**
 	 * @deprecated this property will go away eventually as it
 	 * duplicates many properties of the environment service

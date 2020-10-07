@@ -82,6 +82,7 @@ interface IBrowserWorkbenchOptions extends IWorkbenchOptions {
 
 interface IExtensionHostDebugEnvironment {
 	params: IExtensionHostDebugParams;
+	debugRenderer: boolean;
 	isExtensionDevelopment: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -206,6 +207,14 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		return this._extensionHostDebugEnvironment.extensionEnabledProposedApi;
 	}
 
+	get debugRenderer(): boolean {
+		if (!this._extensionHostDebugEnvironment) {
+			this._extensionHostDebugEnvironment = this.resolveExtensionHostDebugEnvironment();
+		}
+
+		return this._extensionHostDebugEnvironment.debugRenderer;
+	}
+
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
 	private get webviewEndpoint(): string {
@@ -257,6 +266,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 				port: null,
 				break: false
 			},
+			debugRenderer: false,
 			isExtensionDevelopment: false,
 			extensionDevelopmentLocationURI: undefined
 		};
@@ -271,6 +281,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						break;
 					case 'extensionTestsPath':
 						extensionHostDebugEnvironment.extensionTestsLocationURI = URI.parse(value);
+						break;
+					case 'debugRenderer':
+						extensionHostDebugEnvironment.debugRenderer = value === 'true';
 						break;
 					case 'debugId':
 						extensionHostDebugEnvironment.params.debugId = value;
