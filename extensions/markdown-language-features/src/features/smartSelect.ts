@@ -17,7 +17,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		let ranges = await Promise.all([
 			await this.getHeaderSelectionRanges(document, positions),
 			await this.getBlockSelectionRanges(document, positions)
-			]);
+		]);
 		return flatten(ranges);
 	}
 
@@ -25,9 +25,10 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		let position = positions[0];
 		const tokens = await this.engine.parse(document);
 		let nearbyTokens = tokens.filter(token => token.type !== 'heading_open' && token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
-		let firstToken = nearbyTokens.pop();
-		if (firstToken) {
-			let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(firstToken.map[0], 0), new vscode.Position(firstToken.map[1], 0)));
+		let sortedTokens = nearbyTokens.sort(token => token.map[1] - token.map[0]);
+		let parentToken = sortedTokens[0];
+		if (parentToken) {
+			let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(parentToken.map[0], 0), new vscode.Position(parentToken.map[1], 0)));
 			let ranges = nearbyTokens.map(token => {
 				let start = token.map[0];
 				let end = token.type === 'bullet_list_open' ? token.map[1] - 1 : token.map[1];
@@ -39,7 +40,8 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 					return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 				}
 			});
-			return [ranges[0]];
+			ranges.push(parentRange);
+			return [parentRange];
 		}
 		return [];
 	}
@@ -49,14 +51,31 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
 		let nearbyEntries = toc.filter(entry => entry.line === position.line);
-		return [nearbyEntries.map(entry => {
-			let endLine = entry.location.range.end.line;
-			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
+		let firstEntry = nearbyEntries.pop();
+		if (firstEntry) {
+			let endLine = firstEntry.location.range.end.line;
+			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= firstEntry.line + 1) {
 				endLine = endLine - 1;
 			}
-			let startPos = entry.location.range.start;
-			let endPos = new vscode.Position(endLine, entry.location.range.end.character);
-			return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
-		})][0];
+			let startPos = firstEntry.location.range.start;
+			let endPos = new vscode.Position(endLine, firstEntry.location.range.end.character);
+			let parentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
+			let ranges = nearbyEntries.map(entry => {
+				let endLine = entry.location.range.end.line;
+				if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
+					endLine = endLine - 1;
+				}
+				let startPos = entry.location.range.start;
+				let endPos = new vscode.Position(endLine, entry.location.range.end.character);
+				if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
+					return new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
+				} else {
+					return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
+				}
+			});
+			ranges.push(parentRange);
+			return [parentRange];
+		}
+		return [];
 	}
 }
