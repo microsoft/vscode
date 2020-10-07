@@ -41,7 +41,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				}
 			});
 			ranges.push(parentRange);
-			return [parentRange];
+			return ranges;
 		}
 		return [];
 	}
@@ -74,7 +74,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				}
 			});
 			ranges.push(parentRange);
-			return [parentRange];
+			return ranges;
 		}
 		return [];
 	}
