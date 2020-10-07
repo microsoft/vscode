@@ -483,6 +483,7 @@ export namespace Codicon {
 	export const notebook = new Codicon('notebook', { character: '\\ebaf' });
 	export const redo = new Codicon('redo', { character: '\\ebb0' });
 	export const checkAll = new Codicon('check-all', { character: '\\ebb1' });
+	export const pinnedDirty = new Codicon('pinned-dirty', { character: '\\ebb2' });
 }
 
 
