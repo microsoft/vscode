@@ -87,7 +87,9 @@ export class FileLogService extends AbstractLogService implements ILogService {
 	}
 
 	private async initialize(): Promise<void> {
-		await this.fileService.createFile(this.resource);
+		if (!await this.fileService.exists(this.resource)) {
+			await this.fileService.createFile(this.resource);
+		}
 	}
 
 	private _log(level: LogLevel, message: string): void {

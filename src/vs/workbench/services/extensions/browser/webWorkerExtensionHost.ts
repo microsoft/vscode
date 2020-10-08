@@ -68,7 +68,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		this._isTerminating = false;
 		this._protocolPromise = null;
 		this._protocol = null;
-		this._extensionHostLogsLocation = URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme });
+		this._extensionHostLogsLocation = joinPath(this._environmentService.extHostLogsPath, 'webWorker');
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
