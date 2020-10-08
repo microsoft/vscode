@@ -6,7 +6,6 @@
 import { IWorkbenchConfiguration, IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const INativeWorkbenchEnvironmentService = createDecorator<INativeWorkbenchEnvironmentService>('nativeEnvironmentService');
@@ -27,7 +26,6 @@ export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmen
 	readonly execPath: string;
 
 	readonly log?: string;
-	readonly extHostLogsPath: URI;
 
 	// TODO@ben this is a bit ugly
 	updateBackupPath(newPath: string | undefined): void;

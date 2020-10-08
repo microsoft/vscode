@@ -166,6 +166,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
+	@memoize
+	get extHostLogsPath(): URI { return joinPath(this.options.logsPath, 'exthost'); }
+
 	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 	get debugExtensionHost(): IExtensionHostDebugParams {
 		if (!this._extensionHostDebugEnvironment) {
