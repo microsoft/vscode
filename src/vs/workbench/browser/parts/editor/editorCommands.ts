@@ -51,10 +51,10 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
-export const FOCUS_LEFT_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftEditorGroupWithoutWrap';
-export const FOCUS_RIGHT_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusRightEditorGroupWithoutWrap';
-export const FOCUS_ABOVE_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusAboveEditorGroupWithoutWrap';
-export const FOCUS_BELOW_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusBelowEditorGroupWithoutWrap';
+export const FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftGroupWithoutWrap';
+export const FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusRightGroupWithoutWrap';
+export const FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusAboveGroupWithoutWrap';
+export const FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusBelowGroupWithoutWrap';
 
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
@@ -664,19 +664,19 @@ function registerFocusEditorGroupWihoutWrapCommands(): void {
 
 	const commands = [
 		{
-			id: FOCUS_LEFT_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			id: FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID,
 			direction: GroupDirection.LEFT
 		},
 		{
-			id: FOCUS_RIGHT_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			id: FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID,
 			direction: GroupDirection.RIGHT
 		},
 		{
-			id: FOCUS_ABOVE_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			id: FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID,
 			direction: GroupDirection.UP,
 		},
 		{
-			id: FOCUS_BELOW_EDITOR_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			id: FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID,
 			direction: GroupDirection.DOWN
 		}
 	];
