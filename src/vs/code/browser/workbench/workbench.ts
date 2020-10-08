@@ -17,7 +17,6 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { localize } from 'vs/nls';
 import { Schemas } from 'vs/base/common/network';
 import product from 'vs/platform/product/common/product';
-import { getLogLevel, LogLevel } from 'vs/platform/log/common/log';
 
 function doCreateUri(path: string, queryValues: Map<string, string>): URI {
 	let query: string | undefined = undefined;
@@ -417,8 +416,7 @@ class WindowIndicator implements IWindowIndicator {
 	// Find workspace to open and payload
 	let foundWorkspace = false;
 	let workspace: IWorkspace;
-	let payloadRaw = Object.create(null);
-	let payloadMap = new Map<string, string>();
+	let payload = Object.create(null);
 
 	const query = new URL(document.location.href).searchParams;
 	query.forEach((value, key) => {
@@ -445,10 +443,7 @@ class WindowIndicator implements IWindowIndicator {
 			// Payload
 			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
 				try {
-					payloadRaw = JSON.parse(value);
-					if (Array.isArray(payloadRaw)) {
-						payloadMap = new Map(payloadRaw);
-					}
+					payload = JSON.parse(value);
 				} catch (error) {
 					console.error(error); // possible invalid JSON
 				}
@@ -468,7 +463,7 @@ class WindowIndicator implements IWindowIndicator {
 	}
 
 	// Workspace Provider
-	const workspaceProvider = new WorkspaceProvider(workspace, payloadRaw);
+	const workspaceProvider = new WorkspaceProvider(workspace, payload);
 
 	// Home Indicator
 	const homeIndicator: IHomeIndicator = {
@@ -516,13 +511,6 @@ class WindowIndicator implements IWindowIndicator {
 		}
 	} : undefined;
 
-	// log level
-	let logLevel: LogLevel | undefined = undefined;
-	const logLevelPayload = payloadMap.get('logLevel');
-	if (logLevelPayload) {
-		logLevel = getLogLevel(logLevelPayload);
-	}
-
 	// Finally create workbench
 	create(document.body, {
 		...config,
@@ -532,7 +520,6 @@ class WindowIndicator implements IWindowIndicator {
 		productQualityChangeHandler,
 		workspaceProvider,
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider(),
-		logLevel
+		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 })();
