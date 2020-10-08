@@ -342,6 +342,11 @@ suite('Files - TextFileEditorModel', () => {
 		assert.equal(model.textEditorModel?.getValue(), 'Hello Changes');
 		assert.equal(model.isDirty(), true);
 
+		// verify that we do not mark the model as saved when undoing once because
+		// we never really had a saved state
+		await model.textEditorModel!.undo();
+		assert.ok(model.isDirty());
+
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));
 	});
@@ -418,7 +423,7 @@ suite('Files - TextFileEditorModel', () => {
 		model.updateTextEditorModel(createTextBufferFactory('Hello Text'));
 		assert.ok(model.isDirty());
 
-		model.textEditorModel!.undo();
+		await model.textEditorModel!.undo();
 		assert.ok(!model.isDirty());
 	});
 
@@ -428,7 +433,7 @@ suite('Files - TextFileEditorModel', () => {
 		accessor.fileService.setContent('Hello Change');
 
 		await model.load();
-		model.textEditorModel!.undo();
+		await model.textEditorModel!.undo();
 		assert.ok(model.isDirty());
 
 		assert.equal(accessor.workingCopyService.dirtyCount, 1);
