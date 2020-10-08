@@ -39,6 +39,7 @@ import { Dimension, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { domEvent } from 'vs/base/browser/event';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -55,6 +56,30 @@ interface IWalkThroughEditorViewState {
 }
 
 export class WalkThroughPart extends EditorPane {
+
+	private static ttpWelcomeContent = window.trustedTypes?.createPolicy('welcome', {
+		createHTML(value: string, options: InsaneOptions) {
+			return insane(value, options);
+		}
+	});
+
+	private static insaneOptions = Object.freeze({
+		allowedTags: ['a', 'button', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'span', 'ul'],
+		allowedAttributes: {
+			'a': ['href'],
+			'button': ['data-href'],
+			'div': ['class', 'role'],
+			'h1': ['class'],
+			'h2': ['class'],
+			'h3': ['class'],
+			'input': ['class', 'type', 'id'],
+			'label': ['class', 'for'],
+			'li': ['class'],
+			'p': ['class'],
+			'span': ['class', 'data-command'],
+			'ul': ['class'],
+		}
+	});
 
 	static readonly ID: string = 'workbench.editor.walkThroughPart';
 
@@ -280,7 +305,10 @@ export class WalkThroughPart extends EditorPane {
 
 				const content = model.main;
 				if (!input.resource.path.endsWith('.md')) {
-					this.content.innerHTML = content;
+					this.content.innerHTML = WalkThroughPart.ttpWelcomeContent
+						? WalkThroughPart.ttpWelcomeContent.createHTML(content, WalkThroughPart.insaneOptions) as unknown as string
+						: insane(content, WalkThroughPart.insaneOptions);
+
 					this.updateSizeClasses();
 					this.decorateContent();
 					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
