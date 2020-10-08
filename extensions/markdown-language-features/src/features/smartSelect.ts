@@ -28,31 +28,29 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 	}
 
 	private async getBlockSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[]): Promise<vscode.SelectionRange[]> {
-		let position = positions[0];
-		const tokens = await this.engine.parse(document);
-		// sort by start position and end position
-		// find smallest range that contains this
-		// then walk left until you're not contained
-		let nearbyTokens = tokens.filter(token => token.type !== 'heading_open' && token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
-		// let sortedTokens = nearbyTokens.sort(token => token.map[1] - token.map[0]);
-		let sortedTokens = nearbyTokens.sort((tokenOne, tokenTwo) => (tokenOne.map[1] - tokenOne.map[0] - tokenTwo.map[1] - tokenTwo.map[0]));
 
-		let parentToken = sortedTokens[sortedTokens.length-1];
+		let position = positions[0];
+
+		const tokens = await this.engine.parse(document);
+
+		let nearbyTokens = tokens.filter(token => token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
+
+		// sort from smallest to largest range
+		let sortedTokens = nearbyTokens.sort((tokenOne, tokenTwo) => (tokenTwo.map[1] - tokenTwo.map[0] - tokenOne.map[1] - tokenOne.map[0]));
+
+		let parentToken = sortedTokens.pop();
+
 		if (parentToken) {
-			let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(parentToken.map[0], 0), new vscode.Position(parentToken.map[1], 0)));
-			let ranges = nearbyTokens.map(token => {
-				let start = token.map[0];
-				let end = token.type === 'bullet_list_open' ? token.map[1] - 1 : token.map[1];
-				let startPos = new vscode.Position(start, 0);
-				let endPos = new vscode.Position(end, 0);
+			let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(parentToken.map[0], 0), new vscode.Position(document.lineAt(parentToken.map[1]).isEmptyOrWhitespace ? parentToken.map[1] - 1 : parentToken.map[1], 0)));
+			let ranges = sortedTokens.map(token => {
+				let startPos = new vscode.Position(token.map[0], 0);
+				let endPos = new vscode.Position(document.lineAt(token.map[1]).isEmptyOrWhitespace ? token.map[1] - 1 : token.map[1], 0);
 				if (parentRange.range.contains(new vscode.Range(startPos, endPos))) {
 					return new vscode.SelectionRange(new vscode.Range(startPos, endPos), parentRange);
 				} else {
 					return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 				}
 			});
-			ranges.push(parentRange);
-			// return smallest possible range
 			return [ranges[0]];
 		}
 		return [];
@@ -62,17 +60,22 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 		let position = positions[0];
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		const toc = await tocProvider.getToc();
-		let nearbyEntries = toc.filter(entry => entry.line === position.line);
-		let firstEntry = nearbyEntries.pop();
-		if (firstEntry) {
-			let endLine = firstEntry.location.range.end.line;
-			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= firstEntry.line + 1) {
+
+		// get all enclosing headers
+		let nearbyHeaders = toc.filter(header => header.line <= position.line);
+		let sortedHeaders = nearbyHeaders.sort((header2, header1) => (header1.line - position.line) - (header2.line - position.line));
+
+		let parentHeader = sortedHeaders.pop();
+
+		if (parentHeader) {
+			let endLine = parentHeader.location.range.end.line;
+			if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= parentHeader.line + 1) {
 				endLine = endLine - 1;
 			}
-			let startPos = firstEntry.location.range.start;
-			let endPos = new vscode.Position(endLine, firstEntry.location.range.end.character);
+			let startPos = parentHeader.location.range.start;
+			let endPos = new vscode.Position(endLine, parentHeader.location.range.end.character);
 			let parentRange = new vscode.SelectionRange(new vscode.Range(startPos, endPos));
-			let ranges = nearbyEntries.map(entry => {
+			let ranges = sortedHeaders.map(entry => {
 				let endLine = entry.location.range.end.line;
 				if (document.lineAt(endLine).isEmptyOrWhitespace && endLine >= entry.line + 1) {
 					endLine = endLine - 1;
@@ -85,8 +88,7 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 					return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 				}
 			});
-			ranges.push(parentRange);
-			return ranges;
+			return [ranges[0]];
 		}
 		return [];
 	}
