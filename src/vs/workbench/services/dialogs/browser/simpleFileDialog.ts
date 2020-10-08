@@ -582,21 +582,22 @@ export class SimpleFileDialog {
 
 	private setActiveItems(value: string) {
 		const inputBasename = resources.basename(this.remoteUriFrom(value));
-		// Make sure that the folder whose children we are currently viewing matches the path in the input
 		const userPath = this.constructFullUserPath();
-		if (equalsIgnoreCase(userPath, value.substring(0, userPath.length))) {
+		// Make sure that the folder whose children we are currently viewing matches the path in the input
+		const pathsEqual = equalsIgnoreCase(userPath, value.substring(0, userPath.length)) ||
+			equalsIgnoreCase(value, userPath.substring(0, value.length));
+		if (pathsEqual) {
 			let hasMatch = false;
-			if (inputBasename.length > this.userEnteredPathSegment.length) {
-				for (let i = 0; i < this.filePickBox.items.length; i++) {
-					const item = <FileQuickPickItem>this.filePickBox.items[i];
-					if (this.setAutoComplete(value, inputBasename, item)) {
-						hasMatch = true;
-						break;
-					}
+			for (let i = 0; i < this.filePickBox.items.length; i++) {
+				const item = <FileQuickPickItem>this.filePickBox.items[i];
+				if (this.setAutoComplete(value, inputBasename, item)) {
+					hasMatch = true;
+					break;
 				}
 			}
 			if (!hasMatch) {
-				this.userEnteredPathSegment = inputBasename;
+				const userBasename = inputBasename.length >= 2 ? userPath.substring(userPath.length - inputBasename.length + 2) : '';
+				this.userEnteredPathSegment = (userBasename === inputBasename) ? inputBasename : '';
 				this.autoCompletePathSegment = '';
 				this.filePickBox.activeItems = [];
 			}
