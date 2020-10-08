@@ -12,6 +12,7 @@ $Auth = Create-TmpJson @{
 		SubjectName = $env:ESRPAuthCertificateSubjectName
 		StoreLocation = "LocalMachine"
 		StoreName = "My"
+		SendX5c = "true"
 	}
 	RequestSigningCert = @{
 		SubjectName = $env:ESRPCertificateSubjectName
