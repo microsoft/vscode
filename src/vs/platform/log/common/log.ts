@@ -414,23 +414,12 @@ export class NullLogService implements ILogService {
 	flush(): void { }
 }
 
-export function getLogLevel(environmentService: IEnvironmentService): LogLevel;
-export function getLogLevel(logLevel: string): LogLevel;
-export function getLogLevel(arg: IEnvironmentService | string): LogLevel {
-	let rawLogLevel: string | undefined = undefined;
-
-	if (typeof arg !== 'string') {
-		if (arg.verbose) {
-			return LogLevel.Trace;
-		}
-
-		rawLogLevel = arg.logLevel;
-	} else {
-		rawLogLevel = arg;
+export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
+	if (environmentService.verbose) {
+		return LogLevel.Trace;
 	}
-
-	if (typeof rawLogLevel === 'string') {
-		const logLevel = rawLogLevel.toLowerCase();
+	if (typeof environmentService.logLevel === 'string') {
+		const logLevel = environmentService.logLevel.toLowerCase();
 		switch (logLevel) {
 			case 'trace':
 				return LogLevel.Trace;

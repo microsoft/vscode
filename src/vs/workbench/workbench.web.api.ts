@@ -153,7 +153,6 @@ enum ColorScheme {
 	HIGH_CONTRAST = 'hc'
 }
 
-
 interface IInitialColorTheme {
 
 	/**

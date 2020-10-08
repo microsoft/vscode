@@ -6,7 +6,7 @@
 import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, addDisposableListener, EventType, EventHelper, detectFullscreen, addDisposableThrottledListener } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
@@ -152,11 +152,6 @@ class BrowserMain extends Disposable {
 		// CONTRIBUTE IT VIA WORKBENCH.WEB.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		// Log
-		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
-		const logService = new BufferLogService(this.configuration.logLevel);
-		serviceCollection.set(ILogService, logService);
-
 		// Resource Identity
 		const resourceIdentityService = this._register(new WebResourceIdentityService());
 		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
@@ -168,8 +163,13 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IProductService, productService);
 
 		// Environment
+		const logsPath = URI.file(toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')).with({ scheme: 'vscode-log' });
 		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration }, productService);
 		serviceCollection.set(IWorkbenchEnvironmentService, environmentService);
+
+		// Log
+		const logService = new BufferLogService(getLogLevel(environmentService));
+		serviceCollection.set(ILogService, logService);
 
 		// Remote
 		const remoteAuthorityResolverService = new RemoteAuthorityResolverService(this.configuration.resourceUriProvider);
