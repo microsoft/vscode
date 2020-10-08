@@ -51,6 +51,11 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
+export const FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusLeftGroupWithoutWrap';
+export const FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusRightGroupWithoutWrap';
+export const FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusAboveGroupWithoutWrap';
+export const FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID = 'workbench.action.focusBelowGroupWithoutWrap';
+
 export const OPEN_EDITOR_AT_INDEX_COMMAND_ID = 'workbench.action.openEditorAtIndex';
 
 export interface ActiveEditorMoveArguments {
@@ -655,6 +660,39 @@ function registerCloseEditorCommands() {
 	});
 }
 
+function registerFocusEditorGroupWihoutWrapCommands(): void {
+
+	const commands = [
+		{
+			id: FOCUS_LEFT_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.LEFT
+		},
+		{
+			id: FOCUS_RIGHT_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.RIGHT
+		},
+		{
+			id: FOCUS_ABOVE_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.UP,
+		},
+		{
+			id: FOCUS_BELOW_GROUP_WITHOUT_WRAP_COMMAND_ID,
+			direction: GroupDirection.DOWN
+		}
+	];
+
+	for (const command of commands) {
+		CommandsRegistry.registerCommand(command.id, async (accessor: ServicesAccessor) => {
+			const editorGroupService = accessor.get(IEditorGroupsService);
+
+			const group = editorGroupService.findGroup({ direction: command.direction }, editorGroupService.activeGroup, false);
+			if (group) {
+				group.focus();
+			}
+		});
+	}
+}
+
 function registerOtherEditorCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -844,4 +882,5 @@ export function setup(): void {
 	registerOtherEditorCommands();
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
+	registerFocusEditorGroupWihoutWrapCommands();
 }
