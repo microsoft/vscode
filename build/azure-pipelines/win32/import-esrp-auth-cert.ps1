@@ -1,14 +1,8 @@
-Param(
-  [string]$AuthCertificateBase64,
-  [string]$AuthCertificateKey
-)
+$ErrorActionPreference = "Stop"
 
-# Import auth certificate
-$AuthCertificateFileName = [System.IO.Path]::GetTempFileName()
-$AuthCertificateBytes = [Convert]::FromBase64String($AuthCertificateBase64)
-[IO.File]::WriteAllBytes($AuthCertificateFileName, $AuthCertificateBytes)
-$AuthCertificate = Import-PfxCertificate -FilePath $AuthCertificateFileName -CertStoreLocation Cert:\LocalMachine\My -Password (ConvertTo-SecureString $AuthCertificateKey -AsPlainText -Force)
-rm $AuthCertificateFileName
+az keyvault certificate download --vault-name vscode -n ESRP-SSL-AADAuth -f cert.pem
+$AuthCertificate = Import-Certificate -FilePath cert.pem -CertStoreLocation Cert:\LocalMachine\My
+rm cert.pem
+
 $ESRPAuthCertificateSubjectName = $AuthCertificate.Subject
-
 Write-Output ("##vso[task.setvariable variable=ESRPAuthCertificateSubjectName;]$ESRPAuthCertificateSubjectName")
