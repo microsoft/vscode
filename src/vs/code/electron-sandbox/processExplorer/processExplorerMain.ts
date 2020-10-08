@@ -321,7 +321,7 @@ class ProcessExplorer {
 			content.push(`.highest { color: ${styles.highlightForeground}; }`);
 		}
 
-		styleTag.innerHTML = content.join('\n');
+		styleTag.textContent = content.join('\n');
 		if (document.head) {
 			document.head.appendChild(styleTag);
 		}

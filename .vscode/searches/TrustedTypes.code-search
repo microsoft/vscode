@@ -1,30 +1,21 @@
 # Query: .innerHTML = 
 # Flags: CaseSensitive WordMatch
 # Including: src/vs/**/*.{t,j}s
-# Excluding: *.test.ts
+# Excluding: *.test.ts, **/test/**
 # ContextLines: 3
 
-22 results - 15 files
-
-src/vs/base/browser/dom.ts:
-  26  	// this is a workaround for innerHTML not allowing for "asymetric" accessors
-  27  	// see https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393
-  28  	// and https://github.com/microsoft/TypeScript/issues/30024
-  29: 	node.innerHTML = value as unknown as string;
-  30  }
-  31  
-  32  export function isInDOM(node: Node | null): boolean {
+15 results - 11 files
 
 src/vs/base/browser/markdownRenderer.ts:
-  273  	};
-  274  
-  275  	if (_ttpInsane) {
-  276: 		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
-  277  	} else {
-  278: 		element.innerHTML = insane(renderedMarkdown, insaneOptions);
-  279  	}
-  280  
-  281  	// signal that async code blocks can be now be inserted
+  272  	};
+  273  
+  274  	if (_ttpInsane) {
+  275: 		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+  276  	} else {
+  277: 		element.innerHTML = insane(renderedMarkdown, insaneOptions);
+  278  	}
+  279  
+  280  	// signal that async code blocks can be now be inserted
 
 src/vs/base/browser/ui/contextview/contextview.ts:
   157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
@@ -43,15 +34,6 @@ src/vs/code/electron-sandbox/issue/issueReporterMain.ts:
   62  	const issueReporter = new IssueReporter(configuration);
   63  	issueReporter.render();
   64  	document.body.style.display = 'block';
-
-src/vs/code/electron-sandbox/processExplorer/processExplorerMain.ts:
-  321  			content.push(`.highest { color: ${styles.highlightForeground}; }`);
-  322  		}
-  323  
-  324: 		styleTag.innerHTML = content.join('\n');
-  325  		if (document.head) {
-  326  			document.head.appendChild(styleTag);
-  327  		}
 
 src/vs/editor/browser/core/markdownRenderer.ts:
   88  
@@ -80,13 +62,13 @@ src/vs/editor/browser/view/viewLayer.ts:
   517  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
   518  		}
 
-  530  	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
-  531  		const hugeDomNode = document.createElement('div');
-  532  
-  533: 		hugeDomNode.innerHTML = invalidLinesHTML;
-  534  
-  535  		for (let i = 0; i < ctx.linesLength; i++) {
-  536  			const line = ctx.lines[i];
+  533  		if (ViewLayerRenderer._ttPolicy) {
+  534  			invalidLinesHTML = ViewLayerRenderer._ttPolicy.createHTML(invalidLinesHTML) as unknown as string;
+  535  		}
+  536: 		hugeDomNode.innerHTML = invalidLinesHTML;
+  537  
+  538  		for (let i = 0; i < ctx.linesLength; i++) {
+  539  			const line = ctx.lines[i];
 
 src/vs/editor/browser/widget/diffEditorWidget.ts:
   2157  
@@ -111,47 +93,14 @@ src/vs/editor/standalone/browser/colorizer.ts:
   45  		return this.colorize(modeService, text || '', mimeType, options).then(render, (err) => console.error(err));
   46  	}
 
-src/vs/editor/standalone/browser/standaloneThemeServiceImpl.ts:
-  232  		if (!this._globalStyleElement) {
-  233  			this._globalStyleElement = dom.createStyleSheet();
-  234  			this._globalStyleElement.className = 'monaco-colors';
-  235: 			this._globalStyleElement.innerHTML = this._allCSS;
-  236  			this._styleElements.push(this._globalStyleElement);
-  237  		}
-  238  		return Disposable.None;
-
-  241  	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
-  242  		const styleElement = dom.createStyleSheet(domNode);
-  243  		styleElement.className = 'monaco-colors';
-  244: 		styleElement.innerHTML = this._allCSS;
-  245  		this._styleElements.push(styleElement);
-  246  		return {
-  247  			dispose: () => {
-
-  321  
-  322  	private _updateCSS(): void {
-  323  		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
-  324: 		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._allCSS);
-  325  	}
-  326  
-  327  	public getFileIconTheme(): IFileIconTheme {
-
-src/vs/editor/test/browser/controller/imeTester.ts:
-  55  			let content = this._model.getModelLineContent(i);
-  56  			r += content + '<br/>';
-  57  		}
-  58: 		output.innerHTML = r;
-  59  	}
-  60  }
-  61  
-
-  69  	let title = document.createElement('div');
-  70  	title.className = 'title';
-  71  
-  72: 	title.innerHTML = description + '. Type <strong>' + inputStr + '</strong>';
-  73  	container.appendChild(title);
-  74  
-  75  	let startBtn = document.createElement('button');
+src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
+  580  		const element = DOM.$('div', { style });
+  581  
+  582  		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
+  583: 		element.innerHTML = linesHtml as unknown as string;
+  584  		return element;
+  585  	}
+  586  
 
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
@@ -161,15 +110,6 @@ src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   379  						cellOutputContainer.appendChild(outputNode);
   380  						domEval(outputNode);
   381  					} else if (preloadErrs.some(e => !!e)) {
-
-src/vs/workbench/contrib/webview/browser/pre/main.js:
-  393  			// apply default styles
-  394  			const defaultStyles = newDocument.createElement('style');
-  395  			defaultStyles.id = '_defaultStyles';
-  396: 			defaultStyles.innerHTML = defaultCssRules;
-  397  			newDocument.head.prepend(defaultStyles);
-  398  
-  399  			applyStyles(newDocument, newDocument.body);
 
 src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
   280  

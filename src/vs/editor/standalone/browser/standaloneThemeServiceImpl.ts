@@ -232,7 +232,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		if (!this._globalStyleElement) {
 			this._globalStyleElement = dom.createStyleSheet();
 			this._globalStyleElement.className = 'monaco-colors';
-			this._globalStyleElement.innerHTML = this._allCSS;
+			this._globalStyleElement.textContent = this._allCSS;
 			this._styleElements.push(this._globalStyleElement);
 		}
 		return Disposable.None;
@@ -241,7 +241,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
 		const styleElement = dom.createStyleSheet(domNode);
 		styleElement.className = 'monaco-colors';
-		styleElement.innerHTML = this._allCSS;
+		styleElement.textContent = this._allCSS;
 		this._styleElements.push(styleElement);
 		return {
 			dispose: () => {
@@ -321,7 +321,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 
 	private _updateCSS(): void {
 		this._allCSS = `${this._codiconCSS}\n${this._themeCSS}`;
-		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._allCSS);
+		this._styleElements.forEach(styleElement => styleElement.textContent = this._allCSS);
 	}
 
 	public getFileIconTheme(): IFileIconTheme {

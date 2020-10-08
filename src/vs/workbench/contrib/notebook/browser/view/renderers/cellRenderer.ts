@@ -553,11 +553,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	private _ttPolicy = window.trustedTypes!.createPolicy('cellRendererEditorText', {
+	private _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
 		createHTML(input) { return input; }
 	});
 
-	getRichText(editor: ICodeEditor, modelRange: Range): TrustedHTML | null {
+	getRichText(editor: ICodeEditor, modelRange: Range): HTMLElement | null {
 		const model = editor.getModel();
 		if (!model) {
 			return null;
@@ -567,22 +567,24 @@ class EditorTextRenderer {
 		const fontInfo = editor.getOptions().get(EditorOption.fontInfo);
 		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
 
-		const value = `<div style="`
+
+		const style = ``
 			+ `color: ${colorMap[modes.ColorId.DefaultForeground]};`
 			+ `background-color: ${colorMap[modes.ColorId.DefaultBackground]};`
 			+ `font-family: ${fontFamily};`
 			+ `font-weight: ${fontInfo.fontWeight};`
 			+ `font-size: ${fontInfo.fontSize}px;`
 			+ `line-height: ${fontInfo.lineHeight}px;`
-			+ `white-space: pre;`
-			+ `">`
-			+ this.getRichTextLines(model, modelRange, colorMap)
-			+ '</div>';
+			+ `white-space: pre;`;
 
-		return this._ttPolicy.createHTML(value);
+		const element = DOM.$('div', { style });
+
+		const linesHtml = this.getRichTextLinesAsHtml(model, modelRange, colorMap);
+		element.innerHTML = linesHtml as unknown as string;
+		return element;
 	}
 
-	private getRichTextLines(model: ITextModel, modelRange: Range, colorMap: string[]): string {
+	private getRichTextLinesAsHtml(model: ITextModel, modelRange: Range, colorMap: string[]): string | TrustedHTML {
 		const startLineNumber = modelRange.startLineNumber;
 		const startColumn = modelRange.startColumn;
 		const endLineNumber = modelRange.endLineNumber;
@@ -605,7 +607,9 @@ class EditorTextRenderer {
 			}
 		}
 
-		return result;
+		return this._ttPolicy
+			? this._ttPolicy.createHTML(result)
+			: result;
 	}
 
 	private getDefaultColorMap(): string[] {
@@ -637,7 +641,7 @@ class CodeCellDragImageRenderer {
 		dragImageContainer.classList.forEach(c => dragImageContainer.classList.remove(c));
 		dragImageContainer.classList.add('cell-drag-image', 'monaco-list-row', 'focused', `${type}-cell-row`);
 
-		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
+		const editorContainer: HTMLElement | null = dragImageContainer.querySelector('.cell-editor-container');
 		if (!editorContainer) {
 			return null;
 		}
@@ -646,8 +650,7 @@ class CodeCellDragImageRenderer {
 		if (!richEditorText) {
 			return null;
 		}
-
-		DOM.trustedInnerHTML(editorContainer, richEditorText);
+		DOM.reset(editorContainer, richEditorText);
 
 		return dragImageContainer;
 	}
