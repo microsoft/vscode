@@ -18,15 +18,26 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			await this.getHeaderSelectionRanges(document, positions),
 			await this.getBlockSelectionRanges(document, positions)
 		]);
-		return flatten(ranges);
+		let result = flatten(ranges);
+		if (flatten(ranges).length === 2) {
+			let parent = result[0];
+			let child = result[1];
+			return [new vscode.SelectionRange(child.range, parent)];
+		}
+		return result;
 	}
 
 	private async getBlockSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[]): Promise<vscode.SelectionRange[]> {
 		let position = positions[0];
 		const tokens = await this.engine.parse(document);
+		// sort by start position and end position
+		// find smallest range that contains this
+		// then walk left until you're not contained
 		let nearbyTokens = tokens.filter(token => token.type !== 'heading_open' && token.map && (token.map[0] <= position.line && token.map[1] >= position.line));
-		let sortedTokens = nearbyTokens.sort(token => token.map[1] - token.map[0]);
-		let parentToken = sortedTokens[0];
+		// let sortedTokens = nearbyTokens.sort(token => token.map[1] - token.map[0]);
+		let sortedTokens = nearbyTokens.sort((tokenOne, tokenTwo) => (tokenOne.map[1] - tokenOne.map[0] - tokenTwo.map[1] - tokenTwo.map[0]));
+
+		let parentToken = sortedTokens[sortedTokens.length-1];
 		if (parentToken) {
 			let parentRange = new vscode.SelectionRange(new vscode.Range(new vscode.Position(parentToken.map[0], 0), new vscode.Position(parentToken.map[1], 0)));
 			let ranges = nearbyTokens.map(token => {
@@ -41,7 +52,8 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 				}
 			});
 			ranges.push(parentRange);
-			return ranges;
+			// return smallest possible range
+			return [ranges[0]];
 		}
 		return [];
 	}
