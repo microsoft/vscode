@@ -233,11 +233,11 @@ steps:
   inputs:
     ESRP: 'ESRP CodeSign'
 
-- task: AzureCLI@2
+- task: PowerShell@2
   inputs:
-    azureSubscription: 'vscode-builds-subscription'
-    scriptType: pscore
-    scriptPath: .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1
+    targetType: filePath
+    filePath: .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1
+    arguments: "$(ESRP-SSL-AADAuth)"
   displayName: Import ESRP Auth Certificate
 
 - powershell: |

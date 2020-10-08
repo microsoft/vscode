@@ -1,8 +1,14 @@
+param ($CertBase64)
 $ErrorActionPreference = "Stop"
 
-az keyvault certificate download --vault-name vscode -n ESRP-SSL-AADAuth -f cert.pem
-$AuthCertificate = Import-Certificate -FilePath cert.pem -CertStoreLocation Cert:\LocalMachine\My
-rm cert.pem
+$CertBytes = [System.Convert]::FromBase64String($CertBase64)
+$CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+$CertCollection.Import($CertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable)
 
-$ESRPAuthCertificateSubjectName = $AuthCertificate.Subject
+$CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
+$CertStore.Open("ReadWrite")
+$CertStore.AddRange($CertCollection)
+$CertStore.Close()
+
+$ESRPAuthCertificateSubjectName = $CertCollection[0].Subject
 Write-Output ("##vso[task.setvariable variable=ESRPAuthCertificateSubjectName;]$ESRPAuthCertificateSubjectName")
