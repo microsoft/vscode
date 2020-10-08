@@ -71,6 +71,10 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 		return [this.resource];
 	}
 
+	get isEmpty(): boolean {
+		return this._operations.length === 0;
+	}
+
 	pushEndSelectionState(selectionState: number[] | undefined) {
 		this._resultSelectionState = selectionState;
 	}
@@ -109,7 +113,9 @@ export class NotebookOperationManager {
 	pushStackElement(label: string, selectionState: number[] | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
 		if (this._pendingStackOperation) {
 			this._pendingStackOperation.pushEndSelectionState(selectionState);
-			this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+			if (!this._pendingStackOperation.isEmpty) {
+				this._undoService.pushElement(this._pendingStackOperation, this._pendingStackOperation.undoRedoGroup);
+			}
 			this._pendingStackOperation = null;
 			return;
 		}
