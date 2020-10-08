@@ -64,6 +64,8 @@ export class TreeView extends Disposable implements ITreeView {
 
 	private readonly collapseAllContextKey: RawContextKey<boolean>;
 	private readonly collapseAllContext: IContextKey<boolean>;
+	private readonly collapseAllToggleContextKey: RawContextKey<boolean>;
+	private readonly collapseAllToggleContext: IContextKey<boolean>;
 	private readonly refreshContextKey: RawContextKey<boolean>;
 	private readonly refreshContext: IContextKey<boolean>;
 
@@ -124,6 +126,8 @@ export class TreeView extends Disposable implements ITreeView {
 		this.root = new Root();
 		this.collapseAllContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableCollapseAll`, false);
 		this.collapseAllContext = this.collapseAllContextKey.bindTo(contextKeyService);
+		this.collapseAllToggleContextKey = new RawContextKey<boolean>(`treeView.${this.id}.toggleCollapseAll`, false);
+		this.collapseAllToggleContext = this.collapseAllToggleContextKey.bindTo(contextKeyService);
 		this.refreshContextKey = new RawContextKey<boolean>(`treeView.${this.id}.enableRefresh`, false);
 		this.refreshContext = this.refreshContextKey.bindTo(contextKeyService);
 
@@ -302,6 +306,7 @@ export class TreeView extends Disposable implements ITreeView {
 						group: 'navigation',
 						order: Number.MAX_SAFE_INTEGER,
 					},
+					precondition: that.collapseAllToggleContextKey,
 					icon: { id: 'codicon/collapse-all' }
 				});
 			}
@@ -618,6 +623,14 @@ export class TreeView extends Disposable implements ITreeView {
 			if (this.focused) {
 				this.focus(false);
 			}
+			this.updateCollapseAllToggle();
+		}
+	}
+
+	private updateCollapseAllToggle() {
+		if (this.showCollapseAllAction) {
+			this.collapseAllToggleContext.set(!!this.root.children && (this.root.children.length > 0) &&
+				this.root.children.some(value => value.collapsibleState !== TreeItemCollapsibleState.None));
 		}
 	}
 
