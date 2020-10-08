@@ -9,7 +9,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IMarkdownString, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import * as marked from 'vs/base/common/marked/marked';
-import { insane } from 'vs/base/common/insane/insane';
+import { insane, InsaneOptions } from 'vs/base/common/insane/insane';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
 import { escape } from 'vs/base/common/strings';
@@ -29,6 +29,12 @@ export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderCallback?: () => void;
 	baseUrl?: URI;
 }
+
+const _ttpInsane = window.trustedTypes?.createPolicy('insane', {
+	createHTML(value, options: InsaneOptions): string {
+		return insane(value, options);
+	}
+});
 
 /**
  * Low-level way create a html element from a markdown string.
@@ -227,25 +233,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	if (value.length > 100_000) {
 		value = `${value.substr(0, 100_000)}…`;
 	}
-	const renderedMarkdown = marked.parse(
-		markdown.supportThemeIcons ? markdownEscapeEscapedCodicons(value) : value,
-		markedOptions
-	);
-
-	function filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-		if (token.tag === 'span' && markdown.isTrusted && (Object.keys(token.attrs).length === 1)) {
-			if (token.attrs['style']) {
-				return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
-			} else if (token.attrs['class']) {
-				// The class should match codicon rendering in src\vs\base\common\codicons.ts
-				return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
-			}
-			return false;
-		}
-		return true;
+	// escape theme icons
+	if (markdown.supportThemeIcons) {
+		value = markdownEscapeEscapedCodicons(value);
 	}
 
-	element.innerHTML = insane(renderedMarkdown, {
+	const renderedMarkdown = marked.parse(value, markedOptions);
+
+
+	// sanitize with insane
+	const insaneOptions = {
 		allowedSchemes,
 		// allowedTags should included everything that markdown renders to.
 		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
@@ -261,9 +258,27 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			'th': ['align'],
 			'td': ['align']
 		},
-		filter
-	});
+		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
+			if (token.tag === 'span' && markdown.isTrusted && (Object.keys(token.attrs).length === 1)) {
+				if (token.attrs['style']) {
+					return !!token.attrs['style'].match(/^(color\:#[0-9a-fA-F]+;)?(background-color\:#[0-9a-fA-F]+;)?$/);
+				} else if (token.attrs['class']) {
+					// The class should match codicon rendering in src\vs\base\common\codicons.ts
+					return !!token.attrs['class'].match(/^codicon codicon-[a-z\-]+( codicon-animation-[a-z\-]+)?$/);
+				}
+				return false;
+			}
+			return true;
+		}
+	};
 
+	if (_ttpInsane) {
+		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+	} else {
+		element.innerHTML = insane(renderedMarkdown, insaneOptions);
+	}
+
+	// signal that async code blocks can be now be inserted
 	signalInnerHTML!();
 
 	return element;
