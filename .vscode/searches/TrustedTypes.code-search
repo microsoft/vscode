@@ -4,24 +4,27 @@
 # Excluding: *.test.ts
 # ContextLines: 3
 
-22 results - 14 files
+22 results - 15 files
+
+src/vs/base/browser/dom.ts:
+  26  	// this is a workaround for innerHTML not allowing for "asymetric" accessors
+  27  	// see https://github.com/microsoft/vscode/issues/106396#issuecomment-692625393
+  28  	// and https://github.com/microsoft/TypeScript/issues/30024
+  29: 	node.innerHTML = value as unknown as string;
+  30  }
+  31  
+  32  export function isInDOM(node: Node | null): boolean {
 
 src/vs/base/browser/markdownRenderer.ts:
-  161  				const strValue = values[0];
-  162  				const span = element.querySelector(`div[data-code="${id}"]`);
-  163  				if (span) {
-  164: 					span.innerHTML = strValue;
-  165  				}
-  166  			}).catch(err => {
-  167  				// ignore
-
-  243  		return true;
-  244  	}
-  245  
-  246: 	element.innerHTML = insane(renderedMarkdown, {
-  247  		allowedSchemes,
-  248  		// allowedTags should included everything that markdown renders to.
-  249  		// Since we have our own sanitize function for marked, it's possible we missed some tag so let insane make sure.
+  273  	};
+  274  
+  275  	if (_ttpInsane) {
+  276: 		element.innerHTML = _ttpInsane.createHTML(renderedMarkdown, insaneOptions) as unknown as string;
+  277  	} else {
+  278: 		element.innerHTML = insane(renderedMarkdown, insaneOptions);
+  279  	}
+  280  
+  281  	// signal that async code blocks can be now be inserted
 
 src/vs/base/browser/ui/contextview/contextview.ts:
   157  				this.shadowRootHostElement = DOM.$('.shadow-root-host');
@@ -50,6 +53,15 @@ src/vs/code/electron-sandbox/processExplorer/processExplorerMain.ts:
   326  			document.head.appendChild(styleTag);
   327  		}
 
+src/vs/editor/browser/core/markdownRenderer.ts:
+  88  
+  89  				const element = document.createElement('span');
+  90  
+  91: 				element.innerHTML = MarkdownRenderer._ttpTokenizer
+  92  					? MarkdownRenderer._ttpTokenizer.createHTML(value, tokenization) as unknown as string
+  93  					: tokenizeToString(value, tokenization);
+  94  
+
 src/vs/editor/browser/view/domLineBreaksComputer.ts:
   107  		allCharOffsets[i] = tmp[0];
   108  		allVisibleColumns[i] = tmp[1];
@@ -60,21 +72,21 @@ src/vs/editor/browser/view/domLineBreaksComputer.ts:
   113  	containerDomNode.style.top = '10000';
 
 src/vs/editor/browser/view/viewLayer.ts:
-  507  	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
-  508  		const lastChild = <HTMLElement>this.domNode.lastChild;
-  509  		if (domNodeIsEmpty || !lastChild) {
-  510: 			this.domNode.innerHTML = newLinesHTML;
-  511  		} else {
-  512  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
-  513  		}
+  512  		}
+  513  		const lastChild = <HTMLElement>this.domNode.lastChild;
+  514  		if (domNodeIsEmpty || !lastChild) {
+  515: 			this.domNode.innerHTML = newLinesHTML;
+  516  		} else {
+  517  			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
+  518  		}
 
-  525  	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
-  526  		const hugeDomNode = document.createElement('div');
-  527  
-  528: 		hugeDomNode.innerHTML = invalidLinesHTML;
-  529  
-  530  		for (let i = 0; i < ctx.linesLength; i++) {
-  531  			const line = ctx.lines[i];
+  530  	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
+  531  		const hugeDomNode = document.createElement('div');
+  532  
+  533: 		hugeDomNode.innerHTML = invalidLinesHTML;
+  534  
+  535  		for (let i = 0; i < ctx.linesLength; i++) {
+  536  			const line = ctx.lines[i];
 
 src/vs/editor/browser/widget/diffEditorWidget.ts:
   2157  
@@ -141,23 +153,6 @@ src/vs/editor/test/browser/controller/imeTester.ts:
   74  
   75  	let startBtn = document.createElement('button');
 
-src/vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer.ts:
-  455  
-  456  	private getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
-  457  		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
-  458: 		dragImageContainer.innerHTML = templateData.container.outerHTML;
-  459  
-  460  		// Remove all rendered content nodes after the
-  461  		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
-
-  641  			return null;
-  642  		}
-  643  
-  644: 		editorContainer.innerHTML = richEditorText;
-  645  
-  646  		return dragImageContainer;
-  647  	}
-
 src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts:
   375  					addMouseoverListeners(outputNode, outputId);
   376  					const content = data.content;
@@ -177,18 +172,18 @@ src/vs/workbench/contrib/webview/browser/pre/main.js:
   399  			applyStyles(newDocument, newDocument.body);
 
 src/vs/workbench/contrib/welcome/walkThrough/browser/walkThroughPart.ts:
-  281  
-  282  				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-  283  				if (!input.resource.path.endsWith('.md')) {
-  284: 					this.content.innerHTML = content;
-  285  					this.updateSizeClasses();
-  286  					this.decorateContent();
-  287  					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
+  280  
+  281  				const content = model.main;
+  282  				if (!input.resource.path.endsWith('.md')) {
+  283: 					this.content.innerHTML = content;
+  284  					this.updateSizeClasses();
+  285  					this.decorateContent();
+  286  					this.contentDisposables.push(this.keybindingService.onDidUpdateKeybindings(() => this.decorateContent()));
 
-  303  				const innerContent = document.createElement('div');
-  304  				innerContent.classList.add('walkThroughContent'); // only for markdown files
-  305  				const markdown = this.expandMacros(content);
-  306: 				innerContent.innerHTML = marked(markdown, { renderer });
-  307  				this.content.appendChild(innerContent);
-  308  
-  309  				model.snippets.forEach((snippet, i) => {
+  302  				const innerContent = document.createElement('div');
+  303  				innerContent.classList.add('walkThroughContent'); // only for markdown files
+  304  				const markdown = this.expandMacros(content);
+  305: 				innerContent.innerHTML = marked(markdown, { renderer });
+  306  				this.content.appendChild(innerContent);
+  307  
+  308  				model.snippets.forEach((snippet, i) => {
