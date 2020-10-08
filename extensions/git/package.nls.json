@@ -34,7 +34,7 @@
 	"command.commitAll": "Commit All",
 	"command.commitAllSigned": "Commit All (Signed Off)",
 	"command.commitAllAmend": "Commit All (Amend)",
-	"command.commitNoVerify": "Commit (No Nerify)",
+	"command.commitNoVerify": "Commit (No Verify)",
 	"command.commitStagedNoVerify": "Commit Staged (No Verify)",
 	"command.commitEmptyNoVerify": "Commit Empty (No Verify)",
 	"command.commitStagedSignedNoVerify": "Commit Staged (Signed Off, No Verify)",
