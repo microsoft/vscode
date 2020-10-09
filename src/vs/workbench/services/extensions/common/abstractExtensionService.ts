@@ -40,6 +40,7 @@ export function parseScannedExtension(extension: ITranslatedScannedExtension): I
 	return {
 		identifier: new ExtensionIdentifier(`${extension.packageJSON.publisher}.${extension.packageJSON.name}`),
 		isBuiltin: extension.type === ExtensionType.System,
+		isUserBuiltin: false,
 		isUnderDevelopment: false,
 		extensionLocation: extension.location,
 		...extension.packageJSON,

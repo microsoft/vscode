@@ -381,8 +381,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this._register(this.viewletService.onDidViewletOpen(this.onViewletOpen, this));
 		this.searchViewletState = this.getMemento(StorageScope.WORKSPACE);
 
-		this.extensionManagementService.getInstalled(ExtensionType.User).then(result => {
-			this.hasInstalledExtensionsContextKey.set(result.length > 0);
+		this.extensionManagementService.getInstalled().then(result => {
+			this.hasInstalledExtensionsContextKey.set(result.some(r => !r.isBuiltin));
 		});
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

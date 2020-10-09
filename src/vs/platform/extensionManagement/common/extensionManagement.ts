@@ -194,6 +194,8 @@ export class ExtensionManagementError extends Error {
 	}
 }
 
+export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean };
+
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
@@ -206,9 +208,9 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
-	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension>;
+	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
-	installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension>;
+	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
