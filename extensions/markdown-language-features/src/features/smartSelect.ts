@@ -19,12 +19,20 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			await this.getBlockSelectionRanges(document, positions)
 		]);
 		let result = flatten(ranges);
-		if (flatten(ranges).length === 2) {
+		// header will always be parent of block elements
+		// have to set the child's grandparent
+		if (result.length === 2) {
 			let parent = result[0];
 			let child = result[1];
-			return [new vscode.SelectionRange(child.range, parent)];
+			let childParent = child.parent;
+			if (childParent) {
+				childParent.parent = parent;
+				return [new vscode.SelectionRange(child.range, childParent)];
+			}
+			return [child];
+		} else {
+			return result;
 		}
-		return result;
 	}
 
 	private async getBlockSelectionRanges(document: vscode.TextDocument, positions: vscode.Position[]): Promise<vscode.SelectionRange[]> {
@@ -88,7 +96,12 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 					return new vscode.SelectionRange(new vscode.Range(startPos, endPos));
 				}
 			});
-			return [ranges[0]];
+			let result = ranges[0];
+			for (let i = 1; i < 3; i++) {
+				let sisterRange = result.range.union(ranges[i].range);
+				result.parent = new vscode.SelectionRange(sisterRange, result.parent);
+			}
+			return [result];
 		}
 		return [];
 	}
