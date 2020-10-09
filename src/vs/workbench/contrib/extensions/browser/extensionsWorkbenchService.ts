@@ -65,6 +65,10 @@ class Extension implements IExtension {
 		return this.local ? this.local.type : ExtensionType.User;
 	}
 
+	get isBuiltin(): boolean {
+		return this.local ? this.local.isBuiltin : false;
+	}
+
 	get name(): string {
 		return this.gallery ? this.gallery.name : this.local!.manifest.name;
 	}
@@ -1084,7 +1088,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					return false;
 				}
 				const enable = enablementState === EnablementState.EnabledGlobally || enablementState === EnablementState.EnabledWorkspace;
-				return (enable || i.type === ExtensionType.User) // Include all Extensions for enablement and only user extensions for disablement
+				return (enable || !i.isBuiltin) // Include all Extensions for enablement and only non builtin extensions for disablement
 					&& (options.dependencies || options.pack)
 					&& extensions.some(extension =>
 						(options.dependencies && extension.dependencies.some(id => areSameExtensions({ id }, i.identifier)))

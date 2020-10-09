@@ -26,7 +26,7 @@ import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -62,17 +62,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IActionViewItemOptions, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { EXTENSIONS_CONFIG } from 'vs/workbench/services/extensionRecommendations/common/workspaceExtensionsConfig';
-
-export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
-	return {
-		identifier: new ExtensionIdentifier(local.identifier.id),
-		isBuiltin: local.type === ExtensionType.System,
-		isUnderDevelopment: false,
-		extensionLocation: local.location,
-		...local.manifest,
-		uuid: local.identifier.uuid
-	};
-}
 
 const promptDownloadManually = (extension: IGalleryExtension | undefined, message: string, error: Error, instantiationService: IInstantiationService): Promise<any> => {
 	return instantiationService.invokeFunction(accessor => {
@@ -186,7 +175,7 @@ export class InstallAction extends ExtensionAction {
 		this.enabled = false;
 		this.class = InstallAction.Class;
 		this.label = InstallAction.INSTALL_LABEL;
-		if (this.extension && this.extension.type === ExtensionType.User) {
+		if (this.extension && !this.extension.isBuiltin) {
 			if (this.extension.state === ExtensionState.Uninstalled && this.extensionsWorkbenchService.canInstall(this.extension)) {
 				this.enabled = true;
 				this.updateLabel();
@@ -467,7 +456,7 @@ export class UninstallAction extends ExtensionAction {
 			return;
 		}
 
-		if (this.extension.type !== ExtensionType.User) {
+		if (this.extension.isBuiltin) {
 			this.enabled = false;
 			return;
 		}
@@ -715,7 +704,7 @@ export function getContextMenuActions(menuService: IMenuService, contextKeyServi
 	const scopedContextKeyService = contextKeyService.createScoped();
 	if (extension) {
 		scopedContextKeyService.createKey<string>('extension', extension.identifier.id);
-		scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.type === ExtensionType.System);
+		scopedContextKeyService.createKey<boolean>('isBuiltinExtension', extension.isBuiltin);
 		scopedContextKeyService.createKey<boolean>('extensionHasConfiguration', extension.local && !!extension.local.manifest.contributes && !!extension.local.manifest.contributes.configuration);
 		if (extension.state === ExtensionState.Installed) {
 			scopedContextKeyService.createKey<string>('extensionStatus', 'installed');
@@ -858,7 +847,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !!this.extension.gallery;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery;
 	}
 
 	run(): Promise<any> {
@@ -2910,7 +2899,7 @@ export class DisableAllAction extends Action {
 	}
 
 	private getExtensionsToDisable(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(e => e.type === ExtensionType.User && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
+		return this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
 	}
 
 	private update(): void {
@@ -2940,7 +2929,7 @@ export class DisableAllWorkspaceAction extends Action {
 	}
 
 	private getExtensionsToDisable(): IExtension[] {
-		return this.extensionsWorkbenchService.local.filter(e => e.type === ExtensionType.User && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
+		return this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && !!e.local && this.extensionEnablementService.isEnabled(e.local) && this.extensionEnablementService.canChangeEnablement(e.local));
 	}
 
 	private update(): void {
@@ -3083,7 +3072,7 @@ export class ReinstallAction extends Action {
 	}
 
 	get enabled(): boolean {
-		return this.extensionsWorkbenchService.local.filter(l => l.type === ExtensionType.User && l.local).length > 0;
+		return this.extensionsWorkbenchService.local.filter(l => !l.isBuiltin && l.local).length > 0;
 	}
 
 	run(): Promise<any> {
@@ -3095,7 +3084,7 @@ export class ReinstallAction extends Action {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(local => {
 				const entries = local
-					.filter(extension => extension.type === ExtensionType.User)
+					.filter(extension => !extension.isBuiltin)
 					.map(extension => {
 						return {
 							id: extension.identifier.id,
