@@ -68,4 +68,4 @@ $Input = Create-TmpJson @{
 
 $Output = [System.IO.Path]::GetTempFileName()
 $ScriptPath = Split-Path -Path $MyInvocation.MyCommand.Definition -Parent
-& "$ScriptPath\ESRPClient\packages\Microsoft.ESRPClient.1.2.25\tools\ESRPClient.exe" Sign -a $Auth -p $Policy -i $Input -o $Output
+& "$ScriptPath\ESRPClient\packages\Microsoft.ESRPClient.1.2.40\tools\ESRPClient.exe" Sign -a $Auth -p $Policy -i $Input -o $Output
