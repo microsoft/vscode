@@ -156,56 +156,50 @@ export class Main {
 			const valid = await this.validate(manifest, force);
 
 			if (valid) {
-				return this.extensionManagementService.install(URI.file(extension), doNotSync).then(id => {
+				try {
+					await this.extensionManagementService.install(URI.file(extension), doNotSync);
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
 					return manifest;
-				}, error => {
+				} catch (error) {
 					if (isPromiseCanceledError(error)) {
 						console.log(localize('cancelVsixInstall', "Cancelled installing extension '{0}'.", getBaseLabel(extension)));
 						return null;
 					} else {
-						return Promise.reject(error);
+						throw error;
 					}
-				});
+				}
 			}
 			return null;
 		}
 
 		const [id, version] = getIdAndVersion(extension);
-		return this.extensionManagementService.getInstalled(ExtensionType.User)
-			.then(installed => this.extensionGalleryService.getCompatibleExtension({ id }, version)
-				.then<IGalleryExtension>(null, err => {
-					if (err.responseText) {
-						try {
-							const response = JSON.parse(err.responseText);
-							return Promise.reject(response.message);
-						} catch (e) {
-							// noop
-						}
-					}
-					return Promise.reject(err);
-				})
-				.then(async extension => {
-					if (!extension) {
-						return Promise.reject(new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`));
-					}
+		let galleryExtension: IGalleryExtension | null = null;
+		try {
+			galleryExtension = await this.extensionGalleryService.getCompatibleExtension({ id }, version);
+		} catch (err) {
+			const response = JSON.parse(err.responseText);
+			throw new Error(response.message);
+		}
+		if (!galleryExtension) {
+			throw new Error(`${notFound(version ? `${id}@${version}` : id)}\n${useId}`);
+		}
 
-					const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
-					const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
-					if (installedExtension) {
-						if (extension.version === installedExtension.manifest.version) {
-							console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
-							return Promise.resolve(null);
-						}
-						if (!version && !force) {
-							console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, extension.version));
-							return Promise.resolve(null);
-						}
-						console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, extension.version));
-					}
-					await this.installFromGallery(id, extension, doNotSync);
-					return manifest;
-				}));
+		const manifest = await this.extensionGalleryService.getManifest(galleryExtension, CancellationToken.None);
+		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const [installedExtension] = installed.filter(e => areSameExtensions(e.identifier, { id }));
+		if (installedExtension) {
+			if (galleryExtension.version === installedExtension.manifest.version) {
+				console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", version ? `${id}@${version}` : id));
+				return Promise.resolve(null);
+			}
+			if (!version && !force) {
+				console.log(localize('forceUpdate', "Extension '{0}' v{1} is already installed, but a newer version {2} is available in the marketplace. Use '--force' option to update to newer version.", id, installedExtension.manifest.version, galleryExtension.version));
+				return Promise.resolve(null);
+			}
+			console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, galleryExtension.version));
+		}
+		await this.installFromGallery(id, galleryExtension, doNotSync);
+		return manifest;
 	}
 
 	private async validate(manifest: IExtensionManifest, force: boolean): Promise<boolean> {
