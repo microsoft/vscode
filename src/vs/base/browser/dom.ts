@@ -1333,13 +1333,16 @@ function newInsaneOptions(allowedTags: string[], allowedAttributesForAll: string
 }
 
 
-const _ttpStaticHtml = window.trustedTypes?.createPolicy('staticHtml', {
+const _ttpSafeInnerHtml = window.trustedTypes?.createPolicy('safeInnerHtml', {
 	createHTML(value, options: InsaneOptions) {
 		return insane(value, options);
 	}
 });
 
-export function sanitizeStaticHtml(value: string): TrustedHTML | string {
+/**
+ * Sanitizes the given `value` and reset the given `node` with it.
+ */
+export function safeInnerHtml(node: HTMLElement, value: string): void {
 
 	const options = newInsaneOptions(
 		['a', 'button', 'code', 'div', 'h1', 'h2', 'h3', 'input', 'label', 'li', 'p', 'pre', 'select', 'small', 'span', 'textarea', 'ul'],
@@ -1355,5 +1358,6 @@ export function sanitizeStaticHtml(value: string): TrustedHTML | string {
 		}
 	);
 
-	return _ttpStaticHtml?.createHTML(value, options) ?? insane(value, options);
+	const html = _ttpSafeInnerHtml?.createHTML(value, options) ?? insane(value, options);
+	node.innerHTML = html as unknown as string;
 }
