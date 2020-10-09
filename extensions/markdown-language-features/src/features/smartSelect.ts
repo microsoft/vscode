@@ -27,7 +27,9 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			let childParent = child.parent;
 			if (childParent) {
 				childParent.parent = parent;
+				if (childParent.range.contains(child.range)) {
 				return [new vscode.SelectionRange(child.range, childParent)];
+				}
 			}
 			return [child];
 		} else {
@@ -94,7 +96,9 @@ export default class MarkdownSmartSelect implements vscode.SelectionRangeProvide
 			// sort ranges by their proximity to result
 			for (let i = 1; i < 3; i++) {
 				let sisterRange = result.range.union(ranges[i].range);
-				result.parent = new vscode.SelectionRange(sisterRange, result.parent);
+				if (result.parent?.range.contains(sisterRange)) {
+					result.parent = new vscode.SelectionRange(sisterRange, result.parent);
+				}
 			}
 			return [result];
 		}
