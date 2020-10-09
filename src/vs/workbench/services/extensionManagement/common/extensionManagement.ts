@@ -27,7 +27,7 @@ export interface IExtensionManagementServerService {
 
 export const enum EnablementState {
 	DisabledByExtensionKind,
-	DisabledByEnvironemt,
+	DisabledByEnvironment,
 	DisabledGlobally,
 	DisabledWorkspace,
 	EnabledGlobally,
