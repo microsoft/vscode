@@ -803,7 +803,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this.focus();
-		this._xterm.paste(await this._clipboardService.readText("selection"));
+		this._xterm.paste(await this._clipboardService.readText('selection'));
 	}
 
 	public async sendText(text: string, addNewLine: boolean): Promise<void> {
