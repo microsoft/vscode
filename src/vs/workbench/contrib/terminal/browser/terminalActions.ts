@@ -291,6 +291,24 @@ export class TerminalPasteAction extends Action {
 	}
 }
 
+export class TerminalPasteSelectionAction extends Action {
+
+	public static readonly ID = TERMINAL_COMMAND_ID.PASTE_SELECTION;
+	public static readonly LABEL = localize(TerminalPasteSelectionAction.ID, "Paste selection into Active Terminal");
+	public static readonly SHORT_LABEL = localize(`${TerminalPasteSelectionAction.ID}.short`, "Paste Selection")
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	async run () {
+		this._terminalService.getActiveOrCreateInstance()?.pasteSelection();
+	}
+}
+
 export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 	public static readonly ID = TERMINAL_COMMAND_ID.SELECT_DEFAULT_SHELL;

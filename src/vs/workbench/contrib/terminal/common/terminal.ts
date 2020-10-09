@@ -474,6 +474,7 @@ export const enum TERMINAL_COMMAND_ID {
 	FOCUS_NEXT = 'workbench.action.terminal.focusNext',
 	FOCUS_PREVIOUS = 'workbench.action.terminal.focusPrevious',
 	PASTE = 'workbench.action.terminal.paste',
+	PASTE_SELECTION = 'workbench.action.terminal.pasteSelection',
 	SELECT_DEFAULT_SHELL = 'workbench.action.terminal.selectDefaultShell',
 	RUN_SELECTED_TEXT = 'workbench.action.terminal.runSelectedText',
 	RUN_ACTIVE_FILE = 'workbench.action.terminal.runActiveFile',
