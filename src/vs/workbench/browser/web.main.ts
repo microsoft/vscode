@@ -269,21 +269,14 @@ class BrowserMain extends Disposable {
 		}
 
 		// User data
-		if (!this.configuration.userDataProvider) {
-			let indexedDBUserDataProvider: IFileSystemProvider | null = null;
-			try {
-				indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
-			} catch (error) {
-				console.error(error);
-			}
-			if (indexedDBUserDataProvider) {
-				this.configuration.userDataProvider = indexedDBUserDataProvider;
-			} else {
-				this.configuration.userDataProvider = new InMemoryFileSystemProvider();
-			}
+		let indexedDBUserDataProvider: IFileSystemProvider | null = null;
+		try {
+			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
+		} catch (error) {
+			console.error(error);
 		}
 
-		fileService.registerProvider(Schemas.userData, this.configuration.userDataProvider);
+		fileService.registerProvider(Schemas.userData, indexedDBUserDataProvider || new InMemoryFileSystemProvider());
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
