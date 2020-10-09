@@ -116,7 +116,7 @@ export async function getPackageManager(folder: WorkspaceFolder): Promise<string
 		packageManagerName = name;
 
 		if (multiplePMDetected) {
-			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles. Using {0} as the preferred package manager.', packageManagerName);
+			const multiplePMWarning = localize('npm.multiplePMWarning', 'Found multiple lockfiles for {0}. Using {1} as the preferred package manager.', folder.uri.fsPath, packageManagerName);
 			window.showWarningMessage(multiplePMWarning);
 		}
 	}
@@ -291,27 +291,27 @@ export async function createTask(script: NpmTaskDefinition | string, cmd: string
 		kind = script;
 	}
 
-	async function getCommandLine(folder: WorkspaceFolder, cmd: string): Promise<string> {
-		let packageManager = await getPackageManager(folder);
+	const packageManager = await getPackageManager(folder);
+	async function getCommandLine(cmd: string): Promise<string> {
 		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('runSilent')) {
 			return `${packageManager} --silent ${cmd}`;
 		}
 		return `${packageManager} ${cmd}`;
 	}
 
-	function getRelativePath(folder: WorkspaceFolder, packageJsonUri: Uri): string {
+	function getRelativePath(packageJsonUri: Uri): string {
 		let rootUri = folder.uri;
 		let absolutePath = packageJsonUri.path.substring(0, packageJsonUri.path.length - 'package.json'.length);
 		return absolutePath.substring(rootUri.path.length + 1);
 	}
 
-	let relativePackageJson = getRelativePath(folder, packageJsonUri);
+	let relativePackageJson = getRelativePath(packageJsonUri);
 	if (relativePackageJson.length) {
-		kind.path = getRelativePath(folder, packageJsonUri);
+		kind.path = relativePackageJson;
 	}
 	let taskName = getTaskName(kind.script, relativePackageJson);
 	let cwd = path.dirname(packageJsonUri.fsPath);
-	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(await getCommandLine(folder, cmd), { cwd: cwd }), matcher);
+	const task = new Task(kind, folder, taskName, 'npm', new ShellExecution(await getCommandLine(cmd), { cwd: cwd }), matcher);
 	task.detail = detail;
 	return task;
 }
