@@ -19,6 +19,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWeb } from 'vs/base/common/platform';
+import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 
 const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser'];
 
@@ -220,7 +221,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ICredentialsService private readonly credentialsService: ICredentialsService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -241,6 +243,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		this._register(this.authenticationService.onDidChangeDeclaredProviders(e => {
 			this._proxy.$setProviders(e);
+		}));
+
+		this._register(this.credentialsService.onDidChangePassword(_ => {
+			this._proxy.$onDidChangePassword();
 		}));
 	}
 

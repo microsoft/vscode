@@ -6,12 +6,18 @@
 import { ICredentialsService } from 'vs/workbench/services/credentials/common/credentials';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { Emitter } from 'vs/base/common/event';
 
 export class KeytarCredentialsService implements ICredentialsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@INativeHostService private readonly nativeHostService: INativeHostService) { }
+	private _onDidChangePassword: Emitter<void> = new Emitter();
+	onDidChangePassword = this._onDidChangePassword.event;
+
+	constructor(@INativeHostService private readonly nativeHostService: INativeHostService) {
+		this.nativeHostService.onDidChangePassword(event => this._onDidChangePassword.fire(event));
+	}
 
 	getPassword(service: string, account: string): Promise<string | null> {
 		return this.nativeHostService.getPassword(service, account);
