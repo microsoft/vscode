@@ -967,6 +967,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeNotebookEditorSelection: Event<vscode.NotebookEditorSelectionChangeEvent>;
 			onDidChangeNotebookEditorVisibleRanges: Event<vscode.NotebookEditorVisibleRangesChangeEvent>;
 		}) = {
+			openNotebookDocument: (uriComponents, viewType) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.openNotebookDocument(uriComponents, viewType);
+			},
 			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidOpenNotebookDocument;

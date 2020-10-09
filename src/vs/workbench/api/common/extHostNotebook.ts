@@ -24,6 +24,7 @@ import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument'
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { assertIsDefined } from 'vs/base/common/types';
 
 class ExtHostWebviewCommWrapper extends Disposable {
 	private readonly _onDidReceiveDocumentMessage = new Emitter<any>();
@@ -384,6 +385,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 		return new NotebookEditorDecorationType(this._proxy, options);
+	}
+
+	async openNotebookDocument(uriComponents: UriComponents, viewType?: string): Promise<vscode.NotebookDocument> {
+		const cached = this._documents.get(URI.revive(uriComponents));
+		if (cached) {
+			return Promise.resolve(cached.notebookDocument);
+		}
+
+		await this._proxy.$tryOpenDocument(uriComponents, viewType);
+		const document = this._documents.get(URI.revive(uriComponents));
+		return assertIsDefined(document?.notebookDocument);
 	}
 
 	private _withAdapter<T>(handle: number, uri: UriComponents, callback: (adapter: ExtHostNotebookKernelProviderAdapter, document: ExtHostNotebookDocument) => Promise<T>) {
