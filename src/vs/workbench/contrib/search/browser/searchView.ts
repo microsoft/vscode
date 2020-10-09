@@ -22,6 +22,7 @@ import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchview';
 import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import * as nls from 'vs/nls';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
@@ -888,7 +889,34 @@ export class SearchView extends ViewPane {
 		}
 	}
 
-	updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
+	updateTextFromFindWidgetOrSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
+		return this.updateTextFromFindWidget({ allowSearchOnType }) || this.updateTextFromSelection({ allowUnselectedWord, allowSearchOnType });
+	}
+
+	private updateTextFromFindWidget({ allowSearchOnType = true }): boolean {
+		const activeEditor = this.editorService.activeTextEditorControl;
+		if (!isCodeEditor(activeEditor)) {
+			return false;
+		}
+
+		const controller = CommonFindController.get(activeEditor as ICodeEditor);
+		const searchString = controller.getState().searchString;
+		if (searchString === '' || !controller.isFindInputFocused()) {
+			return false;
+		}
+
+		if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
+			this.searchWidget.setValue(searchString);
+		} else {
+			this.pauseSearching = true;
+			this.searchWidget.setValue(searchString);
+			this.pauseSearching = false;
+		}
+
+		return true;
+	}
+
+	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }): boolean {
 		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
