@@ -6,10 +6,14 @@
 import { ICredentialsService, ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Emitter } from 'vs/base/common/event';
 
 export class BrowserCredentialsService implements ICredentialsService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private _onDidChangePassword: Emitter<void> = new Emitter();
+	onDidChangePassword = this._onDidChangePassword.event;
 
 	private credentialsProvider: ICredentialsProvider;
 
@@ -25,12 +29,18 @@ export class BrowserCredentialsService implements ICredentialsService {
 		return this.credentialsProvider.getPassword(service, account);
 	}
 
-	setPassword(service: string, account: string, password: string): Promise<void> {
-		return this.credentialsProvider.setPassword(service, account, password);
+	async setPassword(service: string, account: string, password: string): Promise<void> {
+		await this.credentialsProvider.setPassword(service, account, password);
+		this._onDidChangePassword.fire();
 	}
 
 	deletePassword(service: string, account: string): Promise<boolean> {
-		return this.credentialsProvider.deletePassword(service, account);
+		const didDelete = this.credentialsProvider.deletePassword(service, account);
+		if (didDelete) {
+			this._onDidChangePassword.fire();
+		}
+
+		return didDelete;
 	}
 
 	findPassword(service: string): Promise<string | null> {

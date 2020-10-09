@@ -83,6 +83,9 @@ export class NativeHostMainService implements INativeHostMainService {
 	private readonly _onColorSchemeChange = new Emitter<IColorScheme>();
 	readonly onColorSchemeChange = this._onColorSchemeChange.event;
 
+	private readonly _onDidChangePassword = new Emitter<void>();
+	readonly onDidChangePassword = this._onDidChangePassword.event;
+
 	//#endregion
 
 	//#region Window
@@ -632,14 +635,18 @@ export class NativeHostMainService implements INativeHostMainService {
 
 	async setPassword(windowId: number | undefined, service: string, account: string, password: string): Promise<void> {
 		const keytar = await import('keytar');
-
-		return keytar.setPassword(service, account, password);
+		await keytar.setPassword(service, account, password);
+		this._onDidChangePassword.fire();
 	}
 
 	async deletePassword(windowId: number | undefined, service: string, account: string): Promise<boolean> {
 		const keytar = await import('keytar');
+		const didDelete = await keytar.deletePassword(service, account);
+		if (didDelete) {
 
-		return keytar.deletePassword(service, account);
+			this._onDidChangePassword.fire();
+		}
+		return didDelete;
 	}
 
 	async findPassword(windowId: number | undefined, service: string): Promise<string | null> {
