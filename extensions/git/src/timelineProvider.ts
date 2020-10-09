@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import { CancellationToken, Disposable, env, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
+import { CancellationToken, ConfigurationChangeEvent, Disposable, env, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
@@ -75,6 +75,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly model: Model) {
 		this.disposable = Disposable.from(
 			model.onDidOpenRepository(this.onRepositoriesChanged, this),
+			workspace.onDidChangeConfiguration(this.onConfigurationChanged, this)
 		);
 
 		if (model.repositories.length) {
@@ -109,6 +110,8 @@ export class GitTimelineProvider implements TimelineProvider {
 				repo.onDidRunGitStatus(() => this.onRepositoryStatusChanged(repo))
 			);
 		}
+
+		const config = workspace.getConfiguration('git.timeline');
 
 		// TODO@eamodio: Ensure that the uri is a file -- if not we could get the history of the repo?
 
@@ -146,12 +149,17 @@ export class GitTimelineProvider implements TimelineProvider {
 
 		const dateFormatter = new Intl.DateTimeFormat(env.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 
+		const dateType = config.get<'committed' | 'authored'>('date');
+		const showAuthor = config.get<boolean>('showAuthor');
+
 		const items = commits.map<GitTimelineItem>((c, i) => {
-			const date = c.commitDate; // c.authorDate
+			const date = dateType === 'authored' ? c.authorDate : c.commitDate;
 
 			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
-			item.description = c.authorName;
+			if (showAuthor) {
+				item.description = c.authorName;
+			}
 			item.detail = `${c.authorName} (${c.authorEmail}) — ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${c.message}`;
 			item.command = {
 				title: 'Open Comparison',
@@ -211,6 +219,12 @@ export class GitTimelineProvider implements TimelineProvider {
 	private ensureProviderRegistration() {
 		if (this.providerDisposable === undefined) {
 			this.providerDisposable = workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this);
+		}
+	}
+
+	private onConfigurationChanged(e: ConfigurationChangeEvent) {
+		if (e.affectsConfiguration('git.timeline.date') || e.affectsConfiguration('git.timeline.showAuthor')) {
+			this.fireChanged();
 		}
 	}
 
