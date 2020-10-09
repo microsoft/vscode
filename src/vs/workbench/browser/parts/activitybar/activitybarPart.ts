@@ -6,7 +6,7 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem, ACCOUNTS_VISIBILITY_PREFERENCE_KEY } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -326,8 +326,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return this.showGlobalActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
 		}
 
-		if (viewContainerOrActionId === ACCOUNTS_ACTIIVTY_ID) {
-			return this.showGlobalActivity(ACCOUNTS_ACTIIVTY_ID, badge, clazz, priority);
+		if (viewContainerOrActionId === ACCOUNTS_ACTIVITY_ID) {
+			return this.showGlobalActivity(ACCOUNTS_ACTIVITY_ID, badge, clazz, priority);
 		}
 
 		return Disposable.None;
@@ -636,7 +636,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			}
 		}
 
-		this.updateGlobalActivity(ACCOUNTS_ACTIIVTY_ID);
+		this.updateGlobalActivity(ACCOUNTS_ACTIVITY_ID);
 	}
 
 	private getCompositeActions(compositeId: string): { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction } {
